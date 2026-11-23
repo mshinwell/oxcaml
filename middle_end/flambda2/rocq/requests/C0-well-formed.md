@@ -82,6 +82,7 @@ compiler").
 | 9b | Code has as many parameters as its declared arity has components, unarized | C2, with its first step | Nothing checks that the arity in the metadata of code agrees with its parameters (C2-6); the producers make one from the other |
 | 9c | A call has as many arguments as its own arity has components, unarized | C2, with its first step | Creation function (`Apply_expr.create`, `apply_expr.ml`, 207 to 232) |
 | 10 | The arms of a `Switch` have distinct discriminants | C0 | Type: a map |
+| 13 | The two continuations of the unit, and the exception continuation of code, are given one value wherever they are used: an `Apply_cont`, or an arm of a `Switch`, that applies one of them has one argument, a raise included, a call that returns to the return continuation of the unit has a return arity of one variable, unarized, and a call that has one of them as its exception continuation gives it no extra argument, which row 11f asks already of those that are free and is asked again here by the name (`unit_exits_one_value`). A count: no kind is asked | C2, with C0 | When visited, by accident: Simplify declares each of them with one parameter (`simplify.ml`, `run`; `simplify_expr.ml`, `simplify_toplevel_common`) and stops with `Invalid_argument` on a use that gives another number of values (`Continuation_uses_env.add_continuation_use`). Nothing where a unit is made (`Flambda_unit.create`; C0-6) |
 
 I read the compiler's files for rows 1 to 6, 7d, 9c and the tags; R2
 read them for rows 2, 5, 7a to 7d and 9, and corrected 2, 5, 7a, 7d
@@ -91,7 +92,12 @@ That an `Apply_cont` has as many arguments as the continuation has
 parameters is not a condition. The compiler checks it when the use is
 visited (`Continuation_uses.add_use`), a term it accepts can break it
 in an arm that never runs, and the machine makes it undefined where it
-is executed.
+is executed. Row 13 is of the continuations of which that is not so:
+the two that the unit does not bind, which the machine cannot test (a
+way out of the term has no arity), and the exception continuation of
+code, which stands for what the caller gave. How many values a use of
+one of these gives is the front end's doing, whatever the program is.
+Rows 11 and 12 are in `requests/C5-exceptions.md`.
 
 Rows 7f and 10 are there because the model's value slots and arms are
 lists, of which the first of two wins. They could instead be left out,

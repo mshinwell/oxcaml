@@ -985,6 +985,11 @@ Lemma well_formed_unit_traps_well_formed (u : unit_interface) (e : expr) :
   well_formed_unit u e = true -> traps_well_formed (unit_exn u) e = true.
 Proof. condition. Qed.
 
+Lemma well_formed_unit_exits_one_value (u : unit_interface) (e : expr) :
+  well_formed_unit u e = true ->
+  unit_exits_one_value (unit_return u) (unit_exn u) e = true.
+Proof. condition. Qed.
+
 Lemma well_formed_unit_intro (u : unit_interface) (e : expr) :
   statics_outside_loops_and_code true e = true ->
   distinct (static_names code_ids_of_binding e) = true ->
@@ -996,6 +1001,7 @@ Lemma well_formed_unit_intro (u : unit_interface) (e : expr) :
   numbers_in_range e = true ->
   unit_exn_handlers_well_formed (unit_exn u) e = true ->
   traps_well_formed (unit_exn u) e = true ->
+  unit_exits_one_value (unit_return u) (unit_exn u) e = true ->
   well_formed_unit u e = true.
 Proof. condition. Qed.
 
@@ -1034,4 +1040,42 @@ Proof.
     (unit_run (unit_return u) (unit_exn u) e n
        (well_formed_unit_names_in_scope u e Hwf)
        (well_formed_unit_code_closed u e Hwf)).
+Qed.
+
+(* The examples of the last condition, by computation. *)
+Theorem unit_exits_one_value_examples :
+  unit_exits_one_value_examples_statement.
+Proof.
+  unfold unit_exits_one_value_examples_statement, fails_exits_alone.
+  repeat split; vm_compute; reflexivity.
+Qed.
+
+(* A term that gives [k] one value has no call that gives [k] extra
+   arguments: the last part of [gives_one_value] is the test of
+   [gives_extra_args]. *)
+Fixpoint gives_one_value_no_extra_args (k : continuation) (e : expr)
+    {struct e} :
+  gives_one_value k e = true -> gives_extra_args k e = false.
+Proof.
+  destruct e
+    as [ x kind d body | bindings body | k' h body | handlers body | ap | ac
+       | scrutinee arms | ];
+    simpl; try (intros _; reflexivity).
+  - apply gives_one_value_no_extra_args.
+  - apply gives_one_value_no_extra_args.
+  - destruct h as [params metadata handler]. simpl. intros H.
+    apply andb_true_iff in H as [Hh Hb].
+    rewrite (gives_one_value_no_extra_args k handler Hh),
+      (gives_one_value_no_extra_args k body Hb).
+    reflexivity.
+  - intros H. apply andb_true_iff in H as [Hhs Hb].
+    rewrite (gives_one_value_no_extra_args k body Hb), orb_false_r.
+    induction handlers as [ | [k'' [params metadata handler]] handlers IH];
+      simpl; [ reflexivity | ].
+    simpl in Hhs. apply andb_true_iff in Hhs as [Hh Hrest].
+    rewrite (gives_one_value_no_extra_args k handler Hh), (IH Hrest).
+    reflexivity.
+  - intros H. apply andb_true_iff in H as [_ H].
+    destruct (Pos.eqb k (ap_exn_continuation ap)); [ | reflexivity ].
+    simpl in H. rewrite H. reflexivity.
 Qed.

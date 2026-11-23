@@ -2494,6 +2494,7 @@ Proof.
       [ vm_compute; reflexivity ..
       | idtac
       | vm_compute; reflexivity
+      | vm_compute; reflexivity
       | vm_compute; reflexivity ].
     unfold FlambdaClosuresSpec.parity_static. cbn [numbers_in_range].
     apply andb_true_iff. split; [ vm_compute; reflexivity | ].
@@ -2502,6 +2503,7 @@ Proof.
     apply well_formed_unit_intro;
       [ vm_compute; reflexivity ..
       | idtac
+      | vm_compute; reflexivity
       | vm_compute; reflexivity
       | vm_compute; reflexivity ].
     cbn [numbers_in_range].

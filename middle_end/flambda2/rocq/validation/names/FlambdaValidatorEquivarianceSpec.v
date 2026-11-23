@@ -814,6 +814,24 @@ Definition traps_well_formed_equivariant_statement : Prop :=
     traps_well_formed (rename_continuation r unit_exn) (rename_expr r e)
     = traps_well_formed unit_exn e.
 
+(* One value for each continuation of a unit: the test of how a term
+   uses a continuation ([gives_one_value]), the check of the code that
+   a term binds ([code_raises_one_value]), and the check of a unit. *)
+Definition gives_one_value_equivariant_statement : Prop :=
+  ∀ (r : renaming) (k : continuation) (e : expr),
+    gives_one_value (rename_continuation r k) (rename_expr r e)
+    = gives_one_value k e.
+
+Definition code_raises_one_value_equivariant_statement : Prop :=
+  ∀ (r : renaming) (e : expr),
+    code_raises_one_value (rename_expr r e) = code_raises_one_value e.
+
+Definition unit_exits_one_value_equivariant_statement : Prop :=
+  ∀ (r : renaming) (unit_return unit_exn : continuation) (e : expr),
+    unit_exits_one_value (rename_continuation r unit_return)
+      (rename_continuation r unit_exn) (rename_expr r e)
+    = unit_exits_one_value unit_return unit_exn e.
+
 (* The action on what a unit is given by where it is run: its two
    continuations are renamed. *)
 Definition rename_unit_interface (r : renaming) (u : unit_interface)

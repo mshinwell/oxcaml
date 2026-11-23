@@ -8,6 +8,7 @@ open FlambdaPrimitiveSpec
 open List
 open ListDef
 open OxCamlList
+open PeanoNat
 
 val free_continuations : expr -> continuation list
 
@@ -152,6 +153,22 @@ val binding_traps_well_formed : static_binding -> bool
 val code_traps_well_formed : code -> bool
 
 val traps_well_formed : continuation -> expr -> bool
+
+val gives_one : continuation -> apply_cont -> bool
+
+val gives_one_value : continuation -> expr -> bool
+
+val handler_gives_one_value : continuation -> continuation_handler -> bool
+
+val code_raises_one_value : expr -> bool
+
+val handler_code_raises_one_value : continuation_handler -> bool
+
+val binding_raises_one_value : static_binding -> bool
+
+val raises_of_code_one_value : code -> bool
+
+val unit_exits_one_value : continuation -> continuation -> expr -> bool
 
 type unit_interface =
   { unit_return : continuation;

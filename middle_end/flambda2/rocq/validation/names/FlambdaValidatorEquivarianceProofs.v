@@ -1593,6 +1593,27 @@ Theorem installs_or_removes_equivariant :
 Proof. equivariance. Qed.
 #[local] Hint Rewrite installs_or_removes_equivariant : equivariance.
 
+(* One value for each continuation of a unit. *)
+
+Lemma gives_one_renamed (r : renaming) (k : continuation) (ac : apply_cont) :
+  gives_one (rename_continuation r k) (rename_apply_cont r ac)
+  = gives_one k ac.
+Proof. equivariance. Qed.
+#[local] Hint Rewrite gives_one_renamed : equivariance.
+
+Theorem gives_one_value_equivariant : gives_one_value_equivariant_statement.
+Proof. equivariance. Qed.
+#[local] Hint Rewrite gives_one_value_equivariant : equivariance.
+
+Theorem code_raises_one_value_equivariant :
+  code_raises_one_value_equivariant_statement.
+Proof. equivariance. Qed.
+#[local] Hint Rewrite code_raises_one_value_equivariant : equivariance.
+
+Theorem unit_exits_one_value_equivariant :
+  unit_exits_one_value_equivariant_statement.
+Proof. equivariance. Qed.
+
 (* By autorewrite from here to the end of the section. *)
 #[local] Ltac eqv_database ::= eqv_database_by_autorewrite.
 Theorem ways_out_well_formed_equivariant :
@@ -2125,7 +2146,7 @@ Proof. exact traps_well_formed_renamed. Qed.
    hints. *)
 #[local] Hint Rewrite sets_well_formed_equivariant
   numbers_in_range_equivariant unit_exn_handlers_well_formed_equivariant
-  traps_well_formed_renamed : equivariance.
+  traps_well_formed_renamed unit_exits_one_value_equivariant : equivariance.
 #[local] Hint Rewrite static_names_renamed
   using (intros; solve [ eqv_core ]) : equivariance.
 #[local] Instance wf_unit_interface_renaming : Renaming_of unit_interface :=

@@ -794,6 +794,11 @@ says so. Only the labels that this tree cites are listed.
   in a unit.
 - **C0-5.** Code is checked to be closed against the free names its
   creator supplies.
+- **C0-6.** Nothing checks, where a unit or code is made, that each
+  use of the return continuation of a unit, or of the exception
+  continuation of a unit or of code, gives it one value; Simplify stops
+  on a use that gives another number where it visits the use, and only
+  by accident.
 - **C1-1.** Simplify replaces an integer division or remainder by zero
   with `Invalid`.
 - **C1-2.** The least integer divided by -1 wraps to itself, and its

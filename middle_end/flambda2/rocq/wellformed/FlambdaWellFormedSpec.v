@@ -47,7 +47,13 @@
    set_traps, Stack_offset_and_exn.process_basic; backend/ssa/ssa.ml:
    compute_block_end_trap_stack) and what the front end builds
    (from_lambda/lambda_to_flambda.ml, the case Ltrywith;
-   closure_conversion.ml, close_raise0), [well_formed_unit], and the
+   closure_conversion.ml, close_raise0), [unit_exits_one_value] against
+   how Simplify declares the continuations of a unit and of code
+   (simplify/simplify.ml, run; simplify_expr.ml,
+   simplify_toplevel_common; env/continuation_uses.ml, add_use) and
+   against the uses of them that the front end makes
+   (from_lambda/closure_conversion.ml: close_program,
+   wrap_final_module_block, close_raise0), [well_formed_unit], and the
    statements. Three of the conditions of [well_formed_unit] are
    defined in FlambdaBindersSpec.v and are reviewed there, against the
    compiler's binders: [names_in_scope], [binders_distinct] and
@@ -97,9 +103,12 @@
    [well_formed_unit] asks [statics_outside_loops_and_code], and
    also that no code id or symbol is bound twice, that the sets of
    closures of the unit are whole ([sets_well_formed]), that its
-   numbers are in range ([numbers_in_range]), and that its exception
+   numbers are in range ([numbers_in_range]), that its exception
    handlers and trap actions are in order
-   ([unit_exn_handlers_well_formed], [traps_well_formed]).
+   ([unit_exn_handlers_well_formed], [traps_well_formed]), and that its
+   two continuations, and the exception continuation of each piece of
+   its code, are given one value wherever they are used
+   ([unit_exits_one_value]).
 
    It asks three things of the variables and the continuations of the
    unit as well, which are rows 3, 5 and 6 of the table of
@@ -190,6 +199,16 @@
    [Apply_cont]s that to_cmm takes for raises are those that the term
    says are raises. FlambdaTrapProofs.v has examples of terms that each
    check accepts and refuses.
+
+   One value for each continuation of a unit. Where a unit is run its
+   return continuation takes the module block and its exception
+   continuation the exception, and the exception continuation of code
+   takes the exception. [unit_exits_one_value] asks that each use of
+   one of them gives it one value. The machine cannot ask it of a
+   unit: a way out of the term that it runs has no arity to test a use
+   against (FlambdaSemanticsSpec.apply_cont_value). It is a count and
+   no agreement of kinds: nothing is asked of the kind of the value.
+   The comment at the definition says what the compiler checks.
 
    The machine enforces the part of this that keeps a static binding from
    being executed more than once. Calling code whose body binds something
@@ -940,9 +959,12 @@ with handler_installs_or_removes (k : continuation)
      of code and of a unit takes the exception alone. It is an invariant
      of what the front end and the transformations build, which give
      extra arguments only to the handlers of a [try]. It is not an
-     agreement of kinds, and it says nothing of a way out that is
-     applied to the wrong number of values in another way, which stays
-     defined. Discrepancy C5-5.
+     agreement of kinds. Of a way out that is applied to the wrong
+     number of values in another way it says nothing:
+     [unit_exits_one_value], below, refuses that of the two
+     continuations of a unit and of the exception continuation of
+     code, and of any other way out it stays defined. Discrepancy
+     C5-5.
    For the second thing asked, that [exn] is not installed or removed
    apart from a raise, the compiler has a check when it visits the term:
    to_cmm stops on a trap action that names the exception continuation
@@ -1298,6 +1320,137 @@ Definition traps_well_formed (unit_exn : continuation) (e : expr) : bool :=
   end.
 
 (* ======================================================================== *)
+(* One value for each continuation of a unit                                *)
+(* ======================================================================== *)
+
+(* Whether the [Apply_cont] gives [k] one argument, if it is [k] that it
+   applies. A raise is counted as any other: its one argument is the
+   exception. *)
+Definition gives_one (k : continuation) (ac : apply_cont) : bool :=
+  negb (Pos.eqb k (ac_continuation ac)) || Nat.eqb (length (ac_args ac)) 1.
+
+(* Whether every use of [k] in the expression gives it one value: an
+   [Apply_cont], or an arm of a [Switch], that applies [k] has one
+   argument; a call that returns to [k] has a return arity of one
+   variable, unarized; and a call whose exception continuation is [k]
+   gives it no extra argument, so the exception alone. The last is
+   what [gives_extra_args] tests, and [ways_out_well_formed] asks it
+   of each continuation that is free in a unit or in the body of code;
+   it is asked here again, of [k] by its name, so that this one test
+   says all that [k] is given, whether or not [k] is free in the
+   expression. Code is not looked into, as [k] is not in scope there.
+   As [applies_cont], this goes by the name and does not follow
+   rebinding. *)
+Fixpoint gives_one_value (k : continuation) (e : expr) : bool :=
+  match e with
+  | Let _ _ _ body | Let_static _ body => gives_one_value k body
+  | Let_cont_non_recursive _ h body =>
+    handler_gives_one_value k h && gives_one_value k body
+  | Let_cont_recursive handlers body =>
+    forallb (fun '(_, h) => handler_gives_one_value k h) handlers
+    && gives_one_value k body
+  | Apply ap =>
+    (negb (Pos.eqb k (ap_continuation ap))
+     || Nat.eqb (cardinal_unarized (ap_return_arity ap)) 1)
+    && (negb (Pos.eqb k (ap_exn_continuation ap)) || no_exn_extra_args ap)
+  | Apply_cont ac => gives_one k ac
+  | Switch _ arms => forallb (fun arm => gives_one k (snd arm)) arms
+  | Invalid => true
+  end
+with handler_gives_one_value (k : continuation) (h : continuation_handler)
+    : bool :=
+  match h with
+  | Handler _ _ handler => gives_one_value k handler
+  end.
+
+(* The exception continuation of each piece of code that the expression
+   binds, at any depth, is given one value in the body of that code
+   ([gives_one_value]). No call returns to the exception continuation
+   of code and nothing but a raise applies it
+   ([code_exn_handlers_well_formed]), so this is of the raises to it
+   and of the calls that have it as their exception continuation: each
+   gives the exception and nothing else. *)
+Fixpoint code_raises_one_value (e : expr) : bool :=
+  match e with
+  | Let _ _ _ body => code_raises_one_value body
+  | Let_static bindings body =>
+    forallb binding_raises_one_value bindings && code_raises_one_value body
+  | Let_cont_non_recursive _ h body =>
+    handler_code_raises_one_value h && code_raises_one_value body
+  | Let_cont_recursive handlers body =>
+    forallb (fun '(_, h) => handler_code_raises_one_value h) handlers
+    && code_raises_one_value body
+  | Apply _ | Apply_cont _ | Switch _ _ | Invalid => true
+  end
+with handler_code_raises_one_value (h : continuation_handler) : bool :=
+  match h with
+  | Handler _ _ handler => code_raises_one_value handler
+  end
+with binding_raises_one_value (binding : static_binding) : bool :=
+  match binding with
+  | Bind_code _ c => raises_of_code_one_value c
+  | Bind_deleted_code _ | Bind_symbol _ _ => true
+  end
+with raises_of_code_one_value (c : code) : bool :=
+  match c with
+  | Code _ _ _ exn _ body =>
+    gives_one_value exn body && code_raises_one_value body
+  end.
+
+(* The two continuations of a unit, and the exception continuation of
+   each piece of code that it binds, are given one value wherever they
+   are used: the return continuation of the unit the module block, and
+   an exception continuation the exception.
+   - An [Apply_cont], or an arm of a [Switch], that applies the return
+     continuation of the unit has one argument, and a call that
+     returns to it has a return arity of one variable, unarized.
+   - A raise to the exception continuation of the unit, or of code,
+     has one argument. Nothing but a raise applies such a continuation
+     and no call returns to it ([unit_exn_handlers_well_formed],
+     [code_exn_handlers_well_formed]).
+   - A call that has one of them as its exception continuation gives
+     it no extra argument. [ways_out_well_formed] asks this already of
+     each of them that is free in the unit, or in the body of the
+     code; it is asked here again by the name.
+   Nothing is asked here of the return continuation of code.
+
+   Without this a unit could leave with any number of values: a way
+   out of the term ends the run whatever the values that it is applied
+   to (FlambdaSemanticsSpec.apply_cont_value), having no arity to test
+   them against. It is a count and no agreement of kinds: nothing is
+   asked of the kind of the value, nor of the kind that the return
+   arity of the call gives.
+
+   The model is stricter than the compiler here. Simplify declares the
+   return continuation of a unit with one parameter, of kind value
+   (Simplify.run), and the exception continuation of a unit and of
+   code with one (Simplify_expr.simplify_toplevel_common). It stops on
+   a use that gives another number of values where it visits the use
+   and nowhere else, and only by accident (an [Invalid_argument] in
+   Continuation_uses_env.add_continuation_use, which pairs the values
+   with the arity before Continuation_uses.add_use compares the two).
+   to_cmm gives the return continuation of a unit a handler of one
+   parameter (To_cmm.unit0). Nothing is checked where a unit is made
+   (Flambda_unit.create). It is an invariant of what the front end
+   builds. The one use of the return continuation of a unit gives it
+   the symbol of the module
+   (Closure_conversion.wrap_final_module_block; close_program makes
+   the continuation, so the program that it is given cannot name it).
+   A raise gives the exception followed by the extra arguments of its
+   exception continuation (Closure_conversion.close_raise0), and the
+   front end gives extra arguments to the handlers of a [try] alone,
+   as is said at [ways_out_well_formed]. Discrepancy C0-6.
+
+   The check goes by names and does not follow rebinding, so it may
+   refuse a term that binds the name of one of these continuations
+   again. *)
+Definition unit_exits_one_value (unit_return unit_exn : continuation)
+    (e : expr) : bool :=
+  gives_one_value unit_return e
+  && gives_one_value unit_exn e
+  && code_raises_one_value e.
+
+(* ======================================================================== *)
 (* Well-formed units                                                        *)
 (* ======================================================================== *)
 
@@ -1318,10 +1471,13 @@ Record unit_interface : Type := Unit_interface {
    and its continuations are in scope, the names of each binder are
    distinct and its code has no free name but its own binders; its sets
    of closures are whole; its numbers are in range; its exception
-   handlers are apart from its other continuations; and it follows the
-   discipline of trap actions. The conditions are in the order of the
-   rows of the table of requests/C0-well-formed.md (1, 2, 3, 5, 6, 7 and
-   8), then rows 11 and 12 of requests/C5-exceptions.md. *)
+   handlers are apart from its other continuations; it follows the
+   discipline of trap actions; and its two continuations, and the
+   exception continuation of its code, are each given one value. The
+   conditions are in the order of the rows of the table of
+   requests/C0-well-formed.md (1, 2, 3, 5, 6, 7 and 8), then rows 11
+   and 12 of requests/C5-exceptions.md, then row 13 of
+   requests/C0-well-formed.md. *)
 Definition well_formed_unit (u : unit_interface) (e : expr) : bool :=
   statics_outside_loops_and_code true e
   && distinct (static_names code_ids_of_binding e)
@@ -1332,7 +1488,78 @@ Definition well_formed_unit (u : unit_interface) (e : expr) : bool :=
   && sets_well_formed e
   && numbers_in_range e
   && unit_exn_handlers_well_formed (unit_exn u) e
-  && traps_well_formed (unit_exn u) e.
+  && traps_well_formed (unit_exn u) e
+  && unit_exits_one_value (unit_return u) (unit_exn u) e.
+
+(* ======================================================================== *)
+(* One value for each continuation of a unit: examples                      *)
+(* ======================================================================== *)
+
+(* Examples. The return continuation of the unit is [1] and its
+   exception continuation [2]. The first unit binds a symbol and gives
+   it, alone, to its return continuation, as the front end makes a unit
+   end. Each of the four others gives one continuation two values: the
+   return continuation of the unit, by an [Apply_cont]; the same, by a
+   call that returns to it at a return arity of two values; the
+   exception continuation of the unit, by a raise; and the exception
+   continuation of code that the unit binds, by a raise in that code. *)
+Definition exits_example_interface : unit_interface :=
+  Unit_interface 1%positive 2%positive.
+
+Definition exits_example_one : expr :=
+  Let_static [Bind_symbol 1%positive (Static_const_block 0 [])]
+    (Apply_cont (Apply_cont_expr 1%positive [Symbol 1%positive] None)).
+
+Definition exits_example_two_values : list simple :=
+  [Const (Tagged_immediate 0); Const (Tagged_immediate 0)].
+
+Definition exits_example_return_two : expr :=
+  Apply_cont (Apply_cont_expr 1%positive exits_example_two_values None).
+
+Definition exits_example_call_of_two : expr :=
+  Apply
+    (Apply_expr (Const (Tagged_immediate 0)) Indirect_unknown_arity []
+       1%positive 2%positive [] [] [Singleton Value; Singleton Value]).
+
+Definition exits_example_raise_two : expr :=
+  Apply_cont
+    (Apply_cont_expr 2%positive exits_example_two_values
+       (Some (Pop 2%positive None))).
+
+Definition exits_example_code_raises_two : expr :=
+  Let_static
+    [Bind_code 1%positive
+       (Code [] 1%positive 3%positive 4%positive
+          (make_code_metadata [] [Singleton Value])
+          (Apply_cont
+             (Apply_cont_expr 4%positive exits_example_two_values
+                (Some (Pop 4%positive None)))))]
+    (Apply_cont
+       (Apply_cont_expr 1%positive [Const (Tagged_immediate 0)] None)).
+
+(* The unit passes every condition of [well_formed_unit] but the last. *)
+Definition fails_exits_alone (u : unit_interface) (e : expr) : Prop :=
+  statics_outside_loops_and_code true e = true
+  ∧ distinct (static_names code_ids_of_binding e) = true
+  ∧ distinct (static_names symbols_of_binding e) = true
+  ∧ names_in_scope (unit_return u) (unit_exn u) e = true
+  ∧ binders_distinct e = true
+  ∧ code_closed e = true
+  ∧ sets_well_formed e = true
+  ∧ numbers_in_range e = true
+  ∧ unit_exn_handlers_well_formed (unit_exn u) e = true
+  ∧ traps_well_formed (unit_exn u) e = true
+  ∧ unit_exits_one_value (unit_return u) (unit_exn u) e = false.
+
+(* The first unit is well-formed. Each of the others fails
+   [unit_exits_one_value] and no other condition: the condition is not
+   implied by the ten before it. *)
+Definition unit_exits_one_value_examples_statement : Prop :=
+  well_formed_unit exits_example_interface exits_example_one = true
+  ∧ fails_exits_alone exits_example_interface exits_example_return_two
+  ∧ fails_exits_alone exits_example_interface exits_example_call_of_two
+  ∧ fails_exits_alone exits_example_interface exits_example_raise_two
+  ∧ fails_exits_alone exits_example_interface exits_example_code_raises_two.
 
 (* ======================================================================== *)
 (* What is bound stays bound                                                *)

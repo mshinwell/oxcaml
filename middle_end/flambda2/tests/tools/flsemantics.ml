@@ -6867,6 +6867,15 @@ let why_not_well_formed (unit : converted) =
   then
     "a static binding in the handler of a recursive continuation or in the \
      body of code"
+  else if
+    not
+      (Well_formed.unit_exits_one_value unit.return_continuation exn unit.body)
+  then
+    "a use of the return continuation of the unit, or of the exception \
+     continuation of the unit or of code, that gives it another number of \
+     values than one; a call that returns to the return continuation of the \
+     unit at a return arity of another number of values than one; or a call \
+     that gives one of them extra arguments as its exception continuation"
   else "a code id or a symbol bound twice"
 
 (* What a unit is given by where it is run: the continuation that it returns to

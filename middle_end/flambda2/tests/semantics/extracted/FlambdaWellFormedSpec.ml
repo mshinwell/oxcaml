@@ -8,6 +8,7 @@ open FlambdaPrimitiveSpec
 open List
 open ListDef
 open OxCamlList
+open PeanoNat
 
 (** val free_continuations : expr -> continuation list **)
 
@@ -738,6 +739,78 @@ let traps_well_formed unit_exn0 e =
       ds
   | None -> false
 
+(** val gives_one : continuation -> apply_cont -> bool **)
+
+let gives_one k ac =
+  negb (Pos.eqb k ac.ac_continuation) || Nat.eqb (length ac.ac_args) (S O)
+
+(** val gives_one_value : continuation -> expr -> bool **)
+
+let rec gives_one_value k = function
+  | Let (_, _, _, body) -> gives_one_value k body
+  | Let_static (_, body) -> gives_one_value k body
+  | Let_cont_non_recursive (_, h, body) ->
+    handler_gives_one_value k h && gives_one_value k body
+  | Let_cont_recursive (handlers, body) ->
+    forallb
+      (fun pat ->
+        let _, h = pat in
+        handler_gives_one_value k h)
+      handlers
+    && gives_one_value k body
+  | Apply ap ->
+    (negb (Pos.eqb k ap.ap_continuation)
+    || Nat.eqb (cardinal_unarized ap.ap_return_arity) (S O))
+    && (negb (Pos.eqb k ap.ap_exn_continuation) || no_exn_extra_args ap)
+  | Apply_cont ac -> gives_one k ac
+  | Switch (_, arms) -> forallb (fun arm -> gives_one k (snd arm)) arms
+  | Invalid -> true
+
+(** val handler_gives_one_value : continuation -> continuation_handler -> bool **)
+
+and handler_gives_one_value k = function
+  | Handler (_, _, handler) -> gives_one_value k handler
+
+(** val code_raises_one_value : expr -> bool **)
+
+let rec code_raises_one_value = function
+  | Let (_, _, _, body) -> code_raises_one_value body
+  | Let_static (bindings, body) ->
+    forallb binding_raises_one_value bindings && code_raises_one_value body
+  | Let_cont_non_recursive (_, h, body) ->
+    handler_code_raises_one_value h && code_raises_one_value body
+  | Let_cont_recursive (handlers, body) ->
+    forallb
+      (fun pat ->
+        let _, h = pat in
+        handler_code_raises_one_value h)
+      handlers
+    && code_raises_one_value body
+  | _ -> true
+
+(** val handler_code_raises_one_value : continuation_handler -> bool **)
+
+and handler_code_raises_one_value = function
+  | Handler (_, _, handler) -> code_raises_one_value handler
+
+(** val binding_raises_one_value : static_binding -> bool **)
+
+and binding_raises_one_value = function
+  | Bind_code (_, c) -> raises_of_code_one_value c
+  | _ -> true
+
+(** val raises_of_code_one_value : code -> bool **)
+
+and raises_of_code_one_value = function
+  | Code (_, _, _, exn, _, body) ->
+    gives_one_value exn body && code_raises_one_value body
+
+(** val unit_exits_one_value : continuation -> continuation -> expr -> bool **)
+
+let unit_exits_one_value unit_return0 unit_exn0 e =
+  (gives_one_value unit_return0 e && gives_one_value unit_exn0 e)
+  && code_raises_one_value e
+
 type unit_interface =
   { unit_return : continuation;
     unit_exn : continuation
@@ -746,13 +819,14 @@ type unit_interface =
 (** val well_formed_unit : unit_interface -> expr -> bool **)
 
 let well_formed_unit u e =
-  ((((((((statics_outside_loops_and_code true e
-         && distinct (static_names code_ids_of_binding e))
-        && distinct (static_names symbols_of_binding e))
-       && names_in_scope u.unit_return u.unit_exn e)
-      && binders_distinct e)
-     && code_closed e)
-    && sets_well_formed e)
-   && numbers_in_range e)
-  && unit_exn_handlers_well_formed u.unit_exn e)
-  && traps_well_formed u.unit_exn e
+  (((((((((statics_outside_loops_and_code true e
+          && distinct (static_names code_ids_of_binding e))
+         && distinct (static_names symbols_of_binding e))
+        && names_in_scope u.unit_return u.unit_exn e)
+       && binders_distinct e)
+      && code_closed e)
+     && sets_well_formed e)
+    && numbers_in_range e)
+   && unit_exn_handlers_well_formed u.unit_exn e)
+  && traps_well_formed u.unit_exn e)
+  && unit_exits_one_value u.unit_return u.unit_exn e
