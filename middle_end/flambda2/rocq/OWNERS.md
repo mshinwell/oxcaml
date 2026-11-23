@@ -338,6 +338,10 @@ design out; that is the request, not the change.
     machine of regions: code cannot end a region of its caller, and
     what follows of the values that a run exits with; C5's, though
     the names match the pattern of C2's files)
+  - `middle_end/flambda2/rocq/regions/REFINEMENT.md` (a page for
+    whoever has a refinement that is proved on the machine of
+    `FlambdaSemanticsSpec.v`: what to prove of two units with their
+    regions dropped, and what follows on C2's machine of regions)
   - `middle_end/flambda2/rocq/status/C5.md`
   - the examples `middle_end/flambda2/tests/semantics/`
     `exn_extra_args.fl`, `push_unit_return.fl`, `raise_in_call.fl`,

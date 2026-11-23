@@ -34,7 +34,7 @@
 
    This file is to be reviewed: all of it. It adds nothing to the
    machine, to the check or to the property of states.
-   FlambdaRegionsCheckSoundProofs.v proves its six statements.
+   FlambdaRegionsCheckSoundProofs.v proves its eight statements.
 
    Every statement here is of runs from the first state of a term in
    a static environment ([initial_region_state]), under those two
@@ -61,8 +61,9 @@
 
    The two statements of FlambdaRegionsCheckSpec.v about a run of
    Simplify take [regions_add_no_fault] of the term after as a
-   premise. The last four statements here are those two with the
-   check in the place of that premise, each in two forms.
+   premise. The last six statements here are those two with the
+   check in the place of that premise: each in two forms, and in the
+   first form again of a unit with its imports.
 
    In the first form ([refined_and_checked_safe_statement],
    [refined_and_checked_exits_agree_statement]) a premise is
@@ -75,6 +76,23 @@
    a step; and, under the freshness and [erasable] of both terms, an
    exit of the term before with its regions is an exit of the term
    after with its regions.
+
+   The first form of a unit with its imports
+   ([unit_refined_and_checked_safe_statement],
+   [unit_refined_and_checked_exits_agree_statement]) is the first
+   form at the static environment of the imports
+   ([FlambdaImportsSpec.imports_statics]), with
+   [FlambdaImportsSpec.unit_refines] of the two terms with their
+   regions dropped ([erase]) in the place of [refines] of their first
+   states. The two are one proposition: [erase_statics] leaves the
+   static environment of the imports, which has no code, as it is.
+   It is for a refinement that is proved, on the machine of
+   FlambdaSemanticsSpec.v, of the two terms with their regions
+   dropped. A refinement of the two terms as they are, on that
+   machine, says nothing of a term before whose run comes to a
+   primitive of regions: the machine gives the primitive no value,
+   and the run is undefined there. regions/REFINEMENT.md says how a
+   statement about a pass is brought to these two.
 
    The second form ([validated_and_checked_safe_statement],
    [validated_and_checked_exits_agree_statement]) is of a unit with
@@ -236,6 +254,55 @@ Definition refined_and_checked_exits_agree_statement : Prop :=
     erasable after statics = true ->
     refines (erased_initial_state before statics)
       (erased_initial_state after statics) ->
+    ~ behaves (erased_initial_state before statics) Goes_wrong ->
+    region_check cert statics after = true ->
+    ∀ (fuel : nat) (k : continuation) (vs : list value) (rs : region_state),
+      region_run fuel (initial_region_state before statics base)
+      = Region_exit k vs rs ->
+      ∃ (fuel' : nat) (ws : list value) (rs' : region_state)
+        (us : list value),
+        region_run fuel' (initial_region_state after statics base)
+        = Region_exit k ws rs'
+        ∧ Forall2 (value_erased_if_usable rs) vs us
+        ∧ Forall2 (value_erased_if_usable rs') ws us.
+
+(* [refined_and_checked_safe_statement] of a unit with its imports,
+   for a refinement that is proved on the machine of
+   FlambdaSemanticsSpec.v of the two terms with their regions
+   dropped. The static environment is that of the imports, and
+   [unit_refines] of [erase] of the two terms is in the place of
+   [refines] of their first states there: the two are one
+   proposition, as [erase_statics] leaves a static environment that
+   has no code as it is. The other premises are those of
+   [refined_and_checked_safe_statement] at that static environment.
+   Nothing is asked of the regions of the term before. *)
+Definition unit_refined_and_checked_safe_statement : Prop :=
+  ∀ (imports : list (symbol * import_class)) (cert : certificate)
+    (base : symbol) (before after : expr),
+    let statics := imports_statics imports in
+    unit_refines imports (erase [] before) (erase [] after) ->
+    ~ behaves (erased_initial_state before statics) Goes_wrong ->
+    region_check cert statics after = true ->
+    region_names_fresh base after statics = true ->
+    erasable after statics = true ->
+    region_safe (initial_region_state after statics base).
+
+(* And then the two runs compute the same, as in
+   [refined_and_checked_exits_agree_statement] and with its other
+   premises at the static environment of the imports: an exit of the
+   term before with its regions is an exit of the term after with its
+   regions, through the same continuation, with values that are
+   erased to the same values where they may be evaluated or are
+   locations. *)
+Definition unit_refined_and_checked_exits_agree_statement : Prop :=
+  ∀ (imports : list (symbol * import_class)) (cert : certificate)
+    (base : symbol) (before after : expr),
+    let statics := imports_statics imports in
+    region_names_fresh base before statics = true ->
+    region_names_fresh base after statics = true ->
+    erasable before statics = true ->
+    erasable after statics = true ->
+    unit_refines imports (erase [] before) (erase [] after) ->
     ~ behaves (erased_initial_state before statics) Goes_wrong ->
     region_check cert statics after = true ->
     ∀ (fuel : nat) (k : continuation) (vs : list value) (rs : region_state),

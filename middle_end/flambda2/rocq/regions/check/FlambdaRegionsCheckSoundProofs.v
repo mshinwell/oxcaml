@@ -25,7 +25,7 @@
  * DEALINGS IN THE SOFTWARE.                                                  *
  ******************************************************************************)
 
-(* Proofs of the six statements of FlambdaRegionsCheckSoundSpec.v. That
+(* Proofs of the eight statements of FlambdaRegionsCheckSoundSpec.v. That
    where a run stops because [step] has no step the run of the term with
    its regions dropped goes wrong is C3's, of FlambdaRegionsNoStepProofs.v,
    whose last theorem has the text of the statement. That the check is
@@ -35,10 +35,13 @@
    of Simplify of which [refines] is a premise are those of
    FlambdaRegionsCheckProofs.v, with the soundness of the check for their
    premise [regions_add_no_fault]. The two of a unit with its imports
-   follow from them: the theorem of the validation with imports gives
-   [unit_refines] of the two terms that the validation is given, the
-   comparison up to bound names is sound, and [refines] is transitive.
-   Nothing here needs review. *)
+   and [unit_refines] of the two terms with their regions dropped are
+   those two at the static environment of the imports: that premise
+   is their premise [refines], by computation. The two of a unit with
+   its imports and a verdict follow from them: the theorem of the
+   validation with imports gives [unit_refines] of the two terms that
+   the validation is given, the comparison up to bound names is
+   sound, and [refines] is transitive. Nothing here needs review. *)
 
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
@@ -107,6 +110,44 @@ Proof.
     (checked_exits_agree statics base before after Hfresh Hfresh' Herasable
        Herasable' Hrefines Hdefined
        (region_check_sound cert statics base after Hcheck Hfresh' Herasable')).
+Qed.
+
+(* ======================================================================== *)
+(* The same, of a unit with its imports and a refinement of the two terms   *)
+(* with their regions dropped                                               *)
+(* ======================================================================== *)
+
+(* [unit_refines] of the two terms with their regions dropped is
+   [refines] of the states from which the erasure runs them in the
+   static environment of the imports: [erase_statics] leaves that
+   static environment as it is, by computation. *)
+Lemma unit_refines_erased (imports : list (symbol * import_class))
+    (before after : expr) :
+  unit_refines imports (erase [] before) (erase [] after) ->
+  refines (erased_initial_state before (imports_statics imports))
+    (erased_initial_state after (imports_statics imports)).
+Proof. intros Hrefines. exact Hrefines. Qed.
+
+Theorem unit_refined_and_checked_safe :
+  unit_refined_and_checked_safe_statement.
+Proof.
+  intros imports cert base before after statics Hrefines Hdefined Hcheck
+    Hfresh Herasable.
+  exact
+    (refined_and_checked_safe cert statics base before after
+       (unit_refines_erased imports before after Hrefines) Hdefined Hcheck
+       Hfresh Herasable).
+Qed.
+
+Theorem unit_refined_and_checked_exits_agree :
+  unit_refined_and_checked_exits_agree_statement.
+Proof.
+  intros imports cert base before after statics Hfresh Hfresh' Herasable
+    Herasable' Hrefines Hdefined Hcheck.
+  exact
+    (refined_and_checked_exits_agree cert statics base before after Hfresh
+       Hfresh' Herasable Herasable'
+       (unit_refines_erased imports before after Hrefines) Hdefined Hcheck).
 Qed.
 
 (* ======================================================================== *)
