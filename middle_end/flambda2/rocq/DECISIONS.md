@@ -1293,18 +1293,24 @@ says so. Only the labels that this tree cites are listed.
   variables that the join imported from a branch.
 - **T4-2.** A meet that reads the type of a name holding poison can
   answer bottom, or add a false alias, with every other premise true.
-- **T4-3.** The meet answers bottom for two function types of one slot
-  with different code, also where the index does not say that the set
-  has the slot.
+- **T4-3.** Where the meet of two code ids answers bottom (T4-4), the
+  meet answers bottom for two function types of one slot that name
+  them, also where the index does not say that the set has the slot.
 - **T4-4.** The meet of code ids goes by the code age relation of the
-  environment for one compilation unit. Where the compiler has no
-  relation for the unit of a code id it answers both inputs; the model
-  has one unit and, on a relation in which no code id is a newer
-  version of itself, answers bottom for two code ids of which neither
-  is a newer version of the other. And a function type of the model
-  means the very code that it names, where the compiler means that code
-  or a newer version of it: with that meaning the meet of two versions
-  of one code loses no value because no value has both types.
+  environment for one compilation unit. Where the compiler's
+  `Code_age_relation.meet` cannot tell and answers `Unknown` (neither
+  code id is found to be a newer version of the other, and one of the
+  two searches reaches a code id of another unit for which there is no
+  relation), `meet_code_id` answers both inputs. The model has one
+  unit, where `Unknown` does not arise; on a relation in which no code
+  id is a newer version of itself it answers the newer of two
+  different code ids of which one is a newer version of the other, and
+  bottom for two of which neither is. And a function type of the model
+  means the very code that it names, where the compiler means that
+  code or a newer version of it. With the model's meaning the meet of
+  two versions of one code loses no value because no value has both
+  types; with the compiler's a closure of the newer version has both,
+  and that the meet keeps it is not stated in this tree yet.
 - **T4-5.** The meet deduces a type of blocks or of immediates for a
   scrutinee from a relation, also where the scrutinee holds poison.
 - **T4-6.** The reduction from a `Get_tag` relation drops the numbers
