@@ -460,8 +460,10 @@ new variables by looking at the names it is given.
   newer when one code id is a later version of the other, and bottom
   when neither is; `FlambdaMeetCodeAgeSpec.v` says so, of a relation
   in which no code id is a newer version of itself. The compiler
-  answers either input when it cannot tell, which is for code of
-  another unit; the model has one unit and never answers so (T4-4).
+  answers either input when `Code_age_relation.meet` cannot tell and
+  answers `Unknown`, which needs a code id of another unit for which
+  there is no relation; the model has one unit, where `Unknown` does
+  not arise (T4-4).
   The meaning of a function type is still the very code that it names,
   so, for two versions of one code, the clause of the contract that no
   value is lost holds because no value has both types. What the
@@ -640,8 +642,9 @@ The entries of this stream:
   can: a variable of unknown type asks nothing). Question 4.
 - T4-2: a meet through a name that holds poison (section 3).
 - T4-3: a function type of a slot that the index does not have: the
-  meet answers bottom for two different code ids at such a slot, and a
-  closure whose set has no such slot has both types. Same root as T1-4.
+  meet answers bottom at such a slot for two code ids for which the
+  meet of code ids answers bottom (section 7), and a closure whose set
+  has no such slot has both types. Same root as T1-4.
 - T4-4: code age (section 7).
 - T4-5: a relation on a scrutinee that holds poison (section 3).
 - T4-6: tags out of range in the `Get_tag` reduction (section 8).

@@ -214,8 +214,9 @@
      function type only if every input has one: it kept a function
      type under an index that does not say that the set has the
      function (T1-4). On such a type the meet answers bottom for two
-     function types of one slot with different code, and a closure of
-     a set without that slot has both types (discrepancy T4-3).
+     function types of one slot that name two code ids for which the
+     meet of code ids answers bottom ("Code ids" below), and a closure
+     of a set without that slot has both types (discrepancy T4-3).
      That a type is not an alias to a poison constant is not asked:
      the compiler makes such types
      ([Typing_env.type_simple_in_term_exn]), and nothing goes wrong
