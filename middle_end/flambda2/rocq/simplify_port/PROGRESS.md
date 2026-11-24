@@ -29,12 +29,12 @@ compiler's own definitions; alone: no interface).
 | `expr_builder.ml` | 800 | 25 | 25 | loose:8 type:4 | yes | strict |
 | `flow/control_flow_graph.ml` | 476 | 9 | 9 | type:1 verbatim:3 decl:1 papp:1 | yes | strict |
 | `flow/data_flow_graph.ml` | 451 | 11 | 11 | loose:5 decl:1 papp:2 | yes | strict |
-| `flow/dominator_graph.ml` | 359 | 14 | 14 | verbatim:1 decl:2 | yes | strict |
+| `flow/dominator_graph.ml` | 359 | 14 | 14 | verbatim:1 decl:1 | yes | strict |
 | `flow/flow.ml` | 16 | 0 | 0 | none | yes | strict |
 | `flow/flow_acc.ml` | 638 | 32 | 32 | loose:3 | yes | strict |
 | `flow/flow_analysis.ml` | 211 | 7 | 4 | verbatim:1 init:3 papp:2 | yes | strict |
 | `flow/flow_types.ml` | 363 | 0 | 0 | loose:8 type:2 decl:1 papp:7 | yes | strict |
-| `flow/mutable_unboxing.ml` | 716 | 21 | 21 | loose:1 decl:1 papp:1 record-order:2 | yes | strict |
+| `flow/mutable_unboxing.ml` | 716 | 21 | 21 | loose:1 papp:1 record-order:2 | yes | strict |
 | `inlining/call_site_inlining_decision.ml` | 464 | 7 | 7 | loose:4 type:1 init:1 papp:1 | yes | strict |
 | `inlining/inlining_transforms.ml` | 181 | 3 | 3 | loose:3 | yes | strict |
 | `join_points.ml` | 442 | 7 | 7 | loose:4 verbatim:1 papp:1 | yes | strict |
@@ -55,14 +55,14 @@ compiler's own definitions; alone: no interface).
 | `simplified_named.ml` | 100 | 6 | 6 | loose:1 type:1 | yes | strict |
 | `simplify.ml` | 99 | 1 | 1 | type:1 verbatim:1 papp:1 | yes | strict |
 | `simplify_apply_cont_expr.ml` | 199 | 3 | 3 | papp:1 | yes | strict |
-| `simplify_apply_expr.ml` | 1539 | 21 | 21 | loose:5 type:2 decl:1 papp:2 | yes | strict |
+| `simplify_apply_expr.ml` | 1539 | 21 | 21 | loose:5 type:2 papp:2 | yes | strict |
 | `simplify_binary_primitive.ml` | 1270 | 12 | 12 | loose:19 verbatim:1 init:1 decl:2 | yes | strict |
 | `simplify_coercion.ml` | 25 | 1 | 1 | none | yes | strict |
 | `simplify_common.ml` | 479 | 10 | 10 | loose:2 type:6 | yes | strict |
 | `simplify_expr.ml` | 231 | 7 | 7 | loose:1 type:2 papp:2 | yes | strict |
 | `simplify_extcall.ml` | 239 | 9 | 9 | loose:2 type:1 | yes | strict |
 | `simplify_import.ml` | 67 | 1 | 1 | none | yes | strict |
-| `simplify_let_cont_expr.ml` | 2039 | 36 | 36 | loose:3 type:11 verbatim:1 decl:1 papp:4 record-order:2 | yes | strict |
+| `simplify_let_cont_expr.ml` | 2039 | 36 | 36 | loose:3 type:11 verbatim:1 papp:4 record-order:2 | yes | strict |
 | `simplify_let_expr.ml` | 461 | 6 | 6 | loose:2 papp:1 | yes | strict |
 | `simplify_named.ml` | 333 | 4 | 4 | loose:2 papp:1 | yes | strict |
 | `simplify_named_result.ml` | 63 | 8 | 8 | loose:1 record-order:1 | yes | strict |
@@ -71,11 +71,11 @@ compiler's own definitions; alone: no interface).
 | `simplify_primitive_result.ml` | 66 | 8 | 8 | loose:1 | yes | strict |
 | `simplify_quaternary_primitive.ml` | 112 | 4 | 4 | none | yes | alone |
 | `simplify_rec_info_expr.ml` | 164 | 8 | 8 | loose:4 | yes | strict |
-| `simplify_set_of_closures.ml` | 1230 | 15 | 15 | loose:3 decl:1 papp:6 record-order:2 | yes | strict |
+| `simplify_set_of_closures.ml` | 1230 | 15 | 15 | loose:3 papp:6 record-order:2 | yes | strict |
 | `simplify_set_of_closures_context.ml` | 375 | 18 | 18 | loose:1 verbatim:1 papp:1 | yes | strict |
 | `simplify_simple.ml` | 65 | 4 | 4 | verbatim:1 | yes | strict |
 | `simplify_static_const.ml` | 483 | 6 | 6 | loose:1 | yes | strict |
-| `simplify_switch_expr.ml` | 1096 | 26 | 26 | loose:10 type:5 verbatim:1 decl:3 papp:4 record-order:1 | yes | strict |
+| `simplify_switch_expr.ml` | 1096 | 26 | 26 | loose:10 type:5 verbatim:1 decl:1 papp:4 record-order:1 | yes | strict |
 | `simplify_ternary_primitive.ml` | 116 | 8 | 8 | none | yes | strict |
 | `simplify_unary_primitive.ml` | 1106 | 35 | 35 | loose:16 decl:1 | yes | strict |
 | `simplify_variadic_primitive.ml` | 186 | 4 | 4 | loose:2 | yes | strict |
@@ -87,7 +87,7 @@ compiler's own definitions; alone: no interface).
 | `unboxing/unboxers.ml` | 260 | 0 | 0 | loose:1 init:10 record-order:1 | yes | strict |
 | `unboxing/unboxing_epa.ml` | 553 | 15 | 15 | loose:1 type:2 verbatim:1 | yes | strict |
 | `unboxing/unboxing_types.ml` | 185 | 6 | 6 | type:1 verbatim:2 papp:4 | yes | strict |
-| **total: 78 files of 78** | 26900 | 930 | 926 | 454 marks | 78 | 78 |
+| **total: 78 files of 78** | 26900 | 930 | 926 | 447 marks | 78 | 78 |
 
 Gaps by kind, all files:
 
@@ -98,6 +98,6 @@ Gaps by kind, all files:
 - verbatim: 47
 - init: 22
 - order: 0
-- decl: 21
+- decl: 14
 - papp: 83
 - record-order: 23
