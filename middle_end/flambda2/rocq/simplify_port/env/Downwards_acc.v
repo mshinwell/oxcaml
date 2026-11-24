@@ -45,17 +45,6 @@ module LCS = Lifted_constant_state
 module TE = Flambda2_types.Typing_env
 OCAML*)
 
-(* PORT-GAP(decl): decl/Format.v has [fprintf] for up to 16 arguments after
-   the format; [print] (56-92) gives it 33. *)
-Parameter fprintf33 :
-  forall {A1 A2 A3 A4 A5 A6 A7 A8 A9 A10 A11 A12 A13 A14 A15 A16 A17 A18 A19
-          A20 A21 A22 A23 A24 A25 A26 A27 A28 A29 A30 A31 A32 A33 : Type},
-  Format.formatter -> string -> A1 -> A2 -> A3 -> A4 -> A5 -> A6 -> A7 -> A8 ->
-  A9 -> A10 -> A11 -> A12 -> A13 -> A14 -> A15 -> A16 -> A17 -> A18 -> A19 ->
-  A20 -> A21 -> A22 -> A23 -> A24 -> A25 -> A26 -> A27 -> A28 -> A29 -> A30 ->
-  A31 -> A32 -> A33 -> M unit.
-Extract Inlined Constant fprintf33 => "Format.fprintf".
-
 (* 22-43 *)
 Record t : Type :=
   { denv : Downwards_env.t;
@@ -121,7 +110,7 @@ Definition print (ppf : Format.formatter) (t : Downwards_acc.t) : M unit :=
     let! tmp4 := papp1 Simple.Map.print Debuginfo.print_compact in
     let! tmp5 := papp1 Code_id.Map.print Slot_offsets.print in
     let! tmp6 := papp1 Static_const.Map.print Symbol.print in
-    fprintf33 ppf
+    Format.fprintf33 ppf
       "@[<hov 1>(@[<hov 1>(denv@ %a)@]@ @[<hov 1>(continuation_uses_env@ %a)@]@ @[<hov 1>(shareable_constants@ %a)@]@ @[<hov 1>(used_value_slots@ %a)@]@ @[<hov 1>(lifted_constant_state@ %a)@]@ @[<hov 1>(flow_acc@ %a)@]@ @[<hov 1>(demoted_exn_handlers@ %a)@]@ @[<hov 1>(code_ids_to_remember@ %a)@]@ @[<hov 1>(code_ids_to_never_delete@ %a)@]@ @[<hov 1>(code_ids_never_simplified@ %a)@]@ @[<hov 1>(slot_offsets@ %a)@ @[<hov 1>(debuginfo_rewrites@ %a)@]@ @[<hov 1>(are_lifting_conts@ %a)@]@ @[<hov 1>(lifted_continuations@ %a)@]@ @[<hov 1>(continuation_lifting_budget %d)@]@ @[<hov 1>(continuations_to_specialize %a)@]@ @[<hov 1>(specialization_map %a)@])@]"
       Downwards_env.print denv Continuation_uses_env.print
       continuation_uses_env tmp6 shareable_constants Name_occurrences.print
