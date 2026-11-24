@@ -68,7 +68,18 @@ module Int8 = Numeric_types.Int8
 module Int16 = Numeric_types.Int16
 module Int32 = Numeric_types.Int32
 module Int64 = Numeric_types.Int64
+OCAML*)
 
+(* 38-44 *)
+(* Regarding int <-> float conversions, xclerc and mshinwell established with
+   reasonable certainty that the OCaml backend (at least on x86-64) emits the
+   same instructions as C compilers use for compiling the runtime float
+   conversion functions. This means that, even though the results of certain of
+   these conversions are undefined by the C standard (e.g. when NaN is
+   involved), the semantics of the Flambda 2 compile-time evaluation should
+   always match that of runtime evaluation by the processor. *)
+
+(*OCAML
 module type Num_common = sig
   include Container_types.S
 
