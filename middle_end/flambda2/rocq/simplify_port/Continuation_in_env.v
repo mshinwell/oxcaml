@@ -58,8 +58,8 @@ Inductive t : Type :=
 | Invalid : Flambda_arity.t -> t.
 Extract Inductive t => "t" [ "(fun (x__1, x__2, x__3, x__4) -> (Linearly_used_and_inlinable { params = x__1; handler = x__2; free_names_of_handler = x__3; cost_metrics_of_handler = x__4 } : t))" "(fun x__1 -> (Non_inlinable_zero_arity { handler = x__1 } : t))" "(fun x__1 -> (Non_inlinable_non_zero_arity { arity = x__1 } : t))" "(fun x__1 -> (Toplevel_or_function_return_or_exn_continuation { arity = x__1 } : t))" "(fun x__1 -> (Invalid { arity = x__1 } : t))" ] "(fun f__1 f__2 f__3 f__4 f__5 x__0 -> match (x__0 : t) with Linearly_used_and_inlinable { params = x__1; handler = x__2; free_names_of_handler = x__3; cost_metrics_of_handler = x__4 } -> f__1 x__1 x__2 x__3 x__4 | Non_inlinable_zero_arity { handler = x__1 } -> f__2 x__1 | Non_inlinable_non_zero_arity { arity = x__1 } -> f__3 x__1 | Toplevel_or_function_return_or_exn_continuation { arity = x__1 } -> f__4 x__1 | Invalid { arity = x__1 } -> f__5 x__1)".
 
-(* 30-64. PORT-GAP(loose): the attribute [@ocamlformat "disable"] is not
-   kept. *)
+(* 30-64 *)
+(* PORT-GAP(loose): the attribute [@ocamlformat "disable"] is not kept. *)
 Definition print (are_rebuilding_terms : Are_rebuilding_terms.t)
     (ppf : Format.formatter) (t : Continuation_in_env.t) : M unit :=
   match t with
