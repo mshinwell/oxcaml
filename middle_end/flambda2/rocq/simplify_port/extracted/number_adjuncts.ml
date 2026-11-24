@@ -175,10 +175,11 @@ let with_shift shift if_undefined f integer_bit_width0 =
     ('a1 -> bool coq_M) -> int coq_M **)
 
 let compare_unsigned_generic n1 n2 compare strictly_negative0 =
-  let m, m0 = strictly_negative0 n1, strictly_negative0 n2 in
-  if m
-  then if m0 then compare n1 n2 else 1
-  else if m0
+  let n2_is_negative = strictly_negative0 n2 in
+  let n1_is_negative = strictly_negative0 n1 in
+  if n1_is_negative
+  then if n2_is_negative then compare n1 n2 else 1
+  else if n2_is_negative
   then -1
   else compare n1 n2
 

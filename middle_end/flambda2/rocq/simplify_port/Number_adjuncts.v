@@ -27,10 +27,7 @@
 
    - Each module of the compiler's file is a Rocq [Module] of the same name,
      with the compiler's definitions in the compiler's order.
-   - PORT-GAP(loose): the modules are not sealed by their module types
-     ([module For_tagged_immediates : Int_number_kind = struct]): Rocq
-     prints [module For_tagged_immediates = struct]. The check of the types
-     compares each with the compiler's interface.
+   - The modules are not sealed by their module types (the mark is below).
    - The module types (50-176) and the abbreviations of modules (17-25) are
      the compiler's text, verbatim.
    - An [include] of a module of the compiler, and a module made with a
@@ -51,6 +48,12 @@ From SimplifyPort.decl Require Flambda Flambda2_types Flambda_kind Int Int32
   Target_ocaml_int Target_system Targetint_32_64.
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
+
+(* PORT-GAP(loose): 197, 292, 386, 447, 508, 634, 764, 855 and 946, the
+   modules are not sealed by their module types ([module
+   For_tagged_immediates : Int_number_kind = struct]): Rocq prints [module
+   For_tagged_immediates = struct]. The check of the types compares each
+   with the compiler's interface. *)
 
 (* PORT-GAP(verbatim): 17-25 and 50-176, the abbreviations of modules and the
    module types of the compiler's file. (Rocq's module types cannot say
@@ -246,13 +249,15 @@ Definition with_shift {A : Type} (shift : Target_ocaml_int.t)
 Definition compare_unsigned_generic {A : Type} (n1 n2 : A)
     (compare : A -> A -> M int) (strictly_negative : A -> M bool) : M int :=
   (* This relies on the two's complement encoding, take care! *)
-  let! tmp1 := strictly_negative n2 in
-  let! tmp2 := strictly_negative n1 in
-  match (tmp2, tmp1) with
-  | (true, true) => compare n1 n2
-  | (true, false) => ret 1
-  | (false, true) => ret im1
-  | (false, false) => compare n1 n2
+  (* 191: [match strictly_negative n1, strictly_negative n2 with]: the two
+     calls of the tuple, the second first, each bound by [let*]. *)
+  let* n2_is_negative := strictly_negative n2 in
+  let* n1_is_negative := strictly_negative n1 in
+  match n1_is_negative, n2_is_negative with
+  | true, true => compare n1 n2
+  | true, false => ret 1
+  | false, true => ret im1
+  | false, false => compare n1 n2
   end.
 
 (* 197-290 *)
