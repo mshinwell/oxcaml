@@ -84,6 +84,7 @@ Module Extra_param_and_args.
     Format.fprintf2 fmt
       "@[<hv 1>(@[<hov>(param %a)@]@ @[<v 2>(args@ <...>)@])@]"
       Variable_.print param.
+  (* (Apply_cont_rewrite_id.Map.print EPA.Extra_arg.print) args *)
 End Extra_param_and_args.
 
 (* 58-91 *)
