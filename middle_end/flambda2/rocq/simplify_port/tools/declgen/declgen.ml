@@ -70,7 +70,12 @@ let pass scanned =
   Decl_out.left := [];
   Walk.emitted_now := SS.empty;
   Hashtbl.reset Decl_out.native_now;
-  let all = SS.elements (SS.union (SS.of_list (units ())) scanned) in
+  let forced_units =
+    SS.filter (fun k -> not (String.contains k '.')) !Walk.forced
+  in
+  let all =
+    SS.elements (SS.union forced_units (SS.union (SS.of_list (units ())) scanned))
+  in
   let results =
     List.filter_map
       (fun u ->

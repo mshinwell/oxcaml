@@ -108,60 +108,32 @@ let shape_of (decl : Types.type_declaration) : shape option =
   | Type_record (lds, _) -> Some (Record (List.map field lds))
   | Type_abstract _ | Type_open -> None
 
-(* Whether the type can be an inductive type or a record of Rocq under the
-   compiler's names; raises [Refused] with the reason if not. Returns the
-   names of constructors that must be renamed (a keyword, or taken). *)
-let check ~forbidden self (sh : shape) =
-  let all_types =
-    match sh with
-    | Record fields -> List.map (fun (_, t, _) -> t) fields
-    | Variant ctors -> List.concat_map (fun c -> c.c_args) ctors
-  in
-  if List.exists (fun k -> List.exists (mentions k) all_types) forbidden
-  then raise (Refused "it is recursive with a type that is declared after it");
-  (* a name that a value or a type took in this pass does not count: the
-     value or the type gives way in the next *)
-  let free s = (not (List.mem s Sigs.reserved)) && not (SS.mem s !native) in
-  let seen = ref SS.empty in
-  let fresh_field f =
-    if (not (free f)) || SS.mem f !seen
-    then raise (Refused ("the name of the field [" ^ f ^ "] is taken in Rocq"));
-    seen := SS.add f !seen
-  in
+(* Why Rocq cannot have the type under the compiler's names, whatever its
+   neighbours are; [None] if it can. *)
+let structural self (sh : shape) : string option =
   match sh with
   | Record fields ->
-    List.iter
-      (fun (f, ty, _) ->
-        fresh_field f;
-        if refused_place self ty || mentions self ty
-        then raise (Refused "the record holds itself"))
-      fields;
-    []
+    if List.exists (fun (_, ty, _) -> mentions self ty) fields
+    then Some "the record holds itself"
+    else None
   | Variant ctors ->
-    List.concat_map
-      (fun c ->
-        if c.c_res <> None then raise (Refused "it is a GADT");
-        List.iter
-          (fun ty ->
-            if refused_place self ty
-            then
-              raise
-                (Refused
-                   "it holds itself inside an abstract type or to the left of \
-                    an arrow"))
-          c.c_args;
-        (match c.c_fields with
-        | Some fs ->
-          List.iter (fun (f, _) -> fresh_field f) fs;
-          if List.exists (mentions self) c.c_args
-          then raise (Refused "an inline record of it holds the type itself")
-        | None -> ());
-        if free c.c_name && not (SS.mem c.c_name !seen)
-        then (
-          seen := SS.add c.c_name !seen;
-          [])
-        else [c.c_name])
-      ctors
+    if List.exists (fun c -> c.c_res <> None) ctors
+    then Some "it is a GADT"
+    else if List.exists (fun c -> List.exists (refused_place self) c.c_args) ctors
+    then Some "it holds itself inside an abstract type or to the left of an arrow"
+    else None
+
+let types_of (sh : shape) =
+  match sh with
+  | Record fields -> List.map (fun (_, t, _) -> t) fields
+  | Variant ctors -> List.concat_map (fun c -> c.c_args) ctors
+
+(* A name that a constructor or a field can take as it is. (A name that a
+   value or a type took in this pass does not count: the value or the type
+   gives way in the next.) *)
+let free s = (not (List.mem s Sigs.reserved)) && not (SS.mem s !native)
+
+let distinct l = List.length (List.sort_uniq compare l) = List.length l
 
 let binders params =
   String.concat "" (List.map (fun p -> Printf.sprintf " (%s : Type)" p) params)
@@ -212,51 +184,85 @@ let wanted comps =
     not (SS.is_empty u.built && SS.is_empty u.matched && SS.is_empty u.fields)
   | None -> false
 
-(* The type as an inductive type of Rocq. *)
-let emit_variant ~params ~ocaml_type modc rname ctors renamed place =
+(* The payload records of the open module that are records of Rocq: what
+   they hold (fields, types, parameters), and their names. A later inline
+   record that holds the same uses the same record. *)
+let payloads : (string * string) list ref = ref []
+
+(* One variant of a definition: its payload records are written, its
+   constructors named. Returns the rows of the inductive type, the names
+   of the constructors, whether one was renamed, and whether a payload is
+   abstract (the type then keeps its makers and its eliminator). [block]:
+   the types that are defined together with it, itself included. *)
+let prepare_variant ~params ~block ~renamed_module modc rname ctors place =
   let self_ty = applied rname params in
+  (* in a module that has another name in Rocq (a word of Rocq), Rocq would
+     print the constructors and the fields under that name: the constructors
+     get their strings, the inline records are abstract *)
+  let renamed = ref renamed_module and abstract_payload = ref false in
   let rows =
     List.map
       (fun c ->
         let args =
           match c.c_fields with
           | Some fs ->
-            let pname = claim (String.uncapitalize_ascii c.c_name ^ "_payload_") in
-            line "Record %s%s : Type := { %s }." pname (binders params)
-              (String.concat "; "
-                 (List.map2
-                    (fun (f, _) ty ->
-                      claim_native f;
-                      add_index (Print.ocaml_name (modc @ [f])) f "field" 0 place;
-                      f ^ " : " ^ Print.pp ty)
-                    fs c.c_args));
-            implicit ("Build_" ^ pname) params;
-            List.iter (fun (f, _) -> implicit f params) fs;
+            let held =
+              String.concat "; "
+                (List.map2 (fun (f, _) ty -> f ^ " : " ^ Print.pp ty) fs c.c_args)
+            in
+            let what = held ^ " | " ^ String.concat " " params in
+            let in_block =
+              List.exists (fun k -> List.exists (mentions k) c.c_args) block
+            in
+            let names = List.map fst fs in
+            let pname =
+              if (not renamed_module) && (not in_block)
+                 && List.for_all free names && distinct names
+              then (
+                let pname = claim (String.uncapitalize_ascii c.c_name ^ "_payload_") in
+                line "Record %s%s : Type := { %s }." pname (binders params) held;
+                List.iter
+                  (fun f ->
+                    claim_native f;
+                    add_index (Print.ocaml_name (modc @ [f])) f "field" 0 place)
+                  names;
+                implicit ("Build_" ^ pname) params;
+                List.iter (fun f -> implicit f params) names;
+                payloads := (what, pname) :: !payloads;
+                pname)
+              else
+                match List.assoc_opt what !payloads with
+                | Some pname when (not in_block) && not renamed_module -> pname
+                | _ ->
+                  let pname = claim (String.uncapitalize_ascii c.c_name ^ "_payload_") in
+                  abstract_payload := true;
+                  line
+                    "(* The inline record of [%s]: abstract (a name of its fields is \
+                     taken, or it holds the type); [mk_%s] makes one, [match_%s] \
+                     reads it. *)"
+                    c.c_name c.c_name rname;
+                  line "Parameter %s : %s." pname
+                    (String.concat " -> " (List.map (fun _ -> "Type") params @ ["Type"]));
+                  pname
+            in
             [(if params = [] then pname else "(" ^ applied pname params ^ ")")]
           | None -> List.map Print.pp_arg c.c_args
         in
         let cname =
-          if List.mem c.c_name renamed
-          then claim (Sigs.sanitize c.c_name)
-          else (
+          if free c.c_name
+          then (
             claim_native c.c_name;
             c.c_name)
+          else (
+            renamed := true;
+            claim (Sigs.sanitize c.c_name))
         in
         add_index (Print.ocaml_name (modc @ [c.c_name])) cname "constructor"
           (List.length c.c_args) place;
         cname, Printf.sprintf "| %s : %s" cname (String.concat " -> " (args @ [self_ty])))
       ctors
   in
-  line "Inductive %s%s : Type :=" rname (binders params);
-  let n = List.length rows in
-  List.iteri (fun i (_, r) -> line "%s%s" r (if i = n - 1 then "." else "")) rows;
-  List.iter (fun (cname, _) -> implicit cname params) rows;
-  if renamed <> []
-  then
-    line "Extract Inductive %s => %s [ %s ]." rname
-      (Print.quote ocaml_type)
-      (String.concat " "
-         (List.map (fun c -> Print.quote (Print.ocaml_name (modc @ [c.c_name]))) ctors))
+  rows, !renamed, !abstract_payload
 
 let emit_record ~params modc rname fields place =
   line "Record %s%s : Type := { %s }." rname (binders params)
@@ -344,43 +350,3 @@ let emit_makers ~params ~private_ modc name rname (sh : shape) place =
       (Printf.sprintf "(fun x__0 f__1 -> let %s = x__0 in f__1 %s)"
          (ocaml_record modc fields) (String.concat " " (xs n)))
 
-(* [forbidden]: types of the same recursive definition that are declared
-   after this one. Returns what is to be written after the whole
-   definition (the makers and the eliminator), if anything. *)
-let emit ~abstract ~params ~forbidden modc name (decl : Types.type_declaration)
-    rname place : (unit -> unit) option =
-  let comps = modc @ [name] in
-  if not (wanted comps)
-  then (
-    abstract None;
-    None)
-  else
-    match shape_of decl with
-    | exception Tr.Unsupported why ->
-      abstract (Some ("abstract, though Simplify takes it apart: its definition has " ^ why));
-      None
-    | None ->
-      abstract None;
-      None
-    | Some sh -> (
-      match check ~forbidden (key comps) sh with
-      | exception Refused why ->
-        abstract
-          (Some
-             (why ^ ": abstract, with a maker for each constructor and one eliminator"));
-        let saved = !Tr.vars in
-        Some
-          (fun () ->
-            Tr.vars := saved;
-            try
-              emit_makers ~params ~private_:(decl.type_private = Asttypes.Private)
-                modc name rname sh place
-            with Tr.Unsupported why -> not_declared (comps @ ["(makers)"]) why)
-      | renamed -> (
-        mirror comps;
-        (match sh with
-        | Variant ctors ->
-          emit_variant ~params ~ocaml_type:(Print.ocaml_name comps) modc rname ctors
-            renamed place
-        | Record fields -> emit_record ~params modc rname fields place);
-        None))
