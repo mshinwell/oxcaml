@@ -184,85 +184,91 @@ let wanted comps =
     not (SS.is_empty u.built && SS.is_empty u.matched && SS.is_empty u.fields)
   | None -> false
 
-(* The payload records of the open module that are records of Rocq: what
-   they hold (fields, types, parameters), and their names. A later inline
-   record that holds the same uses the same record. *)
-let payloads : (string * string) list ref = ref []
-
-(* One variant of a definition: its payload records are written, its
-   constructors named. Returns the rows of the inductive type, the names
-   of the constructors, whether one was renamed, and whether a payload is
-   abstract (the type then keeps its makers and its eliminator). [block]:
-   the types that are defined together with it, itself included. *)
-let prepare_variant ~params ~block ~renamed_module modc rname ctors place =
+(* One variant of a definition: its constructors are named. Returns the
+   rows of the inductive type. A constructor with an inline record takes
+   the fields by place, in the order of the type. *)
+let prepare_variant ~params modc rname ctors place =
   let self_ty = applied rname params in
-  (* in a module that has another name in Rocq (a word of Rocq), Rocq would
-     print the constructors and the fields under that name: the constructors
-     get their strings, the inline records are abstract *)
-  let renamed = ref renamed_module and abstract_payload = ref false in
-  let rows =
-    List.map
-      (fun c ->
-        let args =
-          match c.c_fields with
-          | Some fs ->
-            let held =
-              String.concat "; "
-                (List.map2 (fun (f, _) ty -> f ^ " : " ^ Print.pp ty) fs c.c_args)
-            in
-            let what = held ^ " | " ^ String.concat " " params in
-            let in_block =
-              List.exists (fun k -> List.exists (mentions k) c.c_args) block
-            in
-            let names = List.map fst fs in
-            let pname =
-              if (not renamed_module) && (not in_block)
-                 && List.for_all free names && distinct names
-              then (
-                let pname = claim (String.uncapitalize_ascii c.c_name ^ "_payload_") in
-                line "Record %s%s : Type := { %s }." pname (binders params) held;
-                List.iter
-                  (fun f ->
-                    claim_native f;
-                    add_index (Print.ocaml_name (modc @ [f])) f "field" 0 place)
-                  names;
-                implicit ("Build_" ^ pname) params;
-                List.iter (fun f -> implicit f params) names;
-                payloads := (what, pname) :: !payloads;
-                pname)
-              else
-                match List.assoc_opt what !payloads with
-                | Some pname when (not in_block) && not renamed_module -> pname
-                | _ ->
-                  let pname = claim (String.uncapitalize_ascii c.c_name ^ "_payload_") in
-                  abstract_payload := true;
-                  line
-                    "(* The inline record of [%s]: abstract (a name of its fields is \
-                     taken, or it holds the type); [mk_%s] makes one, [match_%s] \
-                     reads it. *)"
-                    c.c_name c.c_name rname;
-                  line "Parameter %s : %s." pname
-                    (String.concat " -> " (List.map (fun _ -> "Type") params @ ["Type"]));
-                  pname
-            in
-            [(if params = [] then pname else "(" ^ applied pname params ^ ")")]
-          | None -> List.map Print.pp_arg c.c_args
-        in
-        let cname =
-          if free c.c_name
-          then (
-            claim_native c.c_name;
-            c.c_name)
-          else (
-            renamed := true;
-            claim (Sigs.sanitize c.c_name))
-        in
-        add_index (Print.ocaml_name (modc @ [c.c_name])) cname "constructor"
-          (List.length c.c_args) place;
-        cname, Printf.sprintf "| %s : %s" cname (String.concat " -> " (args @ [self_ty])))
-      ctors
+  List.map
+    (fun c ->
+      let cname =
+        if free c.c_name
+        then (
+          claim_native c.c_name;
+          c.c_name)
+        else claim (Sigs.sanitize c.c_name)
+      in
+      add_index (Print.ocaml_name (modc @ [c.c_name])) cname "constructor"
+        (List.length c.c_args) place;
+      (match c.c_fields with
+      | Some fs ->
+        List.iteri
+          (fun i (f, _) ->
+            add_index
+              (Print.ocaml_name (modc @ [c.c_name]) ^ " { " ^ f ^ " }")
+              (Printf.sprintf "%s, argument %d" cname (i + 1))
+              "inline field" 0 place)
+          fs
+      | None -> ());
+      ( cname,
+        Printf.sprintf "| %s : %s" cname
+          (String.concat " -> " (List.map Print.pp_arg c.c_args @ [self_ty])) ))
+    ctors
+
+(* The directive of a mirrored variant: Rocq prints each constructor by the
+   compiler's qualified name. With an inline record, the constructor is a
+   function of the tuple of its arguments, and the match is a function of
+   one function for each constructor, then the scrutinee. The same when a
+   later type of the module has a constructor of the same name, which
+   hides this one in OCaml: the strings then say the type. [arity]: the
+   number of parameters of the type in OCaml. *)
+let extract_inductive modc name rname ocaml_type arity ctors =
+  let hidden = Sigs.later_constructors modc name in
+  let is_hidden c = SS.mem c.c_name hidden in
+  let special = List.exists (fun c -> c.c_fields <> None || is_hidden c) ctors in
+  let annotated =
+    if arity = 0
+    then ocaml_type
+    else
+      Printf.sprintf "(%s) %s"
+        (String.concat ", " (List.init arity (fun _ -> "_")))
+        ocaml_type
   in
-  rows, !renamed, !abstract_payload
+  let ctor_string c =
+    if c.c_fields = None && not (is_hidden c)
+    then Print.ocaml_name (modc @ [c.c_name])
+    else
+      let n = List.length c.c_args in
+      let body = Printf.sprintf "(%s : %s)" (ocaml_ctor modc c) annotated in
+      if n = 0
+      then body
+      else
+        Printf.sprintf "(fun %s -> %s)"
+          (if n = 1 then "x__1" else "(" ^ String.concat ", " (xs n) ^ ")")
+          body
+  in
+  let match_string =
+    if not special
+    then ""
+    else
+      " "
+      ^ Print.quote
+          (Printf.sprintf "(fun %s x__0 -> match (x__0 : %s) with %s)"
+             (String.concat " "
+                (List.mapi (fun i _ -> Printf.sprintf "f__%d" (i + 1)) ctors))
+             annotated
+             (String.concat " | "
+                (List.mapi
+                   (fun i c ->
+                     Printf.sprintf "%s -> f__%d %s" (ocaml_ctor modc c) (i + 1)
+                       (if c.c_args = []
+                        then "()"
+                        else String.concat " " (xs (List.length c.c_args))))
+                   ctors)))
+  in
+  line "Extract Inductive %s => %s [ %s ]%s." rname (Print.quote ocaml_type)
+    (String.concat " " (List.map (fun c -> Print.quote (ctor_string c)) ctors))
+    match_string
 
 let emit_record ~params modc rname fields place =
   line "Record %s%s : Type := { %s }." rname (binders params)

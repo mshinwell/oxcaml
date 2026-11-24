@@ -253,7 +253,7 @@ let in_renamed_module modc =
   | _ :: mods -> List.exists (fun m -> Sigs.module_rocq m <> m) mods
   | [] -> false
 
-let emit_native_record modc c ~keep =
+let emit_native_record modc c =
   let fields = match c.c_shape with Record l -> l | Variant _ -> assert false in
   let names = List.map (fun (f, _, _) -> f) fields in
   if in_renamed_module modc
@@ -264,30 +264,26 @@ let emit_native_record modc c ~keep =
   then (
     let rname, place = start modc c in
     Emit_types.emit_record ~params:c.c_params modc rname fields place;
-    Emit_types.mirror c.c_comps;
-    if keep then deferred := makers modc c rname place :: !deferred)
+    Emit_types.mirror c.c_comps)
   else emit_fallback modc c "the name of a field of it is taken in Rocq"
 
-(* One variant, or several that are defined together. [keep]: whether a
-   type keeps its makers and eliminator though it is an inductive type. *)
-let emit_native_variants modc cs ~keep =
-  let block = List.map (fun c -> key c.c_comps) cs in
+(* One variant, or several that are defined together. *)
+let emit_native_variants modc cs =
   let started = List.map (fun c -> c, start modc c) cs in
   let prepared =
     List.map
       (fun (c, (rname, place)) ->
         Tr.vars := c.c_vars;
         let ctors = match c.c_shape with Variant l -> l | Record _ -> assert false in
-        let rows, renamed, abstract_payload =
-          Emit_types.prepare_variant ~params:c.c_params ~block
-            ~renamed_module:(in_renamed_module modc) modc rname ctors place
+        let rows =
+          Emit_types.prepare_variant ~params:c.c_params modc rname ctors place
         in
-        c, rname, place, ctors, rows, renamed, abstract_payload)
+        c, rname, ctors, rows)
       started
   in
   let last = List.length prepared - 1 in
   List.iteri
-    (fun i (c, rname, _, _, rows, _, _) ->
+    (fun i (c, rname, _, rows) ->
       line "%s %s%s : Type :=" (if i = 0 then "Inductive" else "with") rname
         (Emit_types.binders c.c_params);
       let n = List.length rows in
@@ -297,20 +293,11 @@ let emit_native_variants modc cs ~keep =
         rows)
     prepared;
   List.iter
-    (fun (c, rname, place, ctors, rows, renamed, abstract_payload) ->
+    (fun (c, rname, ctors, rows) ->
       List.iter (fun (cname, _) -> Emit_types.implicit cname c.c_params) rows;
-      if renamed
-      then
-        line "Extract Inductive %s => %s [ %s ]." rname
-          (Print.quote (Print.ocaml_name c.c_comps))
-          (String.concat " "
-             (List.map
-                (fun (ct : Emit_types.ctor) ->
-                  Print.quote (Print.ocaml_name (modc @ [ct.c_name])))
-                ctors));
-      Emit_types.mirror c.c_comps;
-      if abstract_payload || keep c
-      then deferred := makers modc c rname place :: !deferred)
+      Emit_types.extract_inductive modc c.c_name rname (Print.ocaml_name c.c_comps)
+        (List.length c.c_decl.type_params) ctors;
+      Emit_types.mirror c.c_comps)
     prepared
 
 (* A recursive definition of types: the abstract ones first; then what
@@ -426,24 +413,6 @@ let emit_group ~full ~canon modc names =
       (fun c ->
         match c.c_fallback with Some why -> emit_fallback modc c why | None -> ())
       cands;
-    (* a type that the first form of these files made abstract keeps its
-       makers: one that mentions a later type of the definition, or an
-       abbreviation of it *)
-    let position n =
-      let rec go i = function [] -> i | x :: l -> if x = n then i else go (i + 1) l in
-      go 0 names
-    in
-    let keep c =
-      let tys = Emit_types.types_of c.c_shape in
-      List.exists
-        (fun c' ->
-          position c'.c_name > position c.c_name
-          && List.exists (Emit_types.mentions (ckey c')) tys)
-        cands
-      || List.exists
-           (fun n -> List.exists (Emit_types.mentions (akey n)) tys)
-           abbreviations
-    in
     List.iter
       (fun scc ->
         match List.find_opt (fun n -> List.mem (akey n) scc) abbreviations with
@@ -454,8 +423,8 @@ let emit_group ~full ~canon modc names =
           in
           match members with
           | [] -> ()
-          | [({ c_shape = Record _; _ } as c)] -> emit_native_record modc c ~keep:(keep c)
-          | _ -> emit_native_variants modc members ~keep))
+          | [({ c_shape = Record _; _ } as c)] -> emit_native_record modc c
+          | _ -> emit_native_variants modc members))
       sccs;
     List.iter (fun f -> f ()) (List.rev !deferred);
     deferred := outer_deferred
@@ -515,12 +484,11 @@ and emit_module ~full ~canon modc =
   let name = List.nth modc (List.length modc - 1) in
   let body ~canon ~rewrite sg =
     let outer_buf = !buf and outer_declared = !declared in
-    let outer_native = !native and outer_payloads = !Emit_types.payloads in
+    let outer_native = !native in
     let outer_mod = !Print.cur_mod and outer_rewrite = !Tr.rewrite in
     buf := Buffer.create 4096;
     declared := SS.empty;
     native := SS.empty;
-    Emit_types.payloads := [];
     Print.cur_mod := modc;
     Tr.rewrite := rewrite;
     emit_items ~full ~canon modc sg;
@@ -528,7 +496,6 @@ and emit_module ~full ~canon modc =
     buf := outer_buf;
     declared := outer_declared;
     native := outer_native;
-    Emit_types.payloads := outer_payloads;
     Print.cur_mod := outer_mod;
     Tr.rewrite := outer_rewrite;
     if body <> "" || SS.mem (key modc) !forced
@@ -593,7 +560,6 @@ let emit_unit ~full u : (string * SS.t) option =
   Print.deps := SS.empty;
   declared := SS.empty;
   native := SS.empty;
-  Emit_types.payloads := [];
   buf := Buffer.create 65536;
   (match Sigs.module_shape [u] with
   | Signature sg ->

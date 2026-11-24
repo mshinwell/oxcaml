@@ -45,7 +45,7 @@ for f in sorted(os.listdir("decl")):
     if mods == ["Stdlib"]:
         mods = []
     last_is_type = False
-    rows = []
+    arity = {}
     lines = open(os.path.join("decl", f)).read().split("\n")
     i = 0
     while i < len(lines):
@@ -73,32 +73,28 @@ for f in sorted(os.listdir("decl")):
             checks.append((where, "let _ = fun (x : %s) -> x" % unq(m.group(2))))
         elif l.startswith("Record "):
             m = re.match(r"Record (\S+).*:= \{ (.*) \}\.$", l)
-            name, fields = m.group(1), [x.split(" : ")[0].strip() for x in m.group(2).split("; ")]
+            fields = [x.split(" : ")[0].strip() for x in m.group(2).split("; ")]
             path = ".".join(mods)
             dot = path + "." if path else ""
-            if name.endswith("_payload_"):
-                ctor = name[: -len("_payload_")]
-                ctor = ctor[0].upper() + ctor[1:]
-                checks.append((where, "let _ = function %s%s { %s } -> () | _ -> ()"
-                               % (dot, ctor, "; ".join(x + " = _" for x in fields))))
-            else:
-                for x in fields:
-                    checks.append((where, "let _ = fun x -> x.%s%s" % (dot, x)))
+            for x in fields:
+                checks.append((where, "let _ = fun x -> x.%s%s" % (dot, x)))
         elif l.startswith("Inductive ") or l.startswith("with "):
-            if l.startswith("Inductive "):
-                rows = []
-        elif l.startswith("| "):
-            m = re.match(r"\| (\S+) :", l)
-            path = ".".join(mods)
-            dot = path + "." if path else ""
-            rows.append(len(checks))
-            checks.append((where, "let _ = function %s%s _ -> () | _ -> ()" % (dot, m.group(1))))
+            m = re.match(r"(?:Inductive|with) (\S+)((?: \(\w+ : Type\))*) : Type :=", l)
+            arity[m.group(1)] = m.group(2).count(": Type")
         elif l.startswith("Extract Inductive "):
-            # the constructors were renamed: their names in OCaml are given
-            for n in rows:
-                checks[n] = (checks[n][0], "")
-            for c in re.findall(r'"([^"]*)"', l.split("[", 1)[1]):
-                checks.append((where, "let _ = function %s _ -> () | _ -> ()" % c))
+            m = re.match(r'Extract Inductive (\S+) => "([^"]*)" \[ (.*) \](?: "(.*)")?\.$', l)
+            name, ty, ctors, match = m.group(1), m.group(2), m.group(3), m.group(4)
+            n = arity.get(name, 0)
+            args = "" if n == 0 else "(%s) " % ", ".join("_" for _ in range(n))
+            checks.append((where, "let _ = fun (x : %s%s) -> x" % (args, ty)))
+            for c in re.findall(r'"([^"]*)"', ctors):
+                if c.startswith("("):
+                    # refused for a private type, which the port does not build
+                    checks.append((where + " (constructor)", "let _ = %s" % c))
+                else:
+                    checks.append((where, "let _ = function %s _ -> () | _ -> ()" % c))
+            if match:
+                checks.append((where, "let _ = %s" % match))
         i += 1
 
 out = os.path.join("_build", "declgen", "check")
@@ -106,6 +102,7 @@ os.makedirs(out, exist_ok=True)
 src = os.path.join(out, "realisations.ml")
 text = [c for _, c in checks]
 refused = []
+private = 0
 while True:
     open(src, "w").write("\n".join(text) + "\n")
     r = subprocess.run(["ocamlc.opt", "-c", "-nolabels", "-w", "-a"] + inc + opens + ["-o",
@@ -119,11 +116,15 @@ while True:
         sys.exit(2)
     n = int(m.group(1)) - 1
     err = " ".join(x.strip() for x in r.stderr.strip().split("\n")[1:])[:300]
-    refused.append((checks[n][0], checks[n][1], err))
+    if "(constructor)" in checks[n][0] and "private type" in r.stderr:
+        private += 1
+    else:
+        refused.append((checks[n][0], checks[n][1], err))
     text[n] = ""
-    if len(refused) > 400:
+    if len(refused) + private > 600:
         break
 for where, line, err in refused:
     print("%s\n    %s\n    %s" % (where, line[:200], err))
-print("%d things checked, %d refused by OCaml" % (len(checks), len(refused)))
+print("%d things checked, %d refused by OCaml (and %d makers of private types, which the port does not use)"
+      % (len(checks), len(refused), private))
 sys.exit(1 if refused else 0)

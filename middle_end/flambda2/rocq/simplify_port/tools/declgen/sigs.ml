@@ -183,6 +183,33 @@ let operator_name s =
 
 let value_rocq s = if is_identifier s then sanitize s else operator_name s
 
+(* The constructors of the variants that the module declares after the
+   type [name]: in OCaml such a constructor hides one of [name] that has
+   the same name. *)
+let later_constructors modc name =
+  match module_shape modc with
+  | Signature sg ->
+    let after = ref false and acc = ref SS.empty in
+    List.iter
+      (fun (item : Types.signature_item) ->
+        match item with
+        | Sig_type (id, decl, _, _) ->
+          if !after
+          then (
+            match decl.type_kind with
+            | Type_variant (cds, _) ->
+              List.iter
+                (fun (cd : Types.constructor_declaration) ->
+                  acc := SS.add (Ident.name cd.cd_id) !acc)
+                cds
+            | _ -> ())
+          else if Ident.name id = name
+          then after := true
+        | _ -> ())
+      sg;
+    !acc
+  | _ -> SS.empty
+
 (* [modc] is the module that declares the item. *)
 let field_rocq modc s =
   let n = names_of_module modc in
