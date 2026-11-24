@@ -50,18 +50,24 @@ Definition create (cont : Continuation.t) (params : Bound_parameters.t)
        is_cold := is_cold
     |}.
 
+(* PORT-GAP(update): 37, [{ t with can_be_lifted }]. *)
+Definition update_can_be_lifted (t : Non_recursive_handler.t)
+    (can_be_lifted : bool) : Non_recursive_handler.t :=
+  {| cont := t.(cont);
+     params := t.(params);
+     lifted_params := t.(lifted_params);
+     handler := t.(handler);
+     is_exn_handler := t.(is_exn_handler);
+     can_be_lifted := can_be_lifted;
+     is_cold := t.(is_cold)
+  |}.
+Extract Inlined Constant update_can_be_lifted =>
+  "(fun t x__1 -> { t with can_be_lifted = x__1 })".
+
 (* 37 *)
 Definition with_can_be_lifted (can_be_lifted : bool)
     (t : Non_recursive_handler.t) : M Non_recursive_handler.t :=
-  ret
-    {| cont := t.(cont);
-       params := t.(params);
-       lifted_params := t.(lifted_params);
-       handler := t.(handler);
-       is_exn_handler := t.(is_exn_handler);
-       can_be_lifted := can_be_lifted;
-       is_cold := t.(is_cold)
-    |}.
+  ret (update_can_be_lifted t can_be_lifted).
 
 (* 39-57 *)
 (* PORT-GAP(loose): 39, the attribute [@ocamlformat "disable"] is not kept. *)
@@ -80,18 +86,40 @@ Definition print (ppf : Format.formatter)
     Lifted_cont_params.print lifted_params is_exn_handler can_be_lifted
     is_cold Flambda.Expr.print handler.
 
+(* PORT-GAP(update): 59, [{ t with handler }]. *)
+Definition update_handler (t : Non_recursive_handler.t)
+    (handler : Flambda.Expr.t) : Non_recursive_handler.t :=
+  {| cont := t.(cont);
+     params := t.(params);
+     lifted_params := t.(lifted_params);
+     handler := handler;
+     is_exn_handler := t.(is_exn_handler);
+     can_be_lifted := t.(can_be_lifted);
+     is_cold := t.(is_cold)
+  |}.
+Extract Inlined Constant update_handler =>
+  "(fun t x__1 -> { t with handler = x__1 })".
+
 (* 59 *)
 Definition with_handler (handler : Flambda.Expr.t)
     (t : Non_recursive_handler.t) : M Non_recursive_handler.t :=
-  ret
-    {| cont := t.(cont);
-       params := t.(params);
-       lifted_params := t.(lifted_params);
-       handler := handler;
-       is_exn_handler := t.(is_exn_handler);
-       can_be_lifted := t.(can_be_lifted);
-       is_cold := t.(is_cold)
-    |}.
+  ret (update_handler t handler).
+
+(* PORT-GAP(update): 75, [{ t with params; lifted_params; handler }]. *)
+Definition update_params_lifted_params_handler
+    (t : Non_recursive_handler.t) (params : Bound_parameters.t)
+    (lifted_params : Lifted_cont_params.t) (handler : Flambda.Expr.t)
+    : Non_recursive_handler.t :=
+  {| cont := t.(cont);
+     params := params;
+     lifted_params := lifted_params;
+     handler := handler;
+     is_exn_handler := t.(is_exn_handler);
+     can_be_lifted := t.(can_be_lifted);
+     is_cold := t.(is_cold)
+  |}.
+Extract Inlined Constant update_params_lifted_params_handler =>
+  "(fun t x__1 x__2 x__3 -> { t with params = x__1; lifted_params = x__2; handler = x__3 })".
 
 (* 61-75 *)
 Definition rename_params (t : Non_recursive_handler.t)
@@ -115,12 +143,4 @@ Definition rename_params (t : Non_recursive_handler.t)
   let* handler :=
     Flambda.Expr.apply_renaming t.(Non_recursive_handler.handler) renaming
   in
-  ret
-    {| cont := t.(cont);
-       params := params;
-       lifted_params := lifted_params;
-       handler := handler;
-       is_exn_handler := t.(is_exn_handler);
-       can_be_lifted := t.(can_be_lifted);
-       is_cold := t.(is_cold)
-    |}.
+  ret (update_params_lifted_params_handler t params lifted_params handler).
