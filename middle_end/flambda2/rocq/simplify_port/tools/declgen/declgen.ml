@@ -1,0 +1,184 @@
+(******************************************************************************
+ *                                  OxCaml                                    *
+ * -------------------------------------------------------------------------- *
+ *                               MIT License                                  *
+ *                                                                            *
+ * Copyright (c) 2026 Jane Street Group LLC                                   *
+ * opensource-contacts@janestreet.com                                         *
+ *                                                                            *
+ * Permission is hereby granted, free of charge, to any person obtaining a    *
+ * copy of this software and associated documentation files (the "Software"), *
+ * to deal in the Software without restriction, including without limitation  *
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,   *
+ * and/or sell copies of the Software, and to permit persons to whom the      *
+ * Software is furnished to do so, subject to the following conditions:       *
+ *                                                                            *
+ * The above copyright notice and this permission notice shall be included    *
+ * in all copies or substantial portions of the Software.                     *
+ *                                                                            *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR *
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,   *
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL    *
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER *
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING    *
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER        *
+ * DEALINGS IN THE SOFTWARE.                                                  *
+ ******************************************************************************)
+
+(* declgen BUILD_ROOT SOURCE_ROOT OUT_DIR COMMIT FILE.cmt ...
+
+   Writes, into OUT_DIR, one file of Rocq for each compilation unit that
+   the given files of Simplify use, and for each of those files itself: the
+   declarations of decl/README.md. Also INDEX.tsv and NOT-DECLARED.tsv.
+   This file follows no file of the compiler. *)
+
+open Common
+module SS = Set.Make (String)
+
+let source_of_unit u =
+  let find ext =
+    try Some (Load_path.find_normalized (u ^ ext)) with Not_found -> None
+  in
+  match (match find ".cmti" with Some f -> Some f | None -> find ".cmt") with
+  | None -> None
+  | Some f -> (
+    match (Cmt_format.read_cmt f).cmt_sourcefile with
+    | Some s -> Option.map fst (Src.source_path s)
+    | None -> None
+    | exception _ -> None)
+
+let mit_header =
+  [ "(* This file follows an interface whose source was not found: see the";
+    "   comment below. *)" ]
+
+let units () =
+  let s = ref SS.empty in
+  let add comps =
+    match comps with
+    | "%predef" :: _ -> ()
+    | u :: _ -> s := SS.add u !s
+    | [] -> ()
+  in
+  Hashtbl.iter (fun _ (c, _) -> add c) Uses.values;
+  Hashtbl.iter (fun _ (u : Uses.type_use) -> add u.comps) Uses.types;
+  Hashtbl.iter (fun _ c -> add c) Uses.exceptions;
+  Hashtbl.iter (fun _ c -> add c) Tr.needed_types;
+  SS.elements !s
+
+let pass scanned =
+  Decl_out.index := [];
+  Decl_out.left := [];
+  Walk.emitted_now := SS.empty;
+  let all = SS.elements (SS.union (SS.of_list (units ())) scanned) in
+  let results =
+    List.filter_map
+      (fun u ->
+        match Walk.emit_unit ~full:(is_simplify_unit u) u with
+        | Some (body, deps) -> Some (u, body, deps)
+        | None -> None)
+      all
+  in
+  let same = SS.equal !Walk.emitted_before !Walk.emitted_now in
+  Walk.emitted_before := !Walk.emitted_now;
+  results, same
+
+(* A file is written only if its text has changed, so that what depends
+   on it is not made again for nothing. *)
+let write_file path contents =
+  let same =
+    Sys.file_exists path
+    &&
+    let ic = open_in_bin path in
+    let n = in_channel_length ic in
+    let s = really_input_string ic n in
+    close_in ic;
+    s = contents
+  in
+  if not same
+  then (
+    let oc = open_out_bin path in
+    output_string oc contents;
+    close_out oc)
+
+let () =
+  build_root := Sys.argv.(1);
+  source_root := Sys.argv.(2);
+  let out_dir = Sys.argv.(3) in
+  let commit = Sys.argv.(4) in
+  let cmts = Array.to_list (Array.sub Sys.argv 5 (Array.length Sys.argv - 5)) in
+  let scanned = ref SS.empty in
+  let last = ref None in
+  List.iter
+    (fun f ->
+      let cmt = Uses.scan f in
+      scanned := SS.add cmt.cmt_modname !scanned;
+      last := Some cmt)
+    cmts;
+  (match !last with
+  | Some cmt -> Sigs.base_env := Envaux.env_of_only_summary cmt.cmt_initial_env
+  | None -> failwith "no file given");
+  let rec loop n =
+    Tr.changed := false;
+    let results, same = pass !scanned in
+    if (!Tr.changed || not same) && n < 12 then loop (n + 1) else results, n
+  in
+  let results, passes = loop 1 in
+  let names = Hashtbl.create 97 in
+  List.iter
+    (fun (u, body, deps) ->
+      let rocq = Sigs.unit_rocq u in
+      (match Hashtbl.find_opt names rocq with
+      | Some u' -> failwith (Printf.sprintf "two units for %s.v: %s and %s" rocq u u')
+      | None -> Hashtbl.replace names rocq u);
+      let source = source_of_unit u in
+      let header =
+        match source with
+        | Some rel -> (
+          match Src.header rel with [] -> mit_header | h -> h)
+        | None -> mit_header
+      in
+      let b = Buffer.create (String.length body + 4096) in
+      List.iter (fun l -> Buffer.add_string b (l ^ "\n")) header;
+      Buffer.add_string b
+        (Printf.sprintf
+           "\n\
+            (* GENERATED, not written by hand: the declarations of what the port \
+            of\n\
+           \   Simplify uses of the compiler's module [%s], after its interface\n\
+           \   %s\n\
+           \   at commit %s. Made by tools/declgen (see decl/README.md): a\n\
+           \   change is made there, not here. *)\n\n"
+           (short_unit u)
+           (Option.value ~default:"(source not found)" source)
+           commit);
+      Buffer.add_string b "From SimplifyPort Require Import Port_monad.\n";
+      let deps = SS.elements (SS.remove u deps) in
+      if deps <> []
+      then
+        Buffer.add_string b
+          (Printf.sprintf "From SimplifyPort.decl Require %s.\n"
+             (String.concat " " (List.sort compare (List.map Sigs.unit_rocq deps))));
+      Buffer.add_char b '\n';
+      Buffer.add_string b body;
+      write_file (Filename.concat out_dir (rocq ^ ".v")) (Buffer.contents b))
+    results;
+  (* what an earlier run wrote and this one does not *)
+  Array.iter
+    (fun f ->
+      if Filename.check_suffix f ".v"
+         && not (Hashtbl.mem names (Filename.chop_suffix f ".v"))
+      then Sys.remove (Filename.concat out_dir f))
+    (Sys.readdir out_dir);
+  let tsv file rows =
+    write_file (Filename.concat out_dir file)
+      (String.concat "" (List.map (fun r -> r ^ "\n") (List.sort_uniq compare rows)))
+  in
+  tsv "INDEX.tsv"
+    (List.map
+       (fun (o, r, k, a, p) -> Printf.sprintf "%s\t%s\t%s\t%d\t%s" o r k a p)
+       !Decl_out.index);
+  tsv "NOT-DECLARED.tsv"
+    (List.map (fun (o, why) -> Printf.sprintf "%s\t%s" o why) !Decl_out.left);
+  List.iter prerr_endline (List.sort_uniq compare !warnings);
+  Printf.printf "%d files, %d declarations, %d not declared, %d passes\n"
+    (List.length results) (List.length !Decl_out.index) (List.length !Decl_out.left) passes
