@@ -121,7 +121,7 @@ Definition cost_metrics (t : Rebuilt_static_const.t) : M Cost_metrics.t :=
 
 (* 68-73 *)
 Definition create_normal_non_code (cost_metrics : Cost_metrics.t)
-    (const : Static_const.t) : M t :=
+    (const : SC.t) : M t :=
   (* PORT-GAP(record-order): 70-71, calls in the fields [const] and
      [free_names]: the last field first, each bound under the name of its
      field. *)

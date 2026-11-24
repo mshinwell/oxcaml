@@ -115,7 +115,7 @@ let cost_metrics t0 =
     (fun _ -> Cost_metrics.zero)
     t0
 
-(** val create_normal_non_code : Cost_metrics.t -> Static_const.t -> t coq_M **)
+(** val create_normal_non_code : Cost_metrics.t -> SC.t -> t coq_M **)
 
 let create_normal_non_code cost_metrics0 const =
   let free_names0 = Static_const.free_names const in
@@ -574,7 +574,7 @@ let map_set_of_closures t0 find_code_metadata f =
       | Flambda.Deleted_code -> t0
       | Flambda.Static_const const0 -> (
         match const0 with
-        | Static_const.Set_of_closures set_of_closures ->
+        | SC.Set_of_closures set_of_closures ->
           let set_of_closures0 = f set_of_closures in
           let cost_metrics0 =
             Cost_metrics.set_of_closures
@@ -590,32 +590,32 @@ let map_set_of_closures t0 find_code_metadata f =
             (Normal { const = x__1; free_names = x__2; cost_metrics = x__3 }
               : rebuilt_static_const))
             (const1, free_names0, cost_metrics0)
-        | Static_const.Block (_, _, _, _) -> t0
-        | Static_const.Boxed_float32 _ -> t0
-        | Static_const.Boxed_float _ -> t0
-        | Static_const.Boxed_int32 _ -> t0
-        | Static_const.Boxed_int64 _ -> t0
-        | Static_const.Boxed_nativeint _ -> t0
-        | Static_const.Boxed_vec128 _ -> t0
-        | Static_const.Boxed_vec256 _ -> t0
-        | Static_const.Boxed_vec512 _ -> t0
-        | Static_const.Boxed_mask _ -> t0
-        | Static_const.Immutable_float_block _ -> t0
-        | Static_const.Immutable_float_array _ -> t0
-        | Static_const.Immutable_float32_array _ -> t0
-        | Static_const.Immutable_int_array _ -> t0
-        | Static_const.Immutable_int8_array _ -> t0
-        | Static_const.Immutable_int16_array _ -> t0
-        | Static_const.Immutable_int32_array _ -> t0
-        | Static_const.Immutable_int64_array _ -> t0
-        | Static_const.Immutable_nativeint_array _ -> t0
-        | Static_const.Immutable_vec128_array _ -> t0
-        | Static_const.Immutable_vec256_array _ -> t0
-        | Static_const.Immutable_vec512_array _ -> t0
-        | Static_const.Immutable_mask_array _ -> t0
-        | Static_const.Immutable_value_array _ -> t0
-        | Static_const.Empty_array _ -> t0
-        | Static_const.Immutable_string _ -> t0))
+        | SC.Block (_, _, _, _) -> t0
+        | SC.Boxed_float32 _ -> t0
+        | SC.Boxed_float _ -> t0
+        | SC.Boxed_int32 _ -> t0
+        | SC.Boxed_int64 _ -> t0
+        | SC.Boxed_nativeint _ -> t0
+        | SC.Boxed_vec128 _ -> t0
+        | SC.Boxed_vec256 _ -> t0
+        | SC.Boxed_vec512 _ -> t0
+        | SC.Boxed_mask _ -> t0
+        | SC.Immutable_float_block _ -> t0
+        | SC.Immutable_float_array _ -> t0
+        | SC.Immutable_float32_array _ -> t0
+        | SC.Immutable_int_array _ -> t0
+        | SC.Immutable_int8_array _ -> t0
+        | SC.Immutable_int16_array _ -> t0
+        | SC.Immutable_int32_array _ -> t0
+        | SC.Immutable_int64_array _ -> t0
+        | SC.Immutable_nativeint_array _ -> t0
+        | SC.Immutable_vec128_array _ -> t0
+        | SC.Immutable_vec256_array _ -> t0
+        | SC.Immutable_vec512_array _ -> t0
+        | SC.Immutable_mask_array _ -> t0
+        | SC.Immutable_value_array _ -> t0
+        | SC.Empty_array _ -> t0
+        | SC.Immutable_string _ -> t0))
     (fun _ _ -> t0)
     (fun _ _ -> t0)
     (fun _ -> t0)
