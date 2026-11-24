@@ -285,9 +285,13 @@ Definition cost_metrics (typing_env : Flambda2_types.Typing_env.t)
         ret metrics)
       metrics cost.(primitives)
   in
-  (* 177-185. Count the non lifted continuations. We currently cannot easily
-     access the size of handlers, since we have not yet done a downwards
-     traversal on them, so instead we just use an arbitrary size. *)
+  (* 178-185 *)
+  (* Count the non lifted continuations. We currently cannot easily access the
+     size of handlers, since we have not yet done a downwards traversal on them,
+     so instead we just use an arbitrary size.
+
+     CR gbury: find a way to get an estimate of the code size of
+     handlers/exprs *)
   let& handler_metrics :=
     fun (_handler : Flambda.Expr.t) =>
     let! tmp1 := Code_size.of_int i5 in
