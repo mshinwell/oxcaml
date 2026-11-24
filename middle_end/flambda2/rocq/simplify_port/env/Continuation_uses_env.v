@@ -32,16 +32,9 @@ Local Open Scope string_scope.
 Local Open Scope Z_scope.
 Local Open Scope list_scope.
 
-(* PORT-GAP(verbatim): 17-18, the two abbreviations of modules are the
-   compiler's text, and the Rocq text below writes the modules' own names.
-   As Rocq modules ([Module T := Flambda2_types.]) they make Rocq write
-   [open Flambda2_types] and [open Tag] in the extracted file, and after
-   them OCaml reads the type [Map.t] of the record's fields, which Rocq
-   prints after [open Continuation], as [Tag.Map.t]. *)
-(*OCAML
-module DE = Downwards_env
-module T = Flambda2_types
-OCAML*)
+(* 17-18 *)
+Module DE := Downwards_env.
+Module T := Flambda2_types.
 
 (* 20-23 *)
 Record t : Type :=
@@ -138,8 +131,8 @@ Extract Inlined Constant update_continuation_uses =>
 (* 65-104 *)
 Definition add_continuation_use (t : Continuation_uses_env.t)
     (cont : Continuation.t) (kind : Continuation_use_kind.t)
-    (id : Apply_cont_rewrite_id.t) (env_at_use : Downwards_env.t)
-    (arg_types : list Flambda2_types.t) : M Continuation_uses_env.t :=
+    (id : Apply_cont_rewrite_id.t) (env_at_use : DE.t) (arg_types : list T.t)
+    : M Continuation_uses_env.t :=
   let* arity :=
     let! tmp1 := Continuation.Map.find_opt cont t.(continuation_arities) in
     match tmp1 with
@@ -152,23 +145,21 @@ Definition add_continuation_use (t : Continuation_uses_env.t)
   in
   let* '(arg_types, env_at_use) :=
     (* Refine types based on arity of continuation *)
-    let* tenv := Downwards_env.typing_env env_at_use in
-    let* machine_width := Flambda2_types.Typing_env.machine_width tenv in
+    let* tenv := DE.typing_env env_at_use in
+    let* machine_width := T.Typing_env.machine_width tenv in
     let* '(tenv, arg_types) :=
       let! tmp1 := Flambda_arity.unarized_components arity in
       Misc.Stdlib.List.fold_left_map2
         (fun tenv arg_type kind =>
-          let* kind_ty :=
-            Flambda2_types.unknown_with_subkind None machine_width kind
-          in
-          let! tmp2 := Flambda2_types.meet tenv arg_type kind_ty in
+          let* kind_ty := T.unknown_with_subkind None machine_width kind in
+          let! tmp2 := T.meet tenv arg_type kind_ty in
           match tmp2 with
           | Or_bottom.Bottom => ret (tenv, arg_type)
           | Or_bottom.Ok (arg_type, env) => ret (env, arg_type)
           end)
         tenv arg_types tmp1
     in
-    let! tmp1 := Downwards_env.with_typing_env env_at_use tenv in
+    let! tmp1 := DE.with_typing_env env_at_use tenv in
     ret (arg_types, tmp1)
   in
   let* use := One_continuation_use.create kind env_at_use id arg_types in
@@ -190,8 +181,8 @@ Definition add_continuation_use (t : Continuation_uses_env.t)
 
 (* 106-109 *)
 Definition record_continuation_use (t : Continuation_uses_env.t)
-    (cont : Continuation.t) (kind : Continuation_use_kind.t)
-    (env_at_use : Downwards_env.t) (arg_types : list Flambda2_types.t)
+    (cont : Continuation.t) (kind : Continuation_use_kind.t) (env_at_use : DE.t)
+    (arg_types : list T.t)
     : M (Continuation_uses_env.t * Apply_cont_rewrite_id.t) :=
   let* id := Apply_cont_rewrite_id.create tt in
   let* t := add_continuation_use t cont kind id env_at_use arg_types in
@@ -199,7 +190,7 @@ Definition record_continuation_use (t : Continuation_uses_env.t)
 
 (* 111-115 *)
 Definition get_typing_env_no_more_than_one_use (t : Continuation_uses_env.t)
-    (k : Continuation.t) : M (option Flambda2_types.Typing_env.t) :=
+    (k : Continuation.t) : M (option T.Typing_env.t) :=
   let! tmp1 := Continuation.Map.find_or_null k t.(continuation_uses) in
   match tmp1 with
   | Or_null.Null => ret None
