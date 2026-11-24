@@ -87,7 +87,8 @@ let rename t0 =
     Bound_parameter.Map.of_list
       (List.combine keys (Bound_parameters.to_list new_bound_params))
   in
-  ( (fun t x__1 -> { t with new_params_indexed = x__1 }) t0 new_params_indexed0,
+  ( (fun t new_params_indexed -> { t with new_params_indexed })
+      t0 new_params_indexed0,
     renaming )
 
 (** val fold_aux : 'a1 -> (Bound_parameter.t -> Bound_parameter.t -> 'a1 -> 'a1

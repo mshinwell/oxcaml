@@ -73,7 +73,7 @@ Module Extra_param_and_args.
        args := args
     |}.
   Extract Inlined Constant update_args =>
-    "(fun t x__1 -> { t with args = x__1 })".
+  "(fun t args -> { t with args = args })".
 
   (* 44-47 *)
   Definition update_param_args (t : Extra_param_and_args.t)

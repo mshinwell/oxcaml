@@ -52,7 +52,7 @@ Definition update_dacc (t : Simplify_named_result.t) (dacc : Downwards_acc.t)
      was_lifted_set_of_closures := t.(was_lifted_set_of_closures)
   |}.
 Extract Inlined Constant update_dacc =>
-  "(fun t x__1 -> { t with dacc = x__1 })".
+  "(fun t dacc -> { t with dacc = dacc })".
 
 (* 23 *)
 Definition with_dacc (dacc : Downwards_acc.t) (t : Simplify_named_result.t)

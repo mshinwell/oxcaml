@@ -134,14 +134,14 @@ let code_age_relation t0 =
     coq_M **)
 
 let get_and_clear_lifted_constants t0 =
-  ( (fun t x__1 -> { t with lifted_constants = x__1 })
+  ( (fun t lifted_constants -> { t with lifted_constants })
       t0 Lifted_constant_state.empty,
     t0.lifted_constants )
 
 (** val add_lifted_constant : t -> Lifted_constant.t -> t coq_M **)
 
 let add_lifted_constant t0 const =
-  (fun t x__1 -> { t with lifted_constants = x__1 })
+  (fun t lifted_constants -> { t with lifted_constants })
     t0
     (Lifted_constant_state.add t0.lifted_constants const)
 
@@ -152,7 +152,8 @@ let are_rebuilding_terms t0 =
 
 (** val with_lifted_constants : t -> Lifted_constant_state.t -> t coq_M **)
 
-let with_lifted_constants = fun t x__1 -> { t with lifted_constants = x__1 }
+let with_lifted_constants =
+ fun t lifted_constants -> { t with lifted_constants }
 
 (** val no_lifted_constants : t -> bool coq_M **)
 
@@ -160,11 +161,11 @@ let no_lifted_constants t0 = Lifted_constant_state.is_empty t0.lifted_constants
 
 (** val map_uenv : t -> (Upwards_env.t -> Upwards_env.t coq_M) -> t coq_M **)
 
-let map_uenv t0 f = (fun t x__1 -> { t with uenv = x__1 }) t0 (f t0.uenv)
+let map_uenv t0 f = (fun t uenv -> { t with uenv }) t0 (f t0.uenv)
 
 (** val with_uenv : t -> Upwards_env.t -> t coq_M **)
 
-let with_uenv = fun t x__1 -> { t with uenv = x__1 }
+let with_uenv = fun t uenv -> { t with uenv }
 
 (** val remember_code_for_cmx : t -> Code.t Code_id.Map.t -> t coq_M **)
 
@@ -178,14 +179,15 @@ let remember_code_for_cmx t0 code =
         (Downwards_acc.code_ids_to_remember t0.creation_dacc)
     in
     let all_code0 = Exported_code.add_code keep_code code t0.all_code in
-    (fun t x__1 -> { t with all_code = x__1 }) t0 all_code0
+    (fun t all_code -> { t with all_code }) t0 all_code0
 
 (** val with_name_occurrences : t -> Name_occurrences.t -> t coq_M **)
 
 let with_name_occurrences t0 name_occurrences0 =
   if name_occurrences0 == t0.name_occurrences
   then t0
-  else (fun t x__1 -> { t with name_occurrences = x__1 }) t0 name_occurrences0
+  else
+    (fun t name_occurrences -> { t with name_occurrences }) t0 name_occurrences0
 
 (** val clear_name_occurrences : t -> t coq_M **)
 
@@ -197,7 +199,7 @@ let add_free_names t0 free_names =
   let name_occurrences0 =
     Name_occurrences.union t0.name_occurrences free_names
   in
-  (fun t x__1 -> { t with name_occurrences = x__1 }) t0 name_occurrences0
+  (fun t name_occurrences -> { t with name_occurrences }) t0 name_occurrences0
 
 (** val used_value_slots : t -> Name_occurrences.t coq_M **)
 
@@ -212,36 +214,36 @@ let shareable_constants t0 = Downwards_acc.shareable_constants t0.creation_dacc
 
 let remove_all_occurrences_of_free_names t0 to_remove =
   let name_occurrences0 = Name_occurrences.diff t0.name_occurrences to_remove in
-  (fun t x__1 -> { t with name_occurrences = x__1 }) t0 name_occurrences0
+  (fun t name_occurrences -> { t with name_occurrences }) t0 name_occurrences0
 
 (** val clear_cost_metrics : t -> t coq_M **)
 
 let clear_cost_metrics t0 =
-  (fun t x__1 -> { t with cost_metrics = x__1 }) t0 Cost_metrics.zero
+  (fun t cost_metrics -> { t with cost_metrics }) t0 Cost_metrics.zero
 
 (** val with_cost_metrics : Cost_metrics.t -> t -> t coq_M **)
 
 let with_cost_metrics cost_metrics0 t0 =
-  (fun t x__1 -> { t with cost_metrics = x__1 }) t0 cost_metrics0
+  (fun t cost_metrics -> { t with cost_metrics }) t0 cost_metrics0
 
 (** val notify_added : Code_size.t -> t -> t coq_M **)
 
 let notify_added code_size t0 =
-  (fun t x__1 -> { t with cost_metrics = x__1 })
+  (fun t cost_metrics -> { t with cost_metrics })
     t0
     (Cost_metrics.notify_added code_size t0.cost_metrics)
 
 (** val notify_removed : Removed_operations.t -> t -> t coq_M **)
 
 let notify_removed operation t0 =
-  (fun t x__1 -> { t with cost_metrics = x__1 })
+  (fun t cost_metrics -> { t with cost_metrics })
     t0
     (Cost_metrics.notify_removed operation t0.cost_metrics)
 
 (** val add_cost_metrics : Cost_metrics.t -> t -> t coq_M **)
 
 let add_cost_metrics cost_metrics0 t0 =
-  (fun t x__1 -> { t with cost_metrics = x__1 })
+  (fun t cost_metrics -> { t with cost_metrics })
     t0
     (Cost_metrics.( + ) t0.cost_metrics cost_metrics0)
 
@@ -250,7 +252,8 @@ let add_cost_metrics cost_metrics0 t0 =
 
 let add_cost_metrics_and_with_name_occurrences t0 cost_metrics0
     name_occurrences0 =
-  (fun t x__1 x__2 -> { t with cost_metrics = x__1; name_occurrences = x__2 })
+  (fun t cost_metrics name_occurrences ->
+    { t with cost_metrics; name_occurrences })
     t0
     (Cost_metrics.( + ) t0.cost_metrics cost_metrics0)
     name_occurrences0
@@ -268,7 +271,7 @@ let is_demoted_exn_handler t0 cont =
 
 (** val with_slot_offsets : t -> Slot_offsets.t Or_unknown.t -> t coq_M **)
 
-let with_slot_offsets = fun t x__1 -> { t with slot_offsets = x__1 }
+let with_slot_offsets = fun t slot_offsets -> { t with slot_offsets }
 
 (** val required_names : t -> Name.Set.t coq_M **)
 
@@ -296,7 +299,7 @@ let mutable_unboxing_result t0 =
 
 (** val set_resimplify : t -> t coq_M **)
 
-let set_resimplify t0 = (fun t x__1 -> { t with resimplify = x__1 }) t0 true
+let set_resimplify t0 = (fun t resimplify -> { t with resimplify }) t0 true
 
 (** val specialization_map : t -> Continuation.t Apply_cont_rewrite_id.Map.t
     Continuation.Map.t coq_M **)

@@ -76,7 +76,7 @@ let create cont0 params0 lifted_params0 handler0 is_exn_handler0 can_be_lifted0
 (** val with_can_be_lifted : bool -> t -> t coq_M **)
 
 let with_can_be_lifted can_be_lifted0 t0 =
-  (fun t x__1 -> { t with can_be_lifted = x__1 }) t0 can_be_lifted0
+  (fun t can_be_lifted -> { t with can_be_lifted }) t0 can_be_lifted0
 
 (** val print : Format.formatter -> t -> unit coq_M **)
 
@@ -102,8 +102,7 @@ let print ppf pat =
 
 (** val with_handler : Flambda.Expr.t -> t -> t coq_M **)
 
-let with_handler handler0 t0 =
-  (fun t x__1 -> { t with handler = x__1 }) t0 handler0
+let with_handler handler0 t0 = (fun t handler -> { t with handler }) t0 handler0
 
 (** val rename_params : t -> t coq_M **)
 
@@ -115,6 +114,6 @@ let rename_params t0 =
   in
   let renaming = Renaming.compose lifted_params_renaming params_renaming in
   let handler0 = Flambda.Expr.apply_renaming t0.handler renaming in
-  (fun t x__1 x__2 x__3 ->
-    { t with params = x__1; lifted_params = x__2; handler = x__3 })
+  (fun t params lifted_params handler ->
+    { t with params; lifted_params; handler })
     t0 params0 lifted_params0 handler0

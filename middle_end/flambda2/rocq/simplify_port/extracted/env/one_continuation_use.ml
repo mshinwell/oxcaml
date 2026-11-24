@@ -81,7 +81,7 @@ let mark_non_inlinable t0 =
     | Continuation_use_kind.Inlinable -> f__1 ()
     | Continuation_use_kind.Non_inlinable { escaping = x__1 } -> f__2 x__1)
     (fun _ ->
-      (fun t x__1 -> { t with kind = x__1 })
+      (fun t kind -> { t with kind })
         t0
         ((fun x__1 ->
            (Continuation_use_kind.Non_inlinable { escaping = x__1 }

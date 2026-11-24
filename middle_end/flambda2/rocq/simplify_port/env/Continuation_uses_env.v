@@ -81,7 +81,8 @@ Definition update_continuation_arities (t : Continuation_uses_env.t)
      continuation_arities := continuation_arities
   |}.
 Extract Inlined Constant update_continuation_arities =>
-  "(fun t x__1 -> { t with continuation_arities = x__1 })".
+  "(fun t continuation_arities -> { t with continuation_arities =
+   continuation_arities })".
 
 (* 38-50 *)
 Definition record_continuation (t : Continuation_uses_env.t)
@@ -131,7 +132,8 @@ Definition update_continuation_uses (t : Continuation_uses_env.t)
      continuation_arities := t.(continuation_arities)
   |}.
 Extract Inlined Constant update_continuation_uses =>
-  "(fun t x__1 -> { t with continuation_uses = x__1 })".
+  "(fun t continuation_uses -> { t with continuation_uses = continuation_uses
+   })".
 
 (* 65-104 *)
 Definition add_continuation_use (t : Continuation_uses_env.t)

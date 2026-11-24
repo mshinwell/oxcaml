@@ -140,7 +140,7 @@ Definition update_lifted_constants (t : Upwards_acc.t)
      resimplify := t.(resimplify)
   |}.
 Extract Inlined Constant update_lifted_constants =>
-  "(fun t x__1 -> { t with lifted_constants = x__1 })".
+  "(fun t lifted_constants -> { t with lifted_constants = lifted_constants })".
 
 (* 87-88 *)
 Definition get_and_clear_lifted_constants (t : Upwards_acc.t)
@@ -184,7 +184,7 @@ Definition update_uenv (t : Upwards_acc.t)
      resimplify := t.(resimplify)
   |}.
 Extract Inlined Constant update_uenv =>
-  "(fun t x__1 -> { t with uenv = x__1 })".
+  "(fun t uenv -> { t with uenv = uenv })".
 
 (* 101 *)
 Definition map_uenv (t : Upwards_acc.t)
@@ -211,7 +211,7 @@ Definition update_all_code (t : Upwards_acc.t)
      resimplify := t.(resimplify)
   |}.
 Extract Inlined Constant update_all_code =>
-  "(fun t x__1 -> { t with all_code = x__1 })".
+  "(fun t all_code -> { t with all_code = all_code })".
 
 (* 105-113 *)
 Definition remember_code_for_cmx (t : Upwards_acc.t)
@@ -243,7 +243,7 @@ Definition update_name_occurrences (t : Upwards_acc.t)
      resimplify := t.(resimplify)
   |}.
 Extract Inlined Constant update_name_occurrences =>
-  "(fun t x__1 -> { t with name_occurrences = x__1 })".
+  "(fun t name_occurrences -> { t with name_occurrences = name_occurrences })".
 
 (* 119-122 *)
 Definition with_name_occurrences (t : Upwards_acc.t)
@@ -294,7 +294,7 @@ Definition update_cost_metrics (t : Upwards_acc.t)
      resimplify := t.(resimplify)
   |}.
 Extract Inlined Constant update_cost_metrics =>
-  "(fun t x__1 -> { t with cost_metrics = x__1 })".
+  "(fun t cost_metrics -> { t with cost_metrics = cost_metrics })".
 
 (* 141 *)
 Definition clear_cost_metrics (t : Upwards_acc.t) : M Upwards_acc.t :=
@@ -340,7 +340,8 @@ Definition update_cost_metrics_name_occurrences (t : Upwards_acc.t)
      resimplify := t.(resimplify)
   |}.
 Extract Inlined Constant update_cost_metrics_name_occurrences =>
-  "(fun t x__1 x__2 -> { t with cost_metrics = x__1; name_occurrences = x__2 })".
+  "(fun t cost_metrics name_occurrences -> { t with cost_metrics =
+   cost_metrics; name_occurrences = name_occurrences })".
 
 (* 156-160 *)
 Definition add_cost_metrics_and_with_name_occurrences (t : Upwards_acc.t)
@@ -376,7 +377,7 @@ Definition update_slot_offsets (t : Upwards_acc.t)
      resimplify := t.(resimplify)
   |}.
 Extract Inlined Constant update_slot_offsets =>
-  "(fun t x__1 -> { t with slot_offsets = x__1 })".
+  "(fun t slot_offsets -> { t with slot_offsets = slot_offsets })".
 
 (* 169 *)
 Definition with_slot_offsets (t : Upwards_acc.t)
@@ -418,7 +419,7 @@ Definition update_resimplify (t : Upwards_acc.t)
      resimplify := resimplify
   |}.
 Extract Inlined Constant update_resimplify =>
-  "(fun t x__1 -> { t with resimplify = x__1 })".
+  "(fun t resimplify -> { t with resimplify = resimplify })".
 
 (* 179 *)
 Definition set_resimplify (t : Upwards_acc.t) : M Upwards_acc.t :=

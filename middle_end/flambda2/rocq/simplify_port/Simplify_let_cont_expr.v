@@ -1524,7 +1524,9 @@ Definition update_consts_lifted_after_fork_handlers_cont_uses_env
      invariant_extra_params_and_args := t.(invariant_extra_params_and_args);
      handlers := handlers |}.
 Extract Inlined Constant update_consts_lifted_after_fork_handlers_cont_uses_env =>
-  "(fun t x__1 x__2 x__3 -> { t with consts_lifted_after_fork = x__1; handlers = x__2; cont_uses_env = x__3 })".
+  "(fun t consts_lifted_after_fork handlers cont_uses_env -> { t with
+   consts_lifted_after_fork = consts_lifted_after_fork; handlers = handlers;
+   cont_uses_env = cont_uses_env })".
 
 (* PORT-GAP(update): 1238-1243, [{ data with handlers; cont_uses_env;
    cont_uses_env_after_body; consts_lifted_after_fork }]. *)
@@ -1549,7 +1551,10 @@ Definition update_handlers_cont_uses_env_cont_uses_env_after_body_consts_lifted_
      invariant_extra_params_and_args := t.(invariant_extra_params_and_args);
      handlers := handlers |}.
 Extract Inlined Constant update_handlers_cont_uses_env_cont_uses_env_after_body_consts_lifted_after_fork =>
-  "(fun t x__1 x__2 x__3 x__4 -> { t with handlers = x__1; cont_uses_env = x__2; cont_uses_env_after_body = x__3; consts_lifted_after_fork = x__4 })".
+  "(fun t handlers cont_uses_env cont_uses_env_after_body
+   consts_lifted_after_fork -> { t with handlers = handlers; cont_uses_env =
+   cont_uses_env; cont_uses_env_after_body = cont_uses_env_after_body;
+   consts_lifted_after_fork = consts_lifted_after_fork })".
 
 (* PORT-GAP(update): 1268, [{ data with cont_uses_env_after_body }]. *)
 Definition update_cont_uses_env_after_body
@@ -1570,7 +1575,8 @@ Definition update_cont_uses_env_after_body
      invariant_extra_params_and_args := t.(invariant_extra_params_and_args);
      handlers := t.(handlers) |}.
 Extract Inlined Constant update_cont_uses_env_after_body =>
-  "(fun t x__1 -> { t with cont_uses_env_after_body = x__1 })".
+  "(fun t cont_uses_env_after_body -> { t with cont_uses_env_after_body =
+   cont_uses_env_after_body })".
 
 (* 1092-1177 *)
 Fixpoint compute_specialized_continuation (fuel : fuel)

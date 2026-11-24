@@ -77,7 +77,7 @@ let record_continuation t0 cont0 arity =
         | None -> Some arity)
       t0.continuation_arities
   in
-  (fun t x__1 -> { t with continuation_arities = x__1 })
+  (fun t continuation_arities -> { t with continuation_arities })
     t0 continuation_arities0
 
 (** val record_continuation_arity : t -> Original_handlers.t -> t coq_M **)
@@ -161,7 +161,8 @@ let add_continuation_use t0 cont0 kind id env_at_use arg_types =
           Some (Continuation_uses.add_use uses use))
       t0.continuation_uses
   in
-  (fun t x__1 -> { t with continuation_uses = x__1 }) t0 continuation_uses0
+  (fun t continuation_uses -> { t with continuation_uses })
+    t0 continuation_uses0
 
 (** val record_continuation_use : t -> Continuation.t -> Continuation_use_kind.t
     -> Downwards_env.t -> Flambda2_types.t list -> (t * Apply_cont_rewrite_id.t)
@@ -238,7 +239,7 @@ let delete_continuation_uses = remove
 (** val clear_continuation_uses : t -> Continuation.t -> t coq_M **)
 
 let clear_continuation_uses t0 cont0 =
-  (fun t x__1 -> { t with continuation_uses = x__1 })
+  (fun t continuation_uses -> { t with continuation_uses })
     t0
     (Continuation.Map.update cont0
        (Option.map Continuation_uses.clear_uses)

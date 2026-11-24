@@ -79,7 +79,7 @@ Definition update_uses (t : Continuation_uses.t)
      uses := uses
   |}.
 Extract Inlined Constant update_uses =>
-  "(fun t x__1 -> { t with uses = x__1 })".
+  "(fun t uses -> { t with uses = uses })".
 
 (* 39-59 *)
 Definition add_use (t : Continuation_uses.t) (use : One_continuation_use.t)

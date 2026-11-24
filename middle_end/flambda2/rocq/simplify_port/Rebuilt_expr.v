@@ -83,7 +83,7 @@ Definition update_is_cold (t : Rebuilt_expr.t) (is_cold : bool)
      contents_hash := t.(contents_hash)
   |}.
 Extract Inlined Constant update_is_cold =>
-  "(fun t x__1 -> { t with is_cold = x__1 })".
+  "(fun t is_cold -> { t with is_cold = is_cold })".
 
 (* 38 *)
 Definition mark_as_cold (t : Rebuilt_expr.t) : M Rebuilt_expr.t :=

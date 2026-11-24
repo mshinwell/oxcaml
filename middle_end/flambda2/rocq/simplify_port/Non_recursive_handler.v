@@ -62,7 +62,7 @@ Definition update_can_be_lifted (t : Non_recursive_handler.t)
      is_cold := t.(is_cold)
   |}.
 Extract Inlined Constant update_can_be_lifted =>
-  "(fun t x__1 -> { t with can_be_lifted = x__1 })".
+  "(fun t can_be_lifted -> { t with can_be_lifted = can_be_lifted })".
 
 (* 37 *)
 Definition with_can_be_lifted (can_be_lifted : bool)
@@ -98,7 +98,7 @@ Definition update_handler (t : Non_recursive_handler.t)
      is_cold := t.(is_cold)
   |}.
 Extract Inlined Constant update_handler =>
-  "(fun t x__1 -> { t with handler = x__1 })".
+  "(fun t handler -> { t with handler = handler })".
 
 (* 59 *)
 Definition with_handler (handler : Flambda.Expr.t)
@@ -119,7 +119,8 @@ Definition update_params_lifted_params_handler
      is_cold := t.(is_cold)
   |}.
 Extract Inlined Constant update_params_lifted_params_handler =>
-  "(fun t x__1 x__2 x__3 -> { t with params = x__1; lifted_params = x__2; handler = x__3 })".
+  "(fun t params lifted_params handler -> { t with params = params;
+   lifted_params = lifted_params; handler = handler })".
 
 (* 61-75 *)
 Definition rename_params (t : Non_recursive_handler.t)

@@ -150,7 +150,7 @@ Definition update_cost_metrics_ (t : Simplified_named.t)
      free_names := t.(free_names)
   |}.
 Extract Inlined Constant update_cost_metrics_ =>
-  "(fun t x__1 -> { t with cost_metrics = x__1 })".
+  "(fun t cost_metrics -> { t with cost_metrics = cost_metrics })".
 
 (* 88 *)
 Definition update_cost_metrics (cost_metrics : Cost_metrics.t)

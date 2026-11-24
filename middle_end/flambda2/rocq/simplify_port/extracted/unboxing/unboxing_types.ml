@@ -70,7 +70,7 @@ module Extra_param_and_args = struct
   let update_param_args t0 rewrite_id extra_arg =
     let () = assert (not (Apply_cont_rewrite_id.Map.mem rewrite_id t0.args)) in
     let args0 = Apply_cont_rewrite_id.Map.add rewrite_id extra_arg t0.args in
-    (fun t x__1 -> { t with args = x__1 }) t0 args0
+    (fun t args -> { t with args }) t0 args0
 
   (** val print : Format.formatter -> t -> unit coq_M **)
 

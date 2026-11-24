@@ -124,7 +124,7 @@ let print ppf pat =
 (** val update_cost_metrics : Cost_metrics.t -> t -> t coq_M **)
 
 let update_cost_metrics cost_metrics0 t0 =
-  (fun t x__1 -> { t with cost_metrics = x__1 }) t0 cost_metrics0
+  (fun t cost_metrics -> { t with cost_metrics }) t0 cost_metrics0
 
 type 'a or_rewritten =
   | Simplified of 'a

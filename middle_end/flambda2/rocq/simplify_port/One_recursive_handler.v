@@ -49,7 +49,7 @@ Definition update_handler (t : One_recursive_handler.t)
     (handler : Flambda.Expr.t) : One_recursive_handler.t :=
   {| params := t.(params); handler := handler; is_cold := t.(is_cold) |}.
 Extract Inlined Constant update_handler =>
-  "(fun t x__1 -> { t with handler = x__1 })".
+  "(fun t handler -> { t with handler = handler })".
 
 (* 30 *)
 Definition with_handler (handler : Flambda.Expr.t)

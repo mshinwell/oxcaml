@@ -192,7 +192,7 @@ Definition update_flow_acc (t : Downwards_acc.t)
      specialization_map := t.(specialization_map)
   |}.
 Extract Inlined Constant update_flow_acc =>
-  "(fun t x__1 -> { t with flow_acc = x__1 })".
+  "(fun t flow_acc -> { t with flow_acc = flow_acc })".
 
 (* 118 *)
 (* PORT-GAP(loose): the attribute [@inline always] is not kept, here and at
@@ -229,7 +229,7 @@ Definition update_denv (t : Downwards_acc.t)
      specialization_map := t.(specialization_map)
   |}.
 Extract Inlined Constant update_denv =>
-  "(fun t x__1 -> { t with denv = x__1 })".
+  "(fun t denv -> { t with denv = denv })".
 
 (* 122 *)
 Definition map_denv (t : Downwards_acc.t)
@@ -264,7 +264,8 @@ Definition update_continuation_uses_env (t : Downwards_acc.t)
      specialization_map := t.(specialization_map)
   |}.
 Extract Inlined Constant update_continuation_uses_env =>
-  "(fun t x__1 -> { t with continuation_uses_env = x__1 })".
+  "(fun t continuation_uses_env -> { t with continuation_uses_env =
+   continuation_uses_env })".
 
 (* 126-127 *)
 Definition with_continuation_uses_env (t : Downwards_acc.t)
@@ -362,7 +363,8 @@ Definition update_lifted_constants_denv (t : Downwards_acc.t)
      specialization_map := t.(specialization_map)
   |}.
 Extract Inlined Constant update_lifted_constants_denv =>
-  "(fun t x__1 x__2 -> { t with lifted_constants = x__1; denv = x__2 })".
+  "(fun t lifted_constants denv -> { t with lifted_constants =
+   lifted_constants; denv = denv })".
 
 (* 168-178. The optional argument [?also_add_to_env] is by place; the
    wrapper at the end of the extracted file gives it its label. *)
@@ -411,7 +413,7 @@ Definition update_lifted_constants (t : Downwards_acc.t)
      specialization_map := t.(specialization_map)
   |}.
 Extract Inlined Constant update_lifted_constants =>
-  "(fun t x__1 -> { t with lifted_constants = x__1 })".
+  "(fun t lifted_constants -> { t with lifted_constants = lifted_constants })".
 
 (* 182 *)
 Definition clear_lifted_constants (t : Downwards_acc.t) : M Downwards_acc.t :=
@@ -460,7 +462,8 @@ Definition update_shareable_constants (t : Downwards_acc.t)
      specialization_map := t.(specialization_map)
   |}.
 Extract Inlined Constant update_shareable_constants =>
-  "(fun t x__1 -> { t with shareable_constants = x__1 })".
+  "(fun t shareable_constants -> { t with shareable_constants =
+   shareable_constants })".
 
 (* 196-203 *)
 Definition consider_constant_for_sharing (t : Downwards_acc.t)
@@ -502,7 +505,7 @@ Definition update_used_value_slots (t : Downwards_acc.t)
      specialization_map := t.(specialization_map)
   |}.
 Extract Inlined Constant update_used_value_slots =>
-  "(fun t x__1 -> { t with used_value_slots = x__1 })".
+  "(fun t used_value_slots -> { t with used_value_slots = used_value_slots })".
 
 (* 210-215 *)
 Definition add_use_of_value_slot (t : Downwards_acc.t)
@@ -545,7 +548,8 @@ Definition update_code_ids_to_remember (t : Downwards_acc.t)
      specialization_map := t.(specialization_map)
   |}.
 Extract Inlined Constant update_code_ids_to_remember =>
-  "(fun t x__1 -> { t with code_ids_to_remember = x__1 })".
+  "(fun t code_ids_to_remember -> { t with code_ids_to_remember =
+   code_ids_to_remember })".
 
 (* 224-230 *)
 Definition add_code_ids_to_remember (t : Downwards_acc.t)
@@ -584,7 +588,8 @@ Definition update_code_ids_to_never_delete (t : Downwards_acc.t)
      specialization_map := t.(specialization_map)
   |}.
 Extract Inlined Constant update_code_ids_to_never_delete =>
-  "(fun t x__1 -> { t with code_ids_to_never_delete = x__1 })".
+  "(fun t code_ids_to_never_delete -> { t with code_ids_to_never_delete =
+   code_ids_to_never_delete })".
 
 (* 237-241 *)
 Definition add_code_ids_to_never_delete (t : Downwards_acc.t)
@@ -619,7 +624,8 @@ Definition update_code_ids_never_simplified (t : Downwards_acc.t)
      specialization_map := t.(specialization_map)
   |}.
 Extract Inlined Constant update_code_ids_never_simplified =>
-  "(fun t x__1 -> { t with code_ids_never_simplified = x__1 })".
+  "(fun t code_ids_never_simplified -> { t with code_ids_never_simplified =
+   code_ids_never_simplified })".
 
 (* 248-252 *)
 Definition add_code_ids_never_simplified (t : Downwards_acc.t)
@@ -661,7 +667,8 @@ Definition update_demoted_exn_handlers (t : Downwards_acc.t)
      specialization_map := t.(specialization_map)
   |}.
 Extract Inlined Constant update_demoted_exn_handlers =>
-  "(fun t x__1 -> { t with demoted_exn_handlers = x__1 })".
+  "(fun t demoted_exn_handlers -> { t with demoted_exn_handlers =
+   demoted_exn_handlers })".
 
 (* 261-264 *)
 Definition demote_exn_handler (t : Downwards_acc.t) (cont : Continuation.t)
@@ -691,7 +698,7 @@ Definition update_slot_offsets (t : Downwards_acc.t)
      specialization_map := t.(specialization_map)
   |}.
 Extract Inlined Constant update_slot_offsets =>
-  "(fun t x__1 -> { t with slot_offsets = x__1 })".
+  "(fun t slot_offsets -> { t with slot_offsets = slot_offsets })".
 
 (* 270 *)
 Definition with_slot_offsets (t : Downwards_acc.t)
@@ -725,7 +732,8 @@ Definition update_debuginfo_rewrites (t : Downwards_acc.t)
      specialization_map := t.(specialization_map)
   |}.
 Extract Inlined Constant update_debuginfo_rewrites =>
-  "(fun t x__1 -> { t with debuginfo_rewrites = x__1 })".
+  "(fun t debuginfo_rewrites -> { t with debuginfo_rewrites =
+   debuginfo_rewrites })".
 
 (* 275-284. [Debuginfo.merge ~into:earlier_dbg dbg]: the arguments are in
    the order of the interface. *)
@@ -764,7 +772,8 @@ Definition update_are_lifting_conts (t : Downwards_acc.t)
      specialization_map := t.(specialization_map)
   |}.
 Extract Inlined Constant update_are_lifting_conts =>
-  "(fun t x__1 -> { t with are_lifting_conts = x__1 })".
+  "(fun t are_lifting_conts -> { t with are_lifting_conts = are_lifting_conts
+   })".
 
 (* 288 *)
 Definition with_are_lifting_conts (t : Downwards_acc.t)
@@ -794,7 +803,8 @@ Definition update_lifted_continuations (t : Downwards_acc.t)
      specialization_map := t.(specialization_map)
   |}.
 Extract Inlined Constant update_lifted_continuations =>
-  "(fun t x__1 -> { t with lifted_continuations = x__1 })".
+  "(fun t lifted_continuations -> { t with lifted_continuations =
+   lifted_continuations })".
 
 (* 290-291 *)
 Definition get_and_clear_lifted_continuations (t : Downwards_acc.t)
@@ -837,7 +847,8 @@ Definition update_continuation_lifting_budget (t : Downwards_acc.t)
      specialization_map := t.(specialization_map)
   |}.
 Extract Inlined Constant update_continuation_lifting_budget =>
-  "(fun t x__1 -> { t with continuation_lifting_budget = x__1 })".
+  "(fun t continuation_lifting_budget -> { t with continuation_lifting_budget
+   = continuation_lifting_budget })".
 
 (* 303-304 *)
 Definition with_continuation_lifting_budget (t : Downwards_acc.t)
@@ -895,7 +906,8 @@ Definition update_continuations_to_specialize (t : Downwards_acc.t)
      specialization_map := t.(specialization_map)
   |}.
 Extract Inlined Constant update_continuations_to_specialize =>
-  "(fun t x__1 -> { t with continuations_to_specialize = x__1 })".
+  "(fun t continuations_to_specialize -> { t with continuations_to_specialize
+   = continuations_to_specialize })".
 
 (* 330-334 *)
 Definition add_continuation_to_specialize (t : Downwards_acc.t)
@@ -926,7 +938,8 @@ Definition update_specialization_map (t : Downwards_acc.t)
      specialization_map := specialization_map
   |}.
 Extract Inlined Constant update_specialization_map =>
-  "(fun t x__1 -> { t with specialization_map = x__1 })".
+  "(fun t specialization_map -> { t with specialization_map =
+   specialization_map })".
 
 (* 336-340 *)
 Definition add_specialization (t : Downwards_acc.t)

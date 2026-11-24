@@ -159,7 +159,7 @@ Definition update_continuations (t : Upwards_env.t)
      machine_width := t.(machine_width)
   |}.
 Extract Inlined Constant update_continuations =>
-  "(fun t x__1 -> { t with continuations = x__1 })".
+  "(fun t continuations -> { t with continuations = continuations })".
 
 (* 94-96 *)
 Definition add_continuation0 (t : Upwards_env.t) (cont : Continuation.t)
@@ -183,7 +183,8 @@ Definition update_unique_handlers_map (t : Upwards_env.t)
      machine_width := t.(machine_width)
   |}.
 Extract Inlined Constant update_unique_handlers_map =>
-  "(fun t x__1 -> { t with unique_handlers_map = x__1 })".
+  "(fun t unique_handlers_map -> { t with unique_handlers_map =
+   unique_handlers_map })".
 
 (* 98-108. [Rebuilt_expr.Unique_continuation_handlers.add
    are_rebuilding_terms params handler cont t.unique_handlers_map
@@ -217,7 +218,8 @@ Definition update_cold_continuations (t : Upwards_env.t)
      machine_width := t.(machine_width)
   |}.
 Extract Inlined Constant update_cold_continuations =>
-  "(fun t x__1 -> { t with cold_continuations = x__1 })".
+  "(fun t cold_continuations -> { t with cold_continuations =
+   cold_continuations })".
 
 (* 110-112 *)
 Definition add_cold_continuation (t : Upwards_env.t) (cont : Continuation.t)
@@ -296,7 +298,8 @@ Definition update_continuation_shortcuts (t : Upwards_env.t)
      machine_width := t.(machine_width)
   |}.
 Extract Inlined Constant update_continuation_shortcuts =>
-  "(fun t x__1 -> { t with continuation_shortcuts = x__1 })".
+  "(fun t continuation_shortcuts -> { t with continuation_shortcuts =
+   continuation_shortcuts })".
 
 (* 142-177 *)
 Definition add_continuation_shortcut (t : Upwards_env.t)
@@ -379,7 +382,8 @@ Definition update_apply_cont_rewrites (t : Upwards_env.t)
      machine_width := t.(machine_width)
   |}.
 Extract Inlined Constant update_apply_cont_rewrites =>
-  "(fun t x__1 -> { t with apply_cont_rewrites = x__1 })".
+  "(fun t apply_cont_rewrites -> { t with apply_cont_rewrites =
+   apply_cont_rewrites })".
 
 (* 190-198 *)
 Definition add_apply_cont_rewrite (t : Upwards_env.t) (cont : Continuation.t)

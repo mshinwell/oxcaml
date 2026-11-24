@@ -89,7 +89,8 @@ Definition update_new_params_indexed (t : Lifted_cont_params.t)
      new_params_indexed := new_params_indexed
   |}.
 Extract Inlined Constant update_new_params_indexed =>
-  "(fun t x__1 -> { t with new_params_indexed = x__1 })".
+  "(fun t new_params_indexed -> { t with new_params_indexed =
+   new_params_indexed })".
 
 (* 45-57 *)
 Definition rename (t : Lifted_cont_params.t)

@@ -87,7 +87,7 @@ Definition update_kind (t : One_continuation_use.t)
      env := t.(env)
   |}.
 Extract Inlined Constant update_kind =>
-  "(fun t x__1 -> { t with kind = x__1 })".
+  "(fun t kind -> { t with kind = kind })".
 
 (* 46-49 *)
 Definition mark_non_inlinable (t : One_continuation_use.t)
