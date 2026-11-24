@@ -42,14 +42,36 @@ let source_of_unit u =
   match (match find ".cmti" with Some f -> Some f | None -> find ".cmt") with
   | None -> None
   | Some f -> (
-    match (Cmt_format.read_cmt f).cmt_sourcefile with
-    | Some s -> Option.map fst (Src.source_path s)
-    | None -> None
-    | exception _ -> None)
+    match Cmt_format.read_cmt f with
+    | exception _ -> None
+    | cmt -> (
+      let found s =
+        match Src.source_path s with Some (rel, true) -> Some rel | _ -> None
+      in
+      (* the build compiles some files from a copy ([misc.mli], which is
+         utils/misc.mli): the places inside name the file itself *)
+      let inside =
+        match cmt.cmt_annots with
+        | Interface { sig_items = item :: _; _ } ->
+          Some item.sig_loc.loc_start.pos_fname
+        | Implementation { str_items = item :: _; _ } ->
+          Some item.str_loc.loc_start.pos_fname
+        | _ -> None
+      in
+      match Option.bind cmt.cmt_sourcefile found with
+      | Some rel -> Some rel
+      | None -> (
+        match Option.bind inside found with
+        | Some rel -> Some rel
+        | None -> Option.map fst (Option.bind cmt.cmt_sourcefile Src.source_path))))
 
-let mit_header =
+let no_source =
   [ "(* This file follows an interface whose source was not found: see the";
     "   comment below. *)" ]
+
+let no_header =
+  [ "(* The interface that this file follows has no header: see the comment";
+    "   below. *)" ]
 
 let units () =
   let s = ref SS.empty in
@@ -201,9 +223,8 @@ let () =
       in
       let header =
         match source with
-        | Some rel -> (
-          match Src.header rel with [] -> mit_header | h -> h)
-        | None -> mit_header
+        | Some rel -> ( match Src.header rel with [] -> no_header | h -> h)
+        | None -> no_source
       in
       let b = Buffer.create (String.length body + 4096) in
       List.iter (fun l -> Buffer.add_string b (l ^ "\n")) header;

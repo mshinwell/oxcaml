@@ -63,21 +63,37 @@ let lines_of rel =
     l
 
 (* The header of a file: its first lines, as long as each is a comment on
-   one line (the box of the licence). *)
+   one line (the box of the licence); or its first comment, when that is a
+   box of several lines (it begins with a line of stars and ends a line). *)
 let header rel =
   match lines_of rel with
   | None -> []
   | Some lines ->
-    let is_box l =
-      let n = String.length l in
-      n >= 4 && String.sub l 0 2 = "(*" && String.sub l (n - 2) 2 = "*)"
+    let n = Array.length lines in
+    let ends l =
+      let k = String.length l in
+      k >= 2 && String.sub l (k - 2) 2 = "*)"
+    in
+    let is_box l = String.length l >= 4 && String.sub l 0 2 = "(*" && ends l in
+    let is_stars l =
+      let k = String.length l in
+      k >= 12
+      && l.[0] = '('
+      && String.for_all (fun c -> c = '*') (String.sub l 1 (k - 1))
+    in
+    let rec several i acc =
+      if i >= n
+      then []
+      else if ends lines.(i)
+      then List.rev (lines.(i) :: acc)
+      else several (i + 1) (lines.(i) :: acc)
     in
     let rec go i acc =
-      if i < Array.length lines && is_box lines.(i)
+      if i < n && is_box lines.(i)
       then go (i + 1) (lines.(i) :: acc)
       else List.rev acc
     in
-    go 0 []
+    if n > 0 && is_stars lines.(0) then several 1 [lines.(0)] else go 0 []
 
 (* Text that is safe inside a comment of Rocq, on one line. *)
 let one_line s =
