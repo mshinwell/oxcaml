@@ -48,7 +48,7 @@ names_ml() {
 names_v() {
   { sed -n -E 's/^(Definition|Fixpoint|with) +([a-z_][A-Za-z0-9_'"'"']*).*/\2/p' "$1"
     # the fields of the file's records: Rocq makes one function for each
-    awk '/^Record /{r=1} r{print} r&&/}\./{r=0}' "$1" \
+    awk '/^ *Record /{r=1} r{print} r&&/}\./{r=0}' "$1" | tr '\n' ' ' \
       | grep -o -E '[{;] *[a-z_][A-Za-z0-9_'"'"']* *:' | sed -E 's/[{;: ]//g'
   } | sort -u
 }

@@ -22,7 +22,8 @@ files beside the donors first. Points marked HUMAN are the human's to judge.
   never of the file's own module.
 - The compiler's definitions in the compiler's ORDER, each under its NAME,
   with its arguments' names; before each, a comment with the donor's lines
-  (`(* 19-29 *)`).
+  (`(* 19-29 *)`). The donor's comments that say WHY stay at their places
+  (one that begins `CR` may be left out).
 - Arguments are BY PLACE: no labels, in the order of the `.mli` (of the
   definition, if the function is not exported); the check compiles with
   `-nolabels`. HUMAN: the extracted definitions have no labels.
