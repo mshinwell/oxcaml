@@ -508,6 +508,8 @@ Module Binary_arith_like (N : Binary_arith_like_sig).
     | Prim : P.t -> t
     | Exactly : N.Result.t -> t.
 
+    (* This signature aims to constrain the size of the [Set] module block,
+       since this is duplicated a lot via inlining in the rest of this file. *)
     (* PORT-GAP(loose): 97-128, the compiler's [Set] is
        [Container_types.Make_set] applied to this type with [compare] and
        [print] (116-126), under a signature of six values (99-113). That
