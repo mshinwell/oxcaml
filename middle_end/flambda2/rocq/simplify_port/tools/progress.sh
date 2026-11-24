@@ -30,7 +30,7 @@
 # one line for each file of middle_end/flambda2/simplify/. It follows no
 # file of the compiler.
 #   lines    the lines of the compiler's file
-#   defs     its definitions at the left margin (let, and), by name
+#   defs     its definitions at the left margin (let, and its and), by name
 #   ported   those of them that the .v file defines (Definition, Fixpoint,
 #            with, or a field of a Record of the file: Rocq makes the
 #            function that reads it) and does not leave as a parameter
@@ -42,11 +42,15 @@
 simplify=$1; B=$2
 kinds="unported partial loose type verbatim init order decl papp record-order"
 names_ml() {
-  sed -n -E 's/^(let|and)( rec)?( ?\[@[^]]*\])* +([a-z_][A-Za-z0-9_'"'"']*).*/\4/p' "$1" \
+  # an [and] at the left margin counts only after a [let] (not after a [type])
+  awk '/^type /{m=0} /^let[ []/{m=1} /^let[ []/||(m&&/^and[ []/){print}' "$1" \
+    | sed -n -E 's/^(let|and)( rec)?( ?\[@[^]]*\])* +([a-z_][A-Za-z0-9_'"'"']*).*/\4/p' \
     | grep -v '^_$' | sort -u
 }
 names_v() {
-  { sed -n -E 's/^(Definition|Fixpoint|with) +([a-z_][A-Za-z0-9_'"'"']*).*/\2/p' "$1"
+  { # a name that is a word of Rocq has one _ after it in the .v file
+    sed -n -E 's/^(Definition|Fixpoint|with) +([a-z_][A-Za-z0-9_'"'"']*).*/\2/p' "$1" \
+      | sed -E 'p; s/_$//'
     # the fields of the file's records: Rocq makes one function for each
     awk '/^ *Record /{r=1} r{print} r&&/}\./{r=0}' "$1" | tr '\n' ' ' \
       | grep -o -E '[{;] *[a-z_][A-Za-z0-9_'"'"']* *:' | sed -E 's/[{;: ]//g'
