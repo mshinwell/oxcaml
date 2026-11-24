@@ -16,7 +16,10 @@ Points marked HUMAN are the human's to judge.
   `From SimplifyPort.decl Require` of each other module that it calls.
 - The compiler's definitions in the compiler's ORDER, each under its NAME,
   with its arguments' names; before each, a comment with the donor's lines
-  (`(* 19-29 *)`). A name that Rocq refuses gets one `_` after it.
+  (`(* 19-29 *)`). Rocq has ONE name space: where a type or a field has the
+  name of a function, the TYPE or the FIELD gets one `_` after it (the tool
+  takes it off); so does a name that is a word of Rocq (`exists_`). Where a
+  parameter is named `t`, write the type `Foo.t` (the file's own name).
 - Arguments are by place: labels are dropped, in the order of the `.mli`
   (of the definition, if the function is not exported). The check compiles
   with `-nolabels`. An optional parameter `?x` is `x__opt : option T`.
@@ -61,7 +64,8 @@ unspecified; the port fixes right-to-left, which is what ocamlopt does.
 
 PARTIAL APPLICATION (`~f:(Acc.exit_continuation k)`, `~simplify_expr`):
 `let* tmp1 := papp1 Acc.exit_continuation k in` (also `papp2`..`papp4`), or
-write the `fun`.
+write the `fun`. HUMAN: the port assumes of every declared function that it
+does nothing until it has all the arguments of its interface.
 
 | OCaml | Rocq | 
 |---|---|
@@ -96,7 +100,13 @@ the direct-style program whose effects are those of the binds, in their
 order, each once; nothing that the extraction may do to a VALUE can change
 them. The realisations of declared things are closed lambdas applied to
 values; reducing them is pure. So the discipline is checked on every file
-at every `make`, on the very text that is rewritten.
+at every `make`, on the very text that is rewritten. (c) What the syntax
+cannot see, Rocq's types refuse: `M A` is an inductive type that only the
+kit's operations make and run, so a function is never taken for a
+computation, and `papp1` cannot apply a function to its last argument
+(`tools/test/`). What is NOT modelled: the printing of a fatal error (a
+parameter); the contents of references; physical equality (Rocq may share
+or copy a value where the compiler's code does not).
 
 ## 4. Recursion
 
@@ -115,9 +125,11 @@ enough; there is no axiom.
 
 ## 5. Types, exceptions and other OCaml that Rocq cannot say
 
-- A type that the file defines and others use is in `decl/` already: use
-  it from there. Define a type yourself only if it is abstract or absent in
-  the `.mli`: a Rocq `Record` / `Inductive` with the compiler's names.
+- A type that the file defines and that its `.mli` shows is in `decl/`
+  already: use it from there. Define a type yourself only if it is abstract
+  or absent in the `.mli`: a Rocq `Record` / `Inductive` with the compiler's
+  names (Rocq extracts the OCaml type; write `r.(f)` or `f r` for a field,
+  `{| f := v; ... |}` with all the fields for `{ r with f = v }`).
 - OCaml text that must be in the extracted file as it is (`open!`, a type
   that Rocq cannot make, `exception E`, a functor application) goes between
   a line `(*OCAML` and a line `OCAML*)`; it is copied to the head of the
@@ -129,16 +141,17 @@ enough; there is no axiom.
 
 ## 6. Gaps: never hidden
 
-`(* PORT-GAP(kind): words *)` at the place. The kinds: `unported` (a function
-left as a parameter: `Parameter f : ... -> M r.` and
-`Extract Inlined Constant f => "(port__gap ""Foo.f"")".`, which stops with a
-fatal error if run); `partial` (part of a body replaced, by `fatal_error
-"PORT-GAP ..."`); `loose` (ported, but not line beside line: say what
-differs); `order` (you are not sure of the order of evaluation); `type` (a
-type left abstract or bent); `verbatim`; `init` (a top-level value that the
-compiler computes with effects when the module starts: a `Parameter` and its
-OCaml text verbatim); `decl`. Prefer a marked gap now to a long fight: the
-first version is for the structure.
+A comment that BEGINS `(* PORT-GAP(kind): words *)`, at the place. The kinds:
+`unported` (a function left as a parameter: the mark, then
+`Parameter f : ... -> M r.` and nothing else; the extracted file gets
+`let f _ = Misc.fatal_error "PORT-GAP(unported): f"`); `partial` (part of a
+body replaced by `fatal_error "PORT-GAP(partial): ..."`); `loose` (ported,
+but not line beside line: say what differs); `order` (you are not sure of
+the order of evaluation); `type` (a type left abstract or bent); `verbatim`;
+`init` (a top-level value that the compiler computes with effects when the
+module starts: a `Parameter`, its OCaml text verbatim, and
+`Extract Inlined Constant x => "x".`); `decl`. Prefer a marked gap now to a
+long fight: the first version is for the structure.
 
 ## 7. The work
 

@@ -33,7 +33,11 @@
 # The file is compiled as the module Foo__port with the -open flags of
 # middle_end/flambda2/simplify/dune, so every name in it is the compiler's
 # own, and with -nolabels: the Rocq text has no labels, and OCaml's classic
-# mode ignores the labels of the interfaces.
+# mode ignores the labels of the interfaces. In that mode OCaml also refuses
+# a labelled argument that is not at the place of its parameter, so the
+# labelled calls that the realisations write are in the order of the
+# interface, which is the order in which their arguments are evaluated
+# (right to left); tools/unmonad relies on it.
 #   strict : Foo__port has the whole interface foo.mli of the compiler.
 #   overlay: the compiler's module, with the extracted definitions in the
 #            place of its own, has the compiler's interface. (For a file
@@ -65,6 +69,14 @@ OPENS="$OPENS -open Flambda2_simplify_shared -open Flambda2_types -open Flambda2
 OPENS="$OPENS -open Flambda2_simplify"
 CC="$OCAMLC -c -nolabels -w -a $INC $OPENS -I $out"
 mli=$simplify/$dir/$base.mli
+# The compiled interfaces must be those of this source tree: dune keeps a
+# copy of each source under CMI_ROOT.
+built=$S/simplify/$dir/$base.mli
+if [ -e "$mli" ] && [ -e "$built" ] && ! cmp -s "$mli" "$built"; then
+  echo FAILED > "$status"
+  echo "check: $f: $built is not $mli: CMI_ROOT is of another source tree"
+  exit 1
+fi
 cp "$f" "$out/${base}__port.ml"
 if [ -e "$mli" ]; then
   cp "$mli" "$out/${base}__port.mli"

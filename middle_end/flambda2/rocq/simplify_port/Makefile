@@ -77,7 +77,7 @@ donor = $(SIMPLIFY)/$(patsubst ./%,%,$(dir $(1)))$(call lc,$(notdir $(1))).ml
 extracted = extracted/$(patsubst ./%,%,$(dir $(1)))$(call lc,$(notdir $(1))).ml
 checked = $(B)/check/$(patsubst ./%,%,$(dir $(1)))$(call lc,$(notdir $(1))).status
 
-VFILES := $(addsuffix .v,$(KIT) $(DECL) $(PORTED))
+VFILES := $(addsuffix .v,$(KIT) $(DECL) $(PORTED)) tools/test/Kit_refuses.v
 VOFILES := $(VFILES:.v=.vo)
 EXTRACTED := $(foreach p,$(PORTED),$(call extracted,$(p)))
 CHECKED := $(foreach p,$(PORTED),$(call checked,$(p)))
@@ -118,7 +118,7 @@ $(UNMONAD): tools/unmonad.ml
 
 # The tool refuses each file tools/test/reject_*.ml and writes
 # tools/test/accept_*.expected for accept_*.ml (tools/test/README.md).
-tooltest: $(UNMONAD)
+tooltest: $(UNMONAD) tools/test/Kit_refuses.vo
 	@for f in tools/test/reject_*.ml; do \
 	  if $(UNMONAD) $$f -o /dev/null 2> /dev/null; then \
 	    echo "tooltest: $$f WAS NOT REFUSED"; exit 1; fi; done
@@ -166,7 +166,7 @@ $(call extracted,$(1)): $(B)/direct/$(1).ml $(1).v $(call donor,$(1)) tools/asse
 
 $(call checked,$(1)): $(call extracted,$(1)) tools/check.sh
 	@mkdir -p $$(dir $$@)
-	@CMI_ROOT='$(CMI_ROOT)' OCAMLC='$(OCAMLC)' tools/check.sh $(call extracted,$(1)) $(SIMPLIFY) $$(basename $$@)
+	@CMI_ROOT='$(CMI_ROOT)' OCAMLC='$(OCAMLC)' tools/check.sh $(call extracted,$(1)) $(SIMPLIFY) $$@
 endef
 $(foreach p,$(PORTED),$(eval $(call PORT_RULES,$(p))))
 

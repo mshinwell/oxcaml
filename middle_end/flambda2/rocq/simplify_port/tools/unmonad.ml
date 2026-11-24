@@ -241,6 +241,10 @@ let free_vars e =
   iter_free (fun y -> acc := S.add y !acc) S.empty e;
   !acc
 
+(* What stands for an expression that cannot be put under a binder that would
+   capture one of its variables. *)
+let poison : expression = mk Pexp_unreachable
+
 (* Substitution of expressions for free unqualified identifiers. A capture
    stops the tool: the names of the realisations are made new at each use
    and Rocq's extraction never reuses a name that is in scope, so none is
@@ -251,19 +255,20 @@ let rec subst (env : expression SM.t) (e : expression) : expression =
   else
     let enter bound env =
       let env = S.fold SM.remove bound env in
-      SM.iter
-        (fun _ r ->
-          iter_free
-            (fun y ->
-              if S.mem y bound
-              then reject e.pexp_loc "the tool would capture %s" y)
-            S.empty r)
-        env;
-      env
+      SM.map
+        (fun r ->
+          let captured = ref false in
+          iter_free (fun y -> if S.mem y bound then captured := true) S.empty r;
+          if !captured then poison else r)
+        env
     in
     match e.pexp_desc with
     | Pexp_ident { txt = Lident x; _ } -> (
-      match SM.find_opt x env with Some r -> r | None -> e)
+      match SM.find_opt x env with
+      | Some r when r == poison ->
+        reject e.pexp_loc "the tool would capture a variable in place of %s" x
+      | Some r -> r
+      | None -> e)
     | Pexp_let (rf, vbs, body) ->
       let inner = enter (vbs_vars vbs) env in
       let rhs_env = if rf = Recursive then inner else env in
@@ -344,6 +349,23 @@ let is_atom e =
   | Pexp_ident _ | Pexp_constant _ | Pexp_construct (_, None) -> true
   | _ -> false
 
+(* A value that reads a field is not moved: the field may be mutable, and a
+   read must stay where it is among the writes. *)
+let reads_field (e : expression) : bool =
+  let found = ref false in
+  let it =
+    { Ast_iterator.default_iterator with
+      expr =
+        (fun it e ->
+          match e.pexp_desc with
+          | Pexp_field _ -> found := true
+          | Pexp_function _ -> () (* nothing is read when a function is made *)
+          | _ -> Ast_iterator.default_iterator.expr it e)
+    }
+  in
+  it.expr it e;
+  !found
+
 let param_pat p =
   match p.pparam_desc with
   | Pparam_val (Nolabel, None, pat) -> Some pat
@@ -377,6 +399,8 @@ let freshen (e : expression) : expression =
           let p = Ast_mapper.default_mapper.pat m p in
           match p.ppat_desc with
           | Ppat_var v -> { p with ppat_desc = Ppat_var { v with txt = rn v.txt } }
+          | Ppat_alias (q, v) ->
+            { p with ppat_desc = Ppat_alias (q, { v with txt = rn v.txt }) }
           | _ -> p);
       expr =
         (fun m e ->
@@ -400,6 +424,11 @@ let rename_pat (ren : string option SM.t) (p : pattern) : pattern =
             match SM.find_opt v.txt ren with
             | Some (Some q) -> { p with ppat_desc = Ppat_var { v with txt = q } }
             | Some None -> { p with ppat_desc = Ppat_any }
+            | None -> p)
+          | Ppat_alias (q, v) -> (
+            match SM.find_opt v.txt ren with
+            | Some (Some n) -> { p with ppat_desc = Ppat_alias (q, { v with txt = n }) }
+            | Some None -> q
             | None -> p)
           | _ -> p)
     }
@@ -561,7 +590,7 @@ and beta (f : expression) args : expression =
         let n = count x body in
         if n = 0
         then ()
-        else if n = 1
+        else if n = 1 && not (reads_field a)
         then env := SM.add x a !env
         else lets := (pat, a) :: !lets
     | Ppat_any -> ()
@@ -694,9 +723,12 @@ let rec check_c (e : expression) : unit =
   | Pexp_setfield (a, _, b) ->
     check_v a;
     check_v b
+  | Pexp_field (a, _) ->
+    (* the read of a mutable field, which the declarations give in the monad *)
+    check_v a
   | Pexp_constraint (e, _) -> check_c e
   | Pexp_ident _ | Pexp_constant _ | Pexp_construct _ | Pexp_tuple _
-  | Pexp_record _ | Pexp_field _ | Pexp_function _ | Pexp_variant _ ->
+  | Pexp_record _ | Pexp_function _ | Pexp_variant _ ->
     bad "a value where a computation is expected (use ret)"
   | _ -> bad "a form that the tool does not know, where a computation is expected"
 
@@ -795,6 +827,18 @@ let exn_pat (x : expression) (p : pattern) : pattern =
     Ast_helper.Pat.construct c (Some ([], p))
   | _ -> reject x.pexp_loc "not a declared exception"
 
+(* The handler of a declared exception. For a constant exception the
+   pattern [E] binds nothing, so a handler that names its unit argument gets
+   [let x = () in] before its body. *)
+let exn_handler (x : expression) (h : expression) : pattern * expression =
+  let p, hb = handler h in
+  match x.pexp_desc, p.ppat_desc with
+  | Pexp_construct (_, None), Ppat_any -> p, hb
+  | Pexp_construct (_, None), _ when is_unit_pat p -> p, hb
+  | Pexp_construct (_, None), _ ->
+    p, let_ p (mk (Pexp_construct (lid "()", None))) hb
+  | _ -> p, hb
+
 let exn_expr (x : expression) (v : expression) : expression =
   match x.pexp_desc with
   | Pexp_construct (c, None) -> mk (Pexp_construct (c, None))
@@ -852,7 +896,7 @@ let rec unm (e : expression) : expression =
     | Some "port__raise", [x; v] ->
       mk (Pexp_apply (evar "raise", [Nolabel, exn_expr x v]))
     | Some "port__try_with", [body; x; h] ->
-      let p, hb = handler h in
+      let p, hb = exn_handler x h in
       mk
         (Pexp_try
            (thunk_body body, [Ast_helper.Exp.case (exn_pat x p) hb]))
@@ -860,7 +904,7 @@ let rec unm (e : expression) : expression =
       let p, hb = handler h in
       mk (Pexp_try (thunk_body body, [Ast_helper.Exp.case p hb]))
     | Some "port__match_exn", [body; x; h; k] ->
-      let p, hb = handler h in
+      let p, hb = exn_handler x h in
       let q, kb = handler k in
       mk
         (Pexp_match
@@ -942,7 +986,12 @@ let rec defuel (e : expression) : expression =
     match params, body with
     | [], Pfunction_body b -> b
     | _ -> { e with pexp_desc = Pexp_function (params, c, body) })
-  | Pexp_let (Nonrecursive, [vb], body) when is_fuel_pat vb.pvb_pat -> body
+  | Pexp_let (Nonrecursive, [vb], body)
+    when is_fuel_pat vb.pvb_pat
+         && (is_unit_expr vb.pvb_expr || is_fuel_expr vb.pvb_expr) ->
+    (* [let fuel = () in], which is what [get_fuel tt] has become; any other
+       right side stays, with its effects *)
+    body
   | _ -> e
 
 (* Does [t], which occurs once in [e], stand where OCaml evaluates it before
@@ -969,8 +1018,21 @@ let rec scan (t : string) (e : expression) : scan =
   | Pexp_construct (_, None) | Pexp_variant (_, None) -> Pure
   | Pexp_construct (_, Some a) | Pexp_variant (_, Some a) -> scan t a
   | Pexp_tuple l -> seq (List.rev_map snd l)
-  | Pexp_record (fs, None) -> seq (List.rev_map snd fs)
-  | Pexp_field (a, _) -> scan t a
+  | Pexp_record (fs, None) -> (
+    (* OCaml evaluates the fields in the order of the type, which the tool
+       does not know: [t] goes in only if nothing else in the record has an
+       effect, and then the order does not matter. *)
+    let rs = List.map (fun (_, e) -> scan t e) fs in
+    let others_pure =
+      List.length (List.filter (fun r -> r <> Pure) rs) <= 1
+    in
+    match List.find_opt (fun r -> r <> Pure) rs with
+    | None -> Pure
+    | Some Found when others_pure -> Found
+    | Some _ -> Blocked)
+  | Pexp_field (a, _) -> (
+    (* the read of a field, which may be mutable, is not crossed *)
+    match scan t a with Pure -> Blocked | r -> r)
   | Pexp_constraint (a, _) -> scan t a
   | Pexp_apply (h, [(Nolabel, a); (Nolabel, b)])
     when ident_name h = Some "&&" || ident_name h = Some "||" -> (
@@ -1080,7 +1142,7 @@ let rec reshadow (e : expression) : expression =
             List.map (fun vb -> { vb with pvb_pat = rename_in_pat ren vb.pvb_pat }) vbs
           in
           { e with pexp_desc = Pexp_let (Nonrecursive, vbs, apply_renaming ren body) }
-      | Pexp_function (params, c, Pfunction_body body) ->
+      | Pexp_function (params, c, fbody) when params <> [] ->
         let vars =
           List.fold_left
             (fun acc p ->
@@ -1089,7 +1151,13 @@ let rec reshadow (e : expression) : expression =
               | Pparam_newtype _ -> acc)
             S.empty params
         in
-        let ren = renaming vars [body] in
+        (* the body as one expression: for [function] cases, the cases alone *)
+        let body_expr =
+          match fbody with
+          | Pfunction_body b -> b
+          | Pfunction_cases _ -> mk (Pexp_function ([], None, fbody))
+        in
+        let ren = renaming vars [body_expr] in
         if SM.is_empty ren
         then e
         else
@@ -1102,10 +1170,13 @@ let rec reshadow (e : expression) : expression =
                 | Pparam_newtype _ -> p)
               params
           in
-          { e with
-            pexp_desc =
-              Pexp_function (params, c, Pfunction_body (apply_renaming ren body))
-          }
+          let fbody =
+            match fbody, (apply_renaming ren body_expr).pexp_desc with
+            | Pfunction_body _, _ -> Pfunction_body (apply_renaming ren body_expr)
+            | Pfunction_cases _, Pexp_function ([], None, fb) -> fb
+            | Pfunction_cases _, _ -> assert false
+          in
+          { e with pexp_desc = Pexp_function (params, c, fbody) }
       | Pexp_match (s, cases) ->
         { e with pexp_desc = Pexp_match (s, List.map reshadow_case cases) }
       | Pexp_try (s, cases) ->
@@ -1234,6 +1305,74 @@ let shorten_mapper =
         | _ -> t)
   }
 
+(* THE NAMES THAT ROCQ REFUSED. OCaml has separate name spaces for values,
+   types, fields and constructors, and Rocq has one; and some OCaml names are
+   words of Rocq. The port puts ONE underscore after such a name (GUIDE.md).
+   Here a field, a constructor or a type loses one underscore at its end, and
+   a value does if what is left is a word of Rocq. *)
+let rocq_words =
+  S.of_list
+    [ "at"; "by"; "cofix"; "exists"; "exists2"; "fix"; "forall"; "return";
+      "using"; "where" ]
+
+let strip_us s =
+  let n = String.length s in
+  if n > 1 && s.[n - 1] = '_' && s.[n - 2] <> '_' then String.sub s 0 (n - 1) else s
+
+let strip_value s =
+  let s' = strip_us s in
+  if S.mem s' rocq_words then s' else s
+
+let strip_last (f : string -> string) (l : Longident.t Location.loc) =
+  match l.txt with
+  | Lident s -> { l with txt = Longident.Lident (f s) }
+  | Ldot (a, b) -> { l with txt = Longident.Ldot (a, { b with txt = f b.txt }) }
+  | Lapply _ -> l
+
+let underscore_mapper =
+  let sl = strip_last strip_us in
+  { Ast_mapper.default_mapper with
+    expr =
+      (fun m e ->
+        let e = Ast_mapper.default_mapper.expr m e in
+        match e.pexp_desc with
+        | Pexp_ident ({ txt = Lident x; _ } as l) ->
+          { e with pexp_desc = Pexp_ident { l with txt = Lident (strip_value x) } }
+        | Pexp_construct (l, a) -> { e with pexp_desc = Pexp_construct (sl l, a) }
+        | Pexp_field (a, l) -> { e with pexp_desc = Pexp_field (a, sl l) }
+        | Pexp_setfield (a, l, b) -> { e with pexp_desc = Pexp_setfield (a, sl l, b) }
+        | Pexp_record (fs, b) ->
+          { e with pexp_desc = Pexp_record (List.map (fun (l, x) -> sl l, x) fs, b) }
+        | _ -> e);
+    pat =
+      (fun m p ->
+        let p = Ast_mapper.default_mapper.pat m p in
+        match p.ppat_desc with
+        | Ppat_var v -> { p with ppat_desc = Ppat_var { v with txt = strip_value v.txt } }
+        | Ppat_construct (l, a) -> { p with ppat_desc = Ppat_construct (sl l, a) }
+        | Ppat_record (fs, c) ->
+          { p with ppat_desc = Ppat_record (List.map (fun (l, x) -> sl l, x) fs, c) }
+        | _ -> p);
+    typ =
+      (fun m t ->
+        let t = Ast_mapper.default_mapper.typ m t in
+        match t.ptyp_desc with
+        | Ptyp_constr (l, args) -> { t with ptyp_desc = Ptyp_constr (sl l, args) }
+        | _ -> t);
+    type_declaration =
+      (fun m d ->
+        let d = Ast_mapper.default_mapper.type_declaration m d in
+        { d with ptype_name = { d.ptype_name with txt = strip_us d.ptype_name.txt } });
+    label_declaration =
+      (fun m d ->
+        let d = Ast_mapper.default_mapper.label_declaration m d in
+        { d with pld_name = { d.pld_name with txt = strip_us d.pld_name.txt } });
+    constructor_declaration =
+      (fun m d ->
+        let d = Ast_mapper.default_mapper.constructor_declaration m d in
+        { d with pcd_name = { d.pcd_name with txt = strip_us d.pcd_name.txt } })
+  }
+
 let load_names file =
   let ic = open_in file in
   let n = in_channel_length ic in
@@ -1324,10 +1463,71 @@ and note_vb vb =
 (* The file                                                           *)
 (* ------------------------------------------------------------------ *)
 
+(* [let f = failwith "AXIOM TO BE REALIZED ..."]: a parameter of the .v file
+   without a realisation, which is a thing of the compiler's file that is not
+   ported yet (PORT-GAP(unported)). The extracted file gets a function that
+   stops with a fatal error that names it. *)
+let axiom_stub (vb : value_binding) : value_binding =
+  match vb.pvb_pat.ppat_desc, vb.pvb_expr.pexp_desc with
+  | ( Ppat_var { txt = name; _ },
+      Pexp_apply
+        ( { pexp_desc = Pexp_ident { txt = Lident "failwith"; _ }; _ },
+          [ ( Nolabel,
+              { pexp_desc =
+                  Pexp_constant { pconst_desc = Pconst_string (msg, _, _); _ };
+                _
+              } ) ] ) )
+    when String.length msg >= 5 && String.sub msg 0 5 = "AXIOM" ->
+    let body =
+      mk
+        (Pexp_apply
+           ( mk
+               (Pexp_ident
+                  (Location.mknoloc
+                     (Longident.Ldot
+                        ( Location.mknoloc (Longident.Lident "Misc"),
+                          Location.mknoloc "fatal_error" )))),
+             [ ( Nolabel,
+                 mk
+                   (Pexp_constant
+                      (Ast_helper.Const.string ("PORT-GAP(unported): " ^ name)))
+               ) ] ))
+    in
+    { vb with
+      pvb_expr =
+        mk
+          (Pexp_function
+             ( [ { pparam_loc = Location.none;
+                   pparam_desc =
+                     Pparam_val (Nolabel, None, Ast_helper.Pat.any ())
+                 } ],
+               None,
+               Pfunction_body body ))
+    }
+  | _ -> vb
+
+(* [let f x = x.f]: the projection that Rocq makes for the field [f] of a
+   record of the .v file. The compiler's file has no such function, and the
+   uses are printed as [x.f]. *)
+let is_projection (vb : value_binding) : bool =
+  match vb.pvb_pat.ppat_desc, vb.pvb_expr.pexp_desc with
+  | ( Ppat_var { txt = name; _ },
+      Pexp_function
+        ( [ { pparam_desc =
+                Pparam_val (Nolabel, None, { ppat_desc = Ppat_var { txt = x; _ }; _ });
+              _
+            } ],
+          None,
+          Pfunction_body
+            { pexp_desc = Pexp_field (r, { txt = Lident field; _ }); _ } ) ) ->
+    String.equal name field && is_ident x r
+  | _ -> false
+
 let rec map_structure (f : expression -> expression) (str : structure) : structure =
   List.filter_map
     (fun item ->
       match item.pstr_desc with
+      | Pstr_value (_, [vb]) when is_projection vb -> None
       | Pstr_open _ | Pstr_attribute _ -> None
       | Pstr_module { pmb_expr = { pmod_desc = Pmod_ident _; _ }; _ } -> None
       | Pstr_module ({ pmb_expr = { pmod_desc = Pmod_structure s; _ } as me; _ } as mb)
@@ -1352,6 +1552,24 @@ let rec map_structure (f : expression -> expression) (str : structure) : structu
                     vbs )
           }
       | _ -> Some item)
+    str
+
+let rec stub_structure (str : structure) : structure =
+  List.map
+    (fun item ->
+      match item.pstr_desc with
+      | Pstr_value (rf, vbs) ->
+        { item with pstr_desc = Pstr_value (rf, List.map axiom_stub vbs) }
+      | Pstr_module ({ pmb_expr = { pmod_desc = Pmod_structure s; _ } as me; _ } as mb)
+        ->
+        { item with
+          pstr_desc =
+            Pstr_module
+              { mb with
+                pmb_expr = { me with pmod_desc = Pmod_structure (stub_structure s) }
+              }
+        }
+      | _ -> item)
     str
 
 let rec check_structure (str : structure) =
@@ -1390,6 +1608,7 @@ let () =
   let str = Parse.implementation lexbuf in
   close_in ic;
   match
+    let str = stub_structure str in
     let str = map_structure simp str in
     check_structure str;
     let str = map_structure unm str in
@@ -1404,6 +1623,7 @@ let () =
     let str = map_structure optional str in
     let str = map_structure sugar str in
     let str = if S.is_empty !names then str else map_structure reshadow str in
+    let str = underscore_mapper.structure underscore_mapper str in
     if !aliases = [] then str else shorten_mapper.structure shorten_mapper str
   with
   | str -> (

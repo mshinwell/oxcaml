@@ -33,13 +33,14 @@
 #   defs     its definitions at the left margin (let, and), by name
 #   ported   those of them that the .v file defines (Definition, Fixpoint,
 #            with) and does not leave as a parameter
-#   gaps     the marks PORT-GAP(kind) of the .v file, by kind
+#   gaps     the marks of the .v file, by kind: the comments that BEGIN
+#            with "PORT-GAP(kind)"
 #   Rocq     whether the .v file is compiled
 #   OCaml    how the extracted file type-checks (tools/check.sh)
 simplify=$1; B=$2
 kinds="unported partial loose type verbatim init order decl"
 names_ml() {
-  sed -n -E 's/^(let|and)( rec)?(\[@[^]]*\])? +([a-z_][A-Za-z0-9_'"'"']*).*/\4/p' "$1" \
+  sed -n -E 's/^(let|and)( rec)?( ?\[@[^]]*\])* +([a-z_][A-Za-z0-9_'"'"']*).*/\4/p' "$1" \
     | grep -v '^_$' | sort -u
 }
 names_v() {
@@ -69,7 +70,7 @@ for ml in $(cd "$simplify" && find . -name '*.ml' | sed 's|^\./||' | LC_ALL=C so
     ported=$(comm -12 <(names_ml "$simplify/$ml") <(names_v "$v") | wc -l)
     gaps=""
     for k in $kinds; do
-      n=$(grep -o "PORT-GAP($k)" "$v" | wc -l)
+      n=$(grep -o "(\* PORT-GAP($k)" "$v" | wc -l)
       [ "$n" -gt 0 ] && gaps="$gaps $k:$n" && tg=$((tg+n))
     done
     [ -z "$gaps" ] && gaps="none"
@@ -86,6 +87,6 @@ echo
 echo "Gaps by kind, all files:"
 echo
 for k in $kinds; do
-  n=$(cat $(find . -name '*.v' -not -path './_build/*' -not -path './decl/*') 2>/dev/null | grep -o "PORT-GAP($k)" | wc -l)
+  n=$(cat $(find . -name '*.v' -not -path './_build/*' -not -path './decl/*') 2>/dev/null | grep -o "(\* PORT-GAP($k)" | wc -l)
   echo "- $k: $n"
 done
