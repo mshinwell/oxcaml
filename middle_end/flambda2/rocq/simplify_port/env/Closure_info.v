@@ -60,8 +60,8 @@ Inductive t : Type :=
     Variable_.t -> t.
 Extract Inductive t => "t" [ "(Not_in_a_closure : t)" "In_a_set_of_closures_but_not_yet_in_a_specific_closure" "(fun (x__1, x__2, x__3, x__4, x__5) -> (Closure { code_id = x__1; return_continuation = x__2; exn_continuation = x__3; my_closure = x__4; my_alloc_region = x__5 } : t))" ] "(fun f__1 f__2 f__3 x__0 -> match (x__0 : t) with Not_in_a_closure -> f__1 () | In_a_set_of_closures_but_not_yet_in_a_specific_closure -> f__2 () | Closure { code_id = x__1; return_continuation = x__2; exn_continuation = x__3; my_closure = x__4; my_alloc_region = x__5 } -> f__3 x__1 x__2 x__3 x__4 x__5)".
 
-(* 27-48. PORT-GAP(loose): the attribute [@ocamlformat "disable"] is not
-   kept. *)
+(* 27-48 *)
+(* PORT-GAP(loose): the attribute [@ocamlformat "disable"] is not kept. *)
 Definition print (ppf : Format.formatter) (t : Closure_info.t) : M unit :=
   match t with
   | Not_in_a_closure => Format.fprintf0 ppf "not_in_a_closure"
