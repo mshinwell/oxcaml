@@ -1,0 +1,74 @@
+(**************************************************************************)
+(*                                                                        *)
+(*                                 OCaml                                  *)
+(*                                                                        *)
+(*                       Pierre Chambart, OCamlPro                        *)
+(*           Mark Shinwell and Leo White, Jane Street Europe              *)
+(*                                                                        *)
+(*   Copyright 2013--2019 OCamlPro SAS                                    *)
+(*   Copyright 2014--2019 Jane Street Group LLC                           *)
+(*                                                                        *)
+(*   All rights reserved.  This file is distributed under the terms of    *)
+(*   the GNU Lesser General Public License version 2.1, with the          *)
+(*   special exception on linking described in the file LICENSE.          *)
+(*                                                                        *)
+(**************************************************************************)
+
+(* GENERATED, not written by hand: the declarations of what the port of
+   Simplify uses of the compiler's module [Continuation_extra_params_and_args], after its interface
+   middle_end/flambda2/simplify/continuation_extra_params_and_args.mli
+   at commit ecc5c0d968c892b4312065caef0f19ffffa042a9. Made by tools/declgen (see decl/README.md): a
+   change is made there, not here. *)
+
+From SimplifyPort Require Import Port_monad.
+From SimplifyPort.decl Require Apply_cont_rewrite_id Bound_parameter Bound_parameters Format Or_invalid.
+
+Module Extra_arg.
+  (* continuation_extra_params_and_args.mli:18  type t = | Already_in_scope of Simple.t | New_let_binding of Variable.t * Flambda_primitive.t | New_let_binding_with_named_args of Variable.t * (Simple.t list -> Flambda_primitive.t) *)
+  Parameter t : Type.
+  Extract Inlined Constant t => "Continuation_extra_params_and_args.Extra_arg.t".
+  (* continuation_extra_params_and_args.mli:24  val print : Format.formatter -> t -> unit *)
+  Parameter print : Format.formatter -> t -> M unit.
+  Extract Inlined Constant print => "Continuation_extra_params_and_args.Extra_arg.print".
+  Module List.
+    (* continuation_extra_params_and_args.mli:27  type nonrec t = t list *)
+    Definition t : Type := list Continuation_extra_params_and_args.Extra_arg.t.
+    Extract Inlined Constant t => "Continuation_extra_params_and_args.Extra_arg.List.t".
+    (* continuation_extra_params_and_args.mli:29  val print : Format.formatter -> t -> unit *)
+    Parameter print : Format.formatter -> t -> M unit.
+    Extract Inlined Constant print => "Continuation_extra_params_and_args.Extra_arg.List.print".
+  End List.
+End Extra_arg.
+(* continuation_extra_params_and_args.mli:33  type t = private | Empty | Non_empty of { extra_params : Bound_parameters.t; extra_args : Extra_arg.t list Or_invalid.t Apply_cont_rewrite_id.Map.t } *)
+Parameter t : Type.
+Extract Inlined Constant t => "Continuation_extra_params_and_args.t".
+(* continuation_extra_params_and_args.mli:40  val print : Format.formatter -> t -> unit *)
+Parameter print : Format.formatter -> t -> M unit.
+Extract Inlined Constant print => "Continuation_extra_params_and_args.print".
+(* continuation_extra_params_and_args.mli:42  val is_empty : t -> bool *)
+Parameter is_empty : t -> M bool.
+Extract Inlined Constant is_empty => "Continuation_extra_params_and_args.is_empty".
+(* continuation_extra_params_and_args.mli:48  val empty : t *)
+Parameter empty : t.
+Extract Inlined Constant empty => "Continuation_extra_params_and_args.empty".
+(* continuation_extra_params_and_args.mli:50  val add : t -> invalids:Apply_cont_rewrite_id.Set.t -> extra_param:Bound_parameter.t -> extra_args:Extra_arg.t Apply_cont_rewrite_id.Map.t -> t *)
+Parameter add : t -> Apply_cont_rewrite_id.Set_.t -> Bound_parameter.t -> Apply_cont_rewrite_id.Map.t Continuation_extra_params_and_args.Extra_arg.t -> M t.
+Extract Inlined Constant add => "Continuation_extra_params_and_args.add".
+(* continuation_extra_params_and_args.mli:59  val init_with_params_only : Bound_parameters.t -> t *)
+Parameter init_with_params_only : Bound_parameters.t -> M t.
+Extract Inlined Constant init_with_params_only => "Continuation_extra_params_and_args.init_with_params_only".
+(* continuation_extra_params_and_args.mli:61  val add_args_for_all_params : t -> Apply_cont_rewrite_id.t -> Extra_arg.t list -> t *)
+Parameter add_args_for_all_params : t -> Apply_cont_rewrite_id.t -> list Continuation_extra_params_and_args.Extra_arg.t -> M t.
+Extract Inlined Constant add_args_for_all_params => "Continuation_extra_params_and_args.add_args_for_all_params".
+(* continuation_extra_params_and_args.mli:66  val concat : outer:t -> inner:t -> t *)
+Parameter concat : t -> t -> M t.
+Extract Inlined Constant concat => "Continuation_extra_params_and_args.concat".
+(* continuation_extra_params_and_args.mli:68  val replace_extra_args : t -> Extra_arg.t list Or_invalid.t Apply_cont_rewrite_id.Map.t -> t *)
+Parameter replace_extra_args : t -> Apply_cont_rewrite_id.Map.t (Or_invalid.t (list Continuation_extra_params_and_args.Extra_arg.t)) -> M t.
+Extract Inlined Constant replace_extra_args => "Continuation_extra_params_and_args.replace_extra_args".
+(* continuation_extra_params_and_args.mli:71  val extra_params : t -> Bound_parameters.t *)
+Parameter extra_params : t -> M Bound_parameters.t.
+Extract Inlined Constant extra_params => "Continuation_extra_params_and_args.extra_params".
+(* continuation_extra_params_and_args.mli:73  val extra_args : t -> Extra_arg.t list Or_invalid.t Apply_cont_rewrite_id.Map.t *)
+Parameter extra_args : t -> M (Apply_cont_rewrite_id.Map.t (Or_invalid.t (list Continuation_extra_params_and_args.Extra_arg.t))).
+Extract Inlined Constant extra_args => "Continuation_extra_params_and_args.extra_args".
