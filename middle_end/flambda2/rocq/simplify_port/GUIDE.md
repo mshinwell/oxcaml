@@ -199,7 +199,22 @@ fuel was enough, and that it holds of the OCAML code is NOT established now
   name): `Expr_builder.v`. A functor of the file: a Rocq `Module` with a
   `Section` whose variables are the functor's members
   (`Simplify_unary_primitive.v`), or a function of those members
-  (`flow/Data_flow_graph.v`). Polymorphic variants: `env/Downwards_env.v`.
+  (`flow/Data_flow_graph.v`), or a Rocq functor over a module type of
+  `decl/` (`Simplify_binary_primitive.v`). Polymorphic variants:
+  `env/Downwards_env.v`.
+- INSIDE A ROCQ FUNCTOR (facts found by trying): a directive on a
+  `Parameter` of the body is not honoured, and Rocq says nothing; a module
+  of `decl/` that the body names through an alias (`Module R :=
+  Target_ocaml_int.`) loses its directives there (Rocq prints
+  `R.Set_.cardinal`), and its value names get in the way of local
+  variables (`machine_width0`): give it to the body through an identity
+  functor of its module type, as `Simplify_binary_primitive.v` does. A
+  module cannot be named `Set` in Rocq: `decl/` says `Set_`, and where
+  Rocq must print that name (under a functor's parameter) an OCaml head
+  gives the compiler's modules the name.
+- A LOCAL FUNCTION USED AT TWO TYPES: `let&` gives it one type (and with
+  the types as arguments Rocq prints `Obj.magic`). Write Rocq's own `let`
+  of the `fun`: Rocq prints its body at each use; mark it loose.
 
 ## 5. Gaps: never hidden
 
@@ -210,9 +225,10 @@ M r.` and `Extract Constant f => "fun _ -> Misc.fatal_error
 `fatal_error "PORT-GAP(partial): ..."`); `loose` (ported, but not line
 beside line: say what differs; an attribute such as `[@inline]` that is not
 kept); `order` (you are not sure of the order of evaluation); `type`;
-`verbatim`; `papp`; `record-order` (section 2); `init` (a top-level value that the compiler computes
-with effects when the module starts: a `Parameter`, its OCaml text
-verbatim, and `Extract Inlined Constant x => "x".`); `decl`. Prefer a marked
+`verbatim`; `papp`; `record-order` (section 2); `init` (a top-level value
+that the compiler computes with effects when the module starts: a
+`Parameter`, its OCaml text verbatim, and `Extract Inlined Constant x =>
+"x".`); `decl`. Prefer a marked
 gap now to a long fight: the first version is for the structure.
 
 ## 6. The work
@@ -267,8 +283,8 @@ then opens no declared unit and prints each declared name in full (so no
 name of the file or of OCaml's library can be hidden by such a line).
 
 KNOWN PROBLEMS OF THE EXTRACTION (the human has put them off; none is
-checked by a tool, but the first in part). In the identity build `M A` is `A`, and
-Rocq's extraction takes every term for a pure one:
+checked by a tool, but the first in part). In the identity build `M A` is
+`A`, and Rocq's extraction takes every term for a pure one:
 1. A `let!` that is not used is DROPPED with its call (also one that is the
    second value of a `match a, tmp1 with`, in the cases of `a` that do not
    look at it); used twice it stays a `let`; used under a `fun` or in a
@@ -278,6 +294,8 @@ Rocq's extraction takes every term for a pure one:
    shadowing, and it does not look at branches or `fun`s.
 2. Rocq's own `let x := f a in k` with `x` used once: the call moves to the
    use; not used: dropped. (Hence `let*`, which is a match and stays.)
+   "Once" is once in EACH BRANCH of a match: a `let` whose variable
+   stands once in each of two branches is printed in both.
 3. A computation that is STORED (in a pair, a record, a variable, a
    top-level definition without arguments) is run when it is built and
    once, not where and as often as the real build says.
