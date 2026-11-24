@@ -23,7 +23,7 @@ From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Import Dominator_graph__local.
 From SimplifyPort.decl Require Apply_cont_rewrite_id Array Bound_parameter
   Bound_parameters Continuation Flambda_colours Flambda_kind Flow_types
-  Format Name Numeric_types Or_null Simple Variable_.
+  Format List Name Numeric_types Or_null Simple Variable_.
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 
@@ -35,17 +35,6 @@ Module T := Flow_types.
 (*OCAML
 module G = Strongly_connected_components.Make (Simple)
 OCAML*)
-
-(* PORT-GAP(decl): [List.fold_left]. In the extracted file Rocq writes
-   [open Simple] (the file names the type [Simple.Map.t] with an argument),
-   and the declarations of [Simple] have a module [List], which hides the
-   standard library's: the realisation "List.fold_left" of decl/List.v
-   would not be found. The same declaration, realised by its full name. *)
-Module Stdlib_List.
-  Parameter fold_left :
-    forall {Acc A : Type}, (Acc -> A -> M Acc) -> Acc -> list A -> M Acc.
-  Extract Inlined Constant fold_left => "Stdlib.List.fold_left".
-End Stdlib_List.
 
 (* 18-25 *)
 Record t : Type :=
@@ -166,7 +155,7 @@ Definition add_continuation_info
     let! tmp1 :=
       Bound_parameters.to_list elt.(Flow_types.Continuation_info.params)
     in
-    Stdlib_List.fold_left
+    List.fold_left
       (fun t bp =>
         let* var := Bound_parameter.var bp in
         let* t :=
@@ -347,7 +336,7 @@ Definition initialize_doms_for_fixpoint (t : Dominator_graph.t)
      of the simples from the cycle. Also, since we're a in a cycle, all simples
      should actually be variables. *)
   let* all_predecessors :=
-    Stdlib_List.fold_left
+    List.fold_left
       (fun acc var =>
         let* predecessors :=
           try_with
@@ -370,7 +359,7 @@ Definition initialize_doms_for_fixpoint (t : Dominator_graph.t)
         Simple.Set_.singleton tmp3)
       tmp2
   in
-  Stdlib_List.fold_left
+  List.fold_left
     (fun doms simple => Simple.Map.add simple init_doms doms)
     outside_cycle simples.
 
@@ -386,7 +375,7 @@ Fixpoint dom_fixpoint (fuel : fuel) (t : Dominator_graph.t)
     ret t
   in
   let* acc' :=
-    Stdlib_List.fold_left
+    List.fold_left
       (fun acc simple =>
         let! tmp1 := Simple.Set_.mem simple dominator_roots in
         if tmp1
@@ -420,7 +409,7 @@ Definition extract_doms (doms : alias_map)
     (fixpoint_result : Simple.Map.t Simple.Set_.t) (simples : list Simple.t)
     : M alias_map :=
   let* simple_set := Simple.Set_.of_list simples in
-  Stdlib_List.fold_left
+  List.fold_left
     (fun doms simple =>
       let* var :=
         Simple.pattern_match' simple

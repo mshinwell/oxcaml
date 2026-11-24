@@ -22,8 +22,6 @@ module G = Strongly_connected_components.Make (Simple)
 open Port_monad
 module T = Flow_types
 
-module Stdlib_List = struct end
-
 type t =
   { required_names : Name.Set.t;
     params_kind : Flambda_kind.With_subkind.t Variable_.Map.t;
@@ -122,7 +120,7 @@ let add_edge src dst t0 =
 
 let add_continuation_info map0 _ elt t0 return_continuation exn_continuation =
   let t1 =
-    Stdlib.List.fold_left
+    List.fold_left
       (fun t1 bp ->
         let var = Bound_parameter.var bp in
         let t2 = add_node t1 (Simple.var var) in
@@ -261,7 +259,7 @@ let initialize_doms_for_fixpoint t0 doms simples =
     t0
   in
   let all_predecessors =
-    Stdlib.List.fold_left
+    List.fold_left
       (fun acc var ->
         let predecessors =
           Port_monad.try_with
@@ -280,7 +278,7 @@ let initialize_doms_for_fixpoint t0 doms simples =
       (fun simple -> Simple.Set.singleton (find_dom simple doms))
       (Simple.Set.diff all_predecessors (Simple.Set.of_list simples))
   in
-  Stdlib.List.fold_left
+  List.fold_left
     (fun doms0 simple -> Simple.Map.add simple init_doms doms0)
     outside_cycle simples
 
@@ -296,7 +294,7 @@ let rec dom_fixpoint t0 acc simples =
     t0
   in
   let acc' =
-    Stdlib.List.fold_left
+    List.fold_left
       (fun acc0 simple ->
         if Simple.Set.mem simple dominator_roots0
         then Simple.Map.add simple (Simple.Set.singleton simple) acc0
@@ -327,7 +325,7 @@ let rec dom_fixpoint t0 acc simples =
 
 let extract_doms doms fixpoint_result simples =
   let simple_set = Simple.Set.of_list simples in
-  Stdlib.List.fold_left
+  List.fold_left
     (fun doms0 simple ->
       let var =
         Simple.pattern_match' simple
