@@ -104,6 +104,8 @@ Definition rename_params (t : Non_recursive_handler.t)
   let* '(lifted_params, lifted_params_renaming) :=
     Lifted_cont_params.rename t.(Non_recursive_handler.lifted_params)
   in
+  (* The order of composition of renamings should not matter, since we expect
+     the params and lifted params to be distinct. *)
   (* 71-73: [Renaming.compose ~first:params_renaming
      ~second:lifted_params_renaming]: the arguments are in the order of the
      interface, [second] then [first]. *)
