@@ -81,15 +81,13 @@ module TE = Flambda2_types.Typing_env
 module TEE = Flambda2_types.Typing_env_extension
 module List = ListLabels
 
-type 'a scope_map = 'a Scope.Map.t
-
 module T0 = struct
   type t =
-    { by_scope : Simple.t EP.Map.t scope_map;
+    { by_scope : Simple.t EP.Map.t Scope.Map.t;
       combined : Simple.t EP.Map.t
     }
 
-  (** val by_scope : t -> Simple.t EP.Map.t scope_map **)
+  (** val by_scope : t -> Simple.t EP.Map.t Scope.Map.t **)
 
   let by_scope t0 = t0.by_scope
 

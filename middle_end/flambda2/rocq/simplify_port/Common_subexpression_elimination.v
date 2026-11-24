@@ -49,21 +49,13 @@ Module TE := Flambda2_types.Typing_env.
 Module TEE := Flambda2_types.Typing_env_extension.
 Module List := ListLabels.
 
-(* PORT-GAP(decl): Rocq prints the declared type [Scope.Map.t] as [Map.t]
-   after its line [open Scope]; its later line [open Tag] (which the
-   abbreviation [T] brings) hides that [Map]. Until decl/ is mended, the
-   type of the field [by_scope] is written with this abbreviation, whose
-   OCaml text has the full path. *)
-Definition scope_map (A : Type) : Type := Scope.Map.t A.
-Extract Constant scope_map "'a" => "'a Scope.Map.t".
-
 (* 31-74 *)
 (* PORT-GAP(loose): 31-44, the signature of [T0], in which the type is
    private, is not kept. *)
 Module T0.
   (* 45-48 *)
   Record t : Type := {
-    by_scope : scope_map (EP.Map.t Simple.t);
+    by_scope : Scope.Map.t (EP.Map.t Simple.t);
     combined : EP.Map.t Simple.t
   }.
 
