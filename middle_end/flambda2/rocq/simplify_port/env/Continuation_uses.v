@@ -71,6 +71,16 @@ Definition print (ppf : Format.formatter) (t : Continuation_uses.t) : M unit :=
       Continuation.print continuation Flambda_arity.print arity tmp1 uses
   end.
 
+(* PORT-GAP(update): 48, [{ t with uses }]. *)
+Definition update_uses (t : Continuation_uses.t)
+    (uses : list One_continuation_use.t) : Continuation_uses.t :=
+  {| continuation := t.(continuation);
+     arity := t.(arity);
+     uses := uses
+  |}.
+Extract Inlined Constant update_uses =>
+  "(fun t x__1 -> { t with uses = x__1 })".
+
 (* 39-59 *)
 Definition add_use (t : Continuation_uses.t) (use : One_continuation_use.t)
     : M Continuation_uses.t :=
@@ -92,11 +102,7 @@ Definition add_use (t : Continuation_uses.t) (use : One_continuation_use.t)
            Flambda_arity.print arity Flambda_arity.print
            t.(Continuation_uses.arity)
        else ret tt) ;;
-      ret
-        {| continuation := t.(continuation);
-           arity := t.(Continuation_uses.arity);
-           uses := use :: t.(uses)
-        |})
+      ret (update_uses t (use :: t.(uses))))
     Fatal_error
     (fun _ =>
       let* bt := Printexc.get_raw_backtrace tt in
@@ -269,8 +275,8 @@ Definition get_typing_env_no_more_than_one_use (t : Continuation_uses.t)
 Definition mark_non_inlinable (t : Continuation_uses.t)
     : M Continuation_uses.t :=
   let! tmp1 := List.map One_continuation_use.mark_non_inlinable t.(uses) in
-  ret {| continuation := t.(continuation); arity := t.(arity); uses := tmp1 |}.
+  ret (update_uses t tmp1).
 
 (* 158 *)
 Definition clear_uses (t : Continuation_uses.t) : M Continuation_uses.t :=
-  ret {| continuation := t.(continuation); arity := t.(arity); uses := [] |}.
+  ret (update_uses t []).

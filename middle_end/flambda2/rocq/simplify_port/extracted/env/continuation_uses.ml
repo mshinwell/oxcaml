@@ -77,10 +77,7 @@ let add_use t0 use =
             Flambda_arity.print arity0 Flambda_arity.print t0.arity
         else ()
       in
-      { continuation = t0.continuation;
-        arity = t0.arity;
-        uses = use :: t0.uses
-      })
+      (fun t x__1 -> { t with uses = x__1 }) t0 (use :: t0.uses))
     Port_monad.fatal_error_exception
     (fun _ ->
       let bt = Printexc.get_raw_backtrace () in
@@ -245,12 +242,10 @@ let get_typing_env_no_more_than_one_use t0 =
 (** val mark_non_inlinable : t -> t coq_M **)
 
 let mark_non_inlinable t0 =
-  { continuation = t0.continuation;
-    arity = t0.arity;
-    uses = List.map One_continuation_use.mark_non_inlinable t0.uses
-  }
+  (fun t x__1 -> { t with uses = x__1 })
+    t0
+    (List.map One_continuation_use.mark_non_inlinable t0.uses)
 
 (** val clear_uses : t -> t coq_M **)
 
-let clear_uses t0 =
-  { continuation = t0.continuation; arity = t0.arity; uses = [] }
+let clear_uses t0 = (fun t x__1 -> { t with uses = x__1 }) t0 []
