@@ -31,29 +31,28 @@ module UE = Upwards_env
 module DA = Downwards_acc
 module VB = Bound_var
 
-(** val add_set_of_closures_offsets : bool -> Named.t -> Upwards_acc.t ->
-    Upwards_acc.t coq_M **)
+(** val add_set_of_closures_offsets : bool -> Named.t -> UA.t -> UA.t coq_M **)
 
 let add_set_of_closures_offsets is_phantom named0 uacc =
   let add_offsets_from_set =
    fun uacc0 set_of_closures ->
-    match Upwards_acc.slot_offsets uacc0 with
+    match UA.slot_offsets uacc0 with
     | Or_unknown.Known slot_offsets ->
       let slot_offsets0 =
         Slot_offsets.add_set_of_closures slot_offsets is_phantom set_of_closures
       in
-      Upwards_acc.with_slot_offsets uacc0 (Or_unknown.Known slot_offsets0)
+      UA.with_slot_offsets uacc0 (Or_unknown.Known slot_offsets0)
     | Or_unknown.Unknown -> uacc0
   in
   let add_offsets_from_code =
    fun uacc0 code ->
-    match Upwards_acc.slot_offsets uacc0 with
+    match UA.slot_offsets uacc0 with
     | Or_unknown.Known slot_offsets ->
-      let dacc = Upwards_acc.creation_dacc uacc0 in
+      let dacc = UA.creation_dacc uacc0 in
       let code_id = Code.code_id code in
       let from_function =
         Port_monad.try_with
-          (fun _ -> Code_id.Map.find code_id (Downwards_acc.slot_offsets dacc))
+          (fun _ -> Code_id.Map.find code_id (DA.slot_offsets dacc))
           Port_monad.not_found
           (fun _ ->
             Misc.fatal_errorf "Missing offsets for code ID %a" Code_id.print
@@ -62,21 +61,20 @@ let add_set_of_closures_offsets is_phantom named0 uacc =
       let slot_offsets0 =
         Slot_offsets.add_offsets_from_function slot_offsets from_function
       in
-      Upwards_acc.with_slot_offsets uacc0 (Or_unknown.Known slot_offsets0)
+      UA.with_slot_offsets uacc0 (Or_unknown.Known slot_offsets0)
     | Or_unknown.Unknown -> uacc0
   in
   Named.fold_code_and_sets_of_closures named0 uacc add_offsets_from_code
     add_offsets_from_set
 
-(** val create_let : Upwards_acc.t -> Bound_pattern.t -> Named.t ->
-    Name_occurrences.t -> Rebuilt_expr.t -> Cost_metrics.t -> (Rebuilt_expr.t *
-    Upwards_acc.t) coq_M **)
+(** val create_let : UA.t -> Bound_pattern.t -> Named.t -> Name_occurrences.t ->
+    RE.t -> Cost_metrics.t -> (RE.t * UA.t) coq_M **)
 
 let create_let uacc bound_vars defining_expr free_names_of_defining_expr body
     cost_metrics_of_defining_expr =
   let name_mode = Bound_pattern.name_mode bound_vars in
   let is_phantom = Name_mode.is_phantom name_mode in
-  let free_names_of_body = Upwards_acc.name_occurrences uacc in
+  let free_names_of_body = UA.name_occurrences uacc in
   let free_names_of_defining_expr0 =
     if not is_phantom
     then free_names_of_defining_expr
@@ -88,31 +86,28 @@ let create_let uacc bound_vars defining_expr free_names_of_defining_expr body
     let without_bound_vars =
       Bound_pattern.fold_all_bound_vars bound_vars free_names_of_body
         (fun free_names0 bound_var ->
-          Name_occurrences.remove_var free_names0 (Bound_var.var bound_var))
+          Name_occurrences.remove_var free_names0 (VB.var bound_var))
     in
     Name_occurrences.union without_bound_vars free_names_of_defining_expr0
   in
   let uacc0 =
-    Upwards_acc.add_cost_metrics_and_with_name_occurrences uacc
+    UA.add_cost_metrics_and_with_name_occurrences uacc
       (Cost_metrics.increase_due_to_let_expr is_phantom
          cost_metrics_of_defining_expr)
       free_names_of_let
   in
   let uacc1 =
-    if
-      Are_rebuilding_terms.do_not_rebuild_terms
-        (Upwards_acc.are_rebuilding_terms uacc0)
+    if Are_rebuilding_terms.do_not_rebuild_terms (UA.are_rebuilding_terms uacc0)
     then uacc0
     else add_set_of_closures_offsets is_phantom defining_expr uacc0
   in
-  ( Rebuilt_expr.create_let
-      (Upwards_acc.are_rebuilding_terms uacc1)
+  ( RE.create_let
+      (UA.are_rebuilding_terms uacc1)
       bound_vars defining_expr body free_names_of_body,
     uacc1 )
 
-(** val create_let_binding : Upwards_acc.t -> Bound_pattern.t -> Named.t ->
-    Name_occurrences.t -> Rebuilt_expr.t -> Cost_metrics.t -> (Rebuilt_expr.t *
-    Upwards_acc.t) coq_M **)
+(** val create_let_binding : UA.t -> Bound_pattern.t -> Named.t ->
+    Name_occurrences.t -> RE.t -> Cost_metrics.t -> (RE.t * UA.t) coq_M **)
 
 let create_let_binding uacc bound_vars defining_expr free_names_of_defining_expr
     body cost_metrics_of_defining_expr =
@@ -122,9 +117,8 @@ let create_let_binding uacc bound_vars defining_expr free_names_of_defining_expr
   in
   re, uacc0
 
-(** val create_coerced_singleton_let : Upwards_acc.t -> Bound_var.t -> Named.t
-    -> Coercion.t -> Name_occurrences.t -> Rebuilt_expr.t -> Cost_metrics.t ->
-    (Rebuilt_expr.t * Upwards_acc.t) coq_M **)
+(** val create_coerced_singleton_let : UA.t -> VB.t -> Named.t -> Coercion.t ->
+    Name_occurrences.t -> RE.t -> Cost_metrics.t -> (RE.t * UA.t) coq_M **)
 
 let create_coerced_singleton_let uacc var defining_expr
     coercion_from_defining_expr_to_var free_names_of_defining_expr body
@@ -148,10 +142,10 @@ let create_coerced_singleton_let uacc var defining_expr
         cost_metrics_of_defining_expr
     | Flambda.Prim (_, _) ->
       let uncoerced_var =
-        let name = "uncoerced_" ^ Variable.canonical_name (Bound_var.var var) in
+        let name = "uncoerced_" ^ Variable.canonical_name (VB.var var) in
         (fun x__1 x__2 x__3 -> Variable.create ?user_visible:x__1 x__2 x__3)
           None name
-          (Variable.kind (Bound_var.var var))
+          (Variable.kind (VB.var var))
       in
       let uncoerced_var_duid = Flambda_debug_uid.none in
       let body0, uacc0 =
@@ -174,7 +168,7 @@ let create_coerced_singleton_let uacc var defining_expr
         let outer =
           let bound =
             Bound_pattern.singleton
-              (Bound_var.create uncoerced_var uncoerced_var_duid name_mode)
+              (VB.create uncoerced_var uncoerced_var_duid name_mode)
           in
           create_let uacc0 bound defining_expr free_names_of_defining_expr body0
             cost_metrics_of_defining_expr
@@ -184,10 +178,10 @@ let create_coerced_singleton_let uacc var defining_expr
       generate_outer_binding (Bound_var.name_mode var)
     | Flambda.Set_of_closures (_, _) ->
       let uncoerced_var =
-        let name = "uncoerced_" ^ Variable.canonical_name (Bound_var.var var) in
+        let name = "uncoerced_" ^ Variable.canonical_name (VB.var var) in
         (fun x__1 x__2 x__3 -> Variable.create ?user_visible:x__1 x__2 x__3)
           None name
-          (Variable.kind (Bound_var.var var))
+          (Variable.kind (VB.var var))
       in
       let uncoerced_var_duid = Flambda_debug_uid.none in
       let body0, uacc0 =
@@ -210,7 +204,7 @@ let create_coerced_singleton_let uacc var defining_expr
         let outer =
           let bound =
             Bound_pattern.singleton
-              (Bound_var.create uncoerced_var uncoerced_var_duid name_mode)
+              (VB.create uncoerced_var uncoerced_var_duid name_mode)
           in
           create_let uacc0 bound defining_expr free_names_of_defining_expr body0
             cost_metrics_of_defining_expr
@@ -220,10 +214,10 @@ let create_coerced_singleton_let uacc var defining_expr
       generate_outer_binding (Bound_var.name_mode var)
     | Flambda.Static_consts _ ->
       let uncoerced_var =
-        let name = "uncoerced_" ^ Variable.canonical_name (Bound_var.var var) in
+        let name = "uncoerced_" ^ Variable.canonical_name (VB.var var) in
         (fun x__1 x__2 x__3 -> Variable.create ?user_visible:x__1 x__2 x__3)
           None name
-          (Variable.kind (Bound_var.var var))
+          (Variable.kind (VB.var var))
       in
       let uncoerced_var_duid = Flambda_debug_uid.none in
       let body0, uacc0 =
@@ -246,7 +240,7 @@ let create_coerced_singleton_let uacc var defining_expr
         let outer =
           let bound =
             Bound_pattern.singleton
-              (Bound_var.create uncoerced_var uncoerced_var_duid name_mode)
+              (VB.create uncoerced_var uncoerced_var_duid name_mode)
           in
           create_let uacc0 bound defining_expr free_names_of_defining_expr body0
             cost_metrics_of_defining_expr
@@ -256,10 +250,10 @@ let create_coerced_singleton_let uacc var defining_expr
       generate_outer_binding (Bound_var.name_mode var)
     | Flambda.Rec_info _ ->
       let uncoerced_var =
-        let name = "uncoerced_" ^ Variable.canonical_name (Bound_var.var var) in
+        let name = "uncoerced_" ^ Variable.canonical_name (VB.var var) in
         (fun x__1 x__2 x__3 -> Variable.create ?user_visible:x__1 x__2 x__3)
           None name
-          (Variable.kind (Bound_var.var var))
+          (Variable.kind (VB.var var))
       in
       let uncoerced_var_duid = Flambda_debug_uid.none in
       let body0, uacc0 =
@@ -282,7 +276,7 @@ let create_coerced_singleton_let uacc var defining_expr
         let outer =
           let bound =
             Bound_pattern.singleton
-              (Bound_var.create uncoerced_var uncoerced_var_duid name_mode)
+              (VB.create uncoerced_var uncoerced_var_duid name_mode)
           in
           create_let uacc0 bound defining_expr free_names_of_defining_expr body0
             cost_metrics_of_defining_expr
@@ -291,9 +285,8 @@ let create_coerced_singleton_let uacc var defining_expr
       in
       generate_outer_binding (Bound_var.name_mode var)
 
-(** val make_new_let_bindings : Upwards_acc.t ->
-    Simplified_named.binding_to_place list -> Rebuilt_expr.t -> (Rebuilt_expr.t
-    * Upwards_acc.t) coq_M **)
+(** val make_new_let_bindings : UA.t -> Simplified_named.binding_to_place list
+    -> RE.t -> (RE.t * UA.t) coq_M **)
 
 let make_new_let_bindings uacc bindings_outermost_first body =
   let notify_removed =
@@ -303,9 +296,9 @@ let make_new_let_bindings uacc bindings_outermost_first body =
       match t0 with
       | Flambda.Simple _ -> uacc0
       | Flambda.Prim (prim, _) ->
-        Upwards_acc.notify_removed (Removed_operations.prim prim) uacc0
+        UA.notify_removed (Removed_operations.prim prim) uacc0
       | Flambda.Set_of_closures (_, _) ->
-        Upwards_acc.notify_removed Removed_operations.alloc uacc0
+        UA.notify_removed Removed_operations.alloc uacc0
       | Flambda.Static_consts _ -> uacc0
       | Flambda.Rec_info _ -> uacc0)
     | None -> uacc0
@@ -352,16 +345,15 @@ let make_new_let_bindings uacc bindings_outermost_first body =
     (body, uacc)
     (List.rev bindings_outermost_first)
 
-(** val create_raw_let_symbol : Upwards_acc.t -> Bound_static.t ->
-    Rebuilt_static_const.Group.t -> Rebuilt_expr.t -> (Rebuilt_expr.t *
-    Upwards_acc.t) coq_M **)
+(** val create_raw_let_symbol : UA.t -> Bound_static.t ->
+    Rebuilt_static_const.Group.t -> RE.t -> (RE.t * UA.t) coq_M **)
 
 let create_raw_let_symbol uacc bound_static static_consts body =
   let bindable = Bound_pattern.static bound_static in
   let free_names_of_static_consts =
     Rebuilt_static_const.Group.free_names static_consts
   in
-  let free_names_of_body = Upwards_acc.name_occurrences uacc in
+  let free_names_of_body = UA.name_occurrences uacc in
   let free_names_of_let =
     let name_occurrences =
       Name_occurrences.union free_names_of_static_consts free_names_of_body
@@ -378,25 +370,22 @@ let create_raw_let_symbol uacc bound_static static_consts body =
     else Cost_metrics.zero
   in
   let uacc0 =
-    Upwards_acc.add_cost_metrics
+    UA.add_cost_metrics
       (Cost_metrics.increase_due_to_let_expr false cost_metrics_of_static_consts)
-      (Upwards_acc.with_name_occurrences uacc free_names_of_let)
+      (UA.with_name_occurrences uacc free_names_of_let)
   in
-  if
-    Are_rebuilding_terms.do_not_rebuild_terms
-      (Upwards_acc.are_rebuilding_terms uacc0)
-  then Rebuilt_expr.term_not_rebuilt, uacc0
+  if Are_rebuilding_terms.do_not_rebuild_terms (UA.are_rebuilding_terms uacc0)
+  then RE.term_not_rebuilt, uacc0
   else
     let defining_expr = Rebuilt_static_const.Group.to_named static_consts in
     let uacc1 = add_set_of_closures_offsets false defining_expr uacc0 in
-    ( Rebuilt_expr.create_let
-        (Upwards_acc.are_rebuilding_terms uacc1)
+    ( RE.create_let
+        (UA.are_rebuilding_terms uacc1)
         bindable defining_expr body free_names_of_body,
       uacc1 )
 
-(** val create_let_symbol0 : Upwards_acc.t -> Bound_static.t ->
-    Rebuilt_static_const.Group.t -> Rebuilt_expr.t -> (Rebuilt_expr.t *
-    Upwards_acc.t) coq_M **)
+(** val create_let_symbol0 : UA.t -> Bound_static.t ->
+    Rebuilt_static_const.Group.t -> RE.t -> (RE.t * UA.t) coq_M **)
 
 let create_let_symbol0 uacc bound_static static_consts body =
   let will_bind_code = Bound_static.binds_code bound_static in
@@ -407,7 +396,7 @@ let create_let_symbol0 uacc bound_static static_consts body =
       let all_code_ids_bound_names =
         Bound_static.code_being_defined bound_static
       in
-      match Upwards_acc.reachable_code_ids uacc with
+      match UA.reachable_code_ids uacc with
       | Or_unknown.Known t0 ->
         let { Flow_types.Reachable_code_ids.live_code_ids = live_code_ids0;
               Flow_types.Reachable_code_ids.ancestors_of_live_code_ids = _
@@ -432,19 +421,19 @@ let create_let_symbol0 uacc bound_static static_consts body =
     if not will_bind_code
     then uacc0
     else
-      Upwards_acc.remember_code_for_cmx uacc0
+      UA.remember_code_for_cmx uacc0
         (Rebuilt_static_const.Group.pieces_of_code_for_cmx static_consts0)
   in
   expr, uacc1
 
-(** val remove_unused_value_slots : Upwards_acc.t -> Rebuilt_static_const.t ->
+(** val remove_unused_value_slots : UA.t -> Rebuilt_static_const.t ->
     Rebuilt_static_const.t coq_M **)
 
 let remove_unused_value_slots uacc static_const =
   let find_code_metadata =
    fun code_id ->
-    let dacc = Upwards_acc.creation_dacc uacc in
-    let env = Downwards_acc.denv dacc in
+    let dacc = UA.creation_dacc uacc in
+    let env = DA.denv dacc in
     Code_or_metadata.code_metadata
       (Port_monad.try_with
          (fun _ -> Downwards_env.find_code_exn env code_id)
@@ -454,7 +443,7 @@ let remove_unused_value_slots uacc static_const =
   in
   Rebuilt_static_const.map_set_of_closures static_const find_code_metadata
     (fun set_of_closures ->
-      let name_occurrences = Upwards_acc.used_value_slots uacc in
+      let name_occurrences = UA.used_value_slots uacc in
       let value_slots =
         Value_slot.Map.filter
           (fun value_slot _ ->
@@ -466,15 +455,14 @@ let remove_unused_value_slots uacc static_const =
         (Set_of_closures.debuginfo set_of_closures)
         (Set_of_closures.function_decls set_of_closures))
 
-(** val create_let_symbols : Upwards_acc.t -> Lifted_constant.t ->
-    Rebuilt_expr.t -> (Rebuilt_expr.t * Upwards_acc.t) coq_M **)
+(** val create_let_symbols : UA.t -> LC.t -> RE.t -> (RE.t * UA.t) coq_M **)
 
 let create_let_symbols uacc lifted_constant body =
-  let bound_static = Lifted_constant.bound_static lifted_constant in
-  let symbol_projections = Lifted_constant.symbol_projections lifted_constant in
+  let bound_static = LC.bound_static lifted_constant in
+  let symbol_projections = LC.symbol_projections lifted_constant in
   let static_consts =
     Rebuilt_static_const.Group.map
-      (Lifted_constant.defining_exprs lifted_constant)
+      (LC.defining_exprs lifted_constant)
       (remove_unused_value_slots uacc)
   in
   let expr, uacc0 = create_let_symbol0 uacc bound_static static_consts body in
@@ -485,7 +473,7 @@ let create_let_symbols uacc lifted_constant body =
             coercion_from_defining_expr_to_var,
             code_size_of_defining_expr ) =
         let rec apply_projection proj0 coercion_from_proj_to_var =
-          match Lifted_constant.apply_projection lifted_constant proj0 with
+          match LC.apply_projection lifted_constant proj0 with
           | Some simple ->
             let stop_here =
              fun _ ->
@@ -526,29 +514,26 @@ let create_let_symbols uacc lifted_constant body =
                   f__2 x__1 x__2)
                 (fun index block_shape ->
                   let block_access_kind =
-                    Flambda_primitive.Block_access_kind.from_block_shape
-                      block_shape index result_kind
+                    P.Block_access_kind.from_block_shape block_shape index
+                      result_kind
                   in
-                  Flambda_primitive.Unary
+                  P.Unary
                     ( (fun (x__1, x__2, x__3) ->
-                        (Flambda_primitive.Block_load
-                           { kind = x__1; mut = x__2; field = x__3 }
-                          : Flambda_primitive.unary_primitive))
+                        (P.Block_load { kind = x__1; mut = x__2; field = x__3 }
+                          : P.unary_primitive))
                         (block_access_kind, Mutability.Immutable, index),
                       symbol ))
                 (fun project_from value_slot ->
-                  Flambda_primitive.Unary
+                  P.Unary
                     ( (fun (x__1, x__2) ->
-                        (Flambda_primitive.Project_value_slot
+                        (P.Project_value_slot
                            { project_from = x__1; value_slot = x__2 }
-                          : Flambda_primitive.unary_primitive))
+                          : P.unary_primitive))
                         (project_from, value_slot),
                       symbol ))
                 (Symbol_projection.projection proj0)
             in
-            let machine_width =
-              Upwards_env.machine_width (Upwards_acc.uenv uacc1)
-            in
+            let machine_width = UE.machine_width (UA.uenv uacc1) in
             ( Named.create_prim prim Debuginfo.none,
               coercion_from_proj_to_var,
               Code_size.prim machine_width prim )
@@ -561,22 +546,20 @@ let create_let_symbols uacc lifted_constant body =
       let free_names_of_defining_expr = Named.free_names defining_expr in
       let expr1, uacc2 =
         create_coerced_singleton_let uacc1
-          (Bound_var.create var Flambda_debug_uid.none Name_mode.normal)
+          (VB.create var Flambda_debug_uid.none Name_mode.normal)
           defining_expr coercion_from_defining_expr_to_var
           free_names_of_defining_expr expr0 cost_metrics_of_defining_expr
       in
       expr1, uacc2)
     symbol_projections (expr, uacc0)
 
-(** val place_lifted_constants : Upwards_acc.t -> Lifted_constant_state.t ->
-    Lifted_constant_state.t -> (Upwards_acc.t -> Rebuilt_expr.t ->
-    (Rebuilt_expr.t * Upwards_acc.t) coq_M) -> Rebuilt_expr.t -> (Rebuilt_expr.t
-    * Upwards_acc.t) coq_M **)
+(** val place_lifted_constants : UA.t -> LCS.t -> LCS.t -> (UA.t -> RE.t ->
+    (RE.t * UA.t) coq_M) -> RE.t -> (RE.t * UA.t) coq_M **)
 
 let place_lifted_constants uacc lifted_constants_from_defining_expr
     lifted_constants_from_body put_bindings_around_body body =
   let () =
-    if not (Upwards_acc.no_lifted_constants uacc)
+    if not (UA.no_lifted_constants uacc)
     then
       Misc.fatal_errorf
         "All lifted constants of the body should have been\n\
@@ -585,7 +568,7 @@ let place_lifted_constants uacc lifted_constants_from_defining_expr
   in
   let place_constants =
    fun uacc0 around constants ->
-    let sorted = Lifted_constant_state.sort constants in
+    let sorted = LCS.sort constants in
     ArrayLabels.fold_left
       (fun acc lifted_const ->
         let body0, uacc1 = acc in
@@ -596,27 +579,26 @@ let place_lifted_constants uacc lifted_constants_from_defining_expr
   let body1, uacc1 = put_bindings_around_body uacc0 body0 in
   place_constants uacc1 body1 lifted_constants_from_defining_expr
 
-(** val create_switch : Upwards_acc.t -> Debuginfo.t -> Simple.t -> Switch_arm.t
-    Target_ocaml_int.Map.t -> (Rebuilt_expr.t * Upwards_acc.t) coq_M **)
+(** val create_switch : UA.t -> Debuginfo.t -> Simple.t -> Switch_arm.t
+    Target_ocaml_int.Map.t -> (RE.t * UA.t) coq_M **)
 
 let create_switch uacc condition_dbg scrutinee arms =
   if Target_ocaml_int.Map.cardinal arms < 1
   then
-    ( Rebuilt_expr.create_invalid Flambda.Invalid.Zero_switch_arms,
-      Upwards_acc.notify_added Code_size.invalid uacc )
+    ( RE.create_invalid Flambda.Invalid.Zero_switch_arms,
+      UA.notify_added Code_size.invalid uacc )
   else
     let change_to_apply_cont =
      fun action ->
       let uacc0 =
-        Upwards_acc.notify_added
+        UA.notify_added
           (Code_size.apply_cont action)
-          (Upwards_acc.add_free_names uacc (Apply_cont.free_names action))
+          (UA.add_free_names uacc (Apply_cont.free_names action))
       in
       let is_cold =
-        Upwards_env.is_cold_continuation (Upwards_acc.uenv uacc0)
-          (Apply_cont.continuation action)
+        UE.is_cold_continuation (UA.uenv uacc0) (Apply_cont.continuation action)
       in
-      Rebuilt_expr.create_apply_cont is_cold action, uacc0
+      RE.create_apply_cont is_cold action, uacc0
     in
     match Target_ocaml_int.Map.get_singleton arms with
     | Some p ->
@@ -634,20 +616,17 @@ let create_switch uacc condition_dbg scrutinee arms =
       | None ->
         let switch = Switch.create condition_dbg scrutinee arms in
         let uacc0 =
-          Upwards_acc.notify_added (Code_size.switch switch)
-            (Upwards_acc.add_free_names uacc (Switch.free_names switch))
+          UA.notify_added (Code_size.switch switch)
+            (UA.add_free_names uacc (Switch.free_names switch))
         in
         let is_cold =
           Target_ocaml_int.Map.for_all (fun _ -> Switch_arm.is_cold) arms
         in
-        ( Rebuilt_expr.create_switch
-            (Upwards_acc.are_rebuilding_terms uacc0)
-            is_cold switch,
-          uacc0 ))
+        RE.create_switch (UA.are_rebuilding_terms uacc0) is_cold switch, uacc0)
 
 type new_let_cont =
   { cont : Continuation.t;
-    handler : Rebuilt_expr.Continuation_handler.t;
+    handler : RE.Continuation_handler.t;
     free_names_of_handler : Name_occurrences.t;
     cost_metrics_of_handler : Cost_metrics.t
   }
@@ -656,7 +635,7 @@ type new_let_cont =
 
 let cont n = n.cont
 
-(** val handler : new_let_cont -> Rebuilt_expr.Continuation_handler.t **)
+(** val handler : new_let_cont -> RE.Continuation_handler.t **)
 
 let handler n = n.handler
 
@@ -668,8 +647,7 @@ let free_names_of_handler n = n.free_names_of_handler
 
 let cost_metrics_of_handler n = n.cost_metrics_of_handler
 
-(** val bind_let_cont : Upwards_acc.t -> Rebuilt_expr.t -> new_let_cont ->
-    (Upwards_acc.t * Rebuilt_expr.t) coq_M **)
+(** val bind_let_cont : UA.t -> RE.t -> new_let_cont -> (UA.t * RE.t) coq_M **)
 
 let bind_let_cont uacc body new_let_cont0 =
   let { cont = cont0;
@@ -679,10 +657,10 @@ let bind_let_cont uacc body new_let_cont0 =
       } =
     new_let_cont0
   in
-  let free_names_of_body = Upwards_acc.name_occurrences uacc in
+  let free_names_of_body = UA.name_occurrences uacc in
   let expr =
-    Rebuilt_expr.create_non_recursive_let_cont
-      (Upwards_acc.are_rebuilding_terms uacc)
+    RE.create_non_recursive_let_cont
+      (UA.are_rebuilding_terms uacc)
       cont0 handler0 body free_names_of_body
   in
   let name_occurrences =
@@ -691,15 +669,15 @@ let bind_let_cont uacc body new_let_cont0 =
       cont0
   in
   let uacc0 =
-    Upwards_acc.add_cost_metrics
+    UA.add_cost_metrics
       (Cost_metrics.increase_due_to_let_cont_non_recursive
          cost_metrics_of_handler0)
-      (Upwards_acc.with_name_occurrences uacc name_occurrences)
+      (UA.with_name_occurrences uacc name_occurrences)
   in
   uacc0, expr
 
-(** val bind_let_conts : Upwards_acc.t -> Rebuilt_expr.t -> new_let_cont list ->
-    (Upwards_acc.t * Rebuilt_expr.t) coq_M **)
+(** val bind_let_conts : UA.t -> RE.t -> new_let_cont list -> (UA.t * RE.t)
+    coq_M **)
 
 let bind_let_conts uacc body new_handlers =
   ListLabels.fold_left
@@ -708,12 +686,11 @@ let bind_let_conts uacc body new_handlers =
       bind_let_cont uacc0 body0 new_let_cont0)
     (uacc, body) new_handlers
 
-(** val rebuild_invalid : Upwards_acc.t -> Flambda.Invalid.t -> (Rebuilt_expr.t
-    -> Upwards_acc.t -> (Rebuilt_expr.t * Upwards_acc.t) coq_M) ->
-    (Rebuilt_expr.t * Upwards_acc.t) coq_M **)
+(** val rebuild_invalid : UA.t -> Flambda.Invalid.t -> (RE.t -> UA.t -> (RE.t *
+    UA.t) coq_M) -> (RE.t * UA.t) coq_M **)
 
 let rebuild_invalid uacc reason after_rebuild =
-  after_rebuild (Rebuilt_expr.create_invalid reason) uacc
+  after_rebuild (RE.create_invalid reason) uacc
 
 type rewrite_apply_cont_result =
   | Invalid of { message : string }
@@ -723,13 +700,12 @@ type rewrite_apply_cont_result =
          (Apply_cont.t -> RE.t * Cost_metrics.t * Name_occurrences.t) ->
       RE.t * Cost_metrics.t * Name_occurrences.t)
 
-(** val apply_continuation_shortcuts : Upwards_env.t -> Apply_cont.t ->
-    Apply_cont.t coq_M **)
+(** val apply_continuation_shortcuts : UE.t -> Apply_cont.t -> Apply_cont.t
+    coq_M **)
 
 let apply_continuation_shortcuts uenv apply_cont =
   match
-    Upwards_env.find_continuation_shortcut uenv
-      (Apply_cont.continuation apply_cont)
+    UE.find_continuation_shortcut uenv (Apply_cont.continuation apply_cont)
   with
   | Some shortcut ->
     let cont0, args =
@@ -738,50 +714,48 @@ let apply_continuation_shortcuts uenv apply_cont =
     Apply_cont.with_continuation_and_args apply_cont cont0 args
   | None -> apply_cont
 
-(** val apply_continuation_aliases : Upwards_env.t -> Continuation.t ->
-    Continuation.t coq_M **)
+(** val apply_continuation_aliases : UE.t -> Continuation.t -> Continuation.t
+    coq_M **)
 
 let apply_continuation_aliases uenv cont0 =
-  match Upwards_env.find_continuation_shortcut uenv cont0 with
+  match UE.find_continuation_shortcut uenv cont0 with
   | Some shortcut -> (
     match Continuation_shortcut.to_alias shortcut with
     | Some cont1 -> cont1
     | None -> cont0)
   | None -> cont0
 
-(** val apply_exn_continuation_aliases : Upwards_env.t -> Exn_continuation.t ->
+(** val apply_exn_continuation_aliases : UE.t -> Exn_continuation.t ->
     Exn_continuation.t coq_M **)
 
 let apply_exn_continuation_aliases uenv exn_cont =
   let cont0 = Exn_continuation.exn_handler exn_cont in
-  match Upwards_env.find_continuation_shortcut uenv cont0 with
+  match UE.find_continuation_shortcut uenv cont0 with
   | Some shortcut -> (
     match Continuation_shortcut.to_alias shortcut with
     | Some cont1 -> Exn_continuation.with_exn_handler exn_cont cont1
     | None -> exn_cont)
   | None -> exn_cont
 
-(** val no_rewrite_apply_cont : Upwards_env.t -> Apply_cont.t ->
+(** val no_rewrite_apply_cont : UE.t -> Apply_cont.t ->
     rewrite_apply_cont_result coq_M **)
 
 let no_rewrite_apply_cont uenv apply_cont =
   let apply_cont0 = apply_continuation_shortcuts uenv apply_cont in
   (fun x__1 -> (Apply_cont x__1 : rewrite_apply_cont_result)) apply_cont0
 
-(** val rewrite_apply_cont0 : Upwards_acc.t -> Apply_cont_rewrite.t ->
+(** val rewrite_apply_cont0 : UA.t -> Apply_cont_rewrite.t ->
     Apply_cont_rewrite.rewrite_apply_cont_ctx -> Apply_cont_rewrite_id.t ->
     Apply_cont.t -> rewrite_apply_cont_result coq_M **)
 
 let rewrite_apply_cont0 uacc rewrite ctx id apply_cont =
   let args = Apply_cont.args apply_cont in
-  let machine_width = Upwards_env.machine_width (Upwards_acc.uenv uacc) in
+  let machine_width = UE.machine_width (UA.uenv uacc) in
   match Apply_cont_rewrite.make_rewrite rewrite machine_width ctx id args with
   | Or_invalid.Ok p -> (
     let extra_lets, args0 = p in
     let apply_cont0 = Apply_cont.update_args apply_cont args0 in
-    let apply_cont1 =
-      apply_continuation_shortcuts (Upwards_acc.uenv uacc) apply_cont0
-    in
+    let apply_cont1 = apply_continuation_shortcuts (UA.uenv uacc) apply_cont0 in
     match extra_lets with
     | [] ->
       (fun x__1 -> (Apply_cont x__1 : rewrite_apply_cont_result)) apply_cont1
@@ -791,15 +765,15 @@ let rewrite_apply_cont0 uacc rewrite ctx id apply_cont =
         let body, cost_metrics_of_body, free_names_of_body =
           apply_cont_to_expr apply_cont1
         in
-        Rebuilt_expr.bind_no_simplification
-          (Upwards_acc.are_rebuilding_terms uacc)
+        RE.bind_no_simplification
+          (UA.are_rebuilding_terms uacc)
           extra_lets body cost_metrics_of_body free_names_of_body
       in
       (fun x__1 -> (Expr x__1 : rewrite_apply_cont_result)) build_expr)
   | Or_invalid.Invalid ->
     (fun x__1 -> (Invalid { message = x__1 } : rewrite_apply_cont_result)) ""
 
-(** val rewrite_apply_cont : Upwards_acc.t -> Apply_cont_rewrite.t ->
+(** val rewrite_apply_cont : UA.t -> Apply_cont_rewrite.t ->
     Apply_cont_rewrite_id.t -> Apply_cont.t -> rewrite_apply_cont_result coq_M **)
 
 let rewrite_apply_cont uacc rewrite id apply_cont =
@@ -820,18 +794,17 @@ type cont_or_apply_cont =
 
 let rewrite_exn_continuation = Apply_cont_rewrite.rewrite_exn_continuation
 
-(** val rewrite_fixed_arity_continuation0 : Upwards_acc.t -> cont_or_apply_cont
-    -> Apply_cont_rewrite_id.t -> [ `Unarized ] Flambda_arity.t ->
+(** val rewrite_fixed_arity_continuation0 : UA.t -> cont_or_apply_cont ->
+    Apply_cont_rewrite_id.t -> [ `Unarized ] Flambda_arity.t ->
     rewrite_fixed_arity_continuation0_result coq_M **)
 
 let rewrite_fixed_arity_continuation0 uacc cont_or_apply_cont0 use_id arity =
-  let uenv = Upwards_acc.uenv uacc in
+  let uenv = UA.uenv uacc in
   let specialize_if_needed =
    fun cont0 ->
     Port_monad.try_with
       (fun _ ->
-        Continuation_callsite_map.find cont0 use_id
-          (Upwards_acc.specialization_map uacc))
+        Continuation_callsite_map.find cont0 use_id (UA.specialization_map uacc))
       Port_monad.not_found
       (fun _ -> cont0)
   in
@@ -865,7 +838,7 @@ let rewrite_fixed_arity_continuation0 uacc cont_or_apply_cont0 use_id arity =
           (apply_continuation_shortcuts uenv apply_cont))
       cont_or_apply_cont1
   in
-  match Upwards_env.find_apply_cont_rewrite uenv cont0 with
+  match UE.find_apply_cont_rewrite uenv cont0 with
   | Some rewrite ->
     if Apply_cont_rewrite.does_nothing rewrite
     then
@@ -889,8 +862,8 @@ let rewrite_fixed_arity_continuation0 uacc cont_or_apply_cont0 use_id arity =
             None None ()
         in
         let handler0 =
-          Rebuilt_expr.Continuation_handler.create
-            (Upwards_acc.are_rebuilding_terms uacc)
+          RE.Continuation_handler.create
+            (UA.are_rebuilding_terms uacc)
             params expr free_names0 false false
         in
         let free_names_of_handler0 =
@@ -924,10 +897,10 @@ let rewrite_fixed_arity_continuation0 uacc cont_or_apply_cont0 use_id arity =
                     (Flambda_kind.With_subkind.kind kind)
                 in
                 let param_var_duid = Flambda_debug_uid.none in
-                Bound_parameter.create param_var kind param_var_duid)
+                BP.create param_var kind param_var_duid)
               (Flambda_arity.unarized_components arity)
           in
-          let args = List.map Bound_parameter.simple params in
+          let args = List.map BP.simple params in
           let params0 = Bound_parameters.create params in
           let apply_cont =
             (fun x__1 x__2 x__3 x__4 ->
@@ -947,24 +920,24 @@ let rewrite_fixed_arity_continuation0 uacc cont_or_apply_cont0 use_id arity =
                 message)
             (fun apply_cont0 ->
               let is_cold =
-                Upwards_env.is_cold_continuation uenv
+                UE.is_cold_continuation uenv
                   (Apply_cont.continuation apply_cont0)
               in
               let cost_metrics0 =
                 Cost_metrics.from_size (Code_size.apply_cont apply_cont0)
               in
               new_wrapper params0
-                (Rebuilt_expr.create_apply_cont is_cold apply_cont0)
+                (RE.create_apply_cont is_cold apply_cont0)
                 (Apply_cont.free_names apply_cont0)
                 cost_metrics0)
             (fun build_expr ->
               let expr, cost_metrics0, free_names0 =
                 build_expr (fun apply_cont0 ->
                     let is_cold =
-                      Upwards_env.is_cold_continuation uenv
+                      UE.is_cold_continuation uenv
                         (Apply_cont.continuation apply_cont0)
                     in
-                    ( Rebuilt_expr.create_apply_cont is_cold apply_cont0,
+                    ( RE.create_apply_cont is_cold apply_cont0,
                       Cost_metrics.from_size (Code_size.apply_cont apply_cont0),
                       Apply_cont.free_names apply_cont0 ))
               in
@@ -990,10 +963,10 @@ let rewrite_fixed_arity_continuation0 uacc cont_or_apply_cont0 use_id arity =
               let expr, cost_metrics0, free_names0 =
                 build_expr (fun apply_cont1 ->
                     let is_cold =
-                      Upwards_env.is_cold_continuation uenv
+                      UE.is_cold_continuation uenv
                         (Apply_cont.continuation apply_cont1)
                     in
-                    ( Rebuilt_expr.create_apply_cont is_cold apply_cont1,
+                    ( RE.create_apply_cont is_cold apply_cont1,
                       Cost_metrics.from_size (Code_size.apply_cont apply_cont1),
                       Apply_cont.free_names apply_cont1 ))
               in
@@ -1007,9 +980,8 @@ type rewrite_switch_arm_result =
   | Apply_cont of Apply_cont.t
   | New_wrapper of new_let_cont
 
-(** val rewrite_switch_arm : Upwards_acc.t -> Apply_cont.t ->
-    Apply_cont_rewrite_id.t -> [ `Unarized ] Flambda_arity.t ->
-    rewrite_switch_arm_result coq_M **)
+(** val rewrite_switch_arm : UA.t -> Apply_cont.t -> Apply_cont_rewrite_id.t ->
+    [ `Unarized ] Flambda_arity.t -> rewrite_switch_arm_result coq_M **)
 
 let rewrite_switch_arm uacc apply_cont use_id arity =
   (fun f__1 f__2 f__3 f__4 x__0 ->
@@ -1032,10 +1004,9 @@ let rewrite_switch_arm uacc apply_cont use_id arity =
        ((fun x__1 -> (Apply_cont x__1 : cont_or_apply_cont)) apply_cont)
        use_id arity)
 
-(** val rewrite_fixed_arity_continuation : Upwards_acc.t -> Continuation.t ->
-    Apply_cont_rewrite_id.t -> [ `Unarized ] Flambda_arity.t -> (Upwards_acc.t
-    -> Continuation.t -> (Upwards_acc.t * Rebuilt_expr.t) coq_M) ->
-    (Upwards_acc.t * Rebuilt_expr.t) coq_M **)
+(** val rewrite_fixed_arity_continuation : UA.t -> Continuation.t ->
+    Apply_cont_rewrite_id.t -> [ `Unarized ] Flambda_arity.t -> (UA.t ->
+    Continuation.t -> (UA.t * RE.t) coq_M) -> (UA.t * RE.t) coq_M **)
 
 let rewrite_fixed_arity_continuation uacc cont0 use_id arity around =
   (fun f__1 f__2 f__3 f__4 x__0 ->
@@ -1044,8 +1015,7 @@ let rewrite_fixed_arity_continuation uacc cont0 use_id arity around =
     | This_continuation x__1 -> f__2 x__1
     | Apply_cont x__1 -> f__3 x__1
     | New_wrapper x__1 -> f__4 x__1)
-    (fun message ->
-      uacc, Rebuilt_expr.create_invalid (Flambda.Invalid.Message message))
+    (fun message -> uacc, RE.create_invalid (Flambda.Invalid.Message message))
     (fun cont1 -> around uacc cont1)
     (fun _ -> assert false)
     (fun new_let_cont0 ->
@@ -1055,21 +1025,17 @@ let rewrite_fixed_arity_continuation uacc cont0 use_id arity around =
        ((fun x__1 -> (Continuation x__1 : cont_or_apply_cont)) cont0)
        use_id arity)
 
-(** val rewrite_fixed_arity_apply : Upwards_acc.t -> Apply_cont_rewrite_id.t
-    option -> bool -> [ `Unarized ] Flambda_arity.t -> Apply.t -> (Upwards_acc.t
-    * Rebuilt_expr.t) coq_M **)
+(** val rewrite_fixed_arity_apply : UA.t -> Apply_cont_rewrite_id.t option ->
+    bool -> [ `Unarized ] Flambda_arity.t -> Apply.t -> (UA.t * RE.t) coq_M **)
 
 let rewrite_fixed_arity_apply uacc use_id is_cold arity apply =
   let make_apply =
    fun apply0 ->
     let uacc0 =
-      Upwards_acc.notify_added (Code_size.apply apply0)
-        (Upwards_acc.add_free_names uacc (Apply.free_names apply0))
+      UA.notify_added (Code_size.apply apply0)
+        (UA.add_free_names uacc (Apply.free_names apply0))
     in
-    ( uacc0,
-      Rebuilt_expr.create_apply
-        (Upwards_acc.are_rebuilding_terms uacc0)
-        is_cold apply0 )
+    uacc0, RE.create_apply (UA.are_rebuilding_terms uacc0) is_cold apply0
   in
   let result_continuation = Apply.continuation apply in
   match use_id with
@@ -1079,7 +1045,7 @@ let rewrite_fixed_arity_apply uacc use_id is_cold arity apply =
       rewrite_fixed_arity_continuation uacc cont0 use_id0 arity
         (fun uacc0 return_cont ->
           let exn_cont =
-            apply_exn_continuation_aliases (Upwards_acc.uenv uacc0)
+            apply_exn_continuation_aliases (UA.uenv uacc0)
               (Apply.exn_continuation apply)
           in
           let apply0 =

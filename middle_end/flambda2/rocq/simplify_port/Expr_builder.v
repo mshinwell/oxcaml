@@ -45,7 +45,7 @@ Local Open Scope list_scope.
 open! Flambda.Import
 OCAML*)
 
-(* 18-26. The Rocq text below writes the modules' own names. *)
+(* 18-26 *)
 Module BP := Bound_parameter.
 Module LC := Lifted_constant.
 Module LCS := Lifted_constant_state.
@@ -58,10 +58,10 @@ Module VB := Bound_var.
 
 (* 28-58 *)
 Definition add_set_of_closures_offsets (is_phantom : bool) (named : Named.t)
-    (uacc : Upwards_acc.t) : M Upwards_acc.t :=
+    (uacc : UA.t) : M UA.t :=
   let& add_offsets_from_set :=
-    fun (uacc : Upwards_acc.t) (set_of_closures : Set_of_closures.t) =>
-    let! tmp1 := Upwards_acc.slot_offsets uacc in
+    fun (uacc : UA.t) (set_of_closures : Set_of_closures.t) =>
+    let! tmp1 := UA.slot_offsets uacc in
     match tmp1 with
     | Or_unknown.Unknown => ret uacc
     | Or_unknown.Known slot_offsets =>
@@ -69,22 +69,22 @@ Definition add_set_of_closures_offsets (is_phantom : bool) (named : Named.t)
         Slot_offsets.add_set_of_closures slot_offsets is_phantom
           set_of_closures
       in
-      Upwards_acc.with_slot_offsets uacc (Or_unknown.Known slot_offsets)
+      UA.with_slot_offsets uacc (Or_unknown.Known slot_offsets)
     end
   in
   let& add_offsets_from_code :=
-    fun (uacc : Upwards_acc.t) (code : Code.t) =>
+    fun (uacc : UA.t) (code : Code.t) =>
     (* XXX consider removing this Or_unknown.t *)
-    let! tmp1 := Upwards_acc.slot_offsets uacc in
+    let! tmp1 := UA.slot_offsets uacc in
     match tmp1 with
     | Or_unknown.Unknown => ret uacc
     | Or_unknown.Known slot_offsets =>
-      let* dacc := Upwards_acc.creation_dacc uacc in
+      let* dacc := UA.creation_dacc uacc in
       let* code_id := Code.code_id code in
       let* from_function :=
         try_with
           (fun _ =>
-            let! tmp2 := Downwards_acc.slot_offsets dacc in
+            let! tmp2 := DA.slot_offsets dacc in
             Code_id.Map.find code_id tmp2)
           Not_found
           (fun _ =>
@@ -94,22 +94,22 @@ Definition add_set_of_closures_offsets (is_phantom : bool) (named : Named.t)
       let* slot_offsets :=
         Slot_offsets.add_offsets_from_function slot_offsets from_function
       in
-      Upwards_acc.with_slot_offsets uacc (Or_unknown.Known slot_offsets)
+      UA.with_slot_offsets uacc (Or_unknown.Known slot_offsets)
     end
   in
   Named.fold_code_and_sets_of_closures named uacc add_offsets_from_code
     add_offsets_from_set.
 
 (* 60-96 *)
-Definition create_let (uacc : Upwards_acc.t) (bound_vars : Bound_pattern.t)
+Definition create_let (uacc : UA.t) (bound_vars : Bound_pattern.t)
     (defining_expr : Named.t) (free_names_of_defining_expr : Name_occurrences.t)
-    (body : Rebuilt_expr.t) (cost_metrics_of_defining_expr : Cost_metrics.t)
-    : M (Rebuilt_expr.t * Upwards_acc.t) :=
+    (body : RE.t) (cost_metrics_of_defining_expr : Cost_metrics.t)
+    : M (RE.t * UA.t) :=
   (* The name occurrences component of [uacc] is expected to be in the state
      described in the comment at the top of [Simplify_let.rebuild_let]. *)
   let* name_mode := Bound_pattern.name_mode bound_vars in
   let* is_phantom := Name_mode.is_phantom name_mode in
-  let* free_names_of_body := Upwards_acc.name_occurrences uacc in
+  let* free_names_of_body := UA.name_occurrences uacc in
   let* free_names_of_defining_expr :=
     if negb is_phantom
     then ret free_names_of_defining_expr
@@ -121,7 +121,7 @@ Definition create_let (uacc : Upwards_acc.t) (bound_vars : Bound_pattern.t)
     let* without_bound_vars :=
       Bound_pattern.fold_all_bound_vars bound_vars free_names_of_body
         (fun free_names bound_var =>
-          let! tmp1 := Bound_var.var bound_var in
+          let! tmp1 := VB.var bound_var in
           Name_occurrences.remove_var free_names tmp1)
     in
     Name_occurrences.union without_bound_vars free_names_of_defining_expr
@@ -131,29 +131,26 @@ Definition create_let (uacc : Upwards_acc.t) (bound_vars : Bound_pattern.t)
       Cost_metrics.increase_due_to_let_expr is_phantom
         cost_metrics_of_defining_expr
     in
-    Upwards_acc.add_cost_metrics_and_with_name_occurrences uacc tmp1
-      free_names_of_let
+    UA.add_cost_metrics_and_with_name_occurrences uacc tmp1 free_names_of_let
   in
   let* uacc :=
-    let! tmp1 := Upwards_acc.are_rebuilding_terms uacc in
+    let! tmp1 := UA.are_rebuilding_terms uacc in
     let! tmp2 := Are_rebuilding_terms.do_not_rebuild_terms tmp1 in
     if tmp2
     then ret uacc
     else add_set_of_closures_offsets is_phantom defining_expr uacc
   in
-  let! tmp1 := Upwards_acc.are_rebuilding_terms uacc in
+  let! tmp1 := UA.are_rebuilding_terms uacc in
   let! tmp2 :=
-    Rebuilt_expr.create_let tmp1 bound_vars defining_expr body
-      free_names_of_body
+    RE.create_let tmp1 bound_vars defining_expr body free_names_of_body
   in
   ret (tmp2, uacc).
 
 (* 98-104 *)
-Definition create_let_binding (uacc : Upwards_acc.t)
-    (bound_vars : Bound_pattern.t) (defining_expr : Named.t)
-    (free_names_of_defining_expr : Name_occurrences.t) (body : Rebuilt_expr.t)
-    (cost_metrics_of_defining_expr : Cost_metrics.t)
-    : M (Rebuilt_expr.t * Upwards_acc.t) :=
+Definition create_let_binding (uacc : UA.t) (bound_vars : Bound_pattern.t)
+    (defining_expr : Named.t) (free_names_of_defining_expr : Name_occurrences.t)
+    (body : RE.t) (cost_metrics_of_defining_expr : Cost_metrics.t)
+    : M (RE.t * UA.t) :=
   let* '(re, uacc) :=
     create_let uacc bound_vars defining_expr free_names_of_defining_expr body
       cost_metrics_of_defining_expr
@@ -161,12 +158,10 @@ Definition create_let_binding (uacc : Upwards_acc.t)
   ret (re, uacc).
 
 (* 106-162 *)
-Definition create_coerced_singleton_let (uacc : Upwards_acc.t)
-    (var : Bound_var.t) (defining_expr : Named.t)
-    (coercion_from_defining_expr_to_var : Coercion.t)
-    (free_names_of_defining_expr : Name_occurrences.t) (body : Rebuilt_expr.t)
-    (cost_metrics_of_defining_expr : Cost_metrics.t)
-    : M (Rebuilt_expr.t * Upwards_acc.t) :=
+Definition create_coerced_singleton_let (uacc : UA.t) (var : VB.t)
+    (defining_expr : Named.t) (coercion_from_defining_expr_to_var : Coercion.t)
+    (free_names_of_defining_expr : Name_occurrences.t) (body : RE.t)
+    (cost_metrics_of_defining_expr : Cost_metrics.t) : M (RE.t * UA.t) :=
   let! tmp1 := Coercion.is_id coercion_from_defining_expr_to_var in
   if tmp1
   then
@@ -192,11 +187,11 @@ Definition create_coerced_singleton_let (uacc : Upwards_acc.t)
     | Flambda.Rec_info _ =>
       let* uncoerced_var :=
         let* name :=
-          let! tmp1 := Bound_var.var var in
+          let! tmp1 := VB.var var in
           let! tmp2 := Variable_.canonical_name tmp1 in
           ret ("uncoerced_" ++ tmp2)%string
         in
-        let! tmp1 := Bound_var.var var in
+        let! tmp1 := VB.var var in
         let! tmp2 := Variable_.kind tmp1 in
         Variable_.create None name tmp2
       in
@@ -224,9 +219,7 @@ Definition create_coerced_singleton_let (uacc : Upwards_acc.t)
            outer]: the pair is not taken apart. *)
         let* outer :=
           let* bound :=
-            let! tmp1 :=
-              Bound_var.create uncoerced_var uncoerced_var_duid name_mode
-            in
+            let! tmp1 := VB.create uncoerced_var uncoerced_var_duid name_mode in
             Bound_pattern.singleton tmp1
           in
           create_let uacc bound defining_expr free_names_of_defining_expr body
@@ -240,19 +233,19 @@ Definition create_coerced_singleton_let (uacc : Upwards_acc.t)
 
 (* 164-202. [ListLabels.fold_left l ~init ~f]: the arguments are in the
    order of the interface. *)
-Definition make_new_let_bindings (uacc : Upwards_acc.t)
+Definition make_new_let_bindings (uacc : UA.t)
     (bindings_outermost_first : list Simplified_named.binding_to_place)
-    (body : Rebuilt_expr.t) : M (Rebuilt_expr.t * Upwards_acc.t) :=
+    (body : RE.t) : M (RE.t * UA.t) :=
   (* The name occurrences component of [uacc] is expected to be in the state
      described in the comment at the top of [Simplify_let.rebuild_let]. *)
   let& notify_removed :=
-    fun (uacc : Upwards_acc.t) (original_defining_expr : option Named.t) =>
+    fun (uacc : UA.t) (original_defining_expr : option Named.t) =>
     match original_defining_expr with
     | Some (Flambda.Prim prim _dbg) =>
       let! tmp1 := Removed_operations.prim prim in
-      Upwards_acc.notify_removed tmp1 uacc
+      UA.notify_removed tmp1 uacc
     | Some (Flambda.Set_of_closures _ _) =>
-      Upwards_acc.notify_removed Removed_operations.alloc uacc
+      UA.notify_removed Removed_operations.alloc uacc
     | Some (Flambda.Simple _ | Flambda.Static_consts _ | Flambda.Rec_info _)
     | None =>
       ret uacc
@@ -294,17 +287,16 @@ Definition make_new_let_bindings (uacc : Upwards_acc.t)
     (body, uacc) tmp1.
 
 (* 204-251 *)
-Definition create_raw_let_symbol (uacc : Upwards_acc.t)
-    (bound_static : Bound_static.t)
-    (static_consts : Rebuilt_static_const.Group.t) (body : Rebuilt_expr.t)
-    : M (Rebuilt_expr.t * Upwards_acc.t) :=
+Definition create_raw_let_symbol (uacc : UA.t) (bound_static : Bound_static.t)
+    (static_consts : Rebuilt_static_const.Group.t) (body : RE.t)
+    : M (RE.t * UA.t) :=
   (* Upon entry to this function, [UA.name_occurrences uacc] must precisely
      indicate the free names of [body]. *)
   let* bindable := Bound_pattern.static bound_static in
   let* free_names_of_static_consts :=
     Rebuilt_static_const.Group.free_names static_consts
   in
-  let* free_names_of_body := Upwards_acc.name_occurrences uacc in
+  let* free_names_of_body := UA.name_occurrences uacc in
   let* free_names_of_let :=
     (* Care: these bindings can be recursive (e.g. via a set of closures). *)
     let* name_occurrences :=
@@ -331,32 +323,30 @@ Definition create_raw_let_symbol (uacc : Upwards_acc.t)
   in
   (* 233-240: [a |> f b] is [f b a] *)
   let* uacc :=
-    let! tmp1 := Upwards_acc.with_name_occurrences uacc free_names_of_let in
+    let! tmp1 := UA.with_name_occurrences uacc free_names_of_let in
     (* Static consts always have zero cost metrics at present. *)
     let! tmp2 :=
       Cost_metrics.increase_due_to_let_expr false cost_metrics_of_static_consts
     in
-    Upwards_acc.add_cost_metrics tmp2 tmp1
+    UA.add_cost_metrics tmp2 tmp1
   in
-  let! tmp1 := Upwards_acc.are_rebuilding_terms uacc in
+  let! tmp1 := UA.are_rebuilding_terms uacc in
   let! tmp2 := Are_rebuilding_terms.do_not_rebuild_terms tmp1 in
   if tmp2
-  then ret (Rebuilt_expr.term_not_rebuilt, uacc)
+  then ret (RE.term_not_rebuilt, uacc)
   else
     let* defining_expr := Rebuilt_static_const.Group.to_named static_consts in
     let* uacc := add_set_of_closures_offsets false defining_expr uacc in
-    let! tmp1 := Upwards_acc.are_rebuilding_terms uacc in
+    let! tmp1 := UA.are_rebuilding_terms uacc in
     let! tmp2 :=
-      Rebuilt_expr.create_let tmp1 bindable defining_expr body
-        free_names_of_body
+      RE.create_let tmp1 bindable defining_expr body free_names_of_body
     in
     ret (tmp2, uacc).
 
 (* 253-290 *)
-Definition create_let_symbol0 (uacc : Upwards_acc.t)
-    (bound_static : Bound_static.t)
-    (static_consts : Rebuilt_static_const.Group.t) (body : Rebuilt_expr.t)
-    : M (Rebuilt_expr.t * Upwards_acc.t) :=
+Definition create_let_symbol0 (uacc : UA.t) (bound_static : Bound_static.t)
+    (static_consts : Rebuilt_static_const.Group.t) (body : RE.t)
+    : M (RE.t * UA.t) :=
   (* Upon entry to this function, [UA.name_occurrences uacc] must precisely
      indicate the free names of [body]. *)
   let* will_bind_code := Bound_static.binds_code bound_static in
@@ -369,7 +359,7 @@ Definition create_let_symbol0 (uacc : Upwards_acc.t)
       let* all_code_ids_bound_names :=
         Bound_static.code_being_defined bound_static
       in
-      let! tmp1 := Upwards_acc.reachable_code_ids uacc in
+      let! tmp1 := UA.reachable_code_ids uacc in
       match tmp1 with
       | Or_unknown.Unknown => ret Code_id.Set_.empty
       | Or_unknown.Known
@@ -400,17 +390,17 @@ Definition create_let_symbol0 (uacc : Upwards_acc.t)
       let! tmp1 :=
         Rebuilt_static_const.Group.pieces_of_code_for_cmx static_consts
       in
-      Upwards_acc.remember_code_for_cmx uacc tmp1
+      UA.remember_code_for_cmx uacc tmp1
   in
   ret (expr, uacc).
 
 (* 292-313 *)
-Definition remove_unused_value_slots (uacc : Upwards_acc.t)
+Definition remove_unused_value_slots (uacc : UA.t)
     (static_const : Rebuilt_static_const.t) : M Rebuilt_static_const.t :=
   let& find_code_metadata :=
     fun (code_id : Code_id.t) =>
-    let* dacc := Upwards_acc.creation_dacc uacc in
-    let* env := Downwards_acc.denv dacc in
+    let* dacc := UA.creation_dacc uacc in
+    let* env := DA.denv dacc in
     let! tmp1 :=
       try_with
         (fun _ => Downwards_env.find_code_exn env code_id)
@@ -422,7 +412,7 @@ Definition remove_unused_value_slots (uacc : Upwards_acc.t)
   in
   Rebuilt_static_const.map_set_of_closures static_const find_code_metadata
     (fun set_of_closures =>
-      let* name_occurrences := Upwards_acc.used_value_slots uacc in
+      let* name_occurrences := UA.used_value_slots uacc in
       let* value_slots :=
         let! tmp1 := Set_of_closures.value_slots set_of_closures in
         Value_slot.Map.filter
@@ -437,15 +427,12 @@ Definition remove_unused_value_slots (uacc : Upwards_acc.t)
 
 (* 315-434. [Simple.pattern_match' simple ~const ~symbol ~var]: the
    arguments are in the order of the interface ([~var ~symbol ~const]). *)
-Definition create_let_symbols (uacc : Upwards_acc.t)
-    (lifted_constant : Lifted_constant.t) (body : Rebuilt_expr.t)
-    : M (Rebuilt_expr.t * Upwards_acc.t) :=
-  let* bound_static := Lifted_constant.bound_static lifted_constant in
-  let* symbol_projections :=
-    Lifted_constant.symbol_projections lifted_constant
-  in
+Definition create_let_symbols (uacc : UA.t) (lifted_constant : LC.t)
+    (body : RE.t) : M (RE.t * UA.t) :=
+  let* bound_static := LC.bound_static lifted_constant in
+  let* symbol_projections := LC.symbol_projections lifted_constant in
   let* static_consts :=
-    let! tmp1 := Lifted_constant.defining_exprs lifted_constant in
+    let! tmp1 := LC.defining_exprs lifted_constant in
     Rebuilt_static_const.Group.map tmp1 (remove_unused_value_slots uacc)
   in
   let* '(expr, uacc) :=
@@ -463,7 +450,7 @@ Definition create_let_symbols (uacc : Upwards_acc.t)
             (coercion_from_proj_to_var : Coercion.t) {struct fuel}
             : M (tuple3 Named.t Coercion.t Code_size.t) :=
           recursive! fuel in
-          let! tmp1 := Lifted_constant.apply_projection lifted_constant proj in
+          let! tmp1 := LC.apply_projection lifted_constant proj in
           match tmp1 with
           | Some simple =>
             let& stop_here :=
@@ -547,26 +534,24 @@ Definition create_let_symbols (uacc : Upwards_acc.t)
               match tmp1 with
               | Symbol_projection.Projection.Block_load index block_shape =>
                 let* block_access_kind :=
-                  Flambda_primitive.Block_access_kind.from_block_shape
-                    block_shape index result_kind
+                  P.Block_access_kind.from_block_shape block_shape index
+                    result_kind
                 in
                 ret
-                  (Flambda_primitive.Unary
-                     (Flambda_primitive.Block_load block_access_kind
-                        Mutability.Immutable index)
+                  (P.Unary
+                     (P.Block_load block_access_kind Mutability.Immutable index)
                      symbol)
               | Symbol_projection.Projection.Project_value_slot project_from
                   value_slot =>
                 ret
-                  (Flambda_primitive.Unary
-                     (Flambda_primitive.Project_value_slot project_from
-                        value_slot)
+                  (P.Unary
+                     (P.Project_value_slot project_from value_slot)
                      symbol)
               end
             in
             let* machine_width :=
-              let! tmp1 := Upwards_acc.uenv uacc in
-              Upwards_env.machine_width tmp1
+              let! tmp1 := UA.uenv uacc in
+              UE.machine_width tmp1
             in
             let! tmp1 := Code_size.prim machine_width prim in
             let! tmp2 := Named.create_prim prim Debuginfo.none in
@@ -586,9 +571,7 @@ Definition create_let_symbols (uacc : Upwards_acc.t)
       in
       let* free_names_of_defining_expr := Named.free_names defining_expr in
       let* '(expr, uacc) :=
-        let! tmp1 :=
-          Bound_var.create var Flambda_debug_uid.none Name_mode.normal
-        in
+        let! tmp1 := VB.create var Flambda_debug_uid.none Name_mode.normal in
         create_coerced_singleton_let uacc tmp1 defining_expr
           coercion_from_defining_expr_to_var free_names_of_defining_expr expr
           cost_metrics_of_defining_expr
@@ -599,14 +582,12 @@ Definition create_let_symbols (uacc : Upwards_acc.t)
     symbol_projections (expr, uacc).
 
 (* 436-456 *)
-Definition place_lifted_constants (uacc : Upwards_acc.t)
-    (lifted_constants_from_defining_expr lifted_constants_from_body :
-      Lifted_constant_state.t)
-    (put_bindings_around_body :
-      Upwards_acc.t -> Rebuilt_expr.t -> M (Rebuilt_expr.t * Upwards_acc.t))
-    (body : Rebuilt_expr.t) : M (Rebuilt_expr.t * Upwards_acc.t) :=
+Definition place_lifted_constants (uacc : UA.t)
+    (lifted_constants_from_defining_expr lifted_constants_from_body : LCS.t)
+    (put_bindings_around_body : UA.t -> RE.t -> M (RE.t * UA.t)) (body : RE.t)
+    : M (RE.t * UA.t) :=
   (* Lifted constants are placed as soon as they reach toplevel. *)
-  (let! tmp1 := Upwards_acc.no_lifted_constants uacc in
+  (let! tmp1 := UA.no_lifted_constants uacc in
    if negb tmp1
    then
      fatal_errorf0
@@ -614,15 +595,17 @@ Definition place_lifted_constants (uacc : Upwards_acc.t)
                         removed from the uacc"
    else ret tt) ;;
   let& place_constants :=
-    fun (uacc : Upwards_acc.t) (around : Rebuilt_expr.t)
-        (constants : Lifted_constant_state.t) =>
-    let* sorted := Lifted_constant_state.sort constants in
+    fun (uacc : UA.t) (around : RE.t) (constants : LCS.t) =>
+    let* sorted := LCS.sort constants in
     ArrayLabels.fold_left
       (fun acc lifted_const =>
         (* PORT-GAP(loose): 447, the pair pattern of the parameter is a
            [let]. *)
         let* '(body, uacc) := ret acc in
         create_let_symbols uacc lifted_const body)
+      (* 446: [sorted.innermost_first]. The field is written with the
+         module's own name: through [LCS] Rocq prints it as a function
+         ([LCS.innermost_first sorted]), which OCaml does not have. *)
       (around, uacc) sorted.(Lifted_constant_state.innermost_first)
   in
   (* Place constants whose definitions may depend on the bound name(s) of the
@@ -634,14 +617,14 @@ Definition place_lifted_constants (uacc : Upwards_acc.t)
   place_constants uacc body lifted_constants_from_defining_expr.
 
 (* 458-503 *)
-Definition create_switch (uacc : Upwards_acc.t) (condition_dbg : Debuginfo.t)
+Definition create_switch (uacc : UA.t) (condition_dbg : Debuginfo.t)
     (scrutinee : Simple.t) (arms : Target_ocaml_int.Map.t Switch_arm.t)
-    : M (Rebuilt_expr.t * Upwards_acc.t) :=
+    : M (RE.t * UA.t) :=
   let! tmp1 := Target_ocaml_int.Map.cardinal arms in
   if tmp1 <? 1
   then
-    let! tmp2 := Upwards_acc.notify_added Code_size.invalid uacc in
-    let! tmp3 := Rebuilt_expr.create_invalid Flambda.Invalid.Zero_switch_arms in
+    let! tmp2 := UA.notify_added Code_size.invalid uacc in
+    let! tmp3 := RE.create_invalid Flambda.Invalid.Zero_switch_arms in
     ret (tmp3, tmp2)
   else
     let& change_to_apply_cont :=
@@ -649,16 +632,16 @@ Definition create_switch (uacc : Upwards_acc.t) (condition_dbg : Debuginfo.t)
       (* 465-468: [a |> f b] is [f b a] *)
       let* uacc :=
         let! tmp1 := Apply_cont.free_names action in
-        let! tmp2 := Upwards_acc.add_free_names uacc tmp1 in
+        let! tmp2 := UA.add_free_names uacc tmp1 in
         let! tmp3 := Code_size.apply_cont action in
-        Upwards_acc.notify_added tmp3 tmp2
+        UA.notify_added tmp3 tmp2
       in
       let* is_cold :=
         let! tmp1 := Apply_cont.continuation action in
-        let! tmp2 := Upwards_acc.uenv uacc in
-        Upwards_env.is_cold_continuation tmp2 tmp1
+        let! tmp2 := UA.uenv uacc in
+        UE.is_cold_continuation tmp2 tmp1
       in
-      let! tmp1 := Rebuilt_expr.create_apply_cont is_cold action in
+      let! tmp1 := RE.create_apply_cont is_cold action in
       ret (tmp1, uacc)
     in
     let! tmp1 := Target_ocaml_int.Map.get_singleton arms in
@@ -687,17 +670,17 @@ Definition create_switch (uacc : Upwards_acc.t) (condition_dbg : Debuginfo.t)
         let* switch := Switch.create condition_dbg scrutinee arms in
         let* uacc :=
           let! tmp1 := Switch.free_names switch in
-          let! tmp2 := Upwards_acc.add_free_names uacc tmp1 in
+          let! tmp2 := UA.add_free_names uacc tmp1 in
           let! tmp3 := Code_size.switch switch in
-          Upwards_acc.notify_added tmp3 tmp2
+          UA.notify_added tmp3 tmp2
         in
         let* is_cold :=
           Target_ocaml_int.Map.for_all
             (fun _ arm => Switch_arm.is_cold arm)
             arms
         in
-        let! tmp1 := Upwards_acc.are_rebuilding_terms uacc in
-        let! tmp2 := Rebuilt_expr.create_switch tmp1 is_cold switch in
+        let! tmp1 := UA.are_rebuilding_terms uacc in
+        let! tmp2 := RE.create_switch tmp1 is_cold switch in
         ret (tmp2, uacc)
       end
     end.
@@ -705,27 +688,25 @@ Definition create_switch (uacc : Upwards_acc.t) (condition_dbg : Debuginfo.t)
 (* 505-510 *)
 Record new_let_cont : Type :=
   { cont : Continuation.t;
-    handler : Rebuilt_expr.Continuation_handler.t;
+    handler : RE.Continuation_handler.t;
     free_names_of_handler : Name_occurrences.t;
     cost_metrics_of_handler : Cost_metrics.t
   }.
 
 (* 512-531 *)
 (* PORT-GAP(loose): the record pattern of the parameter is a match. *)
-Definition bind_let_cont (uacc : Upwards_acc.t) (body : Rebuilt_expr.t)
-    (new_let_cont : Expr_builder.new_let_cont)
-    : M (Upwards_acc.t * Rebuilt_expr.t) :=
+Definition bind_let_cont (uacc : UA.t) (body : RE.t)
+    (new_let_cont : Expr_builder.new_let_cont) : M (UA.t * RE.t) :=
   match new_let_cont with
   | {| cont := cont;
        handler := handler;
        free_names_of_handler := free_names_of_handler;
        cost_metrics_of_handler := cost_metrics_of_handler
     |} =>
-    let* free_names_of_body := Upwards_acc.name_occurrences uacc in
+    let* free_names_of_body := UA.name_occurrences uacc in
     let* expr :=
-      let! tmp1 := Upwards_acc.are_rebuilding_terms uacc in
-      Rebuilt_expr.create_non_recursive_let_cont tmp1 cont handler body
-        free_names_of_body
+      let! tmp1 := UA.are_rebuilding_terms uacc in
+      RE.create_non_recursive_let_cont tmp1 cont handler body free_names_of_body
     in
     let* name_occurrences :=
       let! tmp1 :=
@@ -735,19 +716,19 @@ Definition bind_let_cont (uacc : Upwards_acc.t) (body : Rebuilt_expr.t)
     in
     (* 525-530: [a |> f b] is [f b a] *)
     let* uacc :=
-      let! tmp1 := Upwards_acc.with_name_occurrences uacc name_occurrences in
+      let! tmp1 := UA.with_name_occurrences uacc name_occurrences in
       let! tmp2 :=
         Cost_metrics.increase_due_to_let_cont_non_recursive
           cost_metrics_of_handler
       in
-      Upwards_acc.add_cost_metrics tmp2 tmp1
+      UA.add_cost_metrics tmp2 tmp1
     in
     ret (uacc, expr)
   end.
 
 (* 533-535 *)
-Definition bind_let_conts (uacc : Upwards_acc.t) (body : Rebuilt_expr.t)
-    (new_handlers : list new_let_cont) : M (Upwards_acc.t * Rebuilt_expr.t) :=
+Definition bind_let_conts (uacc : UA.t) (body : RE.t)
+    (new_handlers : list new_let_cont) : M (UA.t * RE.t) :=
   ListLabels.fold_left
     (fun acc new_let_cont =>
       (* PORT-GAP(loose): 535, the pair pattern of the parameter is a
@@ -757,11 +738,9 @@ Definition bind_let_conts (uacc : Upwards_acc.t) (body : Rebuilt_expr.t)
     (uacc, body) new_handlers.
 
 (* 537-538 *)
-Definition rebuild_invalid (uacc : Upwards_acc.t) (reason : Flambda.Invalid.t)
-    (after_rebuild :
-      Rebuilt_expr.t -> Upwards_acc.t -> M (Rebuilt_expr.t * Upwards_acc.t))
-    : M (Rebuilt_expr.t * Upwards_acc.t) :=
-  let! tmp1 := Rebuilt_expr.create_invalid reason in
+Definition rebuild_invalid (uacc : UA.t) (reason : Flambda.Invalid.t)
+    (after_rebuild : RE.t -> UA.t -> M (RE.t * UA.t)) : M (RE.t * UA.t) :=
+  let! tmp1 := RE.create_invalid reason in
   after_rebuild tmp1 uacc.
 
 (* PORT-GAP(type): 540-546. Four types of the file (here, 609-613, 615-617
@@ -777,9 +756,8 @@ Inductive rewrite_apply_cont_result_ : Type :=
 | Invalid : string -> rewrite_apply_cont_result_
 | Apply_cont : Apply_cont.t -> rewrite_apply_cont_result_
 | Expr :
-    ((Apply_cont.t ->
-      M (tuple3 Rebuilt_expr.t Cost_metrics.t Name_occurrences.t)) ->
-     M (tuple3 Rebuilt_expr.t Cost_metrics.t Name_occurrences.t)) ->
+    ((Apply_cont.t -> M (tuple3 RE.t Cost_metrics.t Name_occurrences.t)) ->
+     M (tuple3 RE.t Cost_metrics.t Name_occurrences.t)) ->
     rewrite_apply_cont_result_.
 Extract Inductive rewrite_apply_cont_result_ => "rewrite_apply_cont_result" [ "(fun x__1 -> (Invalid { message = x__1 } : rewrite_apply_cont_result))" "(fun x__1 -> (Apply_cont x__1 : rewrite_apply_cont_result))" "(fun x__1 -> (Expr x__1 : rewrite_apply_cont_result))" ] "(fun f__1 f__2 f__3 x__0 -> match (x__0 : rewrite_apply_cont_result) with Invalid { message = x__1 } -> f__1 x__1 | Apply_cont x__1 -> f__2 x__1 | Expr x__1 -> f__3 x__1)".
 Definition rewrite_apply_cont_result : Type := rewrite_apply_cont_result_.
@@ -787,10 +765,10 @@ Extract Constant rewrite_apply_cont_result => "| Invalid of { message : string }
 
 (* 548-561. The compiler's comment of lines 549-552, a note for later, is
    left out. *)
-Definition apply_continuation_shortcuts (uenv : Upwards_env.t)
+Definition apply_continuation_shortcuts (uenv : UE.t)
     (apply_cont : Apply_cont.t) : M Apply_cont.t :=
   let! tmp1 := Apply_cont.continuation apply_cont in
-  let! tmp2 := Upwards_env.find_continuation_shortcut uenv tmp1 in
+  let! tmp2 := UE.find_continuation_shortcut uenv tmp1 in
   match tmp2 with
   | None => ret apply_cont
   | Some shortcut =>
@@ -802,9 +780,9 @@ Definition apply_continuation_shortcuts (uenv : Upwards_env.t)
   end.
 
 (* 563-569 *)
-Definition apply_continuation_aliases (uenv : Upwards_env.t)
-    (cont : Continuation.t) : M Continuation.t :=
-  let! tmp1 := Upwards_env.find_continuation_shortcut uenv cont in
+Definition apply_continuation_aliases (uenv : UE.t) (cont : Continuation.t)
+    : M Continuation.t :=
+  let! tmp1 := UE.find_continuation_shortcut uenv cont in
   match tmp1 with
   | None => ret cont
   | Some shortcut =>
@@ -816,10 +794,10 @@ Definition apply_continuation_aliases (uenv : Upwards_env.t)
   end.
 
 (* 571-578 *)
-Definition apply_exn_continuation_aliases (uenv : Upwards_env.t)
+Definition apply_exn_continuation_aliases (uenv : UE.t)
     (exn_cont : Exn_continuation.t) : M Exn_continuation.t :=
   let* cont := Exn_continuation.exn_handler exn_cont in
-  let! tmp1 := Upwards_env.find_continuation_shortcut uenv cont in
+  let! tmp1 := UE.find_continuation_shortcut uenv cont in
   match tmp1 with
   | None => ret exn_cont
   | Some shortcut =>
@@ -831,21 +809,20 @@ Definition apply_exn_continuation_aliases (uenv : Upwards_env.t)
   end.
 
 (* 580-582 *)
-Definition no_rewrite_apply_cont (uenv : Upwards_env.t)
-    (apply_cont : Apply_cont.t) : M rewrite_apply_cont_result :=
+Definition no_rewrite_apply_cont (uenv : UE.t) (apply_cont : Apply_cont.t)
+    : M rewrite_apply_cont_result :=
   let* apply_cont := apply_continuation_shortcuts uenv apply_cont in
   ret (Apply_cont apply_cont).
 
 (* 584-604. In the compiler: [uacc rewrite ~ctx id apply_cont]. *)
-Definition rewrite_apply_cont0 (uacc : Upwards_acc.t)
-    (rewrite : Apply_cont_rewrite.t)
+Definition rewrite_apply_cont0 (uacc : UA.t) (rewrite : Apply_cont_rewrite.t)
     (ctx : Apply_cont_rewrite.rewrite_apply_cont_ctx)
     (id : Apply_cont_rewrite_id.t) (apply_cont : Apply_cont.t)
     : M rewrite_apply_cont_result :=
   let* args := Apply_cont.args apply_cont in
   let* machine_width :=
-    let! tmp1 := Upwards_acc.uenv uacc in
-    Upwards_env.machine_width tmp1
+    let! tmp1 := UA.uenv uacc in
+    UE.machine_width tmp1
   in
   let! tmp1 :=
     Apply_cont_rewrite.make_rewrite rewrite machine_width ctx id args
@@ -855,7 +832,7 @@ Definition rewrite_apply_cont0 (uacc : Upwards_acc.t)
   | Or_invalid.Ok (extra_lets, args) =>
     let* apply_cont := Apply_cont.update_args apply_cont args in
     let* apply_cont :=
-      let! tmp1 := Upwards_acc.uenv uacc in
+      let! tmp1 := UA.uenv uacc in
       apply_continuation_shortcuts tmp1 apply_cont
     in
     match extra_lets with
@@ -864,22 +841,22 @@ Definition rewrite_apply_cont0 (uacc : Upwards_acc.t)
       let& build_expr :=
         fun (apply_cont_to_expr :
               Apply_cont.t ->
-              M (tuple3 Rebuilt_expr.t Cost_metrics.t Name_occurrences.t)) =>
+              M (tuple3 RE.t Cost_metrics.t Name_occurrences.t)) =>
         let* '(T3 body cost_metrics_of_body free_names_of_body) :=
           apply_cont_to_expr apply_cont
         in
-        let! tmp1 := Upwards_acc.are_rebuilding_terms uacc in
-        Rebuilt_expr.bind_no_simplification tmp1 extra_lets body
-          cost_metrics_of_body free_names_of_body
+        let! tmp1 := UA.are_rebuilding_terms uacc in
+        RE.bind_no_simplification tmp1 extra_lets body cost_metrics_of_body
+          free_names_of_body
       in
       ret (Expr build_expr)
     end
   end.
 
 (* 606-607 *)
-Definition rewrite_apply_cont (uacc : Upwards_acc.t)
-    (rewrite : Apply_cont_rewrite.t) (id : Apply_cont_rewrite_id.t)
-    (apply_cont : Apply_cont.t) : M rewrite_apply_cont_result :=
+Definition rewrite_apply_cont (uacc : UA.t) (rewrite : Apply_cont_rewrite.t)
+    (id : Apply_cont_rewrite_id.t) (apply_cont : Apply_cont.t)
+    : M rewrite_apply_cont_result :=
   rewrite_apply_cont0 uacc rewrite Apply_cont_rewrite.Apply_cont id apply_cont.
 
 (* PORT-GAP(type): 609-613, as at 540: [Invalid_] and [Apply_cont_] are the
@@ -911,16 +888,16 @@ Definition rewrite_exn_continuation
   Apply_cont_rewrite.rewrite_exn_continuation.
 
 (* 621-741. In the compiler: [uacc cont_or_apply_cont ~use_id arity]. *)
-Definition rewrite_fixed_arity_continuation0 (uacc : Upwards_acc.t)
+Definition rewrite_fixed_arity_continuation0 (uacc : UA.t)
     (cont_or_apply_cont : Expr_builder.cont_or_apply_cont)
     (use_id : Apply_cont_rewrite_id.t) (arity : Flambda_arity.t_Unarized)
     : M rewrite_fixed_arity_continuation0_result :=
-  let* uenv := Upwards_acc.uenv uacc in
+  let* uenv := UA.uenv uacc in
   let& specialize_if_needed :=
     fun (cont : Continuation.t) =>
     try_with
       (fun _ =>
-        let! tmp1 := Upwards_acc.specialization_map uacc in
+        let! tmp1 := UA.specialization_map uacc in
         Continuation_callsite_map.find cont use_id tmp1)
       Not_found
       (fun _ => ret cont)
@@ -954,7 +931,7 @@ Definition rewrite_fixed_arity_continuation0 (uacc : Upwards_acc.t)
       ret (Apply_cont_ tmp1)
     end
   in
-  let! tmp1 := Upwards_env.find_apply_cont_rewrite uenv cont in
+  let! tmp1 := UE.find_apply_cont_rewrite uenv cont in
   match tmp1 with
   | None => shortcut_this_continuation_if_possible tt
   | Some rewrite =>
@@ -980,14 +957,13 @@ Definition rewrite_fixed_arity_continuation0 (uacc : Upwards_acc.t)
       (* 661-662. In the compiler: [params expr ~free_names
          ~cost_metrics:cost_metrics_of_handler]. *)
       let& new_wrapper :=
-        fun (params : Bound_parameters.t) (expr : Rebuilt_expr.t)
+        fun (params : Bound_parameters.t) (expr : RE.t)
             (free_names : Name_occurrences.t)
             (cost_metrics_of_handler : Cost_metrics.t) =>
         let* cont := Continuation.create None None tt in
         let* handler :=
-          let! tmp1 := Upwards_acc.are_rebuilding_terms uacc in
-          Rebuilt_expr.Continuation_handler.create tmp1 params expr free_names
-            false false
+          let! tmp1 := UA.are_rebuilding_terms uacc in
+          RE.Continuation_handler.create tmp1 params expr free_names false false
           (* This is only a wrapper that will immediately call the
              continuation, so we set [is_cold] to false so that this wrapper
              can be inlined by [to_cmm]. *)
@@ -1021,10 +997,10 @@ Definition rewrite_fixed_arity_continuation0 (uacc : Upwards_acc.t)
                 Variable_.create None "param" tmp2
               in
               let& param_var_duid := Flambda_debug_uid.none in
-              Bound_parameter.create param_var kind param_var_duid)
+              BP.create param_var kind param_var_duid)
             tmp1
         in
-        let* args := List.map Bound_parameter.simple params in
+        let* args := List.map BP.simple params in
         let* params := Bound_parameters.create params in
         let* apply_cont := Apply_cont.create None cont args Debuginfo.none in
         let& ctx := Apply_cont_rewrite.Apply_expr args in
@@ -1034,14 +1010,14 @@ Definition rewrite_fixed_arity_continuation0 (uacc : Upwards_acc.t)
         | Apply_cont apply_cont =>
           let* is_cold :=
             let! tmp1 := Apply_cont.continuation apply_cont in
-            Upwards_env.is_cold_continuation uenv tmp1
+            UE.is_cold_continuation uenv tmp1
           in
           let* cost_metrics :=
             let! tmp1 := Code_size.apply_cont apply_cont in
             Cost_metrics.from_size tmp1
           in
           let! tmp1 := Apply_cont.free_names apply_cont in
-          let! tmp2 := Rebuilt_expr.create_apply_cont is_cold apply_cont in
+          let! tmp2 := RE.create_apply_cont is_cold apply_cont in
           new_wrapper params tmp2 tmp1 cost_metrics
         | Expr build_expr =>
           let* '(T3 expr cost_metrics free_names) :=
@@ -1049,14 +1025,12 @@ Definition rewrite_fixed_arity_continuation0 (uacc : Upwards_acc.t)
               (fun apply_cont =>
                 let* is_cold :=
                   let! tmp1 := Apply_cont.continuation apply_cont in
-                  Upwards_env.is_cold_continuation uenv tmp1
+                  UE.is_cold_continuation uenv tmp1
                 in
                 let! tmp1 := Apply_cont.free_names apply_cont in
                 let! tmp2 := Code_size.apply_cont apply_cont in
                 let! tmp3 := Cost_metrics.from_size tmp2 in
-                let! tmp4 :=
-                  Rebuilt_expr.create_apply_cont is_cold apply_cont
-                in
+                let! tmp4 := RE.create_apply_cont is_cold apply_cont in
                 ret (T3 tmp4 tmp3 tmp1))
           in
           new_wrapper params expr free_names cost_metrics
@@ -1073,14 +1047,12 @@ Definition rewrite_fixed_arity_continuation0 (uacc : Upwards_acc.t)
               (fun apply_cont =>
                 let* is_cold :=
                   let! tmp1 := Apply_cont.continuation apply_cont in
-                  Upwards_env.is_cold_continuation uenv tmp1
+                  UE.is_cold_continuation uenv tmp1
                 in
                 let! tmp1 := Apply_cont.free_names apply_cont in
                 let! tmp2 := Code_size.apply_cont apply_cont in
                 let! tmp3 := Cost_metrics.from_size tmp2 in
-                let! tmp4 :=
-                  Rebuilt_expr.create_apply_cont is_cold apply_cont
-                in
+                let! tmp4 := RE.create_apply_cont is_cold apply_cont in
                 ret (T3 tmp4 tmp3 tmp1))
           in
           new_wrapper Bound_parameters.empty expr free_names cost_metrics
@@ -1100,9 +1072,9 @@ Definition rewrite_switch_arm_result : Type := rewrite_switch_arm_result_.
 Extract Constant rewrite_switch_arm_result => "| Invalid of { message : string } | Apply_cont of Apply_cont.t | New_wrapper of new_let_cont".
 
 (* 748-757 *)
-Definition rewrite_switch_arm (uacc : Upwards_acc.t)
-    (apply_cont : Apply_cont.t) (use_id : Apply_cont_rewrite_id.t)
-    (arity : Flambda_arity.t_Unarized) : M rewrite_switch_arm_result :=
+Definition rewrite_switch_arm (uacc : UA.t) (apply_cont : Apply_cont.t)
+    (use_id : Apply_cont_rewrite_id.t) (arity : Flambda_arity.t_Unarized)
+    : M rewrite_switch_arm_result :=
   let! tmp1 :=
     rewrite_fixed_arity_continuation0 uacc (Apply_cont__ apply_cont) use_id
       arity
@@ -1120,12 +1092,10 @@ Definition rewrite_switch_arm (uacc : Upwards_acc.t)
    the compiler names [body] the accumulator that [around] gives back and
    [uacc] the expression; the names are kept. The compiler's comment of
    lines 766-767, a note for later, is left out. *)
-Definition rewrite_fixed_arity_continuation (uacc : Upwards_acc.t)
+Definition rewrite_fixed_arity_continuation (uacc : UA.t)
     (cont : Continuation.t) (use_id : Apply_cont_rewrite_id.t)
     (arity : Flambda_arity.t_Unarized)
-    (around :
-      Upwards_acc.t -> Continuation.t -> M (Upwards_acc.t * Rebuilt_expr.t))
-    : M (Upwards_acc.t * Rebuilt_expr.t) :=
+    (around : UA.t -> Continuation.t -> M (UA.t * RE.t)) : M (UA.t * RE.t) :=
   let! tmp1 :=
     rewrite_fixed_arity_continuation0 uacc (Continuation cont) use_id arity
   in
@@ -1133,9 +1103,7 @@ Definition rewrite_fixed_arity_continuation (uacc : Upwards_acc.t)
   | Invalid_ message =>
     (* Continuation calls are not counted as operations for cost benefit in
        the uacc *)
-    let! tmp1 :=
-      Rebuilt_expr.create_invalid (Flambda.Invalid.Message message)
-    in
+    let! tmp1 := RE.create_invalid (Flambda.Invalid.Message message) in
     ret (uacc, tmp1)
   | This_continuation cont => around uacc cont
   | Apply_cont_ _ => assert_false
@@ -1145,21 +1113,20 @@ Definition rewrite_fixed_arity_continuation (uacc : Upwards_acc.t)
   end.
 
 (* 775-800 *)
-Definition rewrite_fixed_arity_apply (uacc : Upwards_acc.t)
+Definition rewrite_fixed_arity_apply (uacc : UA.t)
     (use_id : option Apply_cont_rewrite_id.t) (is_cold : bool)
-    (arity : Flambda_arity.t_Unarized) (apply : Apply.t)
-    : M (Upwards_acc.t * Rebuilt_expr.t) :=
+    (arity : Flambda_arity.t_Unarized) (apply : Apply.t) : M (UA.t * RE.t) :=
   let& make_apply :=
     fun (apply : Apply.t) =>
     (* 777-780: [a |> f b] is [f b a] *)
     let* uacc :=
       let! tmp1 := Apply.free_names apply in
-      let! tmp2 := Upwards_acc.add_free_names uacc tmp1 in
+      let! tmp2 := UA.add_free_names uacc tmp1 in
       let! tmp3 := Code_size.apply apply in
-      Upwards_acc.notify_added tmp3 tmp2
+      UA.notify_added tmp3 tmp2
     in
-    let! tmp1 := Upwards_acc.are_rebuilding_terms uacc in
-    let! tmp2 := Rebuilt_expr.create_apply tmp1 is_cold apply in
+    let! tmp1 := UA.are_rebuilding_terms uacc in
+    let! tmp2 := RE.create_apply tmp1 is_cold apply in
     ret (uacc, tmp2)
   in
   (* PORT-GAP(loose): 783, the call that is the second value of the match is
@@ -1176,7 +1143,7 @@ Definition rewrite_fixed_arity_apply (uacc : Upwards_acc.t)
       (fun uacc return_cont =>
         let* exn_cont :=
           let! tmp1 := Apply.exn_continuation apply in
-          let! tmp2 := Upwards_acc.uenv uacc in
+          let! tmp2 := UA.uenv uacc in
           apply_exn_continuation_aliases tmp2 tmp1
         in
         let* apply :=
