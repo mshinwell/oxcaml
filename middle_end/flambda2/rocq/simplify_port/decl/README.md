@@ -17,9 +17,21 @@ with the header of the interface that it follows, then names it and the commit.
     python3 tools/declgen/compile_all.py     # Rocq, one process at a time
     python3 tools/declgen/check_realisations.py BUILD_ROOT   # OCaml
 
-The last one checks, with OCaml and the compiled interfaces, that every
-realisation string type-checks and that every constructor and field of a
-mirrored type is the compiler's.
+What the last one checks, and what it does not. For each realisation string
+it writes one line of OCaml (the string as an expression; for a type, as the
+type of an argument; for a constructor or a field of a mirrored type, a
+pattern or a projection with its name), and OCaml type-checks the lines
+against the compiled interfaces, with `-nolabels` and the libraries that the
+build opens for Simplify. So a name that does not exist, a wrong number of
+type parameters, or a closed function that does not type is refused. It does
+NOT compare the type that OCaml gives a realisation with the signature that
+the declaration has in Rocq: that is checked only where a ported file uses
+the declaration, by the check of the extracted file. Left out, and counted
+apart in what it prints: the constructor functions of private types (OCaml
+makes no value of such a type outside its module; the port must not build
+one); what is declared of a module local to a file (`FILE__local.v`) when
+that module is inside another module of its file, or when its definition,
+copied from the file, does not compile apart from it.
 
 `BUILD_ROOT` is the `_build/default` of a dune build of the compiler at the
 commit of the sources (its `.cmt` and `.cmi` files are read; nothing is
@@ -57,19 +69,28 @@ OCaml name, Rocq name, kind, number of arguments, interface and line.
 - An exception: `Parameter E : exception payload.`, realised by a pair (the
   maker, the test).
 - A type that Simplify does not take apart: `Parameter t : Type.` With no
-  parameter it has its OCaml name as an inlined string; with parameters Rocq
-  has no such directive, and Rocq prints it by its name in Rocq, which is the
-  compiler's.
+  parameter it has `Extract Inlined Constant t => "Mod.t"`: Rocq prints the
+  string wherever the type is used. With parameters it has
+  `Extract Constant t "'a1" => "('a1) Mod.t"` (Rocq has no inlined directive
+  for a type with parameters): the string is for the type's definition, which
+  is never printed since no file of decl/ is extracted; where the type is
+  used, in a term or a comment, Rocq prints its name in Rocq, which is the
+  compiler's when the modules have the compiler's names.
 - An abbreviation: a `Definition`.
 - A variant that Simplify builds or matches: an `Inductive` with the
   compiler's constructors, and always an `Extract Inductive` that gives each
   constructor its qualified name in OCaml (so a constructor that had to take
-  a `_` in Rocq is still printed right). A constructor with an inline record
-  takes the fields by place, in the order of the type; its string is a
-  function of the tuple of its arguments, and the directive then has a third
-  string, the match (one function for each constructor, then the scrutinee).
-  No field of an inline record is a name of Rocq. `INDEX.tsv` gives the place
-  of each field (`inline field`).
+  a `_` in Rocq is still printed right): Rocq prints `Mod.C (a, b)` in terms
+  and in patterns. A constructor with an inline record takes the fields by
+  place, in the order of the type; its string is a function of the tuple of
+  its arguments, and the directive then has a third string, the match (one
+  function for each constructor, then the scrutinee): a `match` of Rocq on
+  such a type is printed as that function applied to one function for each
+  branch. The same form, with the type written in the strings, for a variant
+  one of whose constructors has the name of a constructor of a later type of
+  its module (OCaml would take the bare name for the later type). No field of
+  an inline record is a name of Rocq. `INDEX.tsv` gives the place of each
+  field (`inline field`).
 - A record whose fields Simplify reads or builds: a `Record` with the
   compiler's fields; a mutable field also has `set_FIELD`.
 - Types defined together (`type a = ... and b = ...`): the abstract ones
@@ -104,12 +125,12 @@ does a second declaration of a name. Type variables are capitals (`'a` is
 | operators of `Stdlib` (`&&`, `<>`, `@`) | not declared: the kit and Rocq have their own |
 | operators of other modules (`Code_size.(+)`, `let<*`) | a name spelled from the characters: `op_plus`, `let_op_lt_star` |
 | functors | not declared. An instance that an interface names (`Variable.Map`) is a module like another |
-| a functor applied inside a file of Simplify | not seen here: the port's own |
+| a functor of outside applied inside a file of Simplify | the module is declared in `FILE__local.v` (below). Not declared: `Set` and `Pair` inside the functor `Binary_arith_like` of `simplify_binary_primitive.ml`; the `include` of `non_constructed_code.ml` |
 | module types | not declared |
-| GADTs | abstract, with makers and, when the index is dropped, the eliminator |
+| GADTs | abstract, with makers only (no eliminator: its branches could not have one type) |
 | polymorphic variants | given as an index to an abstract type or a GADT (``[`Unarized] Flambda_arity.t``): dropped, with the parameter. Elsewhere the declaration is left out |
 | first-class modules, objects | the declaration is left out |
-| a type with parameters in a module whose name Rocq reserves (`Variable.Map.t`) | printed by Rocq as `Variable_.Map.t`: the OCaml side needs `module Variable_ = Variable` |
+| a type with parameters in a module whose name Rocq reserves (`Variable.Map.t`) | it has its `Extract Constant` like another; where it is used Rocq prints `Variable_.Map.t`, so the runtime has `module Variable_ = Variable` |
 
 ## Left to write by hand
 

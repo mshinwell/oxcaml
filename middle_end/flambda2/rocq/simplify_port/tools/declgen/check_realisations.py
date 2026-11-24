@@ -5,8 +5,14 @@ string is an expression (or a type) of OCaml that type-checks against the
 compiled interfaces, every constructor of a mirrored variant and every
 field of a mirrored record is the compiler's. One line of OCaml for each
 thing; the compiler is run once, and once more for each line that it
-refuses (one process at a time). Prints what is refused. This file follows
-no file of the compiler."""
+refuses (one process at a time). It does not compare the type that OCaml
+gives a realisation with the signature that Rocq has for it.
+
+Prints what OCaml refuses; then the number of things that OCaml checked;
+then, apart, what was not checked, with numbers and reasons: the
+constructor functions of private types, and what is declared of a module
+local to a file when its definition cannot be checked apart from the file.
+This file follows no file of the compiler."""
 import os, re, subprocess, sys
 
 cmi_root = sys.argv[1]
@@ -38,7 +44,13 @@ group = {}
 prelude = set()
 source_root = os.path.join("..", "..", "..", "..")
 ngroups = 0
-unchecked = 0
+# What is not checked: (file of decl/, reason) -> number of things.
+skipped = {}
+
+
+def skip(where, reason, n):
+    f = where.split(":")[0]
+    skipped[(f, reason)] = skipped.get((f, reason), 0) + n
 
 
 def unq(s):
@@ -140,8 +152,8 @@ for f in sorted(os.listdir("decl")):
                 for n in range(before, len(checks)):
                     group.setdefault(n, group_now)
             elif len(checks) > before:
-                # nested in a module of the file, or an item of an include
-                unchecked += len(checks) - before
+                skip(where, "the module is inside another module of its file: its "
+                     "definition is not copied", len(checks) - before)
                 del checks[before:]
         i += 1
 
@@ -151,6 +163,7 @@ src = os.path.join(out, "realisations.ml")
 text = [c for _, c in checks]
 refused = []
 private = 0
+accepted_or_refused = len(checks) - len(prelude)
 # first each copied definition alone: one that does not stand apart from
 # its file is left out, with what is declared of it
 for g in sorted(set(group.values())):
@@ -162,10 +175,11 @@ for g in sorted(set(group.values())):
                        os.path.join(out, "definition.cmo"), probe],
                        stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
     if r.returncode != 0:
-        err = " ".join(x.strip() for x in r.stderr.strip().split("\n")[1:])[:200]
-        unchecked += sum(1 for k in members if k not in prelude)
-        print("%s: the definition of the module does not compile apart from its file; "
-              "what is declared of it is not checked (%s)" % (checks[members[0]][0], err))
+        err = " ".join(x.strip() for x in r.stderr.strip().split("\n")[1:])[:160]
+        n = sum(1 for k in members if k not in prelude)
+        skip(checks[members[0]][0], "the definition of the module, copied from the file, "
+             "does not compile apart from it (%s)" % err, n)
+        accepted_or_refused -= n
         for k in members:
             text[k] = ""
 while True:
@@ -180,19 +194,16 @@ while True:
         print(r.stderr)
         sys.exit(2)
     n = int(m.group(1)) - 1
+    if n >= len(checks) or n in prelude:
+        # cannot be: each copied definition was compiled alone before
+        print(r.stderr)
+        sys.exit(2)
     err = " ".join(x.strip() for x in r.stderr.strip().split("\n")[1:])[:300]
-    if n in prelude:
-        # the module's own definition does not stand apart from its file
-        g = group[n]
-        members = [k for k in group if group[k] == g]
-        unchecked += sum(1 for k in members if k not in prelude and text[k] != "")
-        for k in members:
-            text[k] = ""
-        print("%s: the definition of the module does not compile apart from its file; "
-              "its declarations are not checked (%s)" % (checks[n][0], err[:160]))
-        continue
     if "(constructor)" in checks[n][0] and "private type" in r.stderr:
         private += 1
+        skip(checks[n][0], "a constructor function of a private type, which OCaml "
+             "refuses and the port does not use", 1)
+        accepted_or_refused -= 1
     else:
         refused.append((checks[n][0], checks[n][1], err))
     text[n] = ""
@@ -200,7 +211,16 @@ while True:
         break
 for where, line, err in refused:
     print("%s\n    %s\n    %s" % (where, line[:200], err))
-print("%d things checked, %d refused by OCaml (and %d makers of private types, which the port does not use; "
-      "%d things of modules local to a file not checked)"
-      % (len(checks) - len(prelude), len(refused), private, unchecked))
+print("%d things checked by OCaml: %d taken, %d refused"
+      % (accepted_or_refused, accepted_or_refused - len(refused), len(refused)))
+total = sum(skipped.values())
+print("%d things not checked:" % total)
+by_reason = {}
+for (f, reason), n in sorted(skipped.items()):
+    by_reason.setdefault(reason, []).append((f, n))
+for reason, l in sorted(by_reason.items()):
+    print("  %d: %s" % (sum(n for _, n in l), reason))
+    if not reason.startswith("a constructor function"):
+        for f, n in l:
+            print("      %s: %d" % (f, n))
 sys.exit(1 if refused else 0)
