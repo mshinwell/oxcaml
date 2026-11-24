@@ -194,6 +194,7 @@ let inline dacc apply unroll_to was_inline_always function_decl =
          (Downwards_env.typing_env denv)
          (Flambda2_types.Function_type.rec_info function_decl))
   in
+  let result_mode = Code.result_mode code in
   (fun f__1 f__2 x__0 ->
     match (x__0 : Alloc_mode.For_applications.t) with
     | Alloc_mode.For_applications.Not_alloc_stack { alloc_region = x__1 } ->
@@ -202,7 +203,7 @@ let inline dacc apply unroll_to was_inline_always function_decl =
         { alloc_region = x__1; region = x__2; ghost_region = x__3 } ->
       f__2 x__1 x__2 x__3)
     (fun _ ->
-      match Code.result_mode code with
+      match result_mode with
       | Lambda.Maybe_alloc_stack ->
         ( dacc,
           Flambda.Expr.create_invalid
@@ -249,7 +250,7 @@ let inline dacc apply unroll_to was_inline_always function_decl =
             in
             Downwards_acc.with_denv dacc denv0, expr))
     (fun _ _ _ ->
-      match Code.result_mode code with
+      match result_mode with
       | Lambda.Maybe_alloc_stack ->
         let denv0 =
           Downwards_env.enter_inlined_apply code apply was_inline_always denv

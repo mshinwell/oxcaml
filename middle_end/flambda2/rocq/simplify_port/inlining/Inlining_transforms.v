@@ -42,15 +42,6 @@ Module DE := Downwards_env.
 Module FT := Flambda2_types.Function_type.
 Module VB := Bound_var.
 
-(* PORT-GAP(decl): [Coercion.change_depth] takes [Coercion.rec_info_expr],
-   which decl/ defines as [Int_ids.Rec_info_expr.t], and decl/Rec_info_expr.v
-   declares [Rec_info_expr.t] as another abstract type; in the compiler they
-   are one type. Declared here, in the form of decl/, with
-   [Rec_info_expr.t]. *)
-Parameter Coercion_change_depth :
-  Rec_info_expr.t -> Rec_info_expr.t -> M Coercion.t.
-Extract Inlined Constant Coercion_change_depth => "Coercion.change_depth".
-
 (* 23-83 *)
 (* PORT-GAP(loose): 80-83, the compiler does not give
    [Inlining_helpers.make_inlined_body] its argument [~region_inlined_into],
@@ -79,7 +70,7 @@ Definition make_inlined_body (callee : option Simple.t)
         in
         let* coercion_from_callee_to_unrolled_callee :=
           let! tmp1 := Rec_info_expr.var my_depth in
-          Coercion_change_depth rec_info tmp1
+          Coercion.change_depth rec_info tmp1
         in
         let* callee :=
           Simple.apply_coercion_exn callee
@@ -217,9 +208,10 @@ Definition inline (dacc : DA.t) (apply : Apply.t) (unroll_to : option int)
     | T.Invalid => ret Rec_info_expr.do_not_inline
     end
   in
-  (* 134-181 *)
-  let! tmp1 := Code.result_mode code in
-  match region_inlined_into, tmp1 with
+  (* 134-181. The call is one of the two values of the match: it is bound
+     first, under a name that is not the compiler's. *)
+  let* result_mode := Code.result_mode code in
+  match region_inlined_into, result_mode with
   | Alloc_mode.For_applications.Not_alloc_stack _, Lambda.Maybe_alloc_stack =>
     (* The alloc_mode of the application and of the code are incompatible.
        This should have been prevented by the typer; therefore we are in
