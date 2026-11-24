@@ -18,8 +18,7 @@
    ecc5c0d968c892b4312065caef0f19ffffa042a9, function by function under the
    compiler's names; the numbers in the comments are the lines of that file.
    What is not from that file: the form (the monad, the temporaries [tmpN]
-   and their order) is that of GUIDE.md, and the declaration of the value
-   [Misc.Fatal_error] below. No proof. *)
+   and their order) is that of GUIDE.md. No proof. *)
 
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Import Simplify_import.
@@ -35,13 +34,6 @@ Local Open Scope Z_scope.
 (*OCAML
 open! Simplify_import
 OCAML*)
-
-(* PORT-GAP(decl): the exception [Misc.Fatal_error] as a value of type [exn]
-   (203-211 and 325-333 raise it again with its backtrace). The kit has it
-   as an exception to catch ([Fatal_error]) and has no way, in both
-   implementations of the monad, to make its value. *)
-Parameter Misc_Fatal_error : exn.
-Extract Inlined Constant Misc_Fatal_error => "Misc.Fatal_error".
 
 (* 19-61 *)
 (* PORT-GAP(loose): 19, the compiler's first parameter is the pattern
@@ -285,7 +277,9 @@ Definition simplify_named0 (dacc : DA.t) (bound_pattern : Bound_pattern.t)
 "
             Flambda_colours.error Flambda_colours.pop Bound_static.print
             bound_static DA.print dacc ;;
-          Printexc.raise_with_backtrace Misc_Fatal_error bt)
+          (* 211: the value [Misc.Fatal_error] is [exn_make Fatal_error
+             tt]. *)
+          Printexc.raise_with_backtrace (exn_make Fatal_error tt) bt)
     in
     (* 213-218: the arguments are in the order of the interface. *)
     let* '(dacc, lifted_constants) :=
@@ -418,7 +412,7 @@ Definition simplify_named (dacc : DA.t) (bound_pattern : Bound_pattern.t)
 "
         Flambda_colours.error Flambda_colours.pop Bound_pattern.print
         bound_pattern Named.print named DA.print dacc ;;
-      Printexc.raise_with_backtrace Misc_Fatal_error bt)
+      Printexc.raise_with_backtrace (exn_make Fatal_error tt) bt)
     (fun x =>
       match x with
       | Simplified_named.Rewritten f => ret (Simplified_named.Rewritten f)

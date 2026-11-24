@@ -247,7 +247,9 @@ let simplify_named0 dacc0 bound_pattern named0 simplify_function_body =
               Flambda_colours.error Flambda_colours.pop Bound_static.print
               bound_static Downwards_acc.print dacc0
           in
-          Printexc.raise_with_backtrace Misc.Fatal_error bt)
+          Printexc.raise_with_backtrace
+            (Port_monad.exn_make Port_monad.fatal_error_exception ())
+            bt)
     in
     let dacc2, lifted_constants =
       ListLabels.fold_left2 create_lifted_constant (dacc1, [])
@@ -370,7 +372,9 @@ let simplify_named dacc0 bound_pattern named0 simplify_function_body =
           Flambda_colours.error Flambda_colours.pop Bound_pattern.print
           bound_pattern Flambda.Named.print named0 Downwards_acc.print dacc0
       in
-      Printexc.raise_with_backtrace Misc.Fatal_error bt)
+      Printexc.raise_with_backtrace
+        (Port_monad.exn_make Port_monad.fatal_error_exception ())
+        bt)
     (fun x ->
       match x with
       | Simplified_named.Simplified result ->
