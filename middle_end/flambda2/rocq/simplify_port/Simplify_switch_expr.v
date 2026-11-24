@@ -803,7 +803,12 @@ Inductive mergeable_argument_ : Type :=
     (slope : TI.t)
 | Lookup_table_argument (array_kind : P.Array_kind.t)
     (array_load_kind : P.Array_load_kind.t) (first_discriminant : TI.t)
-    (simples : list Simple.t).
+    (simples : list Simple.t)
+  (** All arms are symbols or constants of the same [Flambda_kind.t]. For
+      the value kind (with [array_kind = Values]), this variant allows a mix
+      of symbols (including ones pointing at boxed numbers), tagged
+      immediates and nulls; for all other kinds symbols are forbidden, so
+      every arm is a constant of the kind described by [array_load_kind]. *).
 Extract Inductive mergeable_argument_ => "mergeable_argument" [ "Invariant_argument" "Tagged_scrutinee" "Not_scrutinee" "(fun (x__1, x__2, x__3) -> Affine_argument { kind = x__1; offset = x__2; slope = x__3 })" "(fun (x__1, x__2, x__3, x__4) -> Lookup_table_argument { array_kind = x__1; array_load_kind = x__2; first_discriminant = x__3; simples = x__4 })" ] "(fun f__1 f__2 f__3 f__4 f__5 x__0 -> match x__0 with Invariant_argument x__1 -> f__1 x__1 | Tagged_scrutinee -> f__2 () | Not_scrutinee -> f__3 () | Affine_argument { kind = x__1; offset = x__2; slope = x__3 } -> f__4 x__1 x__2 x__3 | Lookup_table_argument { array_kind = x__1; array_load_kind = x__2; first_discriminant = x__3; simples = x__4 } -> f__5 x__1 x__2 x__3 x__4)".
 Definition mergeable_argument : Type := mergeable_argument_.
 Extract Constant mergeable_argument => "| Invariant_argument of Simple.t | Tagged_scrutinee | Not_scrutinee | Affine_argument of { kind : affine_immediate_kind; offset : TI.t; slope : TI.t } | Lookup_table_argument of { array_kind : P.Array_kind.t; array_load_kind : P.Array_load_kind.t; first_discriminant : TI.t; simples : Simple.t list }".
