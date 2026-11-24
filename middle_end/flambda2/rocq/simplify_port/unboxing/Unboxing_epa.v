@@ -305,8 +305,7 @@ Definition compute_extra_arg_for_number (kind : K.Naked_number_kind.t)
 
 (* 178-218. The fields of the inline records of [P.Block_access_kind.t] are
    by place, in the order of the type: [tag], [size], [field_kind] for
-   [Values], and [tag], [size], [field_kind], [shape] for [Mixed]. The
-   comment of 199-201 on the field kind of the value prefix is not copied. *)
+   [Values], and [tag], [size], [field_kind], [shape] for [Mixed]. *)
 Definition access_kind_and_poison_const {A : Type}
     (machine_width : Target_system.Machine_width.t) (tag : Tag.t)
     (shape : K.Block_shape.t) (fields : list A) (index : int)
@@ -335,6 +334,9 @@ Definition access_kind_and_poison_const {A : Type}
       let! tmp1 := K.Mixed_block_shape.value_prefix_size shape in
       if index <? tmp1
       then
+        (* CR vlaviron: we're not trying to infer if this can only be an
+           immediate. In most cases it should be fine, as the primitive will get
+           simplified away. *)
         let! tmp2 := Const.const_zero machine_width in
         ret
           ( P.Mixed_block_access_field_kind.Value_prefix
@@ -549,8 +551,7 @@ with compute_extra_args_for_closure (fuel : fuel) (pass : U.pass)
   in
   ret (U.Unbox (U.Closure_single_entry function_slot vars_within_closure))
 
-(* 352-452. The comment of 378-380 on the case where the tag is not known
-   statically is not copied. *)
+(* 352-452 *)
 with compute_extra_args_for_variant (fuel : fuel) (pass : U.pass)
     (rewrite_id : Apply_cont_rewrite_id.t) (typing_env_at_use : TE.t)
     (machine_width : Target_system.Machine_width.t)
@@ -588,7 +589,11 @@ with compute_extra_args_for_variant (fuel : fuel) (pass : U.pass)
         extra_args_for_const_ctor_of_variant const_ctors_from_decision
           typing_env_at_use rewrite_id
           (Maybe_constant_constructor tmp1 arg_being_unboxed)
-      else prevent_current_unboxing tt
+      else
+        (* CR-someday gbury: one might want to try and use the cse at use to allow
+           unboxing when the tag is not known statically but can be recovered
+           through the cse. *)
+        prevent_current_unboxing tt
   in
   let* tag_at_use_site :=
     if negb are_there_non_const_ctors_at_use
