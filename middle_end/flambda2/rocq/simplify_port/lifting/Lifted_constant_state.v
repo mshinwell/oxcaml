@@ -20,14 +20,12 @@
    compiler's names; the numbers in the comments are the lines of that file.
    What is not from that file: the form (the monad, the temporaries [tmpN]
    and their order) is that of GUIDE.md; the Rocq form of the type [t] and
-   its extraction directive are in the form of decl/ for a variant with
-   inline records; the two declarations of OCaml's array literals. No
-   proof. *)
+   its extraction directives; the two declarations of OCaml's array
+   literals. No proof. *)
 
 From SimplifyPort Require Import Port_monad.
 (* The compiler's file does not open [Simplify_import], which uses it: the
-   declarations of that module are not loaded here, and the modules that the
-   file abbreviates ([LC], [CIS]) are written in full. *)
+   declarations of that module are not loaded here. *)
 From SimplifyPort.decl Require Array ArrayLabels Bound_static
   Code_id_or_symbol Format Function_slot Lifted_constant List ListLabels
   Name_mode Name_occurrences Symbol.
@@ -35,38 +33,33 @@ From SimplifyPort.decl Require Import Lifted_constant_state__local.
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 
-(* PORT-GAP(verbatim): 17-26 and 81-82, the two module abbreviations, the
-   type [t] (it has inline records) and the application of the functor are
-   the compiler's text; the two modules stand before the functions that
-   precede them in the compiler's file. *)
+(* PORT-GAP(verbatim): 82, the application of the functor is OCaml text. It
+   stands at the head of the extracted file, before the [module CIS =
+   Code_id_or_symbol] of line 81, which Rocq prints at its place: so it
+   names the module in full where the compiler's line says [CIS].
+   decl/Lifted_constant_state__local.v declares what the file uses of
+   [SCC_lifted_constants]. *)
 (*OCAML
-module LC = Lifted_constant
-
-type t =
-  | Empty
-  | Leaf of LC.t
-  | Leaf_array of { ts : LC.t array }
-  | Union of
-      { t1 : t;
-        t2 : t
-      }
-
-module CIS = Code_id_or_symbol
-module SCC_lifted_constants = Strongly_connected_components.Make (CIS)
+module SCC_lifted_constants =
+  Strongly_connected_components.Make (Code_id_or_symbol)
 OCAML*)
+
+(* 17 *)
+Module LC := Lifted_constant.
 
 (* 19-26 *)
 (* PORT-GAP(type): the constructors [Leaf_array] and [Union] have inline
-   records: the fields are by place, in the order of the type ([ts]; [t1],
-   [t2]), and the directive gives the match. The texts of the directive have
-   no type annotation [: t]: Rocq writes its [open] lines after the type of
-   the head, and [open Code_id_or_symbol] gives [t] another meaning. *)
-Inductive t : Type :=
-| Empty : t
-| Leaf : Lifted_constant.t -> t
-| Leaf_array : array Lifted_constant.t -> t
-| Union : t -> t -> t.
-Extract Inductive t => "t" [ "Empty" "Leaf" "(fun x__1 -> Leaf_array { ts = x__1 })" "(fun (x__1, x__2) -> Union { t1 = x__1; t2 = x__2 })" ] "(fun f__1 f__2 f__3 f__4 x__0 -> match x__0 with Empty -> f__1 () | Leaf x__1 -> f__2 x__1 | Leaf_array { ts = x__1 } -> f__3 x__1 | Union { t1 = x__1; t2 = x__2 } -> f__4 x__1 x__2)".
+   records: the Rocq type takes the fields by place, in the order of the
+   type ([ts]; [t1], [t2]), and the directive gives the match; the
+   compiler's definition is the text that Rocq prints. *)
+Inductive t_ : Type :=
+| Empty : t_
+| Leaf : LC.t -> t_
+| Leaf_array : array LC.t -> t_
+| Union : t_ -> t_ -> t_.
+Extract Inductive t_ => "t" [ "Empty" "Leaf" "(fun x__1 -> Leaf_array { ts = x__1 })" "(fun (x__1, x__2) -> Union { t1 = x__1; t2 = x__2 })" ] "(fun f__1 f__2 f__3 f__4 x__0 -> match x__0 with Empty -> f__1 () | Leaf x__1 -> f__2 x__1 | Leaf_array { ts = x__1 } -> f__3 x__1 | Union { t1 = x__1; t2 = x__2 } -> f__4 x__1 x__2)".
+Definition t : Type := t_.
+Extract Constant t => "| Empty | Leaf of LC.t | Leaf_array of { ts : LC.t array } | Union of { t1 : t; t2 : t }".
 
 (* PORT-GAP(decl): OCaml's array literals [[||]] and [[| x |]] (lines 201
    and 202) have no declaration in decl/ and no operation in the kit. *)
@@ -82,9 +75,8 @@ Definition print (ppf : Format.formatter) (t : Lifted_constant_state.t)
     fun (t : Lifted_constant_state.t) =>
     (* 30: the recursion is on the structure of [t]. *)
     let to_list :=
-      fix to_list (t : Lifted_constant_state.t)
-          (acc : list Lifted_constant.t) {struct t}
-          : M (list Lifted_constant.t) :=
+      fix to_list (t : Lifted_constant_state.t) (acc : list LC.t) {struct t}
+          : M (list LC.t) :=
         match t with
         | Empty => ret acc
         | Leaf const => ret (const :: acc)
@@ -103,8 +95,7 @@ Definition print (ppf : Format.formatter) (t : Lifted_constant_state.t)
   (* PORT-GAP(papp): [Format.pp_print_list] is given its first two arguments
      only. *)
   let! tmp2 :=
-    papp2 Format.pp_print_list (Some Format.pp_print_space)
-      Lifted_constant.print
+    papp2 Format.pp_print_list (Some Format.pp_print_space) LC.print
   in
   Format.fprintf2 ppf "@[<hov 1>(%a)@]" tmp2 tmp1.
 
@@ -119,11 +110,10 @@ Definition is_empty (t : Lifted_constant_state.t) : M bool :=
   end.
 
 (* 48 *)
-Definition singleton (const : Lifted_constant.t) : M t := ret (Leaf const).
+Definition singleton (const : LC.t) : M t := ret (Leaf const).
 
 (* 50-54 *)
-Definition singleton_list_of_constants (constants : list Lifted_constant.t)
-    : M t :=
+Definition singleton_list_of_constants (constants : list LC.t) : M t :=
   match constants with
   | [] => ret empty
   | [constant] => singleton constant
@@ -133,7 +123,7 @@ Definition singleton_list_of_constants (constants : list Lifted_constant.t)
   end.
 
 (* 56-57: [Union { t2 = Leaf const; t1 = t }], the fields by place. *)
-Definition add (t : Lifted_constant_state.t) (const : Lifted_constant.t)
+Definition add (t : Lifted_constant_state.t) (const : LC.t)
     : M Lifted_constant_state.t :=
   let! tmp1 := is_empty t in
   if tmp1 then ret (Leaf const) else ret (Union t (Leaf const)).
@@ -150,7 +140,7 @@ Definition union (t1 t2 : t) : M t :=
 (* 66-75. In the compiler: [t ~init ~f]. *)
 (* PORT-GAP(loose): 66, the attribute [@inline] is not kept. *)
 Definition fold {A : Type} (t : Lifted_constant_state.t) (init : A)
-    (f : A -> Lifted_constant.t -> M A) : M A :=
+    (f : A -> LC.t -> M A) : M A :=
   (* 67: the recursion is on the structure of [t]. 70, [ArrayLabels.fold_left
      ts ~init ~f]: the arguments are in the order of the interface. *)
   let loop :=
@@ -171,35 +161,35 @@ Definition all_defined_symbols (t : Lifted_constant_state.t)
     : M Symbol.Set_.t :=
   fold t Symbol.Set_.empty
     (fun symbols const =>
-      let! tmp1 := Lifted_constant.all_defined_symbols const in
+      let! tmp1 := LC.all_defined_symbols const in
       Symbol.Set_.union symbols tmp1).
+
+(* 81 *)
+Module CIS := Code_id_or_symbol.
+
+(* 82: [module SCC_lifted_constants] is at the head of the extracted
+   file. *)
 
 (* 84-129 *)
 Definition build_dep_graph (t : Lifted_constant_state.t)
-    : M (Code_id_or_symbol.Lmap.t Code_id_or_symbol.Set_.t
-         * Code_id_or_symbol.Map.t Lifted_constant.t) :=
-  fold t (Code_id_or_symbol.Lmap.empty, Code_id_or_symbol.Map.empty)
+    : M (CIS.Lmap.t CIS.Set_.t * CIS.Map.t LC.t) :=
+  fold t (CIS.Lmap.empty, CIS.Map.empty)
     (fun '(dep_graph, code_id_or_symbol_to_const) lifted_constant =>
       (* 87-89, [ListLabels.fold_left l ~init ~f]: the arguments are in the
          order of the interface. [tmp1] is used after the function: the
          temporaries inside the function begin at [tmp2]. *)
-      let! tmp1 := Lifted_constant.definitions lifted_constant in
+      let! tmp1 := LC.definitions lifted_constant in
       ListLabels.fold_left
         (fun '(dep_graph, code_id_or_symbol_to_const) definition =>
           (* PORT-GAP(loose): 90, [let module D = LC.Definition in] is not
-             kept: the functions of [D] are written
-             [Lifted_constant.Definition_.f]. *)
+             kept: the functions of [D] are written [LC.Definition_.f]. *)
           let* free_names :=
-            let* free_names :=
-              Lifted_constant.Definition_.free_names definition
-            in
-            let! tmp2 := Lifted_constant.Definition_.descr definition in
+            let* free_names := LC.Definition_.free_names definition in
+            let! tmp2 := LC.Definition_.descr definition in
             match tmp2 with
-            | Lifted_constant.Definition_.Code _
-            | Lifted_constant.Definition_.Block_like _ _ _ _ =>
+            | LC.Definition_.Code _ | LC.Definition_.Block_like _ _ _ _ =>
               ret free_names
-            | Lifted_constant.Definition_.Set_of_closures _
-                closure_symbols_with_types _ =>
+            | LC.Definition_.Set_of_closures _ closure_symbols_with_types _ =>
               (* To avoid existing sets of closures (with or without
                  associated code) being pulled apart, we add a dependency
                  from each of the closure symbols (in the current set) to
@@ -221,25 +211,22 @@ Definition build_dep_graph (t : Lifted_constant_state.t)
           in
           (* 110-114 *)
           let* deps :=
-            let! tmp2 := Code_id_or_symbol.set_of_code_id_set free_code_ids in
-            let! tmp3 := Code_id_or_symbol.set_of_symbol_set free_syms in
-            Code_id_or_symbol.Set_.union tmp3 tmp2
+            let! tmp2 := CIS.set_of_code_id_set free_code_ids in
+            let! tmp3 := CIS.set_of_symbol_set free_syms in
+            CIS.Set_.union tmp3 tmp2
           in
           (* 115-118 *)
           let* being_defined :=
-            let! tmp2 := Lifted_constant.Definition_.bound_static definition in
+            let! tmp2 := LC.Definition_.bound_static definition in
             Bound_static.everything_being_defined_as_list tmp2
           in
           (* 119-129 *)
           List.fold_left
             (fun '(dep_graph, code_id_or_symbol_to_const) being_defined =>
-              let* dep_graph :=
-                Code_id_or_symbol.Lmap.add being_defined deps dep_graph
-              in
+              let* dep_graph := CIS.Lmap.add being_defined deps dep_graph in
               let* code_id_or_symbol_to_const :=
                 let! tmp2 := Lifted_constant.create_definition definition in
-                Code_id_or_symbol.Map.add being_defined tmp2
-                  code_id_or_symbol_to_const
+                CIS.Map.add being_defined tmp2 code_id_or_symbol_to_const
               in
               ret (dep_graph, code_id_or_symbol_to_const))
             (dep_graph, code_id_or_symbol_to_const)
@@ -248,26 +235,23 @@ Definition build_dep_graph (t : Lifted_constant_state.t)
         tmp1).
 
 (* 131-142 *)
-Definition remove_values_not_in_domain
-    (m : Code_id_or_symbol.Lmap.t Code_id_or_symbol.Set_.t)
-    : M (Code_id_or_symbol.Lmap.t Code_id_or_symbol.Set_.t) :=
+Definition remove_values_not_in_domain (m : CIS.Lmap.t CIS.Set_.t)
+    : M (CIS.Lmap.t CIS.Set_.t) :=
   let* domain :=
-    Code_id_or_symbol.Lmap.fold
-      (fun value _ domain => Code_id_or_symbol.Set_.add value domain)
-      m Code_id_or_symbol.Set_.empty
+    CIS.Lmap.fold
+      (fun value _ domain => CIS.Set_.add value domain)
+      m CIS.Set_.empty
   in
-  Code_id_or_symbol.Lmap.map
+  CIS.Lmap.map
     (fun values =>
       (* 139-140: the compiler's note (lmaurer): this should use a map/set
          intersection function, which should be easy to define with the
          Patricia tree refactor. *)
-      Code_id_or_symbol.Set_.filter
-        (fun value => Code_id_or_symbol.Set_.mem value domain)
-        values)
+      CIS.Set_.filter (fun value => CIS.Set_.mem value domain) values)
     m.
 
 (* 144 *)
-Record sort_result : Type := { innermost_first : array Lifted_constant.t }.
+Record sort_result : Type := { innermost_first : array LC.t }.
 
 (* 146-197 *)
 Definition sort0 (t : Lifted_constant_state.t) : M sort_result :=
@@ -291,7 +275,7 @@ Definition sort0 (t : Lifted_constant_state.t) : M sort_result :=
   in
   (* 164-196: [a |> f b] is [f b a]. *)
   let* innermost_first :=
-    let! tmp1 := Code_id_or_symbol.Lmap.bindings lifted_constants_dep_graph in
+    let! tmp1 := CIS.Lmap.bindings lifted_constants_dep_graph in
     let! tmp2 :=
       SCC_lifted_constants
       .stable_connected_components_sorted_from_roots_to_leaf tmp1
@@ -311,37 +295,31 @@ Definition sort0 (t : Lifted_constant_state.t) : M sort_result :=
            acc)]. *)
         let* '(_, lifted_constants) :=
           ListLabels.fold_left
-            (fun (acc : Code_id_or_symbol.Set_.t * list Lifted_constant.t)
-                 code_id_or_symbol =>
+            (fun (acc : CIS.Set_.t * list LC.t) code_id_or_symbol =>
               let '(already_seen, definitions) := acc in
-              let! tmp1 :=
-                Code_id_or_symbol.Set_.mem code_id_or_symbol already_seen
-              in
+              let! tmp1 := CIS.Set_.mem code_id_or_symbol already_seen in
               if tmp1
               then ret acc
               else
                 let* lifted_constant :=
-                  Code_id_or_symbol.Map.find code_id_or_symbol
-                    code_id_or_symbol_to_const
+                  CIS.Map.find code_id_or_symbol code_id_or_symbol_to_const
                 in
                 let* already_seen :=
                   (* We may encounter the same defining expression more than
                      once, in the case of sets of closures, which may bind
                      more than one symbol. We must avoid duplicates in the
                      resulting [LC.t]. *)
-                  let* bound_static :=
-                    Lifted_constant.bound_static lifted_constant
-                  in
+                  let* bound_static := LC.bound_static lifted_constant in
                   let! tmp1 :=
                     Bound_static.everything_being_defined bound_static
                   in
-                  Code_id_or_symbol.Set_.union tmp1 already_seen
+                  CIS.Set_.union tmp1 already_seen
                 in
                 ret (already_seen, lifted_constant :: definitions))
-            (Code_id_or_symbol.Set_.empty, [])
+            (CIS.Set_.empty, [])
             code_id_or_symbols
         in
-        Lifted_constant.concat lifted_constants)
+        LC.concat lifted_constants)
       tmp2
   in
   ret {| innermost_first := innermost_first |}.
