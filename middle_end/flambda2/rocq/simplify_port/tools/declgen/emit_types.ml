@@ -64,7 +64,8 @@ let rec mentions self (ty : Tr.ty) =
   | Var _ -> false
   | Constr (Global c, args) -> key c = self || List.exists (mentions self) args
   | Constr (Kit _, args) | Tuple args -> List.exists (mentions self) args
-  | Arrow (args, res) -> List.exists (mentions self) (res :: args)
+  | Arrow (args, res) | Arrow_pure (args, res) ->
+    List.exists (mentions self) (res :: args)
 
 let rec refused_place self (ty : Tr.ty) =
   match ty with
@@ -77,7 +78,8 @@ let rec refused_place self (ty : Tr.ty) =
   | Constr (Kit ("list" | "option"), args) | Tuple args ->
     List.exists (refused_place self) args
   | Constr (Kit _, args) -> List.exists (mentions self) args
-  | Arrow (args, res) -> List.exists (mentions self) args || refused_place self res
+  | Arrow (args, res) | Arrow_pure (args, res) ->
+    List.exists (mentions self) args || refused_place self res
 
 let shape_of (decl : Types.type_declaration) : shape option =
   let field (ld : Types.label_declaration) =
@@ -117,7 +119,9 @@ let check ~forbidden self (sh : shape) =
   in
   if List.exists (fun k -> List.exists (mentions k) all_types) forbidden
   then raise (Refused "it is recursive with a type that is declared after it");
-  let free s = (not (List.mem s Sigs.reserved)) && not (SS.mem s !declared) in
+  (* a name that a value or a type took in this pass does not count: the
+     value or the type gives way in the next *)
+  let free s = (not (List.mem s Sigs.reserved)) && not (SS.mem s !native) in
   let seen = ref SS.empty in
   let fresh_field f =
     if (not (free f)) || SS.mem f !seen
@@ -194,7 +198,8 @@ let rec vars_of acc (ty : Tr.ty) =
   match ty with
   | Var v -> if List.mem v acc then acc else acc @ [v]
   | Constr (_, args) | Tuple args -> List.fold_left vars_of acc args
-  | Arrow (args, res) -> List.fold_left vars_of acc (args @ [res])
+  | Arrow (args, res) | Arrow_pure (args, res) ->
+    List.fold_left vars_of acc (args @ [res])
 
 let forall vars =
   if vars = []
@@ -221,7 +226,7 @@ let emit_variant ~params ~ocaml_type modc rname ctors renamed place =
               (String.concat "; "
                  (List.map2
                     (fun (f, _) ty ->
-                      declared := SS.add f !declared;
+                      claim_native f;
                       add_index (Print.ocaml_name (modc @ [f])) f "field" 0 place;
                       f ^ " : " ^ Print.pp ty)
                     fs c.c_args));
@@ -230,7 +235,13 @@ let emit_variant ~params ~ocaml_type modc rname ctors renamed place =
             [(if params = [] then pname else "(" ^ applied pname params ^ ")")]
           | None -> List.map Print.pp_arg c.c_args
         in
-        let cname = claim (Sigs.sanitize c.c_name) in
+        let cname =
+          if List.mem c.c_name renamed
+          then claim (Sigs.sanitize c.c_name)
+          else (
+            claim_native c.c_name;
+            c.c_name)
+        in
         add_index (Print.ocaml_name (modc @ [c.c_name])) cname "constructor"
           (List.length c.c_args) place;
         cname, Printf.sprintf "| %s : %s" cname (String.concat " -> " (args @ [self_ty])))
@@ -252,7 +263,7 @@ let emit_record ~params modc rname fields place =
     (String.concat "; "
        (List.map
           (fun (f, ty, _) ->
-            declared := SS.add f !declared;
+            claim_native f;
             add_index (Print.ocaml_name (modc @ [f])) f "field" 0 place;
             f ^ " : " ^ Print.pp ty)
           fields));
@@ -273,10 +284,12 @@ let emit_record ~params modc rname fields place =
     fields
 
 (* The makers and the eliminator of a type that stays abstract. *)
-let emit_makers ~params modc name rname (sh : shape) place =
+let emit_makers ~params ~private_ modc name rname (sh : shape) place =
   let self_ty = Tr.Constr (Tr.Global (modc @ [name]), List.map (fun p -> Tr.Var p) params) in
   let res_var = if List.mem "Res" params then "Res_" else "Res" in
   let maker mname args result real =
+    (* OCaml makes no value of a private type outside its module *)
+    if not private_ then
     let mname = claim mname in
     let tys = args @ [result] in
     line "Parameter %s : %s%s." mname
@@ -311,7 +324,7 @@ let emit_makers ~params modc name rname (sh : shape) place =
           (Option.value ~default:self_ty c.c_res)
           (lam (List.length c.c_args) (ocaml_ctor modc c)))
       ctors;
-    if List.for_all (fun c -> c.c_res = None || c.c_res = Some self_ty) ctors
+    if List.for_all (fun c -> c.c_res = None) ctors
     then
       eliminator
         (List.map (fun c -> c.c_args) ctors)
@@ -359,7 +372,9 @@ let emit ~abstract ~params ~forbidden modc name (decl : Types.type_declaration)
         Some
           (fun () ->
             Tr.vars := saved;
-            try emit_makers ~params modc name rname sh place
+            try
+              emit_makers ~params ~private_:(decl.type_private = Asttypes.Private)
+                modc name rname sh place
             with Tr.Unsupported why -> not_declared (comps @ ["(makers)"]) why)
       | renamed -> (
         mirror comps;

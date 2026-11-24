@@ -98,7 +98,9 @@ let global_name kind comps =
 let ocaml_name comps =
   let comps =
     match List.rev comps with
-    | last :: rest when not (Sigs.is_identifier last) ->
+    | last :: rest
+      when (not (Sigs.is_identifier last))
+           || List.mem last ["mod"; "land"; "lor"; "lxor"; "lsl"; "lsr"; "asr"; "or"] ->
       List.rev (("( " ^ last ^ " )") :: rest)
     | _ -> comps
   in
@@ -113,6 +115,7 @@ let rec pp (ty : Tr.ty) =
   | Var v -> v
   | Arrow (args, res) ->
     String.concat " -> " (List.map pp_arg args @ ["M " ^ pp_atom res])
+  | Arrow_pure (args, res) -> String.concat " -> " (List.map pp_arg (args @ [res]))
   | Tuple [a; b] -> "(" ^ pp_arg a ^ " * " ^ pp_arg b ^ ")"
   | Tuple l when List.length l >= 3 && List.length l <= 6 ->
     Printf.sprintf "tuple%d %s" (List.length l)
@@ -121,7 +124,8 @@ let rec pp (ty : Tr.ty) =
   | Constr (r, []) -> tref r
   | Constr (r, args) -> tref r ^ " " ^ String.concat " " (List.map pp_atom args)
 
-and pp_arg ty = match ty with Arrow _ -> "(" ^ pp ty ^ ")" | _ -> pp ty
+and pp_arg ty =
+  match ty with Arrow _ | Arrow_pure _ -> "(" ^ pp ty ^ ")" | _ -> pp ty
 
 and pp_atom ty =
   match ty with

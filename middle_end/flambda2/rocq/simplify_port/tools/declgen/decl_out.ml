@@ -53,13 +53,36 @@ let line fmt =
       Buffer.add_char !buf '\n')
     fmt
 
-(* A name that is free in the open module: one more underscore if not. *)
+(* The names of constructors and fields that the open module has under
+   the compiler's own names (Rocq prints them, so they cannot change). *)
+let native : SS.t ref = ref SS.empty
+
+(* The same for every module, in the pass before and in this one: a value
+   or a type of one of these names gives way, wherever it is declared. *)
+let native_before : (string, SS.t) Hashtbl.t = Hashtbl.create 97
+
+let native_now : (string, SS.t) Hashtbl.t = Hashtbl.create 97
+
+(* A name for a value or a type that is free in the open module: one more
+   underscore if not. *)
 let rec claim name =
-  if SS.mem name !declared
+  let kept =
+    Option.value ~default:SS.empty
+      (Hashtbl.find_opt native_before (key !Print.cur_mod))
+  in
+  if SS.mem name !declared || SS.mem name kept
   then claim (name ^ "_")
   else (
     declared := SS.add name !declared;
     name)
+
+(* A constructor or a field takes the compiler's name. *)
+let claim_native name =
+  native := SS.add name !native;
+  declared := SS.add name !declared;
+  let k = key !Print.cur_mod in
+  Hashtbl.replace native_now k
+    (SS.add name (Option.value ~default:SS.empty (Hashtbl.find_opt native_now k)))
 
 let rocq_qualified name =
   match !Print.cur_mod with
@@ -90,15 +113,31 @@ let extract rname ocaml =
    string for a type with parameters): Rocq prints it by its own name in
    Rocq, which is the compiler's when the modules have the compiler's
    names. *)
-let extract_type rname ocaml nparams =
+let extract_type ?(kept = []) rname ocaml nparams =
+  (* [kept]: for each parameter of the type in OCaml, whether Rocq has it
+     (an index that was dropped is [_] in OCaml) *)
+  let kept = if kept = [] then List.init nparams (fun _ -> true) else kept in
+  let n = ref 0 in
+  let args =
+    List.map
+      (fun k ->
+        if k
+        then (
+          incr n;
+          Printf.sprintf "'a%d" !n)
+        else "_")
+      kept
+  in
+  let applied =
+    if args = [] then ocaml else Printf.sprintf "(%s) %s" (String.concat ", " args) ocaml
+  in
   if nparams = 0
-  then extract rname ocaml
+  then extract rname applied
   else
     let vars = List.init nparams (fun i -> Printf.sprintf "'a%d" (i + 1)) in
     line "Extract Constant %s %s => %s." rname
       (String.concat " " (List.map Print.quote vars))
-      (Print.quote
-         (Printf.sprintf "(%s) %s" (String.concat ", " vars) ocaml))
+      (Print.quote applied)
 
 (* What the kit gives: not declared again. *)
 let in_kit =

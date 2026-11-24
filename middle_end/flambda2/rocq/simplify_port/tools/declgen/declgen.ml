@@ -69,6 +69,7 @@ let pass scanned =
   Decl_out.index := [];
   Decl_out.left := [];
   Walk.emitted_now := SS.empty;
+  Hashtbl.reset Decl_out.native_now;
   let all = SS.elements (SS.union (SS.of_list (units ())) scanned) in
   let results =
     List.filter_map
@@ -78,8 +79,17 @@ let pass scanned =
         | None -> None)
       all
   in
-  let same = SS.equal !Walk.emitted_before !Walk.emitted_now in
+  let table t =
+    List.sort compare
+      (Hashtbl.fold (fun k s acc -> (k, Decl_out.SS.elements s) :: acc) t [])
+  in
+  let same =
+    SS.equal !Walk.emitted_before !Walk.emitted_now
+    && table Decl_out.native_before = table Decl_out.native_now
+  in
   Walk.emitted_before := !Walk.emitted_now;
+  Hashtbl.reset Decl_out.native_before;
+  Hashtbl.iter (Hashtbl.replace Decl_out.native_before) Decl_out.native_now;
   results, same
 
 (* A file is written only if its text has changed, so that what depends

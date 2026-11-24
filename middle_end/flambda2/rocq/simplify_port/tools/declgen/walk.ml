@@ -95,7 +95,9 @@ let emit_type ~forbidden ~canon modc name : (unit -> unit) option =
         | Some why -> line "(* PORT-GAP(type): %s. *)" why
         | None -> ());
         line "Parameter %s : %s." rname sort;
-        extract_type rname ocaml (List.length params);
+        extract_type
+          ~kept:(List.mapi (fun i _ -> not (Tr.is_dropped k i)) decl.type_params)
+          rname ocaml (List.length params);
         add_index ocaml rname "type" (List.length params) place
       in
       let definition body =
@@ -167,7 +169,7 @@ let emit_group ~full ~canon modc names =
     List.iter (fun f -> f ()) (List.rev !deferred)
 
 (* Types of OCaml that no module declares. *)
-let predef = ["char"; "float"; "int32"; "int64"; "nativeint"; "bytes"; "array"; "floatarray"]
+let predef = ["char"; "float"; "int32"; "int64"; "nativeint"; "bytes"; "floatarray"]
 
 let emit_predef () =
   List.iter
@@ -176,9 +178,9 @@ let emit_predef () =
       then (
         let rname = claim (Sigs.type_rocq ["Stdlib"] s) in
         line "(* the type [%s] that OCaml defines before any module *)" s;
-        line "Parameter %s : %s." rname (if s = "array" then "Type -> Type" else "Type");
-        extract_type rname s (if s = "array" then 1 else 0);
-        add_index s rname "type" (if s = "array" then 1 else 0) "predefined"))
+        line "Parameter %s : Type." rname;
+        extract_type rname s 0;
+        add_index s rname "type" 0 "predefined"))
     predef
 
 let rec emit_items ~full ~canon modc (sg : Types.signature) =
@@ -221,15 +223,18 @@ and emit_module ~full ~canon modc =
   let name = List.nth modc (List.length modc - 1) in
   let body ~canon ~rewrite sg =
     let outer_buf = !buf and outer_declared = !declared in
+    let outer_native = !native in
     let outer_mod = !Print.cur_mod and outer_rewrite = !Tr.rewrite in
     buf := Buffer.create 4096;
     declared := SS.empty;
+    native := SS.empty;
     Print.cur_mod := modc;
     Tr.rewrite := rewrite;
     emit_items ~full ~canon modc sg;
     let body = Buffer.contents !buf in
     buf := outer_buf;
     declared := outer_declared;
+    native := outer_native;
     Print.cur_mod := outer_mod;
     Tr.rewrite := outer_rewrite;
     if body <> ""
@@ -292,6 +297,7 @@ let emit_unit ~full u : (string * SS.t) option =
   Print.cur_mod := [u];
   Print.deps := SS.empty;
   declared := SS.empty;
+  native := SS.empty;
   buf := Buffer.create 65536;
   (match Sigs.module_shape [u] with
   | Signature sg ->

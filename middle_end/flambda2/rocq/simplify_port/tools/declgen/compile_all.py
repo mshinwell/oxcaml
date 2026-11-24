@@ -28,10 +28,33 @@
 
 """compile_all.py [FILE.v ...] : from simplify_port/, compiles the kit and the
 files of decl/ (all, or those given and what they require) with Rocq, one
-process at a time, in the order of their requirements. Prints the first
+process at a time, in the order of their requirements, in a copy under
+_build/declcheck (nothing is written beside the sources). The kit is the
+file named by the variable KIT, or monad/real/Port_monad.v, or
+Port_monad.v. Only what has changed is compiled again. Prints the first
 lines of each failure and a count. This file follows no file of the
 compiler."""
-import os, re, subprocess, sys
+import filecmp, os, re, shutil, subprocess, sys
+
+kit = os.environ.get("KIT")
+if not kit:
+    kit = "monad/real/Port_monad.v" if os.path.exists("monad/real/Port_monad.v") else "Port_monad.v"
+work = os.path.join("_build", "declcheck")
+os.makedirs(os.path.join(work, "decl"), exist_ok=True)
+def bring(src, dst):
+    if not os.path.exists(dst) or not filecmp.cmp(src, dst, shallow=False):
+        shutil.copyfile(src, dst)
+bring(kit, os.path.join(work, "Port_monad.v"))
+sources = sorted(f for f in os.listdir("decl") if f.endswith(".v"))
+for f in sources:
+    bring(os.path.join("decl", f), os.path.join(work, "decl", f))
+for f in os.listdir(os.path.join(work, "decl")):
+    if f.endswith(".v") and f not in sources:
+        for ext in (".v", ".vo", ".glob", ".vos", ".vok"):
+            q = os.path.join(work, "decl", f[:-2] + ext)
+            if os.path.exists(q):
+                os.remove(q)
+os.chdir(work)
 
 def requires(path):
     out = []

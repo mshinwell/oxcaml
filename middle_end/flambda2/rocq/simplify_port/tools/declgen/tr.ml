@@ -40,7 +40,11 @@ type tref =
 
 type ty =
   | Var of string
-  | Arrow of ty list * ty  (** all the arguments, then the result *)
+  | Arrow of ty list * ty
+      (** all the arguments, then the result, which is in the monad *)
+  | Arrow_pure of ty list * ty
+      (** the same, when the result is itself an abbreviation of a function
+          type: the monad is at the end of that one *)
   | Tuple of ty list
   | Constr of tref * ty list
 
@@ -101,7 +105,18 @@ let var_names () = List.rev_map snd !vars
 
 (* ---- the translation ---- *)
 
-let predef_kit = ["int"; "bool"; "unit"; "string"; "list"; "option"; "exn"]
+let predef_kit =
+  ["int"; "bool"; "unit"; "string"; "list"; "option"; "exn"; "array"]
+
+(* Is the type, once its abbreviations are expanded, a function type? *)
+let expands_to_arrow (ty : Types.type_expr) =
+  match Types.get_desc ty with
+  | Tconstr _ -> (
+    match Types.get_desc (Ctype.expand_head !Sigs.base_env ty) with
+    | Tarrow _ -> true
+    | _ -> false
+    | exception _ -> false)
+  | _ -> false
 
 let format_arity comps =
   match comps with
@@ -220,7 +235,9 @@ and tr_arrow ty : ty * Asttypes.arg_label list * bool =
   | None ->
     let args' = List.map (fun (_, a) -> tr a) args in
     let res' = tr res in
-    Arrow (args', res'), List.map fst args, false
+    ( (if expands_to_arrow res then Arrow_pure (args', res') else Arrow (args', res')),
+      List.map fst args,
+      false )
   | Some (before, l, result, []) ->
     let before' = List.map (fun (_, a) -> tr a) before in
     let result' = tr result in
