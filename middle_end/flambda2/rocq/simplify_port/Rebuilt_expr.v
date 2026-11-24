@@ -75,10 +75,19 @@ Record t : Type :=
    fields and functions): Rocq extracts it as [let is_cold t = t.is_cold],
    after the type, and its Rocq type is not in the monad. *)
 
+(* PORT-GAP(update): 38, [{ t with is_cold = true }]. *)
+Definition update_is_cold (t : Rebuilt_expr.t) (is_cold : bool)
+    : Rebuilt_expr.t :=
+  {| expr := t.(expr);
+     is_cold := is_cold;
+     contents_hash := t.(contents_hash)
+  |}.
+Extract Inlined Constant update_is_cold =>
+  "(fun t x__1 -> { t with is_cold = x__1 })".
+
 (* 38 *)
 Definition mark_as_cold (t : Rebuilt_expr.t) : M Rebuilt_expr.t :=
-  ret
-    {| expr := t.(expr); is_cold := true; contents_hash := t.(contents_hash) |}.
+  ret (update_is_cold t true).
 
 (* 40-54 *)
 (* Rebuilt terms with no [contents_hash] cannot be deduplicated (e.g. because

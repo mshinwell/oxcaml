@@ -58,8 +58,7 @@ let contents_hash t0 = t0.contents_hash
 
 (** val mark_as_cold : t -> t coq_M **)
 
-let mark_as_cold t0 =
-  { expr = t0.expr; is_cold = true; contents_hash = t0.contents_hash }
+let mark_as_cold t0 = (fun t x__1 -> { t with is_cold = x__1 }) t0 true
 
 (** val max_hash_depth : int **)
 
