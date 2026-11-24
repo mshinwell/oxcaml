@@ -232,6 +232,17 @@ review. If OCaml says `Unbound record field`, `This form is not allowed as
 the type of the inlined record could escape`, or a name is not the
 compiler's, the cause is in section 7.
 
+THE LINK TEST (`tools/linktest.sh`; not part of `make`): in a SCRATCH work
+tree of the compiler, `tools/linktest.sh swap TREE` puts the extracted
+files in the place of `middle_end/flambda2/simplify/*.ml`, adds
+`runtime/port_monad.ml` and gives the library `-nolabels -w -a` in its
+dune file: the one change that linking needs outside the extracted files.
+Build the compiler there before and after the swap (`make boot-compiler`,
+`make compiler`) and compare `tools/linktest.sh sums TREE main`: after
+the swap the compiler of stage 1 holds the extracted Simplify and compiles
+all of stage 2, so an object file that differs is a file that the two
+Simplifys do not treat alike. Never commit that tree.
+
 ## 7. What Rocq's text looks like, and known problems to look at later
 
 WHERE THE EXTRACTED TEXT IS NOT THE COMPILER'S (directives alone cannot):
