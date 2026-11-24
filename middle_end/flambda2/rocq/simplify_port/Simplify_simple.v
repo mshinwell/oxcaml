@@ -18,16 +18,13 @@
    commit ecc5c0d968c892b4312065caef0f19ffffa042a9, function by function
    under the compiler's names; the numbers in the comments are the lines of
    that file. What is not from that file: the form (the monad, the
-   temporaries [tmpN] and their order) is that of GUIDE.md; two
-   declarations are made again here (see the gap below). The file does not
-   import Simplify_import, which the compiler's file does not open: its
-   three abbreviations of modules are its own (and Simplify_import requires
-   the declarations of this very module, which Rocq's extraction would then
-   take for another file of the same name). No proof. *)
+   temporaries [tmpN] and their order) is that of GUIDE.md. The file does
+   not import Simplify_import, which the compiler's file does not open: its
+   three abbreviations of modules are its own. No proof. *)
 
 From SimplifyPort Require Import Port_monad.
-From SimplifyPort.decl Require Coercion Downwards_acc Flambda2_types Int_ids
-  List Name_mode Simple Simplify_coercion.
+From SimplifyPort.decl Require Coercion Downwards_acc Flambda2_types List
+  Name_mode Simple Simplify_coercion.
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 
@@ -35,19 +32,6 @@ Local Open Scope Z_scope.
 Module DA := Downwards_acc.
 Module T := Flambda2_types.
 Module TE := T.Typing_env.
-
-(* PORT-GAP(decl): decl/Coercion.v has [Coercion.t] as an abstract type. In
-   the compiler it is [Int_ids.Coercion.t] (the interface includes that
-   module), which is the type that decl/Simple.v gives to [Simple.coercion]
-   and [Simple.with_coercion]. The two functions that the file calls on a
-   coercion are declared again here on that type; their OCaml text is the
-   compiler's name. *)
-Parameter Coercion_is_id : Int_ids.Coercion.t -> M bool.
-Extract Inlined Constant Coercion_is_id => "Coercion.is_id".
-Parameter Simplify_coercion_simplify_coercion :
-  Downwards_acc.t -> Int_ids.Coercion.t -> M Int_ids.Coercion.t.
-Extract Inlined Constant Simplify_coercion_simplify_coercion =>
-  "Simplify_coercion.simplify_coercion".
 
 (* PORT-GAP(verbatim): 20, the exception of the file. *)
 (*OCAML
@@ -70,11 +54,11 @@ Definition simplify_simple0 (dacc : DA.t) (simple : Simple.t)
     (fun _ => raise_ Simple_not_in_scope tt)
     (fun '((ty, simple) as res) =>
       let* coercion := Simple.coercion simple in
-      let! tmp1 := Coercion_is_id coercion in
+      let! tmp1 := Coercion.is_id coercion in
       if tmp1
       then ret res
       else
-        let* coercion := Simplify_coercion_simplify_coercion dacc coercion in
+        let* coercion := Simplify_coercion.simplify_coercion dacc coercion in
         let* simple :=
           let! tmp1 := Simple.without_coercion simple in
           Simple.with_coercion tmp1 coercion
