@@ -141,8 +141,8 @@ fuel was enough, and that it holds of the OCAML code is NOT established now
   printed as the application of one function for each constructor (section
   7), and a case `_` as one function for each constructor that is left.
 - A RECORD of `decl/` has the compiler's fields: `{| Simplify_simple.simples
-  := a; Simplify_simple.simple_tys := b |}` in terms and patterns; all the
-  fields for `{ r with f = v }`. Write a field with the module's OWN name,
+  := a; Simplify_simple.simple_tys := b |}` in terms and patterns. Write a
+  field with the module's OWN name,
   not a short name of Simplify_import: `r.(S.simples)` is printed as the
   call `S.simples r`, which OCaml refuses. And a record that is TAKEN APART
   must have its TYPE by the module's own name where the value comes from
@@ -151,6 +151,25 @@ fuel was enough, and that it holds of the OCAML code is NOT established now
   pattern under the name by which the type was written, and through a
   short name that is `Simplify_import.SE.apply`. A mutable field is set by
   `M.set_f r v`.
+- A RECORD UPDATE `{ t with f = v }` is a SETTER of the file, defined once
+  for each set of fields that the file updates, before its first use:
+
+      (* PORT-GAP(update): [{ t with typing_env }] *)
+      Definition update_typing_env (t : Downwards_env.t)
+          (typing_env : TE.t) : Downwards_env.t :=
+        {| round := t.(round); typing_env := typing_env; ... |}.
+      Extract Inlined Constant update_typing_env =>
+        "(fun t x__1 -> { t with typing_env = x__1 })".
+
+  and `update_typing_env t v` at each place (a VALUE: `ret (update_.. t
+  v)`, `let& t := update_.. t v in`). The Definition says in Rocq what the
+  update is, with ALL the fields; the text is what OCaml reads, in exactly
+  this form (`t`, then `x__1`, `x__2`, .. in the order of the compiler's
+  text; `update_f_g` for two fields). Rocq does not compare the two:
+  `tools/lint.py` does, as words (each field of the text is given its
+  parameter, every other field is `g := t.(g)`). A field whose new value is
+  a call: `let!` before the setter if it is the only one, else `let*` each
+  (section 2, records).
 - What `decl/` marks `PORT-GAP(type)` (a GADT, a few records): its makers
   `mk_C` and its eliminator `match_T`, as `decl/` says.
 - A type that the file itself DEFINES: a Rocq `Inductive` or `Record` with
@@ -225,7 +244,8 @@ M r.` and `Extract Constant f => "fun _ -> Misc.fatal_error
 `fatal_error "PORT-GAP(partial): ..."`); `loose` (ported, but not line
 beside line: say what differs; an attribute such as `[@inline]` that is not
 kept); `order` (you are not sure of the order of evaluation); `type`;
-`verbatim`; `papp`; `record-order` (section 2); `init` (a top-level value
+`verbatim`; `papp`; `record-order` (section 2); `update` (the setter of a
+record update, section 4); `init` (a top-level value
 that the compiler computes with effects when the module starts: a
 `Parameter`, its OCaml text verbatim, and `Extract Inlined Constant x =>
 "x".`); `decl`. Prefer a marked

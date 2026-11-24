@@ -40,7 +40,7 @@
 #            of the monad
 #   OCaml    how the extracted file type-checks (tools/check.sh)
 simplify=$1; B=$2
-kinds="unported partial loose type verbatim init order decl papp record-order"
+kinds="unported partial loose type verbatim init order decl papp record-order update"
 names_ml() {
   # an [and] at the left margin counts only after a [let] (not after a [type])
   awk '/^type /{m=0} /^let[ []/{m=1} /^let[ []/||(m&&/^and[ []/){print}' "$1" \
