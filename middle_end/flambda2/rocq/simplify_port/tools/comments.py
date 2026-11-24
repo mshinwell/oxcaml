@@ -65,9 +65,15 @@ def comments(s):
     return out
 
 def notice(text):
-    """The comment that begins the file, if the file begins with one."""
-    cs = comments(text)
-    return cs[0][1] if cs and text.startswith(cs[0][1]) else None
+    """The leading notice: the comments that begin the file, each on the
+    line after the one before (a box of one comment a line, or one long
+    comment), as one text; None if the file does not begin with a comment."""
+    end = 0
+    for _, c in comments(text):
+        if text.startswith(c, end): end += len(c)
+        elif text.startswith("\n" + c, end) and end > 0: end += 1 + len(c)
+        else: break
+    return text[:end] if end else None
 
 norm = lambda t: re.sub(r"\s+", " ", t).strip()
 
@@ -85,8 +91,9 @@ for d, _, fs in sorted(os.walk(simplify)):
         if notice(donor) is not None and notice(port) != notice(donor):
             print("%s: the leading notice is not that of %s" % (v, rel)); said += 1
         words = norm(port)
+        after = (notice(donor) or "").count("\n") + 1
         for line, c in comments(donor):
-            if line == 1: continue
+            if line <= after: continue
             body = norm(c[2:-2]).lstrip("* ").strip()
             if not body or re.match(r"X?CR\b", body): continue
             if norm(c[2:-2]) not in words and body not in words:
