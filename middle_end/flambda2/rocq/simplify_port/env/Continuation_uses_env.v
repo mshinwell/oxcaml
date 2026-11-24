@@ -73,6 +73,16 @@ Definition empty : t :=
      continuation_arities := Continuation.Map.empty
   |}.
 
+(* PORT-GAP(update): 50, [{ t with continuation_arities }]. *)
+Definition update_continuation_arities (t : Continuation_uses_env.t)
+    (continuation_arities : Continuation.Map.t Flambda_arity.t_Unarized)
+    : Continuation_uses_env.t :=
+  {| continuation_uses := t.(continuation_uses);
+     continuation_arities := continuation_arities
+  |}.
+Extract Inlined Constant update_continuation_arities =>
+  "(fun t x__1 -> { t with continuation_arities = x__1 })".
+
 (* 38-50 *)
 Definition record_continuation (t : Continuation_uses_env.t)
     (cont : Continuation.t) (arity : Flambda_arity.t_Unarized)
@@ -89,10 +99,7 @@ Definition record_continuation (t : Continuation_uses_env.t)
         end)
       t.(continuation_arities)
   in
-  ret
-    {| continuation_uses := t.(continuation_uses);
-       continuation_arities := continuation_arities
-    |}.
+  ret (update_continuation_arities t continuation_arities).
 
 (* 52-63 *)
 Definition record_continuation_arity (t : Continuation_uses_env.t)
@@ -115,6 +122,16 @@ Definition record_continuation_arity (t : Continuation_uses_env.t)
         record_continuation cont_uses_env cont tmp2)
       continuation_handlers t
   end.
+
+(* PORT-GAP(update): 104, [{ t with continuation_uses }]. *)
+Definition update_continuation_uses (t : Continuation_uses_env.t)
+    (continuation_uses : Continuation.Map.t Continuation_uses.t)
+    : Continuation_uses_env.t :=
+  {| continuation_uses := continuation_uses;
+     continuation_arities := t.(continuation_arities)
+  |}.
+Extract Inlined Constant update_continuation_uses =>
+  "(fun t x__1 -> { t with continuation_uses = x__1 })".
 
 (* 65-104 *)
 Definition add_continuation_use (t : Continuation_uses_env.t)
@@ -167,10 +184,7 @@ Definition add_continuation_use (t : Continuation_uses_env.t)
         end)
       t.(continuation_uses)
   in
-  ret
-    {| continuation_uses := continuation_uses;
-       continuation_arities := t.(continuation_arities)
-    |}.
+  ret (update_continuation_uses t continuation_uses).
 
 (* 106-109 *)
 Definition record_continuation_use (t : Continuation_uses_env.t)
@@ -262,10 +276,7 @@ Definition clear_continuation_uses (t : Continuation_uses_env.t)
   (* PORT-GAP(papp): [Option.map] is given its first argument only. *)
   let! tmp1 := papp1 Option.map Continuation_uses.clear_uses in
   let! tmp2 := Continuation.Map.update cont tmp1 t.(continuation_uses) in
-  ret
-    {| continuation_uses := tmp2;
-       continuation_arities := t.(continuation_arities)
-    |}.
+  ret (update_continuation_uses t tmp2).
 
 (* 160-164 *)
 (* PORT-GAP(loose): the record pattern of the parameter is a match, here and
