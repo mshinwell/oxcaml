@@ -879,11 +879,11 @@ let rebuild_single_non_recursive_handler rebuild_expr at_unit_toplevel
                   (Upwards_acc.are_rebuilding_terms uacc4)
                   uenv cont0 is_cold1 params2
                   (Or_unknown.Known
-                     ((fun x__1 x__2 x__3 ->
+                     ((fun (x__1, x__2, x__3) ->
                         ( x__1,
                           ~is_exn_handler:x__2,
                           ~free_names_without_params:x__3 ))
-                        handler3 is_exn_handler0 free_names0))
+                        (handler3, is_exn_handler0, free_names0)))
           in
           let uacc5 = Upwards_acc.with_uenv uacc4 uenv0 in
           let rebuilt_handler0 =

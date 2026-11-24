@@ -22,8 +22,7 @@
    is that of GUIDE.md; the Rocq names of the fields whose names are taken
    (one or two [_] after), and of the first of the two functions
    [rebuild_let_cont] ([rebuild_let_cont_]); the three functions [with_...]
-   that stand for the compiler's [{ data with ... }]; the maker
-   [known_handler] of a tuple with labels. No proof. *)
+   that stand for the compiler's [{ data with ... }]. No proof. *)
 
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Import Simplify_import.
@@ -933,18 +932,6 @@ Definition remove_params (params : Bound_parameters.t) (free_names : NO.t)
       NO.remove_var free_names tmp2)
     free_names tmp1.
 
-(* PORT-GAP(decl): the last argument of [UE.add_non_inlinable_continuation]
-   holds a tuple with labels ([Rebuilt_expr.t * is_exn_handler:bool *
-   free_names_without_params:Name_occurrences.t]); decl/ gives it as a
-   [tuple3], and OCaml refuses the tuple without labels that Rocq prints for
-   [T3]. This maker of the tuple (line 774 of the compiler's file) is
-   printed with the labels. *)
-Definition known_handler (handler : RE.t) (is_exn_handler : bool)
-    (free_names_without_params : NO.t) : tuple3 RE.t bool NO.t :=
-  T3 handler is_exn_handler free_names_without_params.
-Extract Inlined Constant known_handler =>
-  "(fun x__1 x__2 x__3 -> (x__1, ~is_exn_handler:x__2, ~free_names_without_params:x__3))".
-
 (* 633-786 *)
 Definition rebuild_single_non_recursive_handler
     (rebuild_expr : Simplify_common.rebuild Simplified_expr.t)
@@ -1110,8 +1097,12 @@ Definition rebuild_single_non_recursive_handler
                 let! tmp1 := UA.are_rebuilding_terms uacc in
                 UE.add_non_inlinable_continuation tmp1 uenv cont is_cold
                   params
+                  (* 772-776: the tuple with labels [(handler,
+                     ~is_exn_handler,
+                     ~free_names_without_params:free_names)] is the type
+                     [UE.handler_tuple] of decl/. *)
                   (Or_unknown.Known
-                     (known_handler handler is_exn_handler free_names))
+                     (UE.Handler_tuple handler is_exn_handler free_names))
               end
           in
           let* uacc := UA.with_uenv uacc uenv in
