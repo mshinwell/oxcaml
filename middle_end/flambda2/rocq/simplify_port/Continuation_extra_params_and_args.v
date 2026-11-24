@@ -140,6 +140,12 @@ Definition add (t : t) (invalids : Apply_cont_rewrite_id.Set_.t)
     (extra_param : Bound_parameter.t)
     (extra_args : Apply_cont_rewrite_id.Map.t Extra_arg_t)
     : M Continuation_extra_params_and_args.t :=
+  (* Note: there can be some overlap between the invalid ids and the keys of the
+     [extra_args] map. This is notably used by the unboxing code which may
+     compute some extra args and only later (when computing extra args for
+     another parameter) realize that some rewrite ids are invalids, and then
+     call this function with this new invalid set and the extra_args computed
+     before this invalid set was known. *)
   match t with
   | Empty =>
     let* extra_params := Bound_parameters.create [extra_param] in
@@ -159,6 +165,10 @@ Definition add (t : t) (invalids : Apply_cont_rewrite_id.Set_.t)
     let* extra_args :=
       Apply_cont_rewrite_id.Map.merge
         (fun id already_extra_args extra_arg =>
+          (* The [invalids] set is expected to be small (actually, empty most of
+             the time), so the lookups in each case of the merge should be
+             reasonable, compared to merging (and allocating) the [invalids] set
+             and the [extra_args] map. *)
           match already_extra_args, extra_arg with
           | None, None => ret None
           | None, Some _ =>
@@ -229,6 +239,10 @@ Definition concat (outer inner : t) : M t :=
           match extra_args1, extra_args2 with
           | None, None => ret None
           | Some Or_invalid.Invalid, _ | _, Some Or_invalid.Invalid =>
+            (* If either of [outer] or [inner] has proven that the use is
+               invalid, that is enough -- the other case may have used that
+               information to restrict the set of uses and hence not have extra
+               args for that use. *)
             ret (Some Or_invalid.Invalid)
           | Some (Or_invalid.Ok _), None | None, Some (Or_invalid.Ok _) =>
             fatal_errorf6
