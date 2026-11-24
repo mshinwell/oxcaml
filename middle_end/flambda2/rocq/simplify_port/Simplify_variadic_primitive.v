@@ -25,6 +25,8 @@ From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Import Simplify_import.
 From SimplifyPort.decl Require Alloc_mode Bound_var Debuginfo List Mutability
   Or_bottom Or_unknown_or_bottom Simple Stdlib_ Target_ocaml_int.
+(* CONSTRUCTORS-WITHOUT-MODULE: Flambda_primitive.t
+   Flambda_primitive.variadic_primitive *)
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 

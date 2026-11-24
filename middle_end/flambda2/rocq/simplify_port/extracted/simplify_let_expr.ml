@@ -30,7 +30,7 @@ let keep_lifted_constant_only_if_used uacc acc lifted_constant =
   let bound = LC.bound_static lifted_constant in
   let code_ids_live =
     match UA.reachable_code_ids uacc with
-    | Or_unknown.Known t ->
+    | Known t ->
       let { Flow_types.Reachable_code_ids.live_code_ids = _;
             Flow_types.Reachable_code_ids.ancestors_of_live_code_ids =
               ancestors_of_live_code_ids0
@@ -41,7 +41,7 @@ let keep_lifted_constant_only_if_used uacc acc lifted_constant =
         (Code_id.Set.disjoint
            (Bound_static.code_being_defined bound)
            ancestors_of_live_code_ids0)
-    | Or_unknown.Unknown -> Bound_static.binds_code bound
+    | Unknown -> Bound_static.binds_code bound
   in
   let symbols_live =
     not
@@ -68,8 +68,8 @@ let rebuild_let arg uacc after_rebuild =
   in
   let lifted_constants_from_defining_expr1 =
     match Closure_info.in_or_out_of_closure closure_info0 with
-    | Closure_info.In_a_closure -> lifted_constants_from_defining_expr0
-    | Closure_info.Not_in_a_closure ->
+    | In_a_closure -> lifted_constants_from_defining_expr0
+    | Not_in_a_closure ->
       LCS.fold lifted_constants_from_defining_expr0 LCS.empty
         (keep_lifted_constant_only_if_used uacc)
   in
@@ -98,8 +98,8 @@ let rebuild_let arg uacc after_rebuild =
               f__2 x__1)
             (fun let_bound simplified_defining_expr0 original_defining_expr ->
               match simplified_defining_expr0.Simplified_named.named with
-              | Simplified_named.Simple _ -> binding
-              | Simplified_named.Prim (prim, _) -> (
+              | Simple _ -> binding
+              | Prim (prim, _) -> (
                 match Bound_pattern.must_be_singleton_opt let_bound with
                 | Some bound_var -> (
                   let simple = Simple.var (Bound_var.var bound_var) in
@@ -121,8 +121,8 @@ let rebuild_let arg uacc after_rebuild =
                         original_defining_expr )
                   | None -> binding)
                 | None -> binding)
-              | Simplified_named.Set_of_closures (_, _) -> binding
-              | Simplified_named.Rec_info _ -> binding)
+              | Set_of_closures (_, _) -> binding
+              | Rec_info _ -> binding)
             (fun _ -> binding)
             binding)
         bindings_to_place0
@@ -190,11 +190,11 @@ let rebuild_let arg uacc after_rebuild =
               in
               let is_end_region =
                 match defining_expr with
-                | Flambda.Simple _ -> None
-                | Flambda.Prim (prim, _) -> P.is_end_region prim
-                | Flambda.Set_of_closures (_, _) -> None
-                | Flambda.Static_consts _ -> None
-                | Flambda.Rec_info _ -> None
+                | Simple _ -> None
+                | Prim (prim, _) -> P.is_end_region prim
+                | Set_of_closures (_, _) -> None
+                | Static_consts _ -> None
+                | Rec_info _ -> None
               in
               let is_end_region_for_unused_region, is_end_region_for_used_region
                   =
@@ -226,11 +226,11 @@ let rebuild_let arg uacc after_rebuild =
               else
                 let is_depth =
                   match defining_expr with
-                  | Flambda.Simple _ -> false
-                  | Flambda.Prim (_, _) -> false
-                  | Flambda.Set_of_closures (_, _) -> false
-                  | Flambda.Static_consts _ -> false
-                  | Flambda.Rec_info _ -> true
+                  | Simple _ -> false
+                  | Prim (_, _) -> false
+                  | Set_of_closures (_, _) -> false
+                  | Static_consts _ -> false
+                  | Rec_info _ -> true
                 in
                 let has_uses =
                   Name_mode.Or_absent.is_present greatest_name_mode
@@ -257,8 +257,8 @@ let rebuild_let arg uacc after_rebuild =
                 else
                   let name_mode =
                     match greatest_name_mode with
-                    | Name_mode.Or_absent.Absent -> Name_mode.phantom
-                    | Name_mode.Or_absent.Present name_mode -> name_mode
+                    | Absent -> Name_mode.phantom
+                    | Present name_mode -> name_mode
                   in
                   let () = assert (Name_mode.can_be_in_terms name_mode) in
                   let bound_vars0 =
@@ -308,14 +308,14 @@ let rebuild_let arg uacc after_rebuild =
                   f__2 x__1)
                 (fun let_bound simplified_defining_expr0 original_defining_expr
                    ->
-                  let (Named_rewrite.Prim_rewrite prim_rewrite) = rewrite in
+                  let (Prim_rewrite prim_rewrite) = rewrite in
                   match original_defining_expr with
                   | Some t -> (
                     match t with
-                    | Flambda.Simple _ ->
+                    | Simple _ ->
                       Misc.fatal_errorf
                         "Prim_rewrite applied to a non-prim Named.t"
-                    | Flambda.Prim (original_prim, dbg) ->
+                    | Prim (original_prim, dbg) ->
                       let uacc2 =
                         UA.notify_removed
                           (Removed_operations.prim original_prim)
@@ -335,14 +335,14 @@ let rebuild_let arg uacc after_rebuild =
                               compute_greatest_name_mode let_bound
                             in
                             match greatest_name_mode with
-                            | Name_mode.Or_absent.Absent ->
+                            | Absent ->
                               (fun x__1 ->
                                 (Simplified_named.Delete_binding
                                    { original_defining_expr = x__1 }
                                   : Simplified_named.binding_to_place))
                                 original_defining_expr
                               :: []
-                            | Name_mode.Or_absent.Present name_mode ->
+                            | Present name_mode ->
                               if Name_mode.is_phantom name_mode
                               then
                                 let let_bound0 =
@@ -407,13 +407,13 @@ let rebuild_let arg uacc after_rebuild =
                           prim_rewrite
                       in
                       uacc2, new_bindings
-                    | Flambda.Set_of_closures (_, _) ->
+                    | Set_of_closures (_, _) ->
                       Misc.fatal_errorf
                         "Prim_rewrite applied to a non-prim Named.t"
-                    | Flambda.Static_consts _ ->
+                    | Static_consts _ ->
                       Misc.fatal_errorf
                         "Prim_rewrite applied to a non-prim Named.t"
-                    | Flambda.Rec_info _ ->
+                    | Rec_info _ ->
                       Misc.fatal_errorf
                         "Prim_rewrite applied to a non-prim Named.t")
                   | None ->
@@ -479,8 +479,8 @@ let update_data_flow dacc closure_info0 lifted_constants_from_defining_expr0
     simplify_named_result rewrite_id0 data_flow =
   let data_flow0 =
     match Closure_info.in_or_out_of_closure closure_info0 with
-    | Closure_info.In_a_closure -> data_flow
-    | Closure_info.Not_in_a_closure ->
+    | In_a_closure -> data_flow
+    | Not_in_a_closure ->
       Flow.Acc.record_lifted_constants lifted_constants_from_defining_expr0
         data_flow
   in
@@ -503,7 +503,7 @@ let simplify_let0 simplify_expr simplify_function_body dacc let_expr down_to_up0
     Simplify_named.simplify_named dacc0 bound_pattern defining_expr
       simplify_function_body
   with
-  | Simplified_named.Simplified p -> (
+  | Simplified p -> (
     let simplify_named_result, removed_operations0 = p in
     match simplify_named_result with
     | Or_invalid.Ok simplify_named_result0 ->
@@ -538,9 +538,8 @@ let simplify_let0 simplify_expr simplify_function_body dacc let_expr down_to_up0
       down_to_up0 original_dacc
         (SE.notify_removed removed_operations0
            (SE.simplified_invalid
-              (Flambda.Invalid.Defining_expr_of_let
-                 (bound_pattern, defining_expr)))))
-  | Simplified_named.Rewritten f -> simplify_expr dacc0 (f body) down_to_up0
+              (Defining_expr_of_let (bound_pattern, defining_expr)))))
+  | Rewritten f -> simplify_expr dacc0 (f body) down_to_up0
 
 (** val simplify_let : Expr.t Simplify_common.expr_simplifier ->
     Simplify_common.simplify_function_body -> DA.t -> Let.t -> SE.t

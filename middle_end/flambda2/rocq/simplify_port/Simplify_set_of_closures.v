@@ -36,6 +36,9 @@ From SimplifyPort.decl Require Alloc_mode Are_rebuilding_terms Bound_name
   Simplified_named Simplify_common Simplify_named_result
   Simplify_set_of_closures_context Simplify_simple Specialization_cost
   Stdlib_ Symbol Symbol_projection Value_slot Variable_.
+(* CONSTRUCTORS-WITHOUT-MODULE: Code_or_metadata.View.t
+   Flambda2_types.to_erase Inlining_report.Pass.t
+   Lambda.zero_alloc_attribute Or_null.t *)
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 Local Open Scope list_scope.

@@ -29,6 +29,9 @@ From SimplifyPort.decl Require Apply_cont_rewrite_id Bound_var Code_size
   Flambda_primitive Format List Non_recursive_handler One_recursive_handler
   Or_unknown Original_handlers Removed_operations Set_of_closures Simple
   Switch_expr.
+(* CONSTRUCTORS-WITHOUT-MODULE:
+   Flambda2_types.Join_analysis.simple_refined_at_join_ Or_unknown.t
+   Original_handlers.t *)
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 

@@ -183,9 +183,7 @@ let create denv0 slot_offsets0 continuation_uses_env0 =
   let continuation_lifting_budget0 =
     Flambda_features.Expert.cont_lifting_budget ()
   in
-  let are_lifting_conts0 =
-    Are_lifting_conts.no_lifting Are_lifting_conts.At_toplevel
-  in
+  let are_lifting_conts0 = Are_lifting_conts.no_lifting At_toplevel in
   let flow_acc0 = Flow.Acc.empty () in
   { denv = denv0;
     continuation_uses_env = continuation_uses_env0;
@@ -496,10 +494,10 @@ let prepare_for_speculative_inlining dacc =
   let dacc0 =
     map_denv dacc (fun denv0 ->
         DE.set_do_not_rebuild_terms_and_disable_inlining denv0
-          DE.Disable_inlining_reason.Speculative_inlining)
+          Speculative_inlining)
   in
   with_are_lifting_conts dacc0
-    (Are_lifting_conts.no_lifting Are_lifting_conts.In_speculative_inlining)
+    (Are_lifting_conts.no_lifting In_speculative_inlining)
 
 (** val add_continuation_to_specialize : t -> Continuation.t -> t coq_M **)
 

@@ -28,6 +28,8 @@ From SimplifyPort.decl Require Alloc_mode Are_rebuilding_terms Bool
   Flambda_primitive Format Hashtbl List ListLabels Name Name_mode
   Name_occurrences Num_occurrences Numeric_types Option Or_null Or_unknown
   Recursive Reg_width_const Renaming Simple Switch_expr Symbol Variable_.
+(* CONSTRUCTORS-WITHOUT-MODULE: Bound_pattern.t Flambda.expr_descr Or_null.t
+   Or_unknown.t *)
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 Local Open Scope list_scope.

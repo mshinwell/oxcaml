@@ -29,6 +29,8 @@ From SimplifyPort.decl Require Alloc_mode Bound_parameter Bound_parameters
   Flambda Flambda2_types Flambda_arity Flambda_debug_uid Flambda_kind
   Inlining_helpers Lambda List ListLabels Name_mode Or_unknown Rec_info_expr
   Renaming Simple Trap_action Variable_.
+(* CONSTRUCTORS-WITHOUT-MODULE: Call_kind.t Flambda2_types.meet_shortcut
+   Flambda2_types.reification_result Lambda.return_mode Or_unknown.t *)
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 

@@ -469,21 +469,21 @@ let record_let_binding rewrite_id generate_phantom_lets let_bound
           t2)
   in
   match named0 with
-  | Simplified_named.Simple simple ->
+  | Simple simple ->
     let bound_var0 = Bound_pattern.must_be_singleton let_bound in
     let var = Bound_var.var bound_var0 in
     record_var_alias var simple t0
-  | Simplified_named.Prim (original_prim0, _) -> (
+  | Prim (original_prim0, _) -> (
     let bound_var0 = Bound_pattern.must_be_singleton let_bound in
     let var = Bound_var.var bound_var0 in
     match original_prim0 with
-    | Flambda_primitive.Nullary _ ->
+    | Nullary _ ->
       if Flambda_primitive.at_most_generative_effects original_prim0
       then record_var_bindings t0 free_names0
       else
         let t1 = record_defined_var var t0 in
         add_used_in_current_handler free_names0 t1
-    | Flambda_primitive.Unary (u, block) ->
+    | Unary (u, block) ->
       (fun f__1
         f__2
         f__3
@@ -599,8 +599,7 @@ let record_let_binding rewrite_id generate_phantom_lets let_bound
           | Some p ->
             let v, _ = p in
             record_var_bindings
-              (record_ref_named rewrite_id var original_prim0
-                 (T.Mutable_prim.Is_int v) t0)
+              (record_ref_named rewrite_id var original_prim0 (Is_int v) t0)
               Name_occurrences.empty
           | None -> record_var_bindings t0 free_names0)
         (fun _ ->
@@ -614,8 +613,7 @@ let record_let_binding rewrite_id generate_phantom_lets let_bound
           | Some p ->
             let v, _ = p in
             record_var_bindings
-              (record_ref_named rewrite_id var original_prim0
-                 (T.Mutable_prim.Get_tag v) t0)
+              (record_ref_named rewrite_id var original_prim0 (Get_tag v) t0)
               Name_occurrences.empty
           | None -> record_var_bindings t0 free_names0)
         (fun _ ->
@@ -764,7 +762,7 @@ let record_let_binding rewrite_id generate_phantom_lets let_bound
             let t1 = record_defined_var var t0 in
             add_used_in_current_handler free_names0 t1)
         u
-    | Flambda_primitive.Binary (b, block, value) ->
+    | Binary (b, block, value) ->
       (fun f__1
         f__2
         f__3
@@ -891,19 +889,19 @@ let record_let_binding rewrite_id generate_phantom_lets let_bound
             let t1 = record_defined_var var t0 in
             add_used_in_current_handler free_names0 t1)
         b
-    | Flambda_primitive.Ternary (_, _, _, _) ->
+    | Ternary (_, _, _, _) ->
       if Flambda_primitive.at_most_generative_effects original_prim0
       then record_var_bindings t0 free_names0
       else
         let t1 = record_defined_var var t0 in
         add_used_in_current_handler free_names0 t1
-    | Flambda_primitive.Quaternary (_, _, _, _, _) ->
+    | Quaternary (_, _, _, _, _) ->
       if Flambda_primitive.at_most_generative_effects original_prim0
       then record_var_bindings t0 free_names0
       else
         let t1 = record_defined_var var t0 in
         add_used_in_current_handler free_names0 t1
-    | Flambda_primitive.Variadic (v, fields) ->
+    | Variadic (v, fields) ->
       (fun f__1 f__2 f__3 f__4 x__0 ->
         match (x__0 : Flambda_primitive.variadic_primitive) with
         | Flambda_primitive.Begin_region { ghost = x__1 } -> f__1 x__1
@@ -943,9 +941,8 @@ let record_let_binding rewrite_id generate_phantom_lets let_bound
             let t1 = record_defined_var var t0 in
             add_used_in_current_handler free_names0 t1)
         v)
-  | Simplified_named.Set_of_closures (_, _) ->
-    record_var_bindings t0 free_names0
-  | Simplified_named.Rec_info _ -> record_var_bindings t0 free_names0
+  | Set_of_closures (_, _) -> record_var_bindings t0 free_names0
+  | Rec_info _ -> record_var_bindings t0 free_names0
 
 (** val record_lifted_function_slot_aux : Name_occurrences.t -> Simple.t
     Value_slot.Map.t -> 'a1 -> (Symbol.t * 'a2) -> cont_info -> cont_info coq_M
@@ -990,7 +987,7 @@ let record_lifted_constant_definition_aux being_defined elt definition =
       match Rebuilt_static_const.to_const expr with
       | Some t0 -> (
         match t0 with
-        | Flambda.Code _ ->
+        | Code _ ->
           let free_names0 =
             Name_occurrences.union being_defined
               (Lifted_constant.Definition.free_names definition)
@@ -1000,7 +997,7 @@ let record_lifted_constant_definition_aux being_defined elt definition =
               let symbol, _ = pat in
               record_symbol_binding_aux symbol free_names0 elt0)
             closure_symbols_with_types elt
-        | Flambda.Deleted_code ->
+        | Deleted_code ->
           let free_names0 =
             Name_occurrences.union being_defined
               (Lifted_constant.Definition.free_names definition)
@@ -1010,7 +1007,7 @@ let record_lifted_constant_definition_aux being_defined elt definition =
               let symbol, _ = pat in
               record_symbol_binding_aux symbol free_names0 elt0)
             closure_symbols_with_types elt
-        | Flambda.Static_const const ->
+        | Static_const const ->
           let set_of_closures = Static_const.must_be_set_of_closures const in
           let free_names0 =
             Name_occurrences.union being_defined
@@ -1090,8 +1087,8 @@ let record_lifted_constants lifted_constants0 t0 =
 
 let add_extra_args_to_call extra_args rewrite_id original_args =
   match Apply_cont_rewrite_id.Map.find_or_null rewrite_id extra_args with
-  | Or_null.Null -> Some original_args
-  | Or_null.This t0 -> (
+  | Null -> Some original_args
+  | This t0 -> (
     match t0 with
     | Or_invalid.Ok extra_args0 ->
       let args_acc =
@@ -1133,16 +1130,15 @@ let normalize_acc specialization_map t0 =
           Continuation.Map.fold
             (fun cont rewrite_ids acc ->
               match Continuation.Map.find_or_null cont specialization_map with
-              | Or_null.Null -> Continuation.Map.add cont rewrite_ids acc
-              | Or_null.This specialized_ids ->
+              | Null -> Continuation.Map.add cont rewrite_ids acc
+              | This specialized_ids ->
                 Apply_cont_rewrite_id.Map.fold
                   (fun id args acc0 ->
                     match
                       Apply_cont_rewrite_id.Map.find_or_null id specialized_ids
                     with
-                    | Or_null.Null ->
-                      Continuation_callsite_map.add cont id args acc0
-                    | Or_null.This specialized ->
+                    | Null -> Continuation_callsite_map.add cont id args acc0
+                    | This specialized ->
                       Continuation_callsite_map.add specialized id args acc0)
                   rewrite_ids acc)
             elt.Flow_types.Continuation_info.apply_cont_args
@@ -1155,8 +1151,8 @@ let normalize_acc specialization_map t0 =
                 match
                   Continuation.Map.find_or_null cont t0.Flow_types.Acc.extra
                 with
-                | Or_null.Null -> rewrite_ids
-                | Or_null.This epa ->
+                | Null -> rewrite_ids
+                | This epa ->
                   let extra_args = EPA.extra_args epa in
                   Apply_cont_rewrite_id.Map.filter_map
                     (add_extra_args_to_call extra_args)
@@ -1182,16 +1178,16 @@ let normalize_acc specialization_map t0 =
                 Continuation.Map.find_or_null callee_cont
                   t0.Flow_types.Acc.extra
               with
-              | Or_null.Null -> defined0
-              | Or_null.This epa ->
+              | Null -> defined0
+              | This epa ->
                 Apply_cont_rewrite_id.Map.fold
                   (fun rewrite_id _ defined1 ->
                     match
                       Apply_cont_rewrite_id.Map.find_or_null rewrite_id
                         (EPA.extra_args epa)
                     with
-                    | Or_null.Null -> defined1
-                    | Or_null.This t1 -> (
+                    | Null -> defined1
+                    | This t1 -> (
                       match t1 with
                       | Or_invalid.Ok extra_args ->
                         let defined2 =

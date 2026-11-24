@@ -34,7 +34,7 @@ let simplify_array_set array_kind array_set_kind dacc original_term dbg array
     Simplify_common.specialise_array_kind dacc array_kind array_ty
   in
   match array_kind0 with
-  | Or_bottom.Ok array_kind1 ->
+  | Ok array_kind1 ->
     let () =
       match array_kind1 with
       | P.Array_kind.Immediates -> ()
@@ -142,7 +142,7 @@ let simplify_array_set array_kind array_set_kind dacc original_term dbg array
     in
     let named =
       Named.create_prim
-        (P.Ternary
+        (Ternary
            (P.Array_set (array_kind1, array_set_kind), array, index, new_value))
         dbg
     in
@@ -152,7 +152,7 @@ let simplify_array_set array_kind array_set_kind dacc original_term dbg array
     in
     let dacc0 = DA.add_variable dacc result_var unit_ty in
     SPR.create named false dacc0
-  | Or_bottom.Bottom -> SPR.create_invalid dacc
+  | Bottom -> SPR.create_invalid dacc
 
 (** val simplify_bytes_or_bigstring_set : P.bytes_like_value ->
     P.string_accessor_width -> DA.t -> Named.t -> Debuginfo.t -> Simple.t -> T.t

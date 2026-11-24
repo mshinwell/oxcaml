@@ -92,6 +92,17 @@ definition, with [open P] or [open! P] in its OCaml head) counts here as
 an abbreviation that is empty: a name of a module inside P is then written
 without P, if the file binds no module of that first name.
 
+CONSTRUCTORS WITHOUT THEIR MODULE. FILE.v may list inductive types of
+decl/ in a comment
+    (* CONSTRUCTORS-WITHOUT-MODULE: Flambda_primitive.t Or_unknown.t *)
+(names as decl/ has them, from the file's name). Each constructor of a
+listed type whose text is a bare path is then printed with its last name
+only ([Unary] for [P.Unary]), under every reference to the type; a
+constructor whose text is a wrapper (an inline record) is left. OCaml finds
+the type from the place, as it does for the compiler's file, which is
+compiled without warnings 40-42. If it cannot, the extracted file does not
+type-check: take the type off the list. The tool does not decide the list.
+
 THE TEXT. For a constant or an inductive type of that module, or of a module
 inside it: the text of DECL_DIR, in which each path that begins with the
 OCaml name of the module has [A] in the place of that beginning. (The OCaml
@@ -242,6 +253,32 @@ def respell(text, opath, spelling):
         return re.sub(r"(?<![A-Za-z0-9_'.])%s" % OPATH, one, m.group(0))
 
     return re.sub(r'"(?:[^"]|"")*"', in_string, text)
+
+
+def without_module(text):
+    """The text of an [Extract Inductive]: in its list of constructors, a
+    string that is a bare path is given its last name only."""
+    strings = list(re.finditer(r'"(?:[^"]|"")*"', text))
+    if not strings:
+        return text
+    start = text.find("[", strings[0].end())
+    if start < 0:
+        return text
+    out = [text[:start]]
+    pos = start
+    for m in strings[1:]:
+        between = text[pos : m.start()]
+        if "]" in between:
+            break
+        out.append(between)
+        body = m.group(0)[1:-1]
+        if re.fullmatch(OPATH, body):
+            out.append('"%s"' % body.split(".")[-1])
+        else:
+            out.append(m.group(0))
+        pos = m.end()
+    out.append(text[pos:])
+    return "".join(out)
 
 
 def resolve(target, env, decl):
@@ -422,6 +459,13 @@ def main():
     if first_def is None:
         first_def = len(lines)
 
+    # the text given to each reference, and the declared thing that it is
+    given = collections.OrderedDict()
+
+    def give(kind, ref, text, sub, name):
+        given.pop(ref, None)
+        given[ref] = (kind, text, sub, name)
+
     for prefix, spelling, mod, _ in found:
         opath = decl.ocaml_path(mod)
         for sub in sorted(decl.constants):
@@ -431,7 +475,7 @@ def main():
                 if opath is not None:
                     text = respell(text, opath, spelling)
                 ref = ".".join([prefix] + list(sub[len(mod):]) + [name])
-                print("%s %s => %s." % (kind, ref, text))
+                give(kind, ref, text, sub, name)
 
     # WHERE ROCQ CHOOSES THE NAME: the whole name of a declared thing gets
     # the abbreviation too, if the file writes that thing with one
@@ -498,7 +542,34 @@ def main():
             if opath is None:
                 continue
             ref = ".".join(["SimplifyPort.decl"] + list(sub) + [name])
-            print("%s %s => %s." % (kind, ref, respell(text, opath, spelling)))
+            give(kind, ref, respell(text, opath, spelling), sub, name)
+
+    # CONSTRUCTORS WITHOUT THEIR MODULE: for each inductive type of decl/
+    # that FILE.v lists in a comment (* CONSTRUCTORS-WITHOUT-MODULE: ... *),
+    # each constructor whose text is a bare path is given its last name
+    # only, under every reference to the type: OCaml then finds the type
+    # from the place, as it does in the compiler's file.
+    listed = []
+    for m in re.finditer(r"\(\* CONSTRUCTORS-WITHOUT-MODULE:(.*?)\*\)", v_text, re.S):
+        listed.extend(m.group(1).split())
+    for item in listed:
+        parts = tuple(item.split("."))
+        sub, name = parts[:-1], parts[-1]
+        entry = [t for k, n, t in decl.constants.get(sub, []) if k == "Extract Inductive" and n == name]
+        if not entry:
+            sys.stderr.write(
+                "%s: CONSTRUCTORS-WITHOUT-MODULE: %s is not an inductive type of decl/ with a directive\n" % (v_path, item)
+            )
+            sys.exit(1)
+        canonical = ".".join(["SimplifyPort.decl"] + list(sub) + [name])
+        if canonical not in given:
+            give("Extract Inductive", canonical, entry[0], sub, name)
+        for ref, (kind, text, sub2, name2) in list(given.items()):
+            if kind == "Extract Inductive" and sub2 == sub and name2 == name:
+                give(kind, ref, without_module(text), sub, name)
+
+    for ref, (kind, text, _, _) in given.items():
+        print("%s %s => %s." % (kind, ref, text))
 
 
 if __name__ == "__main__":

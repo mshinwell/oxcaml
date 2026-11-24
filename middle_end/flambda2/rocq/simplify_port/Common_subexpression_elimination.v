@@ -31,6 +31,8 @@ From SimplifyPort.decl Require Apply_cont_rewrite_id Bound_name Bound_parameter
   ListLabels Name Name_mode Name_occurrences Or_invalid Scope Simple Stdlib_
   Target_system Variable_.
 From SimplifyPort.decl Require Import Common_subexpression_elimination__local.
+(* CONSTRUCTORS-WITHOUT-MODULE: Continuation_extra_params_and_args.t
+   Flambda_primitive.t Flambda_primitive.unary_primitive Or_invalid.t *)
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 

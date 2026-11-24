@@ -35,6 +35,12 @@ From SimplifyPort.decl Require Apply_expr Bound_parameters
   Simple Simplified_expr Simplify_common Simplify_rec_info_expr Tag
   Target_ocaml_int Upwards_acc Upwards_env.
 Import Flambda.Import_.
+(* CONSTRUCTORS-WITHOUT-MODULE: Apply_expr.Result_continuation.t
+   Downwards_env.Disable_inlining.t Downwards_env.Disable_inlining_reason.t
+   Flambda2_types.meet_shortcut Flambda2_types.reification_result
+   Flambda_features.Inlining.round_or_default
+   Flambda_kind.With_subkind.Nullable.t Inlined_attribute.t Or_unknown.t
+   Recursive.t Replay_history.replay_result *)
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 

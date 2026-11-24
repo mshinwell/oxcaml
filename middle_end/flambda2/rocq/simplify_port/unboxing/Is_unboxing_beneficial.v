@@ -26,6 +26,8 @@ From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Import Simplify_import.
 From SimplifyPort.decl Require Apply_cont_rewrite_id List Reg_width_const
   Simple Tag Unboxing_types Value_slot.
+(* CONSTRUCTORS-WITHOUT-MODULE: Flambda_kind.Naked_number_kind.t
+   Unboxing_types.do_not_unbox_reason Unboxing_types.unboxing_decision *)
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 

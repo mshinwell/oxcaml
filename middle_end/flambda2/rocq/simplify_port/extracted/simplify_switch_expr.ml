@@ -174,9 +174,8 @@ let rebuild_arm uacc arm pat pat0 =
                       check_handler handler action1)
                     (fun t0 ->
                       match t0 with
-                      | Or_unknown.Known handler ->
-                        check_handler handler action1
-                      | Or_unknown.Unknown -> Some action1)
+                      | Known handler -> check_handler handler action1
+                      | Unknown -> Some action1)
                     (fun _ ->
                       Misc.fatal_errorf
                         "Inconsistency for %a between [Apply_cont.is_goto] and \
@@ -220,9 +219,8 @@ let rebuild_arm uacc arm pat pat0 =
                       check_handler handler action1)
                     (fun t0 ->
                       match t0 with
-                      | Or_unknown.Known handler ->
-                        check_handler handler action1
-                      | Or_unknown.Unknown -> Some action1)
+                      | Known handler -> check_handler handler action1
+                      | Unknown -> Some action1)
                     (fun _ ->
                       Misc.fatal_errorf
                         "Inconsistency for %a between [Apply_cont.is_goto] and \
@@ -266,9 +264,8 @@ let rebuild_arm uacc arm pat pat0 =
                       check_handler handler action1)
                     (fun t0 ->
                       match t0 with
-                      | Or_unknown.Known handler ->
-                        check_handler handler action1
-                      | Or_unknown.Unknown -> Some action1)
+                      | Known handler -> check_handler handler action1
+                      | Unknown -> Some action1)
                     (fun _ ->
                       Misc.fatal_errorf
                         "Inconsistency for %a between [Apply_cont.is_goto] and \
@@ -312,9 +309,8 @@ let rebuild_arm uacc arm pat pat0 =
                       check_handler handler action1)
                     (fun t0 ->
                       match t0 with
-                      | Or_unknown.Known handler ->
-                        check_handler handler action1
-                      | Or_unknown.Unknown -> Some action1)
+                      | Known handler -> check_handler handler action1
+                      | Unknown -> Some action1)
                     (fun _ ->
                       Misc.fatal_errorf
                         "Inconsistency for %a between [Apply_cont.is_goto] and \
@@ -649,8 +645,8 @@ let let_op_dollar expr k uacc shareable_constants0 typing_env_before_switch0
           List.map (T.alias_type_of (KS.kind element_kind)) simples0
         in
         let block_type =
-          T.immutable_array (Or_unknown_or_bottom.Ok element_kind) fields
-            Alloc_mode.For_types.heap machine_width
+          T.immutable_array (Ok element_kind) fields Alloc_mode.For_types.heap
+            machine_width
         in
         let uacc0 =
           UA.add_lifted_constant uacc
@@ -663,9 +659,9 @@ let let_op_dollar expr k uacc shareable_constants0 typing_env_before_switch0
       match RSC.to_const array_const with
       | Some t0 -> (
         match t0 with
-        | Flambda.Code _ -> Misc.fatal_error "Cannot bind code"
-        | Flambda.Deleted_code -> Misc.fatal_error "Cannot bind code"
-        | Flambda.Static_const const -> (
+        | Code _ -> Misc.fatal_error "Cannot bind code"
+        | Deleted_code -> Misc.fatal_error "Cannot bind code"
+        | Static_const const -> (
           match Static_const.Map.find_opt const shareable_constants0 with
           | Some symbol -> already_bound (Simple.symbol symbol)
           | None -> create_lookup_table (Some const)))
@@ -722,21 +718,21 @@ type affine_argument_of_mergeable_arm =
 
 let recognize_affine_immediate_const const =
   match Reg_width_const.descr const with
-  | Int_ids.Const.Descr.Naked_immediate naked_imm -> Some (Naked, naked_imm)
-  | Int_ids.Const.Descr.Tagged_immediate tagged_imm -> Some (Tagged, tagged_imm)
-  | Int_ids.Const.Descr.Naked_float32 _ -> None
-  | Int_ids.Const.Descr.Naked_float _ -> None
-  | Int_ids.Const.Descr.Naked_int8 _ -> None
-  | Int_ids.Const.Descr.Naked_int16 _ -> None
-  | Int_ids.Const.Descr.Naked_int32 _ -> None
-  | Int_ids.Const.Descr.Naked_int64 _ -> None
-  | Int_ids.Const.Descr.Naked_nativeint _ -> None
-  | Int_ids.Const.Descr.Naked_vec128 _ -> None
-  | Int_ids.Const.Descr.Naked_vec256 _ -> None
-  | Int_ids.Const.Descr.Naked_vec512 _ -> None
-  | Int_ids.Const.Descr.Naked_mask _ -> None
-  | Int_ids.Const.Descr.Null -> None
-  | Int_ids.Const.Descr.Poison (_, _) -> None
+  | Naked_immediate naked_imm -> Some (Naked, naked_imm)
+  | Tagged_immediate tagged_imm -> Some (Tagged, tagged_imm)
+  | Naked_float32 _ -> None
+  | Naked_float _ -> None
+  | Naked_int8 _ -> None
+  | Naked_int16 _ -> None
+  | Naked_int32 _ -> None
+  | Naked_int64 _ -> None
+  | Naked_nativeint _ -> None
+  | Naked_vec128 _ -> None
+  | Naked_vec256 _ -> None
+  | Naked_vec512 _ -> None
+  | Naked_mask _ -> None
+  | Null -> None
+  | Poison (_, _) -> None
 
 (** val recognize_affine_argument : Target_system.Machine_width.t ->
     affine_argument_of_mergeable_arm -> TI.t -> RWC.t ->
@@ -829,7 +825,7 @@ let enough_arms num_arms x =
 
 let bound_tagged_scrutinee scrutinee0 dbg =
   bound_prim "tagged_scrutinee" K.value
-    (P.Unary (P.Tag_immediate, scrutinee0))
+    (P.Unary (Tag_immediate, scrutinee0))
     dbg
 
 (** val rebuild_mergeable_argument : Target_system.Machine_width.t -> Simple.t
@@ -862,7 +858,7 @@ let rebuild_mergeable_argument machine_width scrutinee0 mergeable_argument0 k =
         (fun tagged_scrutinee ->
           let_op_dollar
             (bound_prim "not_scrutinee" K.value
-               (P.Unary (P.Boolean_not, tagged_scrutinee))
+               (P.Unary (Boolean_not, tagged_scrutinee))
                dbg)
             k))
     (fun kind offset slope ->
@@ -879,7 +875,7 @@ let rebuild_mergeable_argument machine_width scrutinee0 mergeable_argument0 k =
            else
              bound_prim "scaled_arg" kind0
                (P.Binary
-                  ( P.Int_arith (standard_int, (P.Mul : P.binary_int_arith_op)),
+                  ( Int_arith (standard_int, (P.Mul : P.binary_int_arith_op)),
                     scrutinee1,
                     Simple.const (const slope0) ))
                dbg)
@@ -890,7 +886,7 @@ let rebuild_mergeable_argument machine_width scrutinee0 mergeable_argument0 k =
                else
                  bound_prim "final_arg" kind0
                    (P.Binary
-                      ( P.Int_arith
+                      ( Int_arith
                           ( standard_int,
                             if must_negate
                             then (P.Sub : P.binary_int_arith_op)
@@ -916,7 +912,7 @@ let rebuild_mergeable_argument machine_width scrutinee0 mergeable_argument0 k =
         (fun switch_block ->
           let_op_dollar
             (bound_prim "tagged_scrutinee" K.value
-               (P.Unary (P.Tag_immediate, scrutinee0))
+               (P.Unary (Tag_immediate, scrutinee0))
                dbg)
             (fun tagged_scrutinee ->
               let_op_dollar
@@ -925,7 +921,7 @@ let rebuild_mergeable_argument machine_width scrutinee0 mergeable_argument0 k =
                  else
                    bound_prim "offset_scrutinee" K.value
                      (P.Binary
-                        ( P.Int_arith
+                        ( Int_arith
                             ( K.Standard_int.Tagged_immediate,
                               (P.Add : P.binary_int_arith_op) ),
                           tagged_scrutinee,
@@ -935,8 +931,7 @@ let rebuild_mergeable_argument machine_width scrutinee0 mergeable_argument0 k =
                   let_op_dollar
                     (bound_prim "arg" loaded_kind
                        (P.Binary
-                          ( P.Array_load
-                              (array_kind, array_load_kind, Mutability.Immutable),
+                          ( Array_load (array_kind, array_load_kind, Immutable),
                             switch_block,
                             offset_scrutinee ))
                        dbg)
@@ -1101,7 +1096,7 @@ let recognize_mergeable_argument machine_width scrutinee0 required_names dbg arg
                        (array_kind, array_load_kind, first_discr, args))
                 in
                 match first_kind with
-                | K.Value ->
+                | Value ->
                   if
                     List.for_all
                       (fun simple ->
@@ -1114,46 +1109,46 @@ let recognize_mergeable_argument machine_width scrutinee0 required_names dbg arg
                     single_kind P.Array_kind.Immediates
                       P.Array_load_kind.Immediates
                   else single_kind P.Array_kind.Values P.Array_load_kind.Values
-                | K.Naked_number nn -> (
+                | Naked_number nn -> (
                   match nn with
-                  | K.Naked_number_kind.Naked_immediate ->
+                  | Naked_immediate ->
                     single_kind P.Array_kind.Naked_ints
                       P.Array_load_kind.Naked_ints
-                  | K.Naked_number_kind.Naked_float32 ->
+                  | Naked_float32 ->
                     single_kind P.Array_kind.Naked_float32s
                       P.Array_load_kind.Naked_float32s
-                  | K.Naked_number_kind.Naked_float ->
+                  | Naked_float ->
                     single_kind P.Array_kind.Naked_floats
                       P.Array_load_kind.Naked_floats
-                  | K.Naked_number_kind.Naked_int8 ->
+                  | Naked_int8 ->
                     single_kind P.Array_kind.Naked_int8s
                       P.Array_load_kind.Naked_int8s
-                  | K.Naked_number_kind.Naked_int16 ->
+                  | Naked_int16 ->
                     single_kind P.Array_kind.Naked_int16s
                       P.Array_load_kind.Naked_int16s
-                  | K.Naked_number_kind.Naked_int32 ->
+                  | Naked_int32 ->
                     single_kind P.Array_kind.Naked_int32s
                       P.Array_load_kind.Naked_int32s
-                  | K.Naked_number_kind.Naked_int64 ->
+                  | Naked_int64 ->
                     single_kind P.Array_kind.Naked_int64s
                       P.Array_load_kind.Naked_int64s
-                  | K.Naked_number_kind.Naked_nativeint ->
+                  | Naked_nativeint ->
                     single_kind P.Array_kind.Naked_nativeints
                       P.Array_load_kind.Naked_nativeints
-                  | K.Naked_number_kind.Naked_vec128 ->
+                  | Naked_vec128 ->
                     single_kind P.Array_kind.Naked_vec128s
                       P.Array_load_kind.Naked_vec128s
-                  | K.Naked_number_kind.Naked_vec256 ->
+                  | Naked_vec256 ->
                     single_kind P.Array_kind.Naked_vec256s
                       P.Array_load_kind.Naked_vec256s
-                  | K.Naked_number_kind.Naked_vec512 ->
+                  | Naked_vec512 ->
                     single_kind P.Array_kind.Naked_vec512s
                       P.Array_load_kind.Naked_vec512s
-                  | K.Naked_number_kind.Naked_mask ->
+                  | Naked_mask ->
                     single_kind P.Array_kind.Naked_masks
                       P.Array_load_kind.Naked_masks)
-                | K.Region -> None
-                | K.Rec_info -> None))
+                | Region -> None
+                | Rec_info -> None))
           | None -> None)
         | Maybe_affine -> Misc.fatal_error "Unexpected invariant argument"
         | Constant (_, _, _) -> Misc.fatal_error "Unexpected invariant argument"
@@ -1226,7 +1221,7 @@ let rebuild_switch pat uacc after_rebuild =
     if num_arms < 1
     then
       let uacc0 = UA.notify_removed Removed_operations.branch uacc in
-      RE.create_invalid Flambda.Invalid.Zero_switch_arms, uacc0
+      RE.create_invalid Zero_switch_arms, uacc0
     else
       let dbg = Debuginfo.none in
       let normal_case =
@@ -1294,9 +1289,7 @@ let simplify_arm arm pat pat0 =
   let annotations = Switch_arm.annotations switch_arm in
   let denv_at_use = DE.with_typing_env (DA.denv dacc) env_at_use in
   let args = AC.args action in
-  let use_kind =
-    Simplify_common.apply_cont_use_kind Simplify_common.Switch_branch action
-  in
+  let use_kind = Simplify_common.apply_cont_use_kind Switch_branch action in
   let { Simplify_simple.simples = args0;
         Simplify_simple.simple_tys = arg_types
       } =
@@ -1387,21 +1380,19 @@ let decide_continuation_specialization0 dacc switch scrutinee0 =
                     T.Join_analysis.simple_refined_at_join join_analysis
                       (DE.typing_env denv) scrutinee0
                   with
-                  | T.Join_analysis.Not_refined_at_join -> `Not_enough_join_info
-                  | T.Join_analysis.Invariant_in_all_uses _ ->
-                    `No_reason_to_spec
-                  | T.Join_analysis.Variable_refined_at_these_uses var_analysis
-                    ->
+                  | Not_refined_at_join -> `Not_enough_join_info
+                  | Invariant_in_all_uses _ -> `No_reason_to_spec
+                  | Variable_refined_at_these_uses var_analysis ->
                     let specialized, generic =
                       T.Join_analysis.Variable_refined_at_join
                       .fold_values_at_uses
                         (fun id value pat ->
                           let specialized, generic = pat in
                           match value with
-                          | Or_unknown.Known _ ->
+                          | Known _ ->
                             ( Apply_cont_rewrite_id.Set.add id specialized,
                               generic )
-                          | Or_unknown.Unknown ->
+                          | Unknown ->
                             ( specialized,
                               Apply_cont_rewrite_id.Set.add id generic ))
                         var_analysis
@@ -1441,10 +1432,10 @@ let decide_continuation_specialization0 dacc switch scrutinee0 =
               | `Too_many_unknown_uses -> `Too_many_unknown_uses)
           (fun reason ->
             match reason with
-            | Specialization_cost.Specialization_disabled -> `Disabled
-            | Specialization_cost.At_toplevel -> `Toplevel
-            | Specialization_cost.Contains_static_consts -> `Cannot_specialize
-            | Specialization_cost.Contains_set_of_closures -> `Cannot_specialize)
+            | Specialization_disabled -> `Disabled
+            | At_toplevel -> `Toplevel
+            | Contains_static_consts -> `Cannot_specialize
+            | Contains_set_of_closures -> `Cannot_specialize)
           (DE.specialization_cost denv))
     (fun _ ->
       Misc.fatal_errorf
@@ -1499,10 +1490,10 @@ let simplify_switch dacc switch down_to_up0 =
       (fun arm action ->
         let shape = T.this_naked_immediate arm in
         match T.meet typing_env_at_use scrutinee_ty0 shape with
-        | Or_bottom.Ok p ->
+        | Ok p ->
           let _, env_at_use = p in
           Some (action, env_at_use)
-        | Or_bottom.Bottom -> None)
+        | Bottom -> None)
       (Switch.arms switch)
   in
   match TI.Map.get_singleton arms0 with

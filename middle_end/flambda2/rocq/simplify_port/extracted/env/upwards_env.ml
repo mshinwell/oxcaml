@@ -140,8 +140,8 @@ let check_shortcut_transitivity t0 cont shortcut_to =
 
 let find_continuation_shortcut t0 cont =
   match Continuation.Map.find_or_null cont t0.continuation_shortcuts with
-  | Or_null.Null -> None
-  | Or_null.This shortcut_to ->
+  | Null -> None
+  | This shortcut_to ->
     let () =
       check_shortcut_transitivity t0 cont
         (Continuation_shortcut.continuation shortcut_to)
@@ -258,7 +258,7 @@ let add_continuation_shortcut t0 cont params shortcut_to args =
     else ()
   in
   match Continuation.Map.find_or_null cont t0.continuation_shortcuts with
-  | Or_null.Null ->
+  | Null ->
     let shortcut = Continuation_shortcut.create params shortcut_to args in
     let () =
       match Continuation_shortcut.to_alias shortcut with
@@ -280,7 +280,7 @@ let add_continuation_shortcut t0 cont params shortcut_to args =
     in
     (fun t continuation_shortcuts -> { t with continuation_shortcuts })
       t0 continuation_shortcuts0
-  | Or_null.This existing_shortcut ->
+  | This existing_shortcut ->
     Misc.fatal_errorf
       "Cannot add continuation shortcut %a (as shortcut to%a); the source \
        continuation is already deemed to be a shortcut (to %a)"

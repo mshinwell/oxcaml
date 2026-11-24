@@ -39,6 +39,16 @@ From SimplifyPort.decl Require Alloc_mode Apply_cont_rewrite_id
   Removed_operations Simple Simplified_named Simplify_apply_cont_expr
   Simplify_common Specialization_cost Static_const Stdlib_ String Switch_arm
   Symbol Target_ocaml_int Target_system Variable_.
+(* CONSTRUCTORS-WITHOUT-MODULE: Are_lifting_conts.t
+   Expr_builder.rewrite_switch_arm_result Flambda.Invalid.t
+   Flambda.static_const_or_code
+   Flambda2_types.Join_analysis.simple_refined_at_join_
+   Flambda_kind.Naked_number_kind.t Flambda_kind.t
+   Flambda_primitive.binary_float_arith_op
+   Flambda_primitive.binary_primitive Flambda_primitive.unary_primitive
+   Int_ids.Const.Descr.t Mutability.t Or_bottom.t Or_unknown.t
+   Or_unknown_or_bottom.t Simplify_common.apply_cont_context
+   Specialization_cost.reason Specialization_cost.t *)
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 Local Open Scope list_scope.

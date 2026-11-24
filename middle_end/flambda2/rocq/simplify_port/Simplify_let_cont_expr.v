@@ -37,6 +37,11 @@ From SimplifyPort.decl Require Apply_cont_rewrite Apply_cont_rewrite_id
   One_recursive_handler Option Or_invalid Or_null Or_unknown
   Original_handlers Replay_history Simple Simplified_named Simplify_common
   Specialization_cost Unbox_continuation_params Variable_.
+(* CONSTRUCTORS-WITHOUT-MODULE: Are_lifting_conts.reason Are_lifting_conts.t
+   Continuation.Sort.t Continuation_use_kind.t Flambda.let_cont_expr
+   Num_occurrences.t Or_null.t Or_unknown.t Original_handlers.t
+   Replay_history.replay_result
+   Unbox_continuation_params.continuation_arg_types *)
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 Local Open Scope list_scope.

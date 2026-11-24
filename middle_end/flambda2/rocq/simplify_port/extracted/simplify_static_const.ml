@@ -74,8 +74,8 @@ let rebuild_naked_number_array dacc bind_result_sym kind type_creator creator
   let dacc0 =
     let machine_width = DE.machine_width (DA.denv dacc) in
     bind_result_sym
-      (T.immutable_array (Or_unknown_or_bottom.Ok kind) field_tys
-         Alloc_mode.For_types.heap machine_width)
+      (T.immutable_array (Ok kind) field_tys Alloc_mode.For_types.heap
+         machine_width)
   in
   creator (DA.are_rebuilding_terms dacc0) fields0, dacc0
 
@@ -114,9 +114,8 @@ let simplify_static_const_of_kind_value dacc static_const result_sym =
     let fields_with_tys =
       let fields_with_kinds =
         match shape with
-        | K.Scannable_block_shape.Value_only ->
-          List.map (fun field -> field, K.value) fields
-        | K.Scannable_block_shape.Mixed_record shape0 ->
+        | Value_only -> List.map (fun field -> field, K.value) fields
+        | Mixed_record shape0 ->
           List.combine fields
             (Array.to_list (K.Mixed_block_shape.field_kinds shape0))
       in
@@ -300,8 +299,8 @@ let simplify_static_const_of_kind_value dacc static_const result_sym =
     let dacc0 =
       let machine_width = DE.machine_width (DA.denv dacc) in
       bind_result_sym
-        (T.immutable_array (Or_unknown_or_bottom.Ok KS.any_value) field_tys
-           Alloc_mode.For_types.heap machine_width)
+        (T.immutable_array (Ok KS.any_value) field_tys Alloc_mode.For_types.heap
+           machine_width)
     in
     ( Rebuilt_static_const.create_immutable_value_array
         (DA.are_rebuilding_terms dacc0)
@@ -310,7 +309,7 @@ let simplify_static_const_of_kind_value dacc static_const result_sym =
   | Static_const.Empty_array array_kind ->
     let dacc0 =
       bind_result_sym
-        (T.array_of_length Or_unknown_or_bottom.Bottom
+        (T.array_of_length Bottom
            (T.this_tagged_immediate
               (Target_ocaml_int.zero (DE.machine_width (DA.denv dacc))))
            Alloc_mode.For_types.heap)

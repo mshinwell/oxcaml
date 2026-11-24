@@ -28,6 +28,11 @@ From SimplifyPort.decl Require Apply_cont_rewrite_id Bound_parameter
   Name_occurrences Named_rewrite_id Numeric_types Option Or_invalid Or_null
   Rebuilt_static_const Set_of_closures Simple Simplified_named Static_const
   Symbol Symbol_projection Target_ocaml_int Value_slot Variable_.
+(* CONSTRUCTORS-WITHOUT-MODULE: Flambda.static_const_or_code
+   Flambda_primitive.t Flambda_primitive.unary_primitive
+   Flambda_primitive.variadic_primitive Flow_types.Mutable_prim.t
+   Lifted_constant.Definition_.descr_ Or_null.t
+   Simplified_named.simplified_named *)
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 

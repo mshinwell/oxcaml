@@ -30,6 +30,11 @@ From SimplifyPort.decl Require Apply_cont_rewrite_id Array Bound_parameter
   Flambda_primitive Format Function_slot List Name_mode Option Or_unknown
   Reg_width_const Simple Tag Target_ocaml_int Target_system Unboxers
   Unboxing_types Value_slot Variable_.
+(* CONSTRUCTORS-WITHOUT-MODULE: Flambda2_types.meet_shortcut
+   Flambda2_types.reification_result Flambda_kind.Naked_number_kind.t
+   Flambda_kind.Scannable_block_shape.t
+   Flambda_primitive.Block_access_field_kind.t
+   Unboxing_types.const_ctors_decision Unboxing_types.unboxing_decision *)
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 Local Open Scope list_scope.

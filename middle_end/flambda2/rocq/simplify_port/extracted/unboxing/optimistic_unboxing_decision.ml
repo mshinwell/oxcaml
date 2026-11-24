@@ -59,9 +59,7 @@ let make_optimistic_const_ctor _ =
     Extra_param_and_args.create "unboxed_const_ctor" Flambda_debug_uid.none
       K.naked_immediate
   in
-  let ctor =
-    U.Unbox (U.Number (K.Naked_number_kind.Naked_immediate, unboxed_const_ctor))
-  in
+  let ctor = U.Unbox (Number (Naked_immediate, unboxed_const_ctor)) in
   (fun (x__1, x__2) ->
     (U.At_least_one { is_int = x__1; ctor = x__2 } : U.const_ctors_decision))
     (is_int, ctor)
@@ -71,15 +69,15 @@ let make_optimistic_const_ctor _ =
 
 let make_optimistic_number_decision tenv param_type decider =
   match decider.Unboxers.prove_is_a_boxed_number tenv param_type with
-  | T.Proved u ->
+  | Proved u ->
     let () = u in
     let naked_number =
       Extra_param_and_args.create decider.Unboxers.param_name
         Flambda_debug_uid.none
         (K.naked_number decider.Unboxers.kind)
     in
-    Some (U.Unbox (U.Number (decider.Unboxers.kind, naked_number)))
-  | T.Unknown -> None
+    Some (U.Unbox (Number (decider.Unboxers.kind, naked_number)))
+  | Unknown -> None
 
 (** val decide : TE.t -> T.t -> Unboxers.number_decider list -> U.decision
     option coq_M **)
@@ -108,27 +106,27 @@ let rec make_optimistic_decision depth recursive tenv param_type =
   let param_type_is_alias_to_symbol = T.is_alias_to_a_symbol param_type in
   let param_kind_is_not_value =
     match T.kind param_type with
-    | K.Value -> false
-    | K.Naked_number _ -> true
-    | K.Region -> true
-    | K.Rec_info -> true
+    | Value -> false
+    | Naked_number _ -> true
+    | Region -> true
+    | Rec_info -> true
   in
   if param_type_is_alias_to_symbol
-  then U.Do_not_unbox U.Not_beneficial
+  then U.Do_not_unbox Not_beneficial
   else if param_kind_is_not_value
-  then U.Do_not_unbox U.Not_of_kind_value
+  then U.Do_not_unbox Not_of_kind_value
   else
     match decide tenv param_type deciders with
     | Some decision ->
       if unbox_numbers
       then decision
-      else U.Do_not_unbox U.Incomplete_parameter_type
+      else U.Do_not_unbox Incomplete_parameter_type
     | None -> (
       if depth >= Flambda_features.Expert.max_unboxing_depth ()
-      then U.Do_not_unbox U.Max_depth_exceeded
+      then U.Do_not_unbox Max_depth_exceeded
       else
         match T.prove_unique_tag_and_size tenv param_type with
-        | T.Proved t0 -> (
+        | Proved t0 -> (
           let tag, shape, size = t0 in
           if unbox_blocks
           then
@@ -144,10 +142,10 @@ let rec make_optimistic_decision depth recursive tenv param_type =
                       { tag = x__1; shape = x__2; fields = x__3 }
                      : U.unboxing_decision))
                    (tag, shape, fields0))
-            | None -> U.Do_not_unbox U.All_fields_invalid
+            | None -> U.Do_not_unbox All_fields_invalid
           else
             match Flambda2_types.prove_variant_like tenv param_type with
-            | T.Proved v -> (
+            | Proved v -> (
               let { Flambda2_types.const_ctors = const_ctors0;
                     Flambda2_types.non_const_ctors_with_sizes =
                       non_const_ctors_with_sizes0
@@ -162,11 +160,11 @@ let rec make_optimistic_decision depth recursive tenv param_type =
                 in
                 let const_ctors1 =
                   match const_ctors0 with
-                  | Or_unknown.Known set ->
+                  | Known set ->
                     if Target_ocaml_int.Set.is_empty set
                     then U.Zero
                     else make_optimistic_const_ctor ()
-                  | Or_unknown.Unknown -> make_optimistic_const_ctor ()
+                  | Unknown -> make_optimistic_const_ctor ()
                 in
                 let fields_by_tag =
                   Tag.Scannable.Map.filter_map
@@ -182,7 +180,7 @@ let rec make_optimistic_decision depth recursive tenv param_type =
                     non_const_ctors_with_sizes0
                 in
                 if Tag.Scannable.Map.is_empty fields_by_tag
-                then U.Do_not_unbox U.All_fields_invalid
+                then U.Do_not_unbox All_fields_invalid
                 else
                   match Tag.Scannable.Map.get_singleton fields_by_tag with
                   | Some p ->
@@ -241,7 +239,7 @@ let rec make_optimistic_decision depth recursive tenv param_type =
                       const_ctors1
               else
                 match T.prove_single_closures_entry tenv param_type with
-                | T.Proved t1 ->
+                | Proved t1 ->
                   let function_slot, _, closures_entry, _ = t1 in
                   if unbox_closures && not recursive
                   then
@@ -255,11 +253,11 @@ let rec make_optimistic_decision depth recursive tenv param_type =
                             { function_slot = x__1; vars_within_closure = x__2 }
                            : U.unboxing_decision))
                          (function_slot, vars_within_closure))
-                  else U.Do_not_unbox U.Incomplete_parameter_type
-                | T.Unknown -> U.Do_not_unbox U.Incomplete_parameter_type)
-            | T.Unknown -> (
+                  else U.Do_not_unbox Incomplete_parameter_type
+                | Unknown -> U.Do_not_unbox Incomplete_parameter_type)
+            | Unknown -> (
               match T.prove_single_closures_entry tenv param_type with
-              | T.Proved t1 ->
+              | Proved t1 ->
                 let function_slot, _, closures_entry, _ = t1 in
                 if unbox_closures && not recursive
                 then
@@ -273,11 +271,11 @@ let rec make_optimistic_decision depth recursive tenv param_type =
                           { function_slot = x__1; vars_within_closure = x__2 }
                          : U.unboxing_decision))
                        (function_slot, vars_within_closure))
-                else U.Do_not_unbox U.Incomplete_parameter_type
-              | T.Unknown -> U.Do_not_unbox U.Incomplete_parameter_type))
-        | T.Unknown -> (
+                else U.Do_not_unbox Incomplete_parameter_type
+              | Unknown -> U.Do_not_unbox Incomplete_parameter_type))
+        | Unknown -> (
           match Flambda2_types.prove_variant_like tenv param_type with
-          | T.Proved v -> (
+          | Proved v -> (
             let { Flambda2_types.const_ctors = const_ctors0;
                   Flambda2_types.non_const_ctors_with_sizes =
                     non_const_ctors_with_sizes0
@@ -292,11 +290,11 @@ let rec make_optimistic_decision depth recursive tenv param_type =
               in
               let const_ctors1 =
                 match const_ctors0 with
-                | Or_unknown.Known set ->
+                | Known set ->
                   if Target_ocaml_int.Set.is_empty set
                   then U.Zero
                   else make_optimistic_const_ctor ()
-                | Or_unknown.Unknown -> make_optimistic_const_ctor ()
+                | Unknown -> make_optimistic_const_ctor ()
               in
               let fields_by_tag =
                 Tag.Scannable.Map.filter_map
@@ -312,7 +310,7 @@ let rec make_optimistic_decision depth recursive tenv param_type =
                   non_const_ctors_with_sizes0
               in
               if Tag.Scannable.Map.is_empty fields_by_tag
-              then U.Do_not_unbox U.All_fields_invalid
+              then U.Do_not_unbox All_fields_invalid
               else
                 match Tag.Scannable.Map.get_singleton fields_by_tag with
                 | Some p ->
@@ -371,7 +369,7 @@ let rec make_optimistic_decision depth recursive tenv param_type =
                     const_ctors1
             else
               match T.prove_single_closures_entry tenv param_type with
-              | T.Proved t0 ->
+              | Proved t0 ->
                 let function_slot, _, closures_entry, _ = t0 in
                 if unbox_closures && not recursive
                 then
@@ -385,11 +383,11 @@ let rec make_optimistic_decision depth recursive tenv param_type =
                           { function_slot = x__1; vars_within_closure = x__2 }
                          : U.unboxing_decision))
                        (function_slot, vars_within_closure))
-                else U.Do_not_unbox U.Incomplete_parameter_type
-              | T.Unknown -> U.Do_not_unbox U.Incomplete_parameter_type)
-          | T.Unknown -> (
+                else U.Do_not_unbox Incomplete_parameter_type
+              | Unknown -> U.Do_not_unbox Incomplete_parameter_type)
+          | Unknown -> (
             match T.prove_single_closures_entry tenv param_type with
-            | T.Proved t0 ->
+            | Proved t0 ->
               let function_slot, _, closures_entry, _ = t0 in
               if unbox_closures && not recursive
               then
@@ -403,8 +401,8 @@ let rec make_optimistic_decision depth recursive tenv param_type =
                         { function_slot = x__1; vars_within_closure = x__2 }
                        : U.unboxing_decision))
                      (function_slot, vars_within_closure))
-              else U.Do_not_unbox U.Incomplete_parameter_type
-            | T.Unknown -> U.Do_not_unbox U.Incomplete_parameter_type)))
+              else U.Do_not_unbox Incomplete_parameter_type
+            | Unknown -> U.Do_not_unbox Incomplete_parameter_type)))
 
 (** val make_optimistic_fields : bool -> int -> bool -> TE.t -> T.t -> Tag.t ->
     K.Block_shape.t -> Target_ocaml_int.t -> U.field_decision list option coq_M
@@ -414,11 +412,11 @@ and make_optimistic_fields add_tag_to_name depth recursive tenv param_type tag
     shape size =
   let field_base_name =
     match shape with
-    | K.Block_shape.Scannable t0 -> (
+    | Scannable t0 -> (
       match t0 with
-      | K.Scannable_block_shape.Value_only -> "unboxed_field"
-      | K.Scannable_block_shape.Mixed_record _ -> "unboxed_mixed_field")
-    | K.Block_shape.Float_record -> "unboxed_float_field"
+      | Value_only -> "unboxed_field"
+      | Mixed_record _ -> "unboxed_mixed_field")
+    | Float_record -> "unboxed_float_field"
   in
   let field_name =
    fun n ->
@@ -466,7 +464,7 @@ and make_optimistic_fields add_tag_to_name depth recursive tenv param_type tag
       Port_monad.raise_ Port_monad.fatal_error_exception ())
     (fun meet_result ->
       match meet_result with
-      | Or_bottom.Ok p ->
+      | Ok p ->
         let _, tenv1 = p in
         let fields =
           List.map2
@@ -481,7 +479,7 @@ and make_optimistic_fields add_tag_to_name depth recursive tenv param_type tag
             field_vars field_types
         in
         Some fields
-      | Or_bottom.Bottom -> None)
+      | Bottom -> None)
 
 (** val make_optimistic_vars_within_closure : int -> bool -> TE.t ->
     T.Closures_entry.t -> U.field_decision Value_slot.Map.t coq_M **)

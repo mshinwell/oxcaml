@@ -29,6 +29,11 @@ From SimplifyPort.decl Require Alloc_mode Apply_cont_rewrite_id Apply_expr
   Loopify_state Misc Mutability Name Name_mode Option Or_bottom Or_unknown
   Simple Simplify_primitive_result Stdlib_ Symbol_projection Tag
   Target_ocaml_int Target_system Trap_action Variable_.
+(* CONSTRUCTORS-WITHOUT-MODULE: Flambda.Invalid.t
+   Flambda2_types.meet_shortcut Flambda2_types.proof_of_property
+   Flambda2_types.reification_result Flambda_kind.Naked_number_kind.t
+   Flambda_primitive.Block_access_field_kind.t Lambda.return_mode
+   Or_unknown.t Trap_action.Raise_kind.t *)
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 

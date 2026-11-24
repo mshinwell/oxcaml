@@ -27,6 +27,9 @@ From SimplifyPort.decl Require Apply_cont_expr Apply_cont_rewrite_id
   Bound_parameters Code_size Continuation Continuation_callsite_map
   Continuation_in_env Cost_metrics Flow List ListLabels Name_occurrences
   Option Simple Simplified_named Simplify_common.
+(* CONSTRUCTORS-WITHOUT-MODULE: Expr_builder.rewrite_apply_cont_result
+   Expr_builder.rewrite_switch_arm_result Flambda.Invalid.t
+   Simplify_common.apply_cont_context *)
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 

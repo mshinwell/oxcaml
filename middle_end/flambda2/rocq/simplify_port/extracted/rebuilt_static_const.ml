@@ -252,9 +252,7 @@ let create_block are_rebuilding tag is_mutable shape fields =
 
 let create_boxed_float32 are_rebuilding machine_width or_var =
   let cost_metrics0 =
-    Cost_metrics.from_size
-      (Code_size.box_number machine_width
-         Flambda_kind.Boxable_number.Naked_float32)
+    Cost_metrics.from_size (Code_size.box_number machine_width Naked_float32)
   in
   if ART.do_not_rebuild_terms are_rebuilding
   then
@@ -269,9 +267,7 @@ let create_boxed_float32 are_rebuilding machine_width or_var =
 
 let create_boxed_float are_rebuilding machine_width or_var =
   let cost_metrics0 =
-    Cost_metrics.from_size
-      (Code_size.box_number machine_width
-         Flambda_kind.Boxable_number.Naked_float)
+    Cost_metrics.from_size (Code_size.box_number machine_width Naked_float)
   in
   if ART.do_not_rebuild_terms are_rebuilding
   then
@@ -286,9 +282,7 @@ let create_boxed_float are_rebuilding machine_width or_var =
 
 let create_boxed_int32 are_rebuilding machine_width or_var =
   let cost_metrics0 =
-    Cost_metrics.from_size
-      (Code_size.box_number machine_width
-         Flambda_kind.Boxable_number.Naked_int32)
+    Cost_metrics.from_size (Code_size.box_number machine_width Naked_int32)
   in
   if ART.do_not_rebuild_terms are_rebuilding
   then
@@ -303,9 +297,7 @@ let create_boxed_int32 are_rebuilding machine_width or_var =
 
 let create_boxed_int64 are_rebuilding machine_width or_var =
   let cost_metrics0 =
-    Cost_metrics.from_size
-      (Code_size.box_number machine_width
-         Flambda_kind.Boxable_number.Naked_int64)
+    Cost_metrics.from_size (Code_size.box_number machine_width Naked_int64)
   in
   if ART.do_not_rebuild_terms are_rebuilding
   then
@@ -320,9 +312,7 @@ let create_boxed_int64 are_rebuilding machine_width or_var =
 
 let create_boxed_nativeint are_rebuilding machine_width or_var =
   let cost_metrics0 =
-    Cost_metrics.from_size
-      (Code_size.box_number machine_width
-         Flambda_kind.Boxable_number.Naked_nativeint)
+    Cost_metrics.from_size (Code_size.box_number machine_width Naked_nativeint)
   in
   if ART.do_not_rebuild_terms are_rebuilding
   then
@@ -337,9 +327,7 @@ let create_boxed_nativeint are_rebuilding machine_width or_var =
 
 let create_boxed_vec128 are_rebuilding machine_width or_var =
   let cost_metrics0 =
-    Cost_metrics.from_size
-      (Code_size.box_number machine_width
-         Flambda_kind.Boxable_number.Naked_vec128)
+    Cost_metrics.from_size (Code_size.box_number machine_width Naked_vec128)
   in
   if ART.do_not_rebuild_terms are_rebuilding
   then
@@ -354,9 +342,7 @@ let create_boxed_vec128 are_rebuilding machine_width or_var =
 
 let create_boxed_vec256 are_rebuilding machine_width or_var =
   let cost_metrics0 =
-    Cost_metrics.from_size
-      (Code_size.box_number machine_width
-         Flambda_kind.Boxable_number.Naked_vec256)
+    Cost_metrics.from_size (Code_size.box_number machine_width Naked_vec256)
   in
   if ART.do_not_rebuild_terms are_rebuilding
   then
@@ -371,9 +357,7 @@ let create_boxed_vec256 are_rebuilding machine_width or_var =
 
 let create_boxed_vec512 are_rebuilding machine_width or_var =
   let cost_metrics0 =
-    Cost_metrics.from_size
-      (Code_size.box_number machine_width
-         Flambda_kind.Boxable_number.Naked_vec512)
+    Cost_metrics.from_size (Code_size.box_number machine_width Naked_vec512)
   in
   if ART.do_not_rebuild_terms are_rebuilding
   then
@@ -388,8 +372,7 @@ let create_boxed_vec512 are_rebuilding machine_width or_var =
 
 let create_boxed_mask are_rebuilding machine_width or_var =
   let cost_metrics0 =
-    Cost_metrics.from_size
-      (Code_size.box_number machine_width Flambda_kind.Boxable_number.Naked_mask)
+    Cost_metrics.from_size (Code_size.box_number machine_width Naked_mask)
   in
   if ART.do_not_rebuild_terms are_rebuilding
   then
@@ -570,11 +553,11 @@ let map_set_of_closures t0 find_code_metadata f =
     | Code_not_rebuilt x__1 -> f__4 x__1)
     (fun const _ _ ->
       match const with
-      | Flambda.Code _ -> t0
-      | Flambda.Deleted_code -> t0
-      | Flambda.Static_const const0 -> (
+      | Code _ -> t0
+      | Deleted_code -> t0
+      | Static_const const0 -> (
         match const0 with
-        | SC.Set_of_closures set_of_closures ->
+        | Set_of_closures set_of_closures ->
           let set_of_closures0 = f set_of_closures in
           let cost_metrics0 =
             Cost_metrics.set_of_closures
@@ -590,32 +573,32 @@ let map_set_of_closures t0 find_code_metadata f =
             (Normal { const = x__1; free_names = x__2; cost_metrics = x__3 }
               : rebuilt_static_const))
             (const1, free_names0, cost_metrics0)
-        | SC.Block (_, _, _, _) -> t0
-        | SC.Boxed_float32 _ -> t0
-        | SC.Boxed_float _ -> t0
-        | SC.Boxed_int32 _ -> t0
-        | SC.Boxed_int64 _ -> t0
-        | SC.Boxed_nativeint _ -> t0
-        | SC.Boxed_vec128 _ -> t0
-        | SC.Boxed_vec256 _ -> t0
-        | SC.Boxed_vec512 _ -> t0
-        | SC.Boxed_mask _ -> t0
-        | SC.Immutable_float_block _ -> t0
-        | SC.Immutable_float_array _ -> t0
-        | SC.Immutable_float32_array _ -> t0
-        | SC.Immutable_int_array _ -> t0
-        | SC.Immutable_int8_array _ -> t0
-        | SC.Immutable_int16_array _ -> t0
-        | SC.Immutable_int32_array _ -> t0
-        | SC.Immutable_int64_array _ -> t0
-        | SC.Immutable_nativeint_array _ -> t0
-        | SC.Immutable_vec128_array _ -> t0
-        | SC.Immutable_vec256_array _ -> t0
-        | SC.Immutable_vec512_array _ -> t0
-        | SC.Immutable_mask_array _ -> t0
-        | SC.Immutable_value_array _ -> t0
-        | SC.Empty_array _ -> t0
-        | SC.Immutable_string _ -> t0))
+        | Block (_, _, _, _) -> t0
+        | Boxed_float32 _ -> t0
+        | Boxed_float _ -> t0
+        | Boxed_int32 _ -> t0
+        | Boxed_int64 _ -> t0
+        | Boxed_nativeint _ -> t0
+        | Boxed_vec128 _ -> t0
+        | Boxed_vec256 _ -> t0
+        | Boxed_vec512 _ -> t0
+        | Boxed_mask _ -> t0
+        | Immutable_float_block _ -> t0
+        | Immutable_float_array _ -> t0
+        | Immutable_float32_array _ -> t0
+        | Immutable_int_array _ -> t0
+        | Immutable_int8_array _ -> t0
+        | Immutable_int16_array _ -> t0
+        | Immutable_int32_array _ -> t0
+        | Immutable_int64_array _ -> t0
+        | Immutable_nativeint_array _ -> t0
+        | Immutable_vec128_array _ -> t0
+        | Immutable_vec256_array _ -> t0
+        | Immutable_vec512_array _ -> t0
+        | Immutable_mask_array _ -> t0
+        | Immutable_value_array _ -> t0
+        | Empty_array _ -> t0
+        | Immutable_string _ -> t0))
     (fun _ _ -> t0)
     (fun _ _ -> t0)
     (fun _ -> t0)

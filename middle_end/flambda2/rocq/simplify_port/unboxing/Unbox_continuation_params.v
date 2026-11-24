@@ -28,6 +28,8 @@ From SimplifyPort.decl Require Apply_cont_rewrite_id Bound_parameter
   Continuation_uses Downwards_env Flambda2_types Is_unboxing_beneficial List
   Name_mode Optimistic_unboxing_decision Profile Stdlib_ Target_system
   Unboxing_epa Unboxing_types.
+(* CONSTRUCTORS-WITHOUT-MODULE: Unboxing_types.do_not_unbox_reason
+   Unboxing_types.pass *)
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 

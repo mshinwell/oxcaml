@@ -25,6 +25,7 @@ From SimplifyPort.decl Require Bound_parameters Code_id Continuation
   Flambda_features Flambda_kind Flow_acc Flow_types Format Mutable_unboxing
   Name Name_occurrences Named_rewrite Named_rewrite_id Or_unknown Profile Seq
   Simple Stdlib_ String Target_system Variable_.
+(* CONSTRUCTORS-WITHOUT-MODULE: Named_rewrite.Prim_rewrite.t *)
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 

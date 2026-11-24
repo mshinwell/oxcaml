@@ -195,8 +195,8 @@ let find_dom simple doms =
   Simple.pattern_match' simple
     (fun var _ ->
       match Variable.Map.find_or_null var doms with
-      | Or_null.Null -> simple
-      | Or_null.This dom -> dom)
+      | Null -> simple
+      | This dom -> dom)
     (fun _ _ -> simple)
     (fun _ -> simple)
 
@@ -217,8 +217,8 @@ let update_doms_for_one_var t0 doms var =
     then simple
     else
       match Simple.Map.find_or_null simple graph0 with
-      | Or_null.Null -> simple
-      | Or_null.This predecessors -> (
+      | Null -> simple
+      | This predecessors -> (
         let s =
           Simple.Set.map
             (fun predecessor -> find_dom predecessor doms)
@@ -378,8 +378,8 @@ let aliases_kind t0 aliases =
           (fun v _ ->
             let () =
               match Variable.Map.find_or_null v acc with
-              | Or_null.Null -> ()
-              | Or_null.This alias_kind ->
+              | Null -> ()
+              | This alias_kind ->
                 if not (Flambda_kind.equal kind0 alias_kind)
                 then Misc.fatal_errorf "Incoherent kinds for aliases !"
                 else ()

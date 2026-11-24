@@ -25,6 +25,8 @@ From SimplifyPort.decl Require Import Simplify_import.
 From SimplifyPort.decl Require Flambda2_types Flambda_kind Flambda_primitive
   Function_slot Mutability Name_mode Reg_width_const Simple Target_ocaml_int
   Value_slot.
+(* CONSTRUCTORS-WITHOUT-MODULE: Flambda_kind.Boxable_number.t
+   Flambda_primitive.unary_primitive Mutability.t *)
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 

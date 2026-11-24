@@ -28,6 +28,7 @@ From SimplifyPort.decl Require Apply_cont_rewrite_id Bound_parameters
   Flambda2_types Flambda_arity Format Misc Non_recursive_handler
   One_continuation_use One_recursive_handler Option Or_bottom Or_null
   Original_handlers.
+(* CONSTRUCTORS-WITHOUT-MODULE: Or_bottom.t Or_null.t Original_handlers.t *)
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 Local Open Scope list_scope.

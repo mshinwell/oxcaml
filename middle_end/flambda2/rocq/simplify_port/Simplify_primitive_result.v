@@ -25,6 +25,7 @@
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Bound_var Downwards_acc Downwards_env Flambda
   Flambda2_types Flambda_kind Or_invalid Simplified_named Target_ocaml_int.
+(* CONSTRUCTORS-WITHOUT-MODULE: Or_invalid.t *)
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 

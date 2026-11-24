@@ -37,6 +37,8 @@ From SimplifyPort.decl Require Alloc_mode Apply_cont_rewrite_id Apply_expr
   Scope Simple Specialization_cost Symbol Symbol_projection Target_system
   Variable_.
 Import Flambda.Import_.
+(* CONSTRUCTORS-WITHOUT-MODULE: Flambda2_types.to_erase Or_null.t
+   Specialization_cost.reason *)
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 Local Open Scope list_scope.

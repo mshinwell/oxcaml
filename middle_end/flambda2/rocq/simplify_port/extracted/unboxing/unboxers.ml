@@ -95,7 +95,7 @@ module Immediate = struct
 
   (** val unboxing_prim : Simple.t -> P.t coq_M **)
 
-  let unboxing_prim simple = P.Unary (P.Untag_immediate, simple)
+  let unboxing_prim simple = P.Unary (Untag_immediate, simple)
 
   (** val unboxer : unboxer **)
 
@@ -120,8 +120,7 @@ module Float32 = struct
 
   (** val unboxing_prim : Simple.t -> P.t coq_M **)
 
-  let unboxing_prim simple =
-    P.Unary (P.Unbox_number K.Boxable_number.Naked_float32, simple)
+  let unboxing_prim simple = P.Unary (Unbox_number Naked_float32, simple)
 
   (** val unboxer : unboxer **)
 
@@ -146,8 +145,7 @@ module Float = struct
 
   (** val unboxing_prim : Simple.t -> P.t coq_M **)
 
-  let unboxing_prim simple =
-    P.Unary (P.Unbox_number K.Boxable_number.Naked_float, simple)
+  let unboxing_prim simple = P.Unary (Unbox_number Naked_float, simple)
 
   (** val unboxer : unboxer **)
 
@@ -171,8 +169,7 @@ module Int32 = struct
 
   (** val unboxing_prim : Simple.t -> P.t coq_M **)
 
-  let unboxing_prim simple =
-    P.Unary (P.Unbox_number K.Boxable_number.Naked_int32, simple)
+  let unboxing_prim simple = P.Unary (Unbox_number Naked_int32, simple)
 
   (** val unboxer : unboxer **)
 
@@ -196,8 +193,7 @@ module Int64 = struct
 
   (** val unboxing_prim : Simple.t -> P.t coq_M **)
 
-  let unboxing_prim simple =
-    P.Unary (P.Unbox_number K.Boxable_number.Naked_int64, simple)
+  let unboxing_prim simple = P.Unary (Unbox_number Naked_int64, simple)
 
   (** val unboxer : unboxer **)
 
@@ -221,8 +217,7 @@ module Nativeint = struct
 
   (** val unboxing_prim : Simple.t -> P.t coq_M **)
 
-  let unboxing_prim simple =
-    P.Unary (P.Unbox_number K.Boxable_number.Naked_nativeint, simple)
+  let unboxing_prim simple = P.Unary (Unbox_number Naked_nativeint, simple)
 
   (** val unboxer : unboxer **)
 
@@ -247,8 +242,7 @@ module Vec128 = struct
 
   (** val unboxing_prim : Simple.t -> P.t coq_M **)
 
-  let unboxing_prim simple =
-    P.Unary (P.Unbox_number K.Boxable_number.Naked_vec128, simple)
+  let unboxing_prim simple = P.Unary (Unbox_number Naked_vec128, simple)
 
   (** val unboxer : unboxer **)
 
@@ -272,8 +266,7 @@ module Vec256 = struct
 
   (** val unboxing_prim : Simple.t -> P.t coq_M **)
 
-  let unboxing_prim simple =
-    P.Unary (P.Unbox_number K.Boxable_number.Naked_vec256, simple)
+  let unboxing_prim simple = P.Unary (Unbox_number Naked_vec256, simple)
 
   (** val unboxer : unboxer **)
 
@@ -297,8 +290,7 @@ module Vec512 = struct
 
   (** val unboxing_prim : Simple.t -> P.t coq_M **)
 
-  let unboxing_prim simple =
-    P.Unary (P.Unbox_number K.Boxable_number.Naked_vec512, simple)
+  let unboxing_prim simple = P.Unary (Unbox_number Naked_vec512, simple)
 
   (** val unboxer : unboxer **)
 
@@ -322,8 +314,7 @@ module Mask = struct
 
   (** val unboxing_prim : Simple.t -> P.t coq_M **)
 
-  let unboxing_prim simple =
-    P.Unary (P.Unbox_number K.Boxable_number.Naked_mask, simple)
+  let unboxing_prim simple = P.Unary (Unbox_number Naked_mask, simple)
 
   (** val unboxer : unboxer **)
 
@@ -345,7 +336,7 @@ module Field = struct
       ( (fun (x__1, x__2, x__3) ->
           (P.Block_load { kind = x__1; mut = x__2; field = x__3 }
             : P.unary_primitive))
-          (bak, Mutability.Immutable, index),
+          (bak, Immutable, index),
         block )
 
   (** val unboxer : Const.t -> P.Block_access_kind.t -> Target_ocaml_int.t ->

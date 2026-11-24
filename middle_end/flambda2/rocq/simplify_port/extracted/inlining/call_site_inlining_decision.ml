@@ -61,8 +61,8 @@ let speculative_inlining dacc apply function_type simplify_expr rebuild_expr
     let data_flow = DA.flow_acc dacc4 in
     let function_return_cont =
       match Apply.continuation apply with
-      | Apply_expr.Result_continuation.Return cont -> cont
-      | Apply_expr.Result_continuation.Never_returns ->
+      | Return cont -> cont
+      | Never_returns ->
         (fun x__1 x__2 x__3 -> Continuation.create ?sort:x__1 ?name:x__2 x__3)
           None None ()
     in
@@ -74,7 +74,7 @@ let speculative_inlining dacc apply function_type simplify_expr rebuild_expr
         (DE.machine_width (DA.denv dacc4))
         function_return_cont
         (Exn_continuation.exn_handler exn_continuation)
-        T.Code_age_relation.empty Or_unknown.Unknown Code_id.Set.empty
+        T.Code_age_relation.empty Unknown Code_id.Set.empty
         (DA.specialization_map dacc4)
         data_flow
     in
@@ -89,11 +89,11 @@ let speculative_inlining dacc apply function_type simplify_expr rebuild_expr
     in
     let uenv0 =
       match Apply.continuation apply with
-      | Apply_expr.Result_continuation.Return return_continuation ->
+      | Return return_continuation ->
         UE.add_function_return_or_exn_continuation uenv return_continuation
           false
           (Flambda_arity.unarize_t return_arity)
-      | Apply_expr.Result_continuation.Never_returns -> uenv
+      | Never_returns -> uenv
     in
     let uacc = UA.create flow_result false uenv0 dacc4 in
     rebuild_expr expr0 uacc (fun expr1 uacc0 -> expr1, uacc0)
@@ -166,7 +166,7 @@ let argument_types_useful dacc apply code_metadata =
                                .t))
                            ( Target_ocaml_int.Set.singleton const0,
                              Tag.Scannable.Map.empty ))
-                        Flambda_kind.With_subkind.Nullable.Non_nullable))
+                        Non_nullable))
               | None -> true))
         (Flambda_arity.unarize arity)
         (Apply.args apply)
@@ -201,11 +201,9 @@ let might_inline dacc apply code_metadata function_type simplify_expr
   let is_a_functor = Code_metadata.is_a_functor code_metadata in
   let in_a_stub, doing_speculative_inlining =
     match disable_inlining with
-    | DE.Disable_inlining.Disable_inlining t -> (
-      match t with
-      | DE.Disable_inlining_reason.Stub -> true, false
-      | DE.Disable_inlining_reason.Speculative_inlining -> false, true)
-    | DE.Disable_inlining.Do_not_disable_inlining -> false, false
+    | Disable_inlining t -> (
+      match t with Stub -> true, false | Speculative_inlining -> false, true)
+    | Do_not_disable_inlining -> false, false
   in
   if in_a_stub
   then Call_site_inlining_decision_type.In_a_stub
@@ -534,7 +532,7 @@ let make_decision0 dacc simplify_expr rebuild_expr function_type apply
   let rec_info = get_rec_info dacc function_type in
   let inlined = Apply.inlined apply in
   match inlined with
-  | Inlined_attribute.Always_inlined _ ->
+  | Always_inlined _ ->
     Port_monad.match_exn
       (fun _ ->
         DE.find_code_metadata_exn (DA.denv dacc) (FT.code_id function_type))
@@ -584,24 +582,24 @@ let make_decision0 dacc simplify_expr rebuild_expr function_type apply
           else
             let policy =
               match inlined with
-              | Inlined_attribute.Always_inlined _ -> (
+              | Always_inlined _ -> (
                 match recursive with
-                | Recursive.Non_recursive -> `Always
-                | Recursive.Recursive -> `Unroll 1)
-              | Inlined_attribute.Hint_inlined -> (
+                | Non_recursive -> `Always
+                | Recursive -> `Unroll 1)
+              | Hint_inlined -> (
                 match recursive with
-                | Recursive.Non_recursive -> `Always
-                | Recursive.Recursive -> `Unroll 1)
-              | Inlined_attribute.Forward_inlined -> assert false
-              | Inlined_attribute.Never_inlined -> assert false
-              | Inlined_attribute.Unroll (to_, _) -> `Unroll to_
-              | Inlined_attribute.Default_inlined -> `Heuristic
+                | Non_recursive -> `Always
+                | Recursive -> `Unroll 1)
+              | Forward_inlined -> assert false
+              | Never_inlined -> assert false
+              | Unroll (to_, _) -> `Unroll to_
+              | Default_inlined -> `Heuristic
             in
             match policy with
             | `Heuristic ->
               let max_rec_depth =
                 Flambda_features.Inlining.max_rec_depth
-                  (Flambda_features.Inlining.Round (DE.round (DA.denv dacc)))
+                  (Round (DE.round (DA.denv dacc)))
               in
               if
                 Simplify_rec_info_expr.depth_may_exceed dacc rec_info
@@ -615,12 +613,12 @@ let make_decision0 dacc simplify_expr rebuild_expr function_type apply
                   Replay_history.replay_inlining_decision
                     (DE.replay_history (DA.denv dacc))
                 with
-                | Replay_history.Still_recording ->
+                | Still_recording ->
                   Misc.fatal_errorf
                     "Internal assumption broken: DE.says must_inline\n\
                     \                  (presumably because of the replay \
                      history), but the replay history is still recoding."
-                | Replay_history.Replayed decision ->
+                | Replayed decision ->
                   if code_present ()
                   then
                     Call_site_inlining_decision_type
@@ -646,7 +644,7 @@ let make_decision0 dacc simplify_expr rebuild_expr function_type apply
             | `Always ->
               inline_if_code_present
                 Call_site_inlining_decision_type.Attribute_always))
-  | Inlined_attribute.Hint_inlined ->
+  | Hint_inlined ->
     Port_monad.match_exn
       (fun _ ->
         DE.find_code_metadata_exn (DA.denv dacc) (FT.code_id function_type))
@@ -696,24 +694,24 @@ let make_decision0 dacc simplify_expr rebuild_expr function_type apply
           else
             let policy =
               match inlined with
-              | Inlined_attribute.Always_inlined _ -> (
+              | Always_inlined _ -> (
                 match recursive with
-                | Recursive.Non_recursive -> `Always
-                | Recursive.Recursive -> `Unroll 1)
-              | Inlined_attribute.Hint_inlined -> (
+                | Non_recursive -> `Always
+                | Recursive -> `Unroll 1)
+              | Hint_inlined -> (
                 match recursive with
-                | Recursive.Non_recursive -> `Always
-                | Recursive.Recursive -> `Unroll 1)
-              | Inlined_attribute.Forward_inlined -> assert false
-              | Inlined_attribute.Never_inlined -> assert false
-              | Inlined_attribute.Unroll (to_, _) -> `Unroll to_
-              | Inlined_attribute.Default_inlined -> `Heuristic
+                | Non_recursive -> `Always
+                | Recursive -> `Unroll 1)
+              | Forward_inlined -> assert false
+              | Never_inlined -> assert false
+              | Unroll (to_, _) -> `Unroll to_
+              | Default_inlined -> `Heuristic
             in
             match policy with
             | `Heuristic ->
               let max_rec_depth =
                 Flambda_features.Inlining.max_rec_depth
-                  (Flambda_features.Inlining.Round (DE.round (DA.denv dacc)))
+                  (Round (DE.round (DA.denv dacc)))
               in
               if
                 Simplify_rec_info_expr.depth_may_exceed dacc rec_info
@@ -727,12 +725,12 @@ let make_decision0 dacc simplify_expr rebuild_expr function_type apply
                   Replay_history.replay_inlining_decision
                     (DE.replay_history (DA.denv dacc))
                 with
-                | Replay_history.Still_recording ->
+                | Still_recording ->
                   Misc.fatal_errorf
                     "Internal assumption broken: DE.says must_inline\n\
                     \                  (presumably because of the replay \
                      history), but the replay history is still recoding."
-                | Replay_history.Replayed decision ->
+                | Replayed decision ->
                   if code_present ()
                   then
                     Call_site_inlining_decision_type
@@ -758,13 +756,13 @@ let make_decision0 dacc simplify_expr rebuild_expr function_type apply
             | `Always ->
               inline_if_code_present
                 Call_site_inlining_decision_type.Attribute_always))
-  | Inlined_attribute.Forward_inlined ->
+  | Forward_inlined ->
     do_not_inline
       Call_site_inlining_decision_type
       .Forward_inlined_attribute_but_nothing_to_forward
-  | Inlined_attribute.Never_inlined ->
+  | Never_inlined ->
     do_not_inline Call_site_inlining_decision_type.Never_inlined_attribute
-  | Inlined_attribute.Unroll (_, _) ->
+  | Unroll (_, _) ->
     Port_monad.match_exn
       (fun _ ->
         DE.find_code_metadata_exn (DA.denv dacc) (FT.code_id function_type))
@@ -814,24 +812,24 @@ let make_decision0 dacc simplify_expr rebuild_expr function_type apply
           else
             let policy =
               match inlined with
-              | Inlined_attribute.Always_inlined _ -> (
+              | Always_inlined _ -> (
                 match recursive with
-                | Recursive.Non_recursive -> `Always
-                | Recursive.Recursive -> `Unroll 1)
-              | Inlined_attribute.Hint_inlined -> (
+                | Non_recursive -> `Always
+                | Recursive -> `Unroll 1)
+              | Hint_inlined -> (
                 match recursive with
-                | Recursive.Non_recursive -> `Always
-                | Recursive.Recursive -> `Unroll 1)
-              | Inlined_attribute.Forward_inlined -> assert false
-              | Inlined_attribute.Never_inlined -> assert false
-              | Inlined_attribute.Unroll (to_, _) -> `Unroll to_
-              | Inlined_attribute.Default_inlined -> `Heuristic
+                | Non_recursive -> `Always
+                | Recursive -> `Unroll 1)
+              | Forward_inlined -> assert false
+              | Never_inlined -> assert false
+              | Unroll (to_, _) -> `Unroll to_
+              | Default_inlined -> `Heuristic
             in
             match policy with
             | `Heuristic ->
               let max_rec_depth =
                 Flambda_features.Inlining.max_rec_depth
-                  (Flambda_features.Inlining.Round (DE.round (DA.denv dacc)))
+                  (Round (DE.round (DA.denv dacc)))
               in
               if
                 Simplify_rec_info_expr.depth_may_exceed dacc rec_info
@@ -845,12 +843,12 @@ let make_decision0 dacc simplify_expr rebuild_expr function_type apply
                   Replay_history.replay_inlining_decision
                     (DE.replay_history (DA.denv dacc))
                 with
-                | Replay_history.Still_recording ->
+                | Still_recording ->
                   Misc.fatal_errorf
                     "Internal assumption broken: DE.says must_inline\n\
                     \                  (presumably because of the replay \
                      history), but the replay history is still recoding."
-                | Replay_history.Replayed decision ->
+                | Replayed decision ->
                   if code_present ()
                   then
                     Call_site_inlining_decision_type
@@ -876,7 +874,7 @@ let make_decision0 dacc simplify_expr rebuild_expr function_type apply
             | `Always ->
               inline_if_code_present
                 Call_site_inlining_decision_type.Attribute_always))
-  | Inlined_attribute.Default_inlined ->
+  | Default_inlined ->
     Port_monad.match_exn
       (fun _ ->
         DE.find_code_metadata_exn (DA.denv dacc) (FT.code_id function_type))
@@ -926,24 +924,24 @@ let make_decision0 dacc simplify_expr rebuild_expr function_type apply
           else
             let policy =
               match inlined with
-              | Inlined_attribute.Always_inlined _ -> (
+              | Always_inlined _ -> (
                 match recursive with
-                | Recursive.Non_recursive -> `Always
-                | Recursive.Recursive -> `Unroll 1)
-              | Inlined_attribute.Hint_inlined -> (
+                | Non_recursive -> `Always
+                | Recursive -> `Unroll 1)
+              | Hint_inlined -> (
                 match recursive with
-                | Recursive.Non_recursive -> `Always
-                | Recursive.Recursive -> `Unroll 1)
-              | Inlined_attribute.Forward_inlined -> assert false
-              | Inlined_attribute.Never_inlined -> assert false
-              | Inlined_attribute.Unroll (to_, _) -> `Unroll to_
-              | Inlined_attribute.Default_inlined -> `Heuristic
+                | Non_recursive -> `Always
+                | Recursive -> `Unroll 1)
+              | Forward_inlined -> assert false
+              | Never_inlined -> assert false
+              | Unroll (to_, _) -> `Unroll to_
+              | Default_inlined -> `Heuristic
             in
             match policy with
             | `Heuristic ->
               let max_rec_depth =
                 Flambda_features.Inlining.max_rec_depth
-                  (Flambda_features.Inlining.Round (DE.round (DA.denv dacc)))
+                  (Round (DE.round (DA.denv dacc)))
               in
               if
                 Simplify_rec_info_expr.depth_may_exceed dacc rec_info
@@ -957,12 +955,12 @@ let make_decision0 dacc simplify_expr rebuild_expr function_type apply
                   Replay_history.replay_inlining_decision
                     (DE.replay_history (DA.denv dacc))
                 with
-                | Replay_history.Still_recording ->
+                | Still_recording ->
                   Misc.fatal_errorf
                     "Internal assumption broken: DE.says must_inline\n\
                     \                  (presumably because of the replay \
                      history), but the replay history is still recoding."
-                | Replay_history.Replayed decision ->
+                | Replayed decision ->
                   if code_present ()
                   then
                     Call_site_inlining_decision_type

@@ -37,17 +37,17 @@ let add_set_of_closures_offsets is_phantom named0 uacc =
   let add_offsets_from_set =
    fun uacc0 set_of_closures ->
     match UA.slot_offsets uacc0 with
-    | Or_unknown.Known slot_offsets ->
+    | Known slot_offsets ->
       let slot_offsets0 =
         Slot_offsets.add_set_of_closures slot_offsets is_phantom set_of_closures
       in
-      UA.with_slot_offsets uacc0 (Or_unknown.Known slot_offsets0)
-    | Or_unknown.Unknown -> uacc0
+      UA.with_slot_offsets uacc0 (Known slot_offsets0)
+    | Unknown -> uacc0
   in
   let add_offsets_from_code =
    fun uacc0 code ->
     match UA.slot_offsets uacc0 with
-    | Or_unknown.Known slot_offsets ->
+    | Known slot_offsets ->
       let dacc = UA.creation_dacc uacc0 in
       let code_id = Code.code_id code in
       let from_function =
@@ -61,8 +61,8 @@ let add_set_of_closures_offsets is_phantom named0 uacc =
       let slot_offsets0 =
         Slot_offsets.add_offsets_from_function slot_offsets from_function
       in
-      UA.with_slot_offsets uacc0 (Or_unknown.Known slot_offsets0)
-    | Or_unknown.Unknown -> uacc0
+      UA.with_slot_offsets uacc0 (Known slot_offsets0)
+    | Unknown -> uacc0
   in
   Named.fold_code_and_sets_of_closures named0 uacc add_offsets_from_code
     add_offsets_from_set
@@ -326,13 +326,13 @@ let make_new_let_bindings uacc bindings_outermost_first body =
           let defining_expr0 = Simplified_named.to_named defining_expr in
           let expr0, uacc1 =
             match let_bound with
-            | Bound_pattern.Singleton _ ->
+            | Singleton _ ->
               create_let uacc0 let_bound defining_expr0
                 free_names_of_defining_expr expr cost_metrics_of_defining_expr
-            | Bound_pattern.Set_of_closures _ ->
+            | Set_of_closures _ ->
               create_let uacc0 let_bound defining_expr0
                 free_names_of_defining_expr expr cost_metrics_of_defining_expr
-            | Bound_pattern.Static _ ->
+            | Static _ ->
               Misc.fatal_errorf
                 "Mismatch between bound name(s) and defining expression:@ %a@ \
                  =@ %a"
@@ -397,14 +397,14 @@ let create_let_symbol0 uacc bound_static static_consts body =
         Bound_static.code_being_defined bound_static
       in
       match UA.reachable_code_ids uacc with
-      | Or_unknown.Known t0 ->
+      | Known t0 ->
         let { Flow_types.Reachable_code_ids.live_code_ids = live_code_ids0;
               Flow_types.Reachable_code_ids.ancestors_of_live_code_ids = _
             } =
           t0
         in
         Code_id.Set.diff all_code_ids_bound_names live_code_ids0
-      | Or_unknown.Unknown -> Code_id.Set.empty
+      | Unknown -> Code_id.Set.empty
   in
   let static_consts0 =
     if Code_id.Set.is_empty code_ids_to_make_deleted
@@ -485,8 +485,8 @@ let create_let_symbols uacc lifted_constant body =
             Simple.pattern_match' simple
               (fun var' coercion_from_var'_to_simple ->
                 match Variable.Map.find_or_null var' symbol_projections with
-                | Or_null.Null -> stop_here ()
-                | Or_null.This proj' ->
+                | Null -> stop_here ()
+                | This proj' ->
                   let coercion_from_var'_to_proj =
                     coercion_from_var'_to_simple
                   in
@@ -521,7 +521,7 @@ let create_let_symbols uacc lifted_constant body =
                     ( (fun (x__1, x__2, x__3) ->
                         (P.Block_load { kind = x__1; mut = x__2; field = x__3 }
                           : P.unary_primitive))
-                        (block_access_kind, Mutability.Immutable, index),
+                        (block_access_kind, Immutable, index),
                       symbol ))
                 (fun project_from value_slot ->
                   P.Unary
@@ -585,8 +585,7 @@ let place_lifted_constants uacc lifted_constants_from_defining_expr
 let create_switch uacc condition_dbg scrutinee arms =
   if Target_ocaml_int.Map.cardinal arms < 1
   then
-    ( RE.create_invalid Flambda.Invalid.Zero_switch_arms,
-      UA.notify_added Code_size.invalid uacc )
+    RE.create_invalid Zero_switch_arms, UA.notify_added Code_size.invalid uacc
   else
     let change_to_apply_cont =
      fun action ->
@@ -752,7 +751,7 @@ let rewrite_apply_cont0 uacc rewrite ctx id apply_cont =
   let args = Apply_cont.args apply_cont in
   let machine_width = UE.machine_width (UA.uenv uacc) in
   match Apply_cont_rewrite.make_rewrite rewrite machine_width ctx id args with
-  | Or_invalid.Ok p -> (
+  | Ok p -> (
     let extra_lets, args0 = p in
     let apply_cont0 = Apply_cont.update_args apply_cont args0 in
     let apply_cont1 = apply_continuation_shortcuts (UA.uenv uacc) apply_cont0 in
@@ -770,7 +769,7 @@ let rewrite_apply_cont0 uacc rewrite ctx id apply_cont =
           extra_lets body cost_metrics_of_body free_names_of_body
       in
       (fun x__1 -> (Expr x__1 : rewrite_apply_cont_result)) build_expr)
-  | Or_invalid.Invalid ->
+  | Invalid ->
     (fun x__1 -> (Invalid { message = x__1 } : rewrite_apply_cont_result)) ""
 
 (** val rewrite_apply_cont : UA.t -> Apply_cont_rewrite.t ->
@@ -1015,7 +1014,7 @@ let rewrite_fixed_arity_continuation uacc cont0 use_id arity around =
     | This_continuation x__1 -> f__2 x__1
     | Apply_cont x__1 -> f__3 x__1
     | New_wrapper x__1 -> f__4 x__1)
-    (fun message -> uacc, RE.create_invalid (Flambda.Invalid.Message message))
+    (fun message -> uacc, RE.create_invalid (Message message))
     (fun cont1 -> around uacc cont1)
     (fun _ -> assert false)
     (fun new_let_cont0 ->
@@ -1041,7 +1040,7 @@ let rewrite_fixed_arity_apply uacc use_id is_cold arity apply =
   match use_id with
   | Some use_id0 -> (
     match result_continuation with
-    | Apply_expr.Result_continuation.Return cont0 ->
+    | Return cont0 ->
       rewrite_fixed_arity_continuation uacc cont0 use_id0 arity
         (fun uacc0 return_cont ->
           let exn_cont =
@@ -1049,16 +1048,15 @@ let rewrite_fixed_arity_apply uacc use_id is_cold arity apply =
               (Apply.exn_continuation apply)
           in
           let apply0 =
-            Apply.with_continuations apply
-              (Apply_expr.Result_continuation.Return return_cont) exn_cont
+            Apply.with_continuations apply (Return return_cont) exn_cont
           in
           make_apply apply0)
-    | Apply_expr.Result_continuation.Never_returns -> make_apply apply)
+    | Never_returns -> make_apply apply)
   | None -> (
     match result_continuation with
-    | Apply_expr.Result_continuation.Return _ ->
+    | Return _ ->
       Misc.fatal_errorf
         "Expr_builder.rewrite_fixed_arity_apply: got no use_id for the return \
          continuation but the apply could return:@ %a@."
         Apply.print apply
-    | Apply_expr.Result_continuation.Never_returns -> make_apply apply)
+    | Never_returns -> make_apply apply)

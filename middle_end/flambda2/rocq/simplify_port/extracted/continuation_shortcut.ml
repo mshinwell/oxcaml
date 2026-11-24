@@ -76,8 +76,8 @@ let apply t0 shortcut_args =
         Simple.pattern_match' arg
           (fun var coercion ->
             match Variable.Map.find_or_null var subst with
-            | Or_null.Null -> arg
-            | Or_null.This simple -> Simple.apply_coercion_exn simple coercion)
+            | Null -> arg
+            | This simple -> Simple.apply_coercion_exn simple coercion)
           (fun _ _ -> arg)
           (fun _ -> arg))
       args0 )

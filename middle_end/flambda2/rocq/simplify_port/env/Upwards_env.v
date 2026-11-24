@@ -26,6 +26,7 @@ From SimplifyPort.decl Require Apply_cont_rewrite Are_rebuilding_terms
   Bound_parameters Continuation Continuation_in_env Continuation_shortcut
   Cost_metrics Dwarf_flags Flambda_arity Flambda_features Format
   Name_occurrences Or_null Or_unknown Rebuilt_expr Simple Target_system.
+(* CONSTRUCTORS-WITHOUT-MODULE: Or_null.t *)
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 Local Open Scope list_scope.

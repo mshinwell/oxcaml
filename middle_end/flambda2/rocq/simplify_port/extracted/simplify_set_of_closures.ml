@@ -459,7 +459,7 @@ let compute_result_types is_a_functor is_opaque return_cont_uses0
       in
       let env_extension =
         T.make_suitable_for_environment typing_env0
-          (T.All_variables_except params_and_results) results_and_types
+          (All_variables_except params_and_results) results_and_types
       in
       Or_unknown_or_bottom.Ok
         (Result_types.create params0 return_cont_params env_extension)
@@ -563,8 +563,8 @@ let simplify_function0 context outer_dacc0 function_slot_opt code_id0 code0
       Code_id.Map.find_or_null old_code_id
         (C.old_to_new_code_ids_all_sets context)
     with
-    | Or_null.Null -> old_code_id, None
-    | Or_null.This new_code_id -> new_code_id, Some old_code_id
+    | Null -> old_code_id, None
+    | This new_code_id -> new_code_id, Some old_code_id
   in
   let inlining_decision =
     let decision =
@@ -576,7 +576,7 @@ let simplify_function0 context outer_dacc0 function_slot_opt code_id0 code0
       Inlining_report.record_decision_at_function_definition absolute_history
         (Code_metadata.with_cost_metrics cost_metrics0
            (Code.code_metadata code0))
-        Inlining_report.Pass.After_simplify
+        After_simplify
         (DA.are_rebuilding_terms dacc_after_body0)
         decision
     in
@@ -688,7 +688,7 @@ let simplify_function context outer_dacc0 function_slot code_id0
   in
   let code_id1, outer_dacc1 =
     match Code_or_metadata.view code_or_metadata with
-    | Code_or_metadata.View.Code_present code0 ->
+    | Code_present code0 ->
       if
         (not (Code.stub code0))
         || C.stub_can_be_simplified (DA.denv outer_dacc0)
@@ -742,7 +742,7 @@ let simplify_function context outer_dacc0 function_slot code_id0
         in
         run outer_dacc0 code0 0
       else code_id0, outer_dacc0
-    | Code_or_metadata.View.Metadata_only _ -> code_id0, outer_dacc0
+    | Metadata_only _ -> code_id0, outer_dacc0
   in
   let code_ids_to_never_delete_this_set =
     let code_metadata = Code_or_metadata.code_metadata code_or_metadata in
@@ -967,10 +967,10 @@ let simplify_and_lift_set_of_closures dacc0 closure_bound_vars_inverse
                 match
                   Variable.Map.find_or_null var closure_bound_vars_inverse
                 with
-                | Or_null.Null ->
+                | Null ->
                   let () = assert (DE.mem_variable (DA.denv dacc0) var) in
                   T.alias_type_of kind in_slot
-                | Or_null.This function_slot ->
+                | This function_slot ->
                   let closure_symbol =
                     Function_slot.Map.find function_slot closure_symbols_map
                   in

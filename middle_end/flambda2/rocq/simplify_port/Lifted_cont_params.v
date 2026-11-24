@@ -23,6 +23,7 @@
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Bound_parameter Bound_parameters Format List
   Renaming Replay_history Simple Variable_.
+(* CONSTRUCTORS-WITHOUT-MODULE: Replay_history.replay_result *)
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 

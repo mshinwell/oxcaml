@@ -195,7 +195,7 @@ let cse_with_eligible_lhs typing_env_at_fork cse_at_each_use params prev_cse
           (fun _ arg -> find_param arg params0)
           (fun extra_params0 extra_args0 ->
             match RI.Map.find id extra_args0 with
-            | Or_invalid.Ok extra_args1 -> (
+            | Ok extra_args1 -> (
               fun arg ->
                 let r = find_param arg params0 in
                 match r with
@@ -228,7 +228,7 @@ let cse_with_eligible_lhs typing_env_at_fork cse_at_each_use params prev_cse
                   find_name arg
                     (Bound_parameters.to_list extra_params0)
                     extra_args1)
-            | Or_invalid.Invalid -> fun _ -> None)
+            | Invalid -> fun _ -> None)
           extra_bindings
       in
       EP.Map.fold
@@ -373,8 +373,8 @@ let join_one_cse_equation machine_width cse_at_each_use prim bound_to_map =
             in
             let env_extension1 =
               match EP.to_primitive prim with
-              | P.Nullary _ -> env_extension0
-              | P.Unary (u, block) ->
+              | Nullary _ -> env_extension0
+              | Unary (u, block) ->
                 (fun f__1
                   f__2
                   f__3
@@ -492,10 +492,10 @@ let join_one_cse_equation machine_width cse_at_each_use prim bound_to_map =
                   (fun _ -> env_extension0)
                   (fun _ _ -> env_extension0)
                   u
-              | P.Binary (_, _, _) -> env_extension0
-              | P.Ternary (_, _, _, _) -> env_extension0
-              | P.Quaternary (_, _, _, _, _) -> env_extension0
-              | P.Variadic (_, _) -> env_extension0
+              | Binary (_, _, _) -> env_extension0
+              | Ternary (_, _, _, _) -> env_extension0
+              | Quaternary (_, _, _, _, _) -> env_extension0
+              | Variadic (_, _) -> env_extension0
             in
             let allowed0 =
               Name_occurrences.add_name allowed (Name.var var) NM.normal
@@ -530,8 +530,8 @@ let join_one_cse_equation machine_width cse_at_each_use prim bound_to_map =
         in
         let env_extension1 =
           match EP.to_primitive prim with
-          | P.Nullary _ -> env_extension0
-          | P.Unary (u, block) ->
+          | Nullary _ -> env_extension0
+          | Unary (u, block) ->
             (fun f__1
               f__2
               f__3
@@ -648,10 +648,10 @@ let join_one_cse_equation machine_width cse_at_each_use prim bound_to_map =
               (fun _ -> env_extension0)
               (fun _ _ -> env_extension0)
               u
-          | P.Binary (_, _, _) -> env_extension0
-          | P.Ternary (_, _, _, _) -> env_extension0
-          | P.Quaternary (_, _, _, _, _) -> env_extension0
-          | P.Variadic (_, _) -> env_extension0
+          | Binary (_, _, _) -> env_extension0
+          | Ternary (_, _, _, _) -> env_extension0
+          | Quaternary (_, _, _, _, _) -> env_extension0
+          | Variadic (_, _) -> env_extension0
         in
         let allowed0 =
           Name_occurrences.add_name allowed (Name.var var) NM.normal

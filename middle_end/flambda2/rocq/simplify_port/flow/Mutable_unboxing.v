@@ -25,6 +25,8 @@ From SimplifyPort.decl Require Apply_cont_rewrite_id Array Bound_parameter
   Flambda_primitive Flow_types Format List Mutability Name
   Name_occurrences Named_rewrite Named_rewrite_id Numeric_types Or_null Printf
   Simple Stdlib_ Tag Target_system Value_slot Variable_.
+(* CONSTRUCTORS-WITHOUT-MODULE: Flambda_primitive.Block_kind.t
+   Flow_types.Mutable_prim.t Mutability.t Or_null.t *)
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 

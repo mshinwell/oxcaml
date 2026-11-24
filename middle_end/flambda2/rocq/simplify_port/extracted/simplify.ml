@@ -92,8 +92,8 @@ let run cmx_loader machine_width round code_slot_offsets unit0 =
   let name_occurrences0 = UA.name_occurrences uacc in
   let slot_offsets =
     match UA.slot_offsets uacc with
-    | Or_unknown.Known slot_offsets -> slot_offsets
-    | Or_unknown.Unknown ->
+    | Known slot_offsets -> slot_offsets
+    | Unknown ->
       Misc.fatal_error "Slot offsets must be computed and cannot be unknown"
   in
   let unit1 =

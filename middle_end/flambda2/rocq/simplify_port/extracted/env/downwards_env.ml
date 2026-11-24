@@ -414,7 +414,7 @@ let create round0 machine_width0 resolver0 get_imported_code0
     unit_toplevel_return_continuation0 toplevel_my_alloc_region =
   let typing_env0 = TE.create machine_width0 resolver0 in
   let specialization_cost0 =
-    Specialization_cost.cannot_specialize Specialization_cost.At_toplevel
+    Specialization_cost.cannot_specialize At_toplevel
   in
   let inlining_history_tracker0 =
     Inlining_history.Tracker.empty (Current_unit.get_cu_exn ())
@@ -551,7 +551,7 @@ let enter_set_of_closures t0 =
     t0
   in
   let specialization_cost0 =
-    Specialization_cost.cannot_specialize Specialization_cost.At_toplevel
+    Specialization_cost.cannot_specialize At_toplevel
   in
   let typing_env1 = TE.closure_env typing_env0 in
   { round = round0;
@@ -845,10 +845,10 @@ let find_code_metadata_exn t0 id =
 
 let find_code_exn t0 id =
   match Code_id.Map.find_or_null id t0.all_code with
-  | Or_null.Null ->
+  | Null ->
     let _ = TE.resolver t0.typing_env (Code_id.get_compilation_unit id) in
     Exported_code.find_exn (t0.get_imported_code ()) id
-  | Or_null.This code -> Code_or_metadata.create code
+  | This code -> Code_or_metadata.create code
 
 (** val define_code : t -> Code_id.t -> Code.t -> t coq_M **)
 
@@ -1174,7 +1174,7 @@ let add_lifted_constant_state maybe_already_defined denv lifted0 =
               let sym0 = Name.symbol sym in
               let env_extension =
                 T.make_suitable_for_environment typing_env_at_definition
-                  (T.Everything_not_in typing_env2) ((sym0, typ) :: [])
+                  (Everything_not_in typing_env2) ((sym0, typ) :: [])
               in
               TE.add_env_extension_with_extra_variables typing_env2
                 env_extension)

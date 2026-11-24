@@ -32,8 +32,8 @@ let simplify_atomic_compare_and_set_or_exchange_args args_kind dacc
     let is_immediate =
      fun ty ->
       match T.prove_is_not_a_pointer (DA.typing_env dacc) ty with
-      | T.Proved b -> if b then true else false
-      | T.Unknown -> false
+      | Proved b -> if b then true else false
+      | Unknown -> false
     in
     if is_immediate comparison_value_ty && is_immediate new_value_ty
     then P.Block_access_field_kind.Immediate
@@ -54,8 +54,8 @@ let simplify_atomic_compare_and_set offset_units args_kind mode _ dacc _ dbg
   in
   let new_term =
     Named.create_prim
-      (P.Quaternary
-         ( P.Atomic_compare_and_set (offset_units, args_kind0, mode),
+      (Quaternary
+         ( Atomic_compare_and_set (offset_units, args_kind0, mode),
            atomic,
            field,
            expected,
@@ -83,7 +83,7 @@ let simplify_atomic_compare_exchange offset_units atomic_kind args_kind mode _
   in
   let new_term =
     Named.create_prim
-      (P.Quaternary
+      (Quaternary
          ( (fun (x__1, x__2, x__3, x__4) ->
              (P.Atomic_compare_exchange
                 { offset_units = x__1;

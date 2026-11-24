@@ -47,8 +47,7 @@ type t = t_simplified Simplified_named.or_rewritten
 let create named try_reify0 dacc0 =
   let machine_width = Downwards_env.machine_width (Downwards_acc.denv dacc0) in
   Simplified_named.Simplified
-    { simplified_named =
-        Or_invalid.Ok (Simplified_named.create machine_width named);
+    { simplified_named = Ok (Simplified_named.create machine_width named);
       try_reify = try_reify0;
       dacc = dacc0
     }
@@ -58,7 +57,7 @@ let create named try_reify0 dacc0 =
 
 let create_simplified simplified_named0 try_reify0 dacc0 =
   Simplified_named.Simplified
-    { simplified_named = Or_invalid.Ok simplified_named0;
+    { simplified_named = Ok simplified_named0;
       try_reify = try_reify0;
       dacc = dacc0
     }
@@ -67,7 +66,7 @@ let create_simplified simplified_named0 try_reify0 dacc0 =
 
 let create_invalid dacc0 =
   Simplified_named.Simplified
-    { simplified_named = Or_invalid.Invalid; try_reify = false; dacc = dacc0 }
+    { simplified_named = Invalid; try_reify = false; dacc = dacc0 }
 
 (** val create_unit : Downwards_acc.t -> Bound_var.t -> Flambda.Named.t -> t
     coq_M **)
@@ -99,9 +98,7 @@ let is_invalid = function
     let { simplified_named = simplified_named0; try_reify = _; dacc = _ } =
       t1
     in
-    match simplified_named0 with
-    | Or_invalid.Ok _ -> false
-    | Or_invalid.Invalid -> true)
+    match simplified_named0 with Ok _ -> false | Invalid -> true)
   | Simplified_named.Rewritten _ -> false
 
 (** val map_dacc : t -> (Downwards_acc.t -> Downwards_acc.t coq_M) -> t coq_M **)

@@ -31,6 +31,8 @@ From SimplifyPort.decl Require Alloc_mode Are_rebuilding_terms
   ListLabels Mutability Name_occurrences Non_constructed_code Numeric_types
   Or_unknown Or_variable Rebuilt_expr Simple Static_const String Tag
   Target_ocaml_int Target_system Targetint_32_64 Variable_ Vector_types.
+(* CONSTRUCTORS-WITHOUT-MODULE: Flambda.static_const_or_code
+   Flambda_kind.Boxable_number.t Static_const.t *)
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 Local Open Scope list_scope.

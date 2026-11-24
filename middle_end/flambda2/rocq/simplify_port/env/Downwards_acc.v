@@ -29,6 +29,8 @@ From SimplifyPort.decl Require Apply_cont_rewrite_id Are_lifting_conts
   Debuginfo Downwards_env Flambda2_types Flambda_arity Flambda_features Flow
   Format Lifted_constant_state Name_mode Name_occurrences Original_handlers
   Simple Slot_offsets Static_const Stdlib_ Symbol Value_slot.
+(* CONSTRUCTORS-WITHOUT-MODULE: Are_lifting_conts.reason
+   Downwards_env.Disable_inlining_reason.t *)
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 Local Open Scope list_scope.

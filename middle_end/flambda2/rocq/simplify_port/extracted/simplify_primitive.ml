@@ -217,12 +217,12 @@ let simplify_primitive dacc prim dbg result_var =
     let arg_tys = List.map snd args_with_tys in
     let arg_tys_and_expected_kinds =
       match P.args_kind_of_variadic_primitive variadic_prim with
-      | P.Variadic_mixed arg_kinds ->
+      | Variadic_mixed arg_kinds ->
         List.combine arg_tys
           (Array.to_list (K.Mixed_block_shape.field_kinds arg_kinds))
-      | P.Variadic_all_of_kind kind ->
+      | Variadic_all_of_kind kind ->
         List.map (fun arg_ty -> arg_ty, kind) arg_tys
-      | P.Variadic_zero_or_one kind ->
+      | Variadic_zero_or_one kind ->
         let () =
           match arg_tys with
           | [] -> ()
@@ -234,7 +234,7 @@ let simplify_primitive dacc prim dbg result_var =
                 prim)
         in
         List.map (fun arg_ty -> arg_ty, kind) arg_tys
-      | P.Variadic_unboxed_product kinds ->
+      | Variadic_unboxed_product kinds ->
         let num_arg_tys = List.length arg_tys in
         let num_kinds = List.length kinds in
         let () =

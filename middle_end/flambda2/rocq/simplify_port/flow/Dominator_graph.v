@@ -24,6 +24,7 @@ From SimplifyPort.decl Require Import Dominator_graph__local.
 From SimplifyPort.decl Require Apply_cont_rewrite_id Array Bound_parameter
   Bound_parameters Continuation Flambda_colours Flambda_kind Flow_types
   Format List Name Numeric_types Or_null Simple Variable_.
+(* CONSTRUCTORS-WITHOUT-MODULE: Or_null.t *)
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 

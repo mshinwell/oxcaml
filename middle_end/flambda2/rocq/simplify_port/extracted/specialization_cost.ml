@@ -196,10 +196,9 @@ let cost_metrics typing_env switch join_analysis specialized generic cost0 =
             Flambda2_types.Join_analysis.simple_refined_at_join join_analysis
               typing_env simple
           with
-          | Flambda2_types.Join_analysis.Not_refined_at_join -> 0, n_total
-          | Flambda2_types.Join_analysis.Invariant_in_all_uses _ -> 0, 0
-          | Flambda2_types.Join_analysis.Variable_refined_at_these_uses
-              var_analysis ->
+          | Not_refined_at_join -> 0, n_total
+          | Invariant_in_all_uses _ -> 0, 0
+          | Variable_refined_at_these_uses var_analysis ->
             Flambda2_types.Join_analysis.Variable_refined_at_join
             .fold_values_at_uses
               (fun id value pat0 ->
@@ -207,8 +206,8 @@ let cost_metrics typing_env switch join_analysis specialized generic cost0 =
                 if Apply_cont_rewrite_id.Set.mem id specialized
                 then
                   match value with
-                  | Or_unknown.Known _ -> disappears + 1, stays
-                  | Or_unknown.Unknown -> disappears, stays + 1
+                  | Known _ -> disappears + 1, stays
+                  | Unknown -> disappears, stays + 1
                 else disappears, stays + 1)
               var_analysis (0, 0)
         in

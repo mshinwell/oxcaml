@@ -97,8 +97,8 @@ let find_alias dom simple =
   Simple.pattern_match' simple
     (fun var _ ->
       match Variable.Map.find_or_null var dom with
-      | Or_null.Null -> simple
-      | Or_null.This res -> res)
+      | Null -> simple
+      | This res -> res)
     (fun _ _ -> simple)
     (fun _ -> simple)
 
@@ -178,8 +178,8 @@ let escaping_by_use_for_one_continuation required_names dom elt =
     Name_occurrences.fold_variables occurrences init (fun escaping0 var ->
         let escaping1 =
           match Variable.Map.find_or_null var dom with
-          | Or_null.Null -> escaping0
-          | Or_null.This simple -> Simple.Set.add simple escaping0
+          | Null -> escaping0
+          | This simple -> Simple.Set.add simple escaping0
         in
         Simple.Set.add (Simple.var var) escaping1)
   in
@@ -199,8 +199,8 @@ let escaping_by_use_for_one_continuation required_names dom elt =
     Variable.Set.fold
       (fun var escaping2 ->
         match Variable.Map.find_or_null var dom with
-        | Or_null.Null -> escaping2
-        | Or_null.This simple -> Simple.Set.add simple escaping2)
+        | Null -> escaping2
+        | This simple -> Simple.Set.add simple escaping2)
       (names_used_in_new_let_binding elt)
       escaping1
   in
@@ -253,14 +253,14 @@ let escaping_by_return dom source_info return_continuation exn_continuation =
           Continuation.Map.find_or_null cont
             elt.Flow_types.Continuation_info.apply_cont_args
         with
-        | Or_null.Null -> escaping1
-        | Or_null.This apply_cont_args0 ->
+        | Null -> escaping1
+        | This apply_cont_args0 ->
           Variable.Set.fold
             (fun var escaping2 ->
               let escaping3 =
                 match Variable.Map.find_or_null var dom with
-                | Or_null.Null -> escaping2
-                | Or_null.This simple -> Simple.Set.add simple escaping2
+                | Null -> escaping2
+                | This simple -> Simple.Set.add simple escaping2
               in
               Simple.Set.add (Simple.var var) escaping3)
             (free_names_of_apply_cont_args apply_cont_args0)
@@ -323,12 +323,12 @@ let blocks_to_unbox escaping0 source_info required_names =
               else
                 let block_to_unbox0 =
                   match kind with
-                  | Flambda_primitive.Block_kind.Values (tag0, fields_kinds0) ->
+                  | Values (tag0, fields_kinds0) ->
                     { tag = Tag.Scannable.to_tag tag0;
                       mut = mut0;
                       fields_kinds = fields_kinds0
                     }
-                  | Flambda_primitive.Block_kind.Naked_floats ->
+                  | Naked_floats ->
                     { tag = Tag.double_array_tag;
                       mut = mut0;
                       fields_kinds =
@@ -336,7 +336,7 @@ let blocks_to_unbox escaping0 source_info required_names =
                           (fun _ -> Flambda_kind.With_subkind.naked_float)
                           fields
                     }
-                  | Flambda_primitive.Block_kind.Mixed (tag0, shape) ->
+                  | Mixed (tag0, shape) ->
                     let fields_kinds0 =
                       List.map Flambda_kind.With_subkind.anything
                         (Array.to_list
@@ -372,8 +372,8 @@ let prims_using_block blocks_to_unbox0 dom prim0 =
     (fun block ->
       let block0 =
         match Variable.Map.find_or_null block dom with
-        | Or_null.Null -> Simple.var block
-        | Or_null.This block0 -> block0
+        | Null -> Simple.var block
+        | This block0 -> block0
       in
       if Simple.Map.mem block0 blocks_to_unbox0
       then Simple.Set.singleton block0
@@ -381,8 +381,8 @@ let prims_using_block blocks_to_unbox0 dom prim0 =
     (fun block ->
       let block0 =
         match Variable.Map.find_or_null block dom with
-        | Or_null.Null -> Simple.var block
-        | Or_null.This block0 -> block0
+        | Null -> Simple.var block
+        | This block0 -> block0
       in
       if Simple.Map.mem block0 blocks_to_unbox0
       then Simple.Set.singleton block0
@@ -390,8 +390,8 @@ let prims_using_block blocks_to_unbox0 dom prim0 =
     (fun _ _ block _ ->
       let block0 =
         match Variable.Map.find_or_null block dom with
-        | Or_null.Null -> Simple.var block
-        | Or_null.This block0 -> block0
+        | Null -> Simple.var block
+        | This block0 -> block0
       in
       if Simple.Map.mem block0 blocks_to_unbox0
       then Simple.Set.singleton block0
@@ -399,8 +399,8 @@ let prims_using_block blocks_to_unbox0 dom prim0 =
     (fun _ block _ _ ->
       let block0 =
         match Variable.Map.find_or_null block dom with
-        | Or_null.Null -> Simple.var block
-        | Or_null.This block0 -> block0
+        | Null -> Simple.var block
+        | This block0 -> block0
       in
       if Simple.Map.mem block0 blocks_to_unbox0
       then Simple.Set.singleton block0
@@ -551,12 +551,12 @@ module Fold_prims = struct
   let with_unboxed_block block dom env0 blocks_to_unbox0 f =
     let block0 =
       match Variable.Map.find_or_null block dom with
-      | Or_null.Null -> Simple.var block
-      | Or_null.This block0 -> block0
+      | Null -> Simple.var block
+      | This block0 -> block0
     in
     match Simple.Map.find_or_null block0 blocks_to_unbox0 with
-    | Or_null.Null -> env0
-    | Or_null.This b ->
+    | Null -> env0
+    | This b ->
       let { tag = tag0; mut = _; fields_kinds = fields_kinds0 } = b in
       f block0 tag0 fields_kinds0
 
@@ -567,12 +567,12 @@ module Fold_prims = struct
   let with_unboxed_fields block dom env0 f =
     let block0 =
       match Variable.Map.find_or_null block dom with
-      | Or_null.Null -> Simple.var block
-      | Or_null.This block0 -> block0
+      | Null -> Simple.var block
+      | This block0 -> block0
     in
     match Simple.Map.find_or_null block0 env0.bindings with
-    | Or_null.Null -> env0
-    | Or_null.This fields -> f block0 fields
+    | Null -> env0
+    | This fields -> f block0 fields
 
   (** val apply_prim : Target_system.Machine_width.t ->
       Dominator_graph.alias_map -> block_to_unbox Simple.Map.t -> env ->
@@ -809,8 +809,8 @@ module Fold_prims = struct
                   Continuation.Map.find_or_null cont0
                     continuations_with_live_block0
                 with
-                | Or_null.Null -> Numeric_types.Int.Map.empty
-                | Or_null.This blocks_needed0 ->
+                | Null -> Numeric_types.Int.Map.empty
+                | This blocks_needed0 ->
                   let extra_args0 =
                     Simple.Set.fold
                       (fun block_needed extra_args0 ->
@@ -899,9 +899,8 @@ let pp_node t0 ppf cont =
     t0
   in
   match Continuation.Map.find_or_null cont continuations_with_live_block0 with
-  | Or_null.Null -> ()
-  | Or_null.This live_blocks ->
-    Format.fprintf ppf " %a" Simple.Set.print live_blocks
+  | Null -> ()
+  | This live_blocks -> Format.fprintf ppf " %a" Simple.Set.print live_blocks
 
 (** val add_to_extra_params_and_args : t -> EPA.t Continuation.Map.t coq_M **)
 
@@ -923,8 +922,8 @@ let add_to_extra_params_and_args result =
                       Continuation.Map.find_or_null callee_cont
                         result.extra_params_and_args
                     with
-                    | Or_null.Null -> []
-                    | Or_null.This p ->
+                    | Null -> []
+                    | This p ->
                       let extra_params0, _ = p in
                       List.map
                         (fun _ -> Apply_cont_rewrite_id.Map.empty)
@@ -954,8 +953,8 @@ let add_to_extra_params_and_args result =
           match
             Continuation.Map.find_or_null cont result.extra_params_and_args
           with
-          | Or_null.Null -> []
-          | Or_null.This p ->
+          | Null -> []
+          | This p ->
             let extra_params0, _ = p in
             extra_params0
         in
@@ -983,9 +982,9 @@ let did_unbox_a_mutable_block result =
   Simple.Map.exists
     (fun _ block_to_unbox0 ->
       match block_to_unbox0.mut with
-      | Mutability.Mutable -> true
-      | Mutability.Immutable -> false
-      | Mutability.Immutable_unique -> false)
+      | Mutable -> true
+      | Immutable -> false
+      | Immutable_unique -> false)
     result.blocks_to_unbox_
 
 (** val make_result : t -> (T.Mutable_unboxing_result.t * Simple.Set.t) coq_M **)

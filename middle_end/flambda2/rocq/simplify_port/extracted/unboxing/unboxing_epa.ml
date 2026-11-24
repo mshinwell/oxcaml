@@ -240,7 +240,7 @@ let extra_args_for_const_ctor_of_variant const_ctors_decision typing_env_at_use
               "Bad kind for unboxing the constant constructor of a variant")
           (fun t0 ctor ->
             match t0 with
-            | K.Naked_number_kind.Naked_immediate ->
+            | Naked_immediate ->
               let is_int0 =
                 Extra_param_and_args.update_param_args is_int rewrite_id
                   (extra_arg_for_is_int machine_width variant_arg)
@@ -254,10 +254,7 @@ let extra_args_for_const_ctor_of_variant const_ctors_decision typing_env_at_use
                   (fun (x__1, x__2) ->
                     (U.At_least_one { is_int = x__1; ctor = x__2 }
                       : U.const_ctors_decision))
-                    ( is_int0,
-                      U.Unbox
-                        (U.Number (K.Naked_number_kind.Naked_immediate, ctor0))
-                    ))
+                    (is_int0, U.Unbox (Number (Naked_immediate, ctor0))))
                 ( (fun () -> Prevent_current_unboxing),
                   function Prevent_current_unboxing -> Some () | _ -> None )
                 (fun _ ->
@@ -265,37 +262,37 @@ let extra_args_for_const_ctor_of_variant const_ctors_decision typing_env_at_use
                     (U.At_least_one { is_int = x__1; ctor = x__2 }
                       : U.const_ctors_decision))
                     (is_int0, U.Do_not_unbox U.Not_enough_information_at_use))
-            | K.Naked_number_kind.Naked_float32 ->
+            | Naked_float32 ->
               Misc.fatal_errorf
                 "Bad kind for unboxing the constant constructor of a variant"
-            | K.Naked_number_kind.Naked_float ->
+            | Naked_float ->
               Misc.fatal_errorf
                 "Bad kind for unboxing the constant constructor of a variant"
-            | K.Naked_number_kind.Naked_int8 ->
+            | Naked_int8 ->
               Misc.fatal_errorf
                 "Bad kind for unboxing the constant constructor of a variant"
-            | K.Naked_number_kind.Naked_int16 ->
+            | Naked_int16 ->
               Misc.fatal_errorf
                 "Bad kind for unboxing the constant constructor of a variant"
-            | K.Naked_number_kind.Naked_int32 ->
+            | Naked_int32 ->
               Misc.fatal_errorf
                 "Bad kind for unboxing the constant constructor of a variant"
-            | K.Naked_number_kind.Naked_int64 ->
+            | Naked_int64 ->
               Misc.fatal_errorf
                 "Bad kind for unboxing the constant constructor of a variant"
-            | K.Naked_number_kind.Naked_nativeint ->
+            | Naked_nativeint ->
               Misc.fatal_errorf
                 "Bad kind for unboxing the constant constructor of a variant"
-            | K.Naked_number_kind.Naked_vec128 ->
+            | Naked_vec128 ->
               Misc.fatal_errorf
                 "Bad kind for unboxing the constant constructor of a variant"
-            | K.Naked_number_kind.Naked_vec256 ->
+            | Naked_vec256 ->
               Misc.fatal_errorf
                 "Bad kind for unboxing the constant constructor of a variant"
-            | K.Naked_number_kind.Naked_vec512 ->
+            | Naked_vec512 ->
               Misc.fatal_errorf
                 "Bad kind for unboxing the constant constructor of a variant"
-            | K.Naked_number_kind.Naked_mask ->
+            | Naked_mask ->
               Misc.fatal_errorf
                 "Bad kind for unboxing the constant constructor of a variant")
           u
@@ -318,7 +315,7 @@ let compute_extra_arg_for_number kind unboxer0 epa rewrite_id typing_env_at_use
     arg_being_unboxed =
   let extra_arg, _ = unbox_arg unboxer0 typing_env_at_use arg_being_unboxed in
   let epa0 = Extra_param_and_args.update_param_args epa rewrite_id extra_arg in
-  U.Unbox (U.Number (kind, epa0))
+  U.Unbox (Number (kind, epa0))
 
 (** val access_kind_and_poison_const : Target_system.Machine_width.t -> Tag.t ->
     K.Block_shape.t -> 'a1 list -> int -> (P.Block_access_kind.t * Const.t)
@@ -332,21 +329,20 @@ let access_kind_and_poison_const machine_width tag shape fields index =
   match shape with
   | K.Block_shape.Scannable t0 -> (
     match t0 with
-    | K.Scannable_block_shape.Value_only ->
+    | Value_only ->
       ( (fun (x__1, x__2, x__3) ->
           (P.Block_access_kind.Values
              { tag = x__1; size = x__2; field_kind = x__3 }
             : P.Block_access_kind.t))
           ( Or_unknown.Known (Option.get (Tag.Scannable.of_tag tag)),
             size,
-            P.Block_access_field_kind.Any_value ),
+            Any_value ),
         Const.const_poison K.value "variant_unboxing_field" )
-    | K.Scannable_block_shape.Mixed_record shape0 ->
+    | Mixed_record shape0 ->
       let field_kind, const =
         if index < K.Mixed_block_shape.value_prefix_size shape0
         then
-          ( P.Mixed_block_access_field_kind.Value_prefix
-              P.Block_access_field_kind.Any_value,
+          ( P.Mixed_block_access_field_kind.Value_prefix Any_value,
             Const.const_zero machine_width )
         else
           let field_kind =
@@ -449,48 +445,40 @@ and compute_extra_args_for_one_decision_and_use_aux pass rewrite_id
           machine_width arg_being_unboxed function_slot vars_within_closure)
       (fun t0 epa ->
         match t0 with
-        | K.Naked_number_kind.Naked_immediate ->
-          compute_extra_arg_for_number K.Naked_number_kind.Naked_immediate
+        | Naked_immediate ->
+          compute_extra_arg_for_number Naked_immediate
             Unboxers.Immediate.unboxer epa rewrite_id typing_env_at_use
             arg_being_unboxed
-        | K.Naked_number_kind.Naked_float32 ->
-          compute_extra_arg_for_number K.Naked_number_kind.Naked_float32
-            Unboxers.Float32.unboxer epa rewrite_id typing_env_at_use
-            arg_being_unboxed
-        | K.Naked_number_kind.Naked_float ->
-          compute_extra_arg_for_number K.Naked_number_kind.Naked_float
-            Unboxers.Float.unboxer epa rewrite_id typing_env_at_use
-            arg_being_unboxed
-        | K.Naked_number_kind.Naked_int8 -> U.Do_not_unbox U.Not_beneficial
-        | K.Naked_number_kind.Naked_int16 -> U.Do_not_unbox U.Not_beneficial
-        | K.Naked_number_kind.Naked_int32 ->
-          compute_extra_arg_for_number K.Naked_number_kind.Naked_int32
-            Unboxers.Int32.unboxer epa rewrite_id typing_env_at_use
-            arg_being_unboxed
-        | K.Naked_number_kind.Naked_int64 ->
-          compute_extra_arg_for_number K.Naked_number_kind.Naked_int64
-            Unboxers.Int64.unboxer epa rewrite_id typing_env_at_use
-            arg_being_unboxed
-        | K.Naked_number_kind.Naked_nativeint ->
-          compute_extra_arg_for_number K.Naked_number_kind.Naked_nativeint
+        | Naked_float32 ->
+          compute_extra_arg_for_number Naked_float32 Unboxers.Float32.unboxer
+            epa rewrite_id typing_env_at_use arg_being_unboxed
+        | Naked_float ->
+          compute_extra_arg_for_number Naked_float Unboxers.Float.unboxer epa
+            rewrite_id typing_env_at_use arg_being_unboxed
+        | Naked_int8 -> U.Do_not_unbox U.Not_beneficial
+        | Naked_int16 -> U.Do_not_unbox U.Not_beneficial
+        | Naked_int32 ->
+          compute_extra_arg_for_number Naked_int32 Unboxers.Int32.unboxer epa
+            rewrite_id typing_env_at_use arg_being_unboxed
+        | Naked_int64 ->
+          compute_extra_arg_for_number Naked_int64 Unboxers.Int64.unboxer epa
+            rewrite_id typing_env_at_use arg_being_unboxed
+        | Naked_nativeint ->
+          compute_extra_arg_for_number Naked_nativeint
             Unboxers.Nativeint.unboxer epa rewrite_id typing_env_at_use
             arg_being_unboxed
-        | K.Naked_number_kind.Naked_vec128 ->
-          compute_extra_arg_for_number K.Naked_number_kind.Naked_vec128
-            Unboxers.Vec128.unboxer epa rewrite_id typing_env_at_use
-            arg_being_unboxed
-        | K.Naked_number_kind.Naked_vec256 ->
-          compute_extra_arg_for_number K.Naked_number_kind.Naked_vec256
-            Unboxers.Vec256.unboxer epa rewrite_id typing_env_at_use
-            arg_being_unboxed
-        | K.Naked_number_kind.Naked_vec512 ->
-          compute_extra_arg_for_number K.Naked_number_kind.Naked_vec512
-            Unboxers.Vec512.unboxer epa rewrite_id typing_env_at_use
-            arg_being_unboxed
-        | K.Naked_number_kind.Naked_mask ->
-          compute_extra_arg_for_number K.Naked_number_kind.Naked_mask
-            Unboxers.Mask.unboxer epa rewrite_id typing_env_at_use
-            arg_being_unboxed)
+        | Naked_vec128 ->
+          compute_extra_arg_for_number Naked_vec128 Unboxers.Vec128.unboxer epa
+            rewrite_id typing_env_at_use arg_being_unboxed
+        | Naked_vec256 ->
+          compute_extra_arg_for_number Naked_vec256 Unboxers.Vec256.unboxer epa
+            rewrite_id typing_env_at_use arg_being_unboxed
+        | Naked_vec512 ->
+          compute_extra_arg_for_number Naked_vec512 Unboxers.Vec512.unboxer epa
+            rewrite_id typing_env_at_use arg_being_unboxed
+        | Naked_mask ->
+          compute_extra_arg_for_number Naked_mask Unboxers.Mask.unboxer epa
+            rewrite_id typing_env_at_use arg_being_unboxed)
       u
   | U.Do_not_unbox _ -> decision
 
@@ -788,7 +776,7 @@ let add_extra_params_and_args extra_params_and_args invalids decision =
                          with a kind other than Naked_immediate.")
                     (fun t0 ctor ->
                       match t0 with
-                      | K.Naked_number_kind.Naked_immediate ->
+                      | Naked_immediate ->
                         let extra_param =
                           BP.create
                             is_int.Unboxing_types.Extra_param_and_args.param
@@ -811,47 +799,47 @@ let add_extra_params_and_args extra_params_and_args invalids decision =
                         in
                         EPA.add extra_params_and_args2 invalids extra_param0
                           ctor.Unboxing_types.Extra_param_and_args.args
-                      | K.Naked_number_kind.Naked_float32 ->
+                      | Naked_float32 ->
                         Misc.fatal_errorf
                           "Trying to unbox the constant constructor of a \
                            variant with a kind other than Naked_immediate."
-                      | K.Naked_number_kind.Naked_float ->
+                      | Naked_float ->
                         Misc.fatal_errorf
                           "Trying to unbox the constant constructor of a \
                            variant with a kind other than Naked_immediate."
-                      | K.Naked_number_kind.Naked_int8 ->
+                      | Naked_int8 ->
                         Misc.fatal_errorf
                           "Trying to unbox the constant constructor of a \
                            variant with a kind other than Naked_immediate."
-                      | K.Naked_number_kind.Naked_int16 ->
+                      | Naked_int16 ->
                         Misc.fatal_errorf
                           "Trying to unbox the constant constructor of a \
                            variant with a kind other than Naked_immediate."
-                      | K.Naked_number_kind.Naked_int32 ->
+                      | Naked_int32 ->
                         Misc.fatal_errorf
                           "Trying to unbox the constant constructor of a \
                            variant with a kind other than Naked_immediate."
-                      | K.Naked_number_kind.Naked_int64 ->
+                      | Naked_int64 ->
                         Misc.fatal_errorf
                           "Trying to unbox the constant constructor of a \
                            variant with a kind other than Naked_immediate."
-                      | K.Naked_number_kind.Naked_nativeint ->
+                      | Naked_nativeint ->
                         Misc.fatal_errorf
                           "Trying to unbox the constant constructor of a \
                            variant with a kind other than Naked_immediate."
-                      | K.Naked_number_kind.Naked_vec128 ->
+                      | Naked_vec128 ->
                         Misc.fatal_errorf
                           "Trying to unbox the constant constructor of a \
                            variant with a kind other than Naked_immediate."
-                      | K.Naked_number_kind.Naked_vec256 ->
+                      | Naked_vec256 ->
                         Misc.fatal_errorf
                           "Trying to unbox the constant constructor of a \
                            variant with a kind other than Naked_immediate."
-                      | K.Naked_number_kind.Naked_vec512 ->
+                      | Naked_vec512 ->
                         Misc.fatal_errorf
                           "Trying to unbox the constant constructor of a \
                            variant with a kind other than Naked_immediate."
-                      | K.Naked_number_kind.Naked_mask ->
+                      | Naked_mask ->
                         Misc.fatal_errorf
                           "Trying to unbox the constant constructor of a \
                            variant with a kind other than Naked_immediate.")

@@ -25,6 +25,7 @@ From SimplifyPort.decl Require Array Bound_parameter Bound_parameters
   Flambda_colours Flow_types Format List Name Option Or_null Queue Simple
   Stdlib_ String Variable_.
 From SimplifyPort.decl Require Import Control_flow_graph__local.
+(* CONSTRUCTORS-WITHOUT-MODULE: Or_null.t *)
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 

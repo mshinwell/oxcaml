@@ -104,9 +104,9 @@ let project_tuple machine_width dbg size field tuple =
     (fun (x__1, x__2, x__3) ->
       (P.Block_access_kind.Values { tag = x__1; size = x__2; field_kind = x__3 }
         : P.Block_access_kind.t))
-      ( Or_unknown.Known Tag.Scannable.zero,
-        Or_unknown.Known (Target_ocaml_int.of_int machine_width size),
-        P.Block_access_field_kind.Any_value )
+      ( Known Tag.Scannable.zero,
+        Known (Target_ocaml_int.of_int machine_width size),
+        Any_value )
   in
   let mutability = Mutability.Immutable in
   let field0 = Target_ocaml_int.of_int machine_width field in
@@ -159,7 +159,7 @@ let split_direct_over_application apply callee's_code_id callee's_code_metadata
   let outer_apply_alloc_mode = apply_alloc_mode in
   let needs_region, inner_apply_alloc_mode =
     match result_mode with
-    | Lambda.Maybe_alloc_stack ->
+    | Maybe_alloc_stack ->
       (fun f__1 f__2 x__0 ->
         match (x__0 : Alloc_mode.For_applications.t) with
         | Alloc_mode.For_applications.Not_alloc_stack { alloc_region = x__1 } ->
@@ -186,7 +186,7 @@ let split_direct_over_application apply callee's_code_id callee's_code_metadata
               ghost_region ))
         (fun _ _ _ -> None, apply_alloc_mode)
         apply_alloc_mode
-    | Lambda.Not_alloc_stack ->
+    | Not_alloc_stack ->
       ( None,
         Alloc_mode.For_applications.not_alloc_stack
           ((fun f__1 f__2 x__0 ->
@@ -253,9 +253,7 @@ let split_direct_over_application apply callee's_code_id callee's_code_metadata
           in
           Expr.create_apply_cont apply_cont, Apply_cont.free_names apply_cont
         | Apply_expr.Result_continuation.Never_returns ->
-          ( Expr.create_invalid
-              (Flambda.Invalid.Over_application_never_returns apply),
-            NO.empty )
+          Expr.create_invalid (Over_application_never_returns apply), NO.empty
       in
       let handler_expr =
         Expr.create_let
@@ -289,8 +287,8 @@ let split_direct_over_application apply callee's_code_id callee's_code_metadata
                            Simple.var ghost_region ))
                       (Apply.dbg apply))
                    call_return_continuation
-                   (Or_unknown.Known call_return_continuation_free_names)))
-             (Or_unknown.Known
+                   (Known call_return_continuation_free_names)))
+             (Known
                 (NO.remove_var call_return_continuation_free_names ghost_region)))
       in
       let handler_expr_free_names =
@@ -300,11 +298,11 @@ let split_direct_over_application apply callee's_code_id callee's_code_metadata
       let handler =
         Continuation_handler.create
           (Bound_parameters.create over_application_results)
-          handler_expr (Or_unknown.Known handler_expr_free_names) false false
+          handler_expr (Known handler_expr_free_names) false false
       in
       Let_cont.create_non_liftable after_over_application handler
         (Expr.create_apply perform_over_application)
-        (Or_unknown.Known perform_over_application_free_names)
+        (Known perform_over_application_free_names)
     | None -> Expr.create_apply perform_over_application
   in
   let after_full_application =
@@ -329,17 +327,16 @@ let split_direct_over_application apply callee's_code_id callee's_code_metadata
              (Flambda_arity.unarize full_apply_result_arity))
       in
       Continuation_handler.create params
-        (Expr.create_invalid
-           (Flambda.Invalid.Over_application_never_returns apply))
-        (Or_unknown.Known Name_occurrences.empty) false true
+        (Expr.create_invalid (Over_application_never_returns apply))
+        (Known Name_occurrences.empty) false true
     else
       let func_param =
         BP.create func_var K.With_subkind.any_value func_var_duid
       in
       Continuation_handler.create
         (Bound_parameters.create (func_param :: []))
-        perform_over_application0
-        (Or_unknown.Known perform_over_application_free_names) false false
+        perform_over_application0 (Known perform_over_application_free_names)
+        false false
   in
   let full_apply =
     Apply.create (Apply.callee apply)
@@ -357,7 +354,7 @@ let split_direct_over_application apply callee's_code_id callee's_code_metadata
     Let_cont.create_non_liftable after_full_application
       after_full_application_handler
       (Expr.create_apply full_apply)
-      (Or_unknown.Known (Apply.free_names full_apply))
+      (Known (Apply.free_names full_apply))
   in
   match needs_region with
   | Some t ->
@@ -391,8 +388,8 @@ let split_direct_over_application apply callee's_code_id callee's_code_metadata
                          false,
                        [] ))
                   (Apply.dbg apply))
-               both_applications (Or_unknown.Known free_names_of_body)))
-         (Or_unknown.Known (NO.remove_var free_names_of_body ghost_region)))
+               both_applications (Known free_names_of_body)))
+         (Known (NO.remove_var free_names_of_body ghost_region)))
   | None -> both_applications
 
 type apply_cont_context =
@@ -430,7 +427,7 @@ let apply_cont_use_kind context apply_cont =
           match raise_kind with
           | Some t0 -> (
             match t0 with
-            | Trap_action.Raise_kind.Regular ->
+            | Regular ->
               if Flambda_features.debug ()
               then
                 (fun x__1 ->
@@ -442,7 +439,7 @@ let apply_cont_use_kind context apply_cont =
                   (Continuation_use_kind.Non_inlinable { escaping = x__1 }
                     : Continuation_use_kind.t))
                   false
-            | Trap_action.Raise_kind.Reraise ->
+            | Reraise ->
               if Flambda_features.debug ()
               then
                 (fun x__1 ->
@@ -454,7 +451,7 @@ let apply_cont_use_kind context apply_cont =
                   (Continuation_use_kind.Non_inlinable { escaping = x__1 }
                     : Continuation_use_kind.t))
                   false
-            | Trap_action.Raise_kind.No_trace ->
+            | No_trace ->
               (fun x__1 ->
                 (Continuation_use_kind.Non_inlinable { escaping = x__1 }
                   : Continuation_use_kind.t))
@@ -571,10 +568,10 @@ let specialise_array_kind dacc array_kind array_ty =
       (T.meet_is_flat_float_array typing_env array_ty)
   | P.Array_kind.Gc_ignorable_values -> (
     match T.prove_is_immediates_array typing_env array_ty with
-    | T.Proved u ->
+    | Proved u ->
       let () = u in
       Or_bottom.Ok P.Array_kind.Immediates
-    | T.Unknown ->
+    | Unknown ->
       (fun f__1 f__2 f__3 x__0 ->
         match (x__0 : _ T.meet_shortcut) with
         | T.Known_result x__1 -> f__1 x__1
@@ -586,10 +583,10 @@ let specialise_array_kind dacc array_kind array_ty =
         (T.meet_is_flat_float_array typing_env array_ty))
   | P.Array_kind.Values -> (
     match T.prove_is_immediates_array typing_env array_ty with
-    | T.Proved u ->
+    | Proved u ->
       let () = u in
       Or_bottom.Ok P.Array_kind.Immediates
-    | T.Unknown ->
+    | Unknown ->
       (fun f__1 f__2 f__3 x__0 ->
         match (x__0 : _ T.meet_shortcut) with
         | T.Known_result x__1 -> f__1 x__1
@@ -599,28 +596,18 @@ let specialise_array_kind dacc array_kind array_ty =
         (fun _ -> Or_bottom.Ok array_kind)
         (fun _ -> Or_bottom.Bottom)
         (T.meet_is_flat_float_array typing_env array_ty))
-  | P.Array_kind.Naked_floats ->
-    for_naked_number K.Naked_number_kind.Naked_float
-  | P.Array_kind.Naked_float32s ->
-    for_naked_number K.Naked_number_kind.Naked_float32
-  | P.Array_kind.Naked_ints ->
-    for_naked_number K.Naked_number_kind.Naked_immediate
-  | P.Array_kind.Naked_int8s -> for_naked_number K.Naked_number_kind.Naked_int8
-  | P.Array_kind.Naked_int16s ->
-    for_naked_number K.Naked_number_kind.Naked_int16
-  | P.Array_kind.Naked_int32s ->
-    for_naked_number K.Naked_number_kind.Naked_int32
-  | P.Array_kind.Naked_int64s ->
-    for_naked_number K.Naked_number_kind.Naked_int64
-  | P.Array_kind.Naked_nativeints ->
-    for_naked_number K.Naked_number_kind.Naked_nativeint
-  | P.Array_kind.Naked_vec128s ->
-    for_naked_number K.Naked_number_kind.Naked_vec128
-  | P.Array_kind.Naked_vec256s ->
-    for_naked_number K.Naked_number_kind.Naked_vec256
-  | P.Array_kind.Naked_vec512s ->
-    for_naked_number K.Naked_number_kind.Naked_vec512
-  | P.Array_kind.Naked_masks -> for_naked_number K.Naked_number_kind.Naked_mask
+  | P.Array_kind.Naked_floats -> for_naked_number Naked_float
+  | P.Array_kind.Naked_float32s -> for_naked_number Naked_float32
+  | P.Array_kind.Naked_ints -> for_naked_number Naked_immediate
+  | P.Array_kind.Naked_int8s -> for_naked_number Naked_int8
+  | P.Array_kind.Naked_int16s -> for_naked_number Naked_int16
+  | P.Array_kind.Naked_int32s -> for_naked_number Naked_int32
+  | P.Array_kind.Naked_int64s -> for_naked_number Naked_int64
+  | P.Array_kind.Naked_nativeints -> for_naked_number Naked_nativeint
+  | P.Array_kind.Naked_vec128s -> for_naked_number Naked_vec128
+  | P.Array_kind.Naked_vec256s -> for_naked_number Naked_vec256
+  | P.Array_kind.Naked_vec512s -> for_naked_number Naked_vec512
+  | P.Array_kind.Naked_masks -> for_naked_number Naked_mask
   | P.Array_kind.Unboxed_product _ -> Or_bottom.Ok array_kind
 
 (** val add_symbol_projection : DA.t -> Simple.t ->

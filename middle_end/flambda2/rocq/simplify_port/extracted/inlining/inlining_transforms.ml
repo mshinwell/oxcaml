@@ -77,7 +77,7 @@ let make_inlined_body callee called_code_id unroll_to params args my_closure
         Expr.create_let
           (Let.create
              (Bound_pattern.singleton var)
-             (Named.create_simple arg) expr Or_unknown.Unknown))
+             (Named.create_simple arg) expr Unknown))
       body0 (List.rev params0) (List.rev args0)
   in
   let bind_depth =
@@ -88,9 +88,7 @@ let make_inlined_body callee called_code_id unroll_to params args my_closure
         (VB.create my_depth0 my_depth_duid Name_mode.normal)
     in
     Expr.create_let
-      (Let.create bound
-         (Named.create_rec_info rec_info1)
-         body0 Or_unknown.Unknown)
+      (Let.create bound (Named.create_rec_info rec_info1) body0 Unknown)
   in
   Inlining_helpers.make_inlined_body callee0 called_code_id region_inlined_into
     params args my_closure0 my_alloc_mode my_depth rec_info0 body
@@ -115,10 +113,10 @@ let wrap_inlined_body_for_exn_extra_args extra_args apply_exn_continuation
   let let_cont_create =
    fun _ cont handler_params handler body is_exn_handler is_cold ->
     let handler0 =
-      Continuation_handler.create handler_params (handler ()) Or_unknown.Unknown
+      Continuation_handler.create handler_params (handler ()) Unknown
         is_exn_handler is_cold
     in
-    Let_cont.create_non_recursive cont handler0 (body ()) Or_unknown.Unknown
+    Let_cont.create_non_recursive cont handler0 (body ()) Unknown
   in
   Inlining_helpers.wrap_inlined_body_for_exn_extra_args () extra_args
     apply_exn_continuation apply_return_continuation result_arity
@@ -193,12 +191,12 @@ let inline dacc apply unroll_to was_inline_always function_decl =
       f__2 x__1 x__2 x__3)
     (fun _ ->
       match result_mode with
-      | Lambda.Maybe_alloc_stack ->
+      | Maybe_alloc_stack ->
         ( dacc,
           Expr.create_invalid
             (Flambda.Invalid.Calling_local_returning_closure_with_normal_apply
                apply) )
-      | Lambda.Not_alloc_stack ->
+      | Not_alloc_stack ->
         let denv0 = DE.enter_inlined_apply code apply was_inline_always denv in
         let params_and_body = Code.params_and_body code in
         Function_params_and_body.pattern_match params_and_body
@@ -238,7 +236,7 @@ let inline dacc apply unroll_to was_inline_always function_decl =
             DA.with_denv dacc denv0, expr))
     (fun _ _ _ ->
       match result_mode with
-      | Lambda.Maybe_alloc_stack ->
+      | Maybe_alloc_stack ->
         let denv0 = DE.enter_inlined_apply code apply was_inline_always denv in
         let params_and_body = Code.params_and_body code in
         Function_params_and_body.pattern_match params_and_body
@@ -276,7 +274,7 @@ let inline dacc apply unroll_to was_inline_always function_decl =
                   (Code.result_arity code) make_inlined_body0
             in
             DA.with_denv dacc denv0, expr)
-      | Lambda.Not_alloc_stack ->
+      | Not_alloc_stack ->
         let denv0 = DE.enter_inlined_apply code apply was_inline_always denv in
         let params_and_body = Code.params_and_body code in
         Function_params_and_body.pattern_match params_and_body

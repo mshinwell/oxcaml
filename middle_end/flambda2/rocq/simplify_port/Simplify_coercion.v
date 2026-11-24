@@ -23,6 +23,7 @@
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Import Simplify_import.
 From SimplifyPort.decl Require Coercion Int_ids Simplify_rec_info_expr.
+(* CONSTRUCTORS-WITHOUT-MODULE: Int_ids.Coercion.t *)
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 

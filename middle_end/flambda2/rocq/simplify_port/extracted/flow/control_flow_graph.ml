@@ -126,8 +126,8 @@ let map_fold_on_children t0 f acc =
     let acc1, to_add = f k acc0 in
     let map0 = Continuation.Map.singleton k to_add in
     match Continuation.Map.find_or_null k children0 with
-    | Or_null.Null -> map0
-    | Or_null.This s ->
+    | Null -> map0
+    | This s ->
       Continuation.Set.fold
         (fun child map1 ->
           (fun x__1 x__2 x__3 x__4 ->
@@ -148,8 +148,8 @@ let compute_available_variables source_info t0 =
         match
           Continuation.Map.find_or_null k source_info.Flow_types.Acc.extra
         with
-        | Or_null.Null -> Variable.Set.empty
-        | Or_null.This epa ->
+        | Null -> Variable.Set.empty
+        | This epa ->
           Bound_parameters.var_set
             (Continuation_extra_params_and_args.extra_params epa)
       in
@@ -227,8 +227,8 @@ let fixpoint t0 init eq f =
           !cur
         | G.No_loop callee -> (
           match Continuation.Map.find_or_null callee res with
-          | Or_null.Null -> res
-          | Or_null.This callee_set ->
+          | Null -> res
+          | This callee_set ->
             Continuation.Set.fold
               (fun caller res0 ->
                 let caller_set = Continuation.Map.find caller res0 in
@@ -262,13 +262,13 @@ let extra_args_for_aliases_overapproximation required_names source_info
           List.fold_left
             (fun acc param ->
               match Variable.Map.find_or_null param doms with
-              | Or_null.Null ->
+              | Null ->
                 if Name.Set.mem (Name.var param) required_names
                 then
                   Misc.fatal_errorf "Dom not found for: %a@." Variable.print
                     param
                 else acc
-              | Or_null.This dom ->
+              | This dom ->
                 Simple.pattern_match' dom
                   (fun dom_var _ ->
                     if
@@ -319,8 +319,8 @@ let minimize_extra_args_for_one_continuation source_info unboxed_blocks
     match exception_handler_first_param with
     | Some exception_param -> (
       match Variable.Map.find_or_null exception_param doms with
-      | Or_null.Null -> extra_args_for_aliases0, Not_aliased
-      | Or_null.This alias ->
+      | Null -> extra_args_for_aliases0, Not_aliased
+      | This alias ->
         Simple.pattern_match' alias
           (fun alias_var _ ->
             if Variable.equal exception_param alias_var
@@ -363,8 +363,8 @@ let minimize_extra_args_for_one_continuation source_info unboxed_blocks
           removed0, lets_to_introduce2
         in
         match Variable.Map.find_or_null param doms with
-        | Or_null.Null -> removed, lets_to_introduce1
-        | Or_null.This alias ->
+        | Null -> removed, lets_to_introduce1
+        | This alias ->
           if Simple.equal (Simple.var param) alias
           then removed, lets_to_introduce1
           else
@@ -475,8 +475,8 @@ module Dot = struct
     let info0 = match info with Some info0 -> info0 | None -> "" in
     let params0, shape =
       match Continuation.Map.find_or_null cont df.Flow_types.Acc.map with
-      | Or_null.Null -> "[ none ]", ""
-      | Or_null.This elt ->
+      | Null -> "[ none ]", ""
+      | This elt ->
         let params0 =
           Format.asprintf "[%a]"
             ((fun x__1 x__2 x__3 x__4 ->

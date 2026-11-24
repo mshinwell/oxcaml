@@ -31,6 +31,12 @@ From SimplifyPort.decl Require Array Bound_var Comparison_result
   Container_types Debuginfo Int_ids List Mutability Number_adjuncts
   Numeric_types Or_bottom Or_unknown_or_bottom Reg_width_const Scalar Simple
   Simplify_common Target_ocaml_int Target_system.
+(* CONSTRUCTORS-WITHOUT-MODULE: Flambda2_types.meet_shortcut
+   Flambda2_types.proof_of_property Flambda2_types.reification_result
+   Flambda_primitive.binary_float_arith_op
+   Flambda_primitive.binary_int_arith_op Flambda_primitive.binary_primitive
+   Flambda_primitive.comparison Flambda_primitive.unary_float_arith_op
+   Flambda_primitive.unary_int_arith_op Or_bottom.t Or_unknown_or_bottom.t *)
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 

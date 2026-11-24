@@ -25,6 +25,8 @@
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Import Simplify_import.
 From SimplifyPort.decl Require Alloc_mode Bound_var Debuginfo Simple.
+(* CONSTRUCTORS-WITHOUT-MODULE: Flambda2_types.proof_of_property
+   Flambda_primitive.quaternary_primitive Flambda_primitive.t *)
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 

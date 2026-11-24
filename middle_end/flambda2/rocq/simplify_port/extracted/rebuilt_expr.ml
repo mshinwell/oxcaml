@@ -168,8 +168,8 @@ let create_let are_rebuilding bound_vars defining_expr body free_names_of_body =
   else
     let contents_hash0 =
       match body.contents_hash with
-      | Or_null.Null -> None
-      | Or_null.This c -> (
+      | Null -> None
+      | This c -> (
         let { depth = depth0; structural_hash = body_hash } = c in
         let simple_expr =
          fun named_hash ->
@@ -194,7 +194,7 @@ let create_let are_rebuilding bound_vars defining_expr body free_names_of_body =
     create contents_hash0 body.is_cold
       (Expr.create_let
          (Let.create bound_vars defining_expr body.expr
-            (Or_unknown.Known free_names_of_body)))
+            (Known free_names_of_body)))
 
 (** val create_apply : ART.t -> bool -> Apply.t -> t coq_M **)
 
@@ -231,8 +231,8 @@ module Function_params_and_body = struct
   let create return_continuation exn_continuation params0 body
       free_names_of_body my_closure my_alloc_mode my_depth =
     Flambda.Import.Function_params_and_body.create return_continuation
-      exn_continuation params0 body.expr (Or_unknown.Known free_names_of_body)
-      my_closure my_alloc_mode my_depth
+      exn_continuation params0 body.expr (Known free_names_of_body) my_closure
+      my_alloc_mode my_depth
 
   (** val to_function_params_and_body : t -> ART.t ->
       Flambda.Import.Function_params_and_body.t coq_M **)
@@ -286,7 +286,7 @@ module Continuation_handler = struct
       (fun params0 handler0 free_names_of_handler is_exn_handler0 is_cold0 ->
         let is_cold1 = is_cold0 && not body_is_cold in
         Flambda.Import.Continuation_handler.create params0 handler0
-          (Or_unknown.Known free_names_of_handler) is_exn_handler0 is_cold1)
+          (Known free_names_of_handler) is_exn_handler0 is_cold1)
       (fun _ -> dummy)
       t0
 
@@ -333,7 +333,7 @@ let create_non_recursive_let_cont are_rebuilding cont handler0 body
     in
     create None body.is_cold
       (Let_cont.create_non_recursive cont handler1 body.expr
-         (Or_unknown.Known free_names_of_body))
+         (Known free_names_of_body))
 
 (** val create_non_recursive_let_cont' : ART.t -> Continuation.t ->
     Continuation_handler.t -> t -> Num_occurrences.t -> bool -> t coq_M **)
@@ -348,8 +348,7 @@ let create_non_recursive_let_cont' are_rebuilding cont handler0 body
     in
     create None body.is_cold
       (Let_cont.create_non_recursive' cont handler1 body.expr
-         (Or_unknown.Known num_free_occurrences_of_cont_in_body)
-         is_applied_with_traps)
+         (Known num_free_occurrences_of_cont_in_body) is_applied_with_traps)
 
 (** val create_non_recursive_let_cont_without_free_names : ART.t ->
     Continuation.t -> Continuation_handler.t -> t -> t coq_M **)
@@ -363,7 +362,7 @@ let create_non_recursive_let_cont_without_free_names are_rebuilding cont
       Continuation_handler.to_continuation_handler body.is_cold handler0
     in
     create None body.is_cold
-      (Let_cont.create_non_recursive cont handler1 body.expr Or_unknown.Unknown)
+      (Let_cont.create_non_recursive cont handler1 body.expr Unknown)
 
 (** val create_recursive_let_cont : ART.t -> Bound_parameters.t ->
     Continuation_handler.t Continuation.Lmap.t -> t -> t coq_M **)
@@ -582,12 +581,12 @@ module Matching_for_unique_handler = struct
 
   let match_variable env var1 var2 =
     match Variable.Map.find_or_null var1 env.permutable_params1 with
-    | Or_null.Null ->
+    | Null ->
       let () =
         if Variable.Map.mem var2 env.permutable_params2 then fail () else ()
       in
       fail_if_not_equal Variable.equal var1 var2
-    | Or_null.This permutation ->
+    | This permutation ->
       Match_permutable_parameters.match_variable permutation var1 var2
 
   (** val match_equal_and_free_names : ('a1 -> 'a1 -> bool coq_M) -> ('a1 ->
@@ -743,19 +742,19 @@ module Matching_for_unique_handler = struct
     Let.pattern_match let_expr1 (fun bound_pattern1 body1 ->
         Let.pattern_match let_expr2 (fun bound_pattern2 body2 ->
             match bound_pattern1 with
-            | Bound_pattern.Singleton bound_var1 -> (
+            | Singleton bound_var1 -> (
               match bound_pattern2 with
-              | Bound_pattern.Singleton bound_var2 ->
+              | Singleton bound_var2 ->
                 let body3 =
                   Expr.apply_renaming body2
                     (Renaming.add_variable Renaming.empty
                        (Bound_var.var bound_var2) (Bound_var.var bound_var1))
                 in
                 match_expr env body1 body3
-              | Bound_pattern.Set_of_closures _ -> fail ()
-              | Bound_pattern.Static _ -> fail ())
-            | Bound_pattern.Set_of_closures _ -> fail ()
-            | Bound_pattern.Static _ -> fail ()))
+              | Set_of_closures _ -> fail ()
+              | Static _ -> fail ())
+            | Set_of_closures _ -> fail ()
+            | Static _ -> fail ()))
 
   (** val match_apply_cont : matching_env -> Apply_cont.t -> Apply_cont.t ->
       unit coq_M **)
@@ -897,8 +896,8 @@ module Unique_continuation_handlers = struct
     then Or_null.null
     else
       match handler0.contents_hash with
-      | Or_null.Null -> Or_null.null
-      | Or_null.This c ->
+      | Null -> Or_null.null
+      | This c ->
         let { depth = depth0; structural_hash = structural_hash0 } = c in
         Or_null.this
           (Name_occurrences.fold_variables free_names_without_params
@@ -915,12 +914,12 @@ module Unique_continuation_handlers = struct
       contents_hash are_rebuilding handler0 is_exn_handler0
         free_names_without_params
     with
-    | Or_null.Null -> t0
-    | Or_null.This hash ->
+    | Null -> t0
+    | This hash ->
       let entries =
         match Numeric_types.Int.Map.find_or_null hash t0.hash_map with
-        | Or_null.Null -> []
-        | Or_null.This entries -> entries
+        | Null -> []
+        | This entries -> entries
       in
       let entry0 =
         { params = params0;
@@ -942,8 +941,8 @@ module Unique_continuation_handlers = struct
       contents_hash are_rebuilding handler0 is_exn_handler0
         free_names_without_params
     with
-    | Or_null.Null -> None
-    | Or_null.This hash ->
+    | Null -> None
+    | This hash ->
       Option.bind
         (Numeric_types.Int.Map.find_opt hash t0.hash_map)
         (List.find_map (fun entry0 ->

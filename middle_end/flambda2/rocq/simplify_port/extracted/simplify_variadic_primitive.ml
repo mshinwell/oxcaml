@@ -176,8 +176,8 @@ let simplify_make_array array_kind mutable_or_immutable alloc_mode dacc
     in
     let named =
       Named.create_prim
-        (P.Variadic
-           (P.Make_array (array_kind, mutable_or_immutable, alloc_mode), args))
+        (Variadic
+           (Make_array (array_kind, mutable_or_immutable, alloc_mode), args))
         dbg
     in
     let dacc0 =

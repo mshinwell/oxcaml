@@ -22,6 +22,7 @@
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Bound_parameters Continuation Format List Misc
   Or_null Simple Variable_.
+(* CONSTRUCTORS-WITHOUT-MODULE: Or_null.t *)
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 

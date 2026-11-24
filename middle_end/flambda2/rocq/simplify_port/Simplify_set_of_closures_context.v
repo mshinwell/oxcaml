@@ -27,6 +27,7 @@ From SimplifyPort.decl Require Alloc_mode Bound_name Code_id Code_metadata
   Code_or_metadata Flambda_features Function_declarations Function_slot
   Inlining_history Inlining_report Inlining_state List Name Option
   Or_unknown Rec_info_expr Simple Simplify_common Value_slot Variable_.
+(* CONSTRUCTORS-WITHOUT-MODULE: Flambda_kind.t Inlining_report.Pass.t *)
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 

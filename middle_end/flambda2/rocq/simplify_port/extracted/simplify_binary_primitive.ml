@@ -547,7 +547,7 @@ functor
                           in
                           let prim =
                             P.Binary
-                              ( P.Int_arith
+                              ( Int_arith
                                   ( standard_int_kind0,
                                     (P.Sub : P.binary_int_arith_op) ),
                                 zero0,
@@ -561,7 +561,7 @@ functor
                             P.Unary
                               ( (fun (x__1, x__2) ->
                                   (P.Int_arith (x__1, x__2) : P.unary_primitive))
-                                  (kind0, P.Not),
+                                  (kind0, Not),
                                 arg2 )
                           in
                           Some
@@ -573,7 +573,7 @@ functor
                               ( (fun (x__1, x__2) ->
                                   (P.Float_arith (x__1, x__2)
                                     : P.unary_primitive))
-                                  (width0, P.Neg),
+                                  (width0, Neg),
                                 arg2 )
                           in
                           Some
@@ -650,7 +650,7 @@ functor
                           in
                           let prim =
                             P.Binary
-                              ( P.Int_arith
+                              ( Int_arith
                                   ( standard_int_kind0,
                                     (P.Sub : P.binary_int_arith_op) ),
                                 zero0,
@@ -664,7 +664,7 @@ functor
                             P.Unary
                               ( (fun (x__1, x__2) ->
                                   (P.Int_arith (x__1, x__2) : P.unary_primitive))
-                                  (kind0, P.Not),
+                                  (kind0, Not),
                                 arg1 )
                           in
                           Some
@@ -676,7 +676,7 @@ functor
                               ( (fun (x__1, x__2) ->
                                   (P.Float_arith (x__1, x__2)
                                     : P.unary_primitive))
-                                  (width0, P.Neg),
+                                  (width0, Neg),
                                 arg1 )
                           in
                           Some
@@ -1729,7 +1729,7 @@ let simplify_phys_equal op0 dacc original_term _ _ arg1_ty _ arg2_ty result_var
   let typing_env = DA.typing_env dacc in
   let machine_width = DE.machine_width (DA.denv dacc) in
   match T.prove_physical_equality typing_env arg1_ty arg2_ty with
-  | T.Proved bool ->
+  | Proved bool ->
     let result = match op0 with P.Eq -> bool | P.Neq -> not bool in
     let dacc0 =
       DA.add_variable dacc result_var
@@ -1738,7 +1738,7 @@ let simplify_phys_equal op0 dacc original_term _ _ arg1_ty _ arg2_ty result_var
     SPR.create
       (Named.create_simple (Simple.untagged_const_bool machine_width result))
       false dacc0
-  | T.Unknown ->
+  | Unknown ->
     let dacc0 =
       DA.add_variable dacc result_var
         (T.these_naked_immediates (Target_ocaml_int.all_bools machine_width))
@@ -1773,10 +1773,10 @@ let simplify_array_load array_kind array_load_kind mutability dacc _ dbg array
     Simplify_common.specialise_array_kind dacc array_kind array_ty
   in
   match array_kind0 with
-  | Or_bottom.Ok array_kind1 -> (
+  | Ok array_kind1 -> (
     let prim =
       P.Binary
-        (P.Array_load (array_kind1, array_load_kind, mutability), array, index)
+        (Array_load (array_kind1, array_load_kind, mutability), array, index)
     in
     let return_given_type =
      fun ty try_reify ->
@@ -1788,18 +1788,18 @@ let simplify_array_load array_kind array_load_kind mutability dacc _ dbg array
      fun _ -> return_given_type (T.unknown (P.result_kind' prim)) false
     in
     match T.prove_is_immutable_array (DA.typing_env dacc) array_ty with
-    | T.Proved t0 -> (
+    | Proved t0 -> (
       let elt_kind, fields, _ = t0 in
       match elt_kind with
-      | Or_unknown_or_bottom.Unknown -> contents_unknown ()
-      | Or_unknown_or_bottom.Ok elt_kind0 -> (
+      | Unknown -> contents_unknown ()
+      | Ok elt_kind0 -> (
         if not (K.equal (K.With_subkind.kind elt_kind0) result_kind0)
         then contents_unknown ()
         else
           match
             T.prove_equals_tagged_immediates (DA.typing_env dacc) index_ty
           with
-          | T.Proved imms -> (
+          | Proved imms -> (
             match Target_ocaml_int.Set.get_singleton imms with
             | Some imm ->
               let machine_width = DE.machine_width (DA.denv dacc) in
@@ -1814,10 +1814,10 @@ let simplify_array_load array_kind array_load_kind mutability dacc _ dbg array
                   (Array.get fields (Target_ocaml_int.to_int imm))
                   true
             | None -> contents_unknown ())
-          | T.Unknown -> contents_unknown ())
-      | Or_unknown_or_bottom.Bottom -> contents_unknown ())
-    | T.Unknown -> contents_unknown ())
-  | Or_bottom.Bottom ->
+          | Unknown -> contents_unknown ())
+      | Bottom -> contents_unknown ())
+    | Unknown -> contents_unknown ())
+  | Bottom ->
     let ty = T.bottom result_kind0 in
     let dacc0 = DA.add_variable dacc result_var ty in
     SPR.create_invalid dacc0
@@ -2090,10 +2090,10 @@ let recover_comparison_primitive dacc prim arg1 arg2 =
               | P.Ge x__1 -> f__6 x__1)
               (fun _ -> (P.Eq : _ P.comparison))
               (fun _ -> (P.Neq : _ P.comparison))
-              (fun s -> P.Gt s)
-              (fun s -> P.Lt s)
-              (fun s -> P.Ge s)
-              (fun s -> P.Le s)
+              (fun s -> Gt s)
+              (fun s -> Lt s)
+              (fun s -> Ge s)
+              (fun s -> Le s)
               op0
           in
           try_both_directions op0 swapped_op

@@ -25,6 +25,7 @@ From SimplifyPort.decl Require Import Simplify_import.
 From SimplifyPort.decl Require Code_id Continuation_uses_env Exported_code
   Flambda_arity Flambda_cmx Flambda_features Name Name_occurrences Or_unknown
   Simplify_expr Slot_offsets Target_system Variable_.
+(* CONSTRUCTORS-WITHOUT-MODULE: Or_unknown.t *)
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 

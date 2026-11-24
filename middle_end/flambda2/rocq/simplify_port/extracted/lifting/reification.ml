@@ -171,9 +171,9 @@ let lift dacc ty bound_to static_const =
       match RSC.to_const static_const with
       | Some t0 -> (
         match t0 with
-        | Flambda.Code _ -> None
-        | Flambda.Deleted_code -> None
-        | Flambda.Static_const const -> DA.find_shareable_constant dacc const)
+        | Code _ -> None
+        | Deleted_code -> None
+        | Static_const const -> DA.find_shareable_constant dacc const)
       | None -> None
     in
     match existing_symbol with
@@ -224,9 +224,9 @@ let lift dacc ty bound_to static_const =
         match RSC.to_const static_const with
         | Some t0 -> (
           match t0 with
-          | Flambda.Code _ -> dacc0
-          | Flambda.Deleted_code -> dacc0
-          | Flambda.Static_const static_const0 ->
+          | Code _ -> dacc0
+          | Deleted_code -> dacc0
+          | Static_const static_const0 ->
             DA.consider_constant_for_sharing dacc0 symbol static_const0)
         | None -> dacc0
       in

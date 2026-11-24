@@ -119,7 +119,7 @@ let rebuild_apply_cont args rewrite_id apply_cont uacc after_rebuild =
         | EB.Apply_cont x__1 -> f__2 x__1
         | EB.Expr x__1 -> f__3 x__1)
         (fun message ->
-          ( RE.create_invalid (Flambda.Invalid.Message message),
+          ( RE.create_invalid (Message message),
             Cost_metrics.zero,
             Name_occurrences.empty ))
         (fun apply_cont2 -> apply_cont_to_expr apply_cont2)
@@ -183,8 +183,7 @@ let rebuild_apply_cont args rewrite_id apply_cont uacc after_rebuild =
           Cost_metrics.from_size (Code_size.apply_cont apply_cont2),
           Apply_cont.free_names apply_cont2 ))
       (fun _ ->
-        ( RE.create_invalid
-            (Flambda.Invalid.Apply_cont_of_unreachable_continuation cont0),
+        ( RE.create_invalid (Apply_cont_of_unreachable_continuation cont0),
           Cost_metrics.zero,
           Name_occurrences.empty ))
       (UE.find_continuation uenv cont0)
@@ -200,8 +199,7 @@ let simplify_apply_cont dacc apply_cont down_to_up0 =
     Simplify_simple.simplify_simples dacc (AC.args apply_cont)
   in
   let use_kind =
-    Simplify_common.apply_cont_use_kind Simplify_common.Apply_cont_expr
-      apply_cont
+    Simplify_common.apply_cont_use_kind Apply_cont_expr apply_cont
   in
   let dacc0, rewrite_id =
     DA.record_continuation_use dacc

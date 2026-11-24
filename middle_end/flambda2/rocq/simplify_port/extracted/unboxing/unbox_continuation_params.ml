@@ -106,7 +106,7 @@ end
 let make_do_not_unbox_decisions params =
   let decisions0 =
     List.map
-      (fun param -> param, U.Do_not_unbox U.Unboxing_not_requested)
+      (fun param -> param, U.Do_not_unbox Unboxing_not_requested)
       (Bound_parameters.to_list params)
   in
   { Decisions.decisions = decisions0;
@@ -145,8 +145,8 @@ let make_decisions_ continuation_arg_types0 denv params params_types =
             else
               let machine_width = DE.machine_width denv0 in
               let decision0, invalids0 =
-                refine_decision_based_on_arg_types_at_uses U.Filter empty
-                  invalids machine_width nth arg_type_by_use_id decision
+                refine_decision_based_on_arg_types_at_uses Filter empty invalids
+                  machine_width nth arg_type_by_use_id decision
               in
               let decision1 =
                 Is_unboxing_beneficial.filter_non_beneficial_decisions decision0
@@ -206,16 +206,16 @@ let make_decisions continuation_arg_types0 denv params params_types =
           | U.Unbox _ -> Profile.Counters.incr "unbox" counters0
           | U.Do_not_unbox d -> (
             match d with
-            | U.Not_beneficial -> Profile.Counters.incr "do_not_unbox" counters0
-            | U.Max_depth_exceeded ->
+            | Not_beneficial -> Profile.Counters.incr "do_not_unbox" counters0
+            | Max_depth_exceeded ->
               Profile.Counters.incr "max_depth_exceeded" counters0
-            | U.Incomplete_parameter_type ->
+            | Incomplete_parameter_type ->
               Profile.Counters.incr "do_not_unbox" counters0
-            | U.Not_enough_information_at_use ->
+            | Not_enough_information_at_use ->
               Profile.Counters.incr "do_not_unbox" counters0
-            | U.Not_of_kind_value -> counters0
-            | U.Unboxing_not_requested -> counters0
-            | U.All_fields_invalid ->
+            | Not_of_kind_value -> counters0
+            | Unboxing_not_requested -> counters0
+            | All_fields_invalid ->
               Profile.Counters.incr "do_not_unbox" counters0))
         counters decisions0)
     "make_unboxing_decisions"
@@ -240,9 +240,9 @@ let compute_extra_params_and_args machine_width pat =
           fun arg_type_by_use_id pat1 ->
             let _, decision = pat1 in
             let decision0, invalids0 =
-              refine_decision_based_on_arg_types_at_uses
-                U.Compute_all_extra_args rewrite_ids_seen0 invalids
-                machine_width nth arg_type_by_use_id decision
+              refine_decision_based_on_arg_types_at_uses Compute_all_extra_args
+                rewrite_ids_seen0 invalids machine_width nth arg_type_by_use_id
+                decision
             in
             let extra_params_and_args0 =
               Unboxing_epa.add_extra_params_and_args extra_params_and_args

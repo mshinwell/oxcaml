@@ -28,6 +28,7 @@ From SimplifyPort.decl Require Array Bound_var Cost_metrics Debuginfo
   Simplify_primitive_result Simplify_quaternary_primitive
   Simplify_ternary_primitive Simplify_unary_primitive
   Simplify_variadic_primitive Stdlib_.
+(* CONSTRUCTORS-WITHOUT-MODULE: Flambda_primitive.arg_kinds *)
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 

@@ -27,6 +27,9 @@ From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Downwards_acc Downwards_env Flambda2_types
   Flambda_features Flambda_kind Format Int Int_ids Name Name_mode Or_infinity
   Rec_info_expr Simple.
+(* CONSTRUCTORS-WITHOUT-MODULE: Flambda2_types.meet_shortcut
+   Flambda2_types.reification_result Int_ids.Rec_info_expr.Unrolling_state.t
+   Int_ids.Rec_info_expr.t *)
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 

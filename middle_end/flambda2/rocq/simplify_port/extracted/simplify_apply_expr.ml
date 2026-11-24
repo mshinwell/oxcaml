@@ -49,11 +49,11 @@ let record_free_names_of_apply_as_used0 apply0 use_id0 exn_cont_use_id0
   let result_cont =
     let continuation = Apply.continuation apply0 in
     match continuation with
-    | Apply_expr.Result_continuation.Return k -> (
+    | Return k -> (
       match use_id0 with
       | Some use_id1 -> Some (use_id1, k)
       | None -> assert false)
-    | Apply_expr.Result_continuation.Never_returns -> (
+    | Never_returns -> (
       match use_id0 with Some _ -> assert false | None -> None)
   in
   Flow.Acc.add_apply_conts result_cont
@@ -105,10 +105,9 @@ let loopify_decision_for_call dacc apply0 =
           if
             Simple.equal (canon (Simple.var my_closure)) (canon callee)
             && (match Apply.continuation apply0 with
-              | Apply_expr.Result_continuation.Return apply_return_continuation
-                ->
+              | Return apply_return_continuation ->
                 Continuation.equal apply_return_continuation return_continuation
-              | Apply_expr.Result_continuation.Never_returns -> true)
+              | Never_returns -> true)
             && Exn_continuation.equal
                  (Apply.exn_continuation apply0)
                  (Exn_continuation.create exn_continuation [])
@@ -306,16 +305,16 @@ let simplify_direct_full_application simplify_expr rebuild_expr dacc apply0
           then Inlined_attribute.Default_inlined
           else
             Inlined_attribute.with_use_info (Apply.inlined apply0)
-              Inlined_attribute.Use_info.Unused_because_of_call_site_decision
+              Unused_because_of_call_site_decision
         in
         Apply.with_inlined_attribute apply0 inlined0
       in
       match loopify_decision_for_call dacc apply1 with
-      | Loopify_state.Do_not_loopify ->
+      | Do_not_loopify ->
         let dacc0, use_id0, result_continuation =
           let result_continuation = Apply.continuation apply1 in
           match result_continuation with
-          | Apply_expr.Result_continuation.Return apply_return_continuation -> (
+          | Return apply_return_continuation -> (
             match result_types with
             | Or_unknown_or_bottom.Unknown ->
               let env_at_use = DA.denv dacc in
@@ -427,16 +426,12 @@ let simplify_direct_full_application simplify_expr rebuild_expr dacc apply0
                       env_at_use arg_types
                   in
                   dacc0, Some use_id0, result_continuation)
-            | Or_unknown_or_bottom.Bottom ->
-              dacc, None, Apply_expr.Result_continuation.Never_returns)
-          | Apply_expr.Result_continuation.Never_returns -> (
+            | Or_unknown_or_bottom.Bottom -> dacc, None, Never_returns)
+          | Never_returns -> (
             match result_types with
-            | Or_unknown_or_bottom.Unknown ->
-              dacc, None, Apply_expr.Result_continuation.Never_returns
-            | Or_unknown_or_bottom.Ok _ ->
-              dacc, None, Apply_expr.Result_continuation.Never_returns
-            | Or_unknown_or_bottom.Bottom ->
-              dacc, None, Apply_expr.Result_continuation.Never_returns)
+            | Or_unknown_or_bottom.Unknown -> dacc, None, Never_returns
+            | Or_unknown_or_bottom.Ok _ -> dacc, None, Never_returns
+            | Or_unknown_or_bottom.Bottom -> dacc, None, Never_returns)
         in
         let env_at_use = DA.denv dacc0 in
         let env_at_use0 =
@@ -473,7 +468,7 @@ let simplify_direct_full_application simplify_expr rebuild_expr dacc apply0
           update_direct_call_benefit expr original_call callee's_code_metadata
         in
         down_to_up0 dacc2 expr0
-      | Loopify_state.Loopify self_cont ->
+      | Loopify self_cont ->
         simplify_self_tail_call dacc apply1 self_cont down_to_up0)
     (fun dacc0 inlined0 ->
       let is_cold0 = Code_metadata.cold callee's_code_metadata in
@@ -522,8 +517,8 @@ let simplify_direct_partial_application simplify_expr dacc apply0
   let dbg = Apply.dbg apply0 in
   let apply_continuation =
     match Apply.continuation apply0 with
-    | Apply_expr.Result_continuation.Return continuation -> continuation
-    | Apply_expr.Result_continuation.Never_returns ->
+    | Return continuation -> continuation
+    | Never_returns ->
       Misc.fatal_error
         "cannot simplify a partial application that never returns"
   in
@@ -534,7 +529,7 @@ let simplify_direct_partial_application simplify_expr dacc apply0
         (Debuginfo.to_location dbg)
         (Warnings.Inlining_impossible
            (Inlining_helpers.inlined_attribute_on_partial_application_msg
-              Inlining_helpers.Inlined))
+              Inlined))
     | Inlined_attribute.Hint_inlined -> ()
     | Inlined_attribute.Forward_inlined -> ()
     | Inlined_attribute.Never_inlined ->
@@ -542,13 +537,13 @@ let simplify_direct_partial_application simplify_expr dacc apply0
         (Debuginfo.to_location dbg)
         (Warnings.Inlining_impossible
            (Inlining_helpers.inlined_attribute_on_partial_application_msg
-              Inlining_helpers.Inlined))
+              Inlined))
     | Inlined_attribute.Unroll (_, _) ->
       Location.prerr_warning
         (Debuginfo.to_location dbg)
         (Warnings.Inlining_impossible
            (Inlining_helpers.inlined_attribute_on_partial_application_msg
-              Inlining_helpers.Unrolled))
+              Unrolled))
     | Inlined_attribute.Default_inlined -> ()
   in
   let num_non_unarized_params = Flambda_arity.num_params param_arity in
@@ -650,7 +645,7 @@ let simplify_direct_partial_application simplify_expr dacc apply0
             code ) =
         let return_continuation =
           (fun x__1 x__2 x__3 -> Continuation.create ?sort:x__1 ?name:x__2 x__3)
-            (Some Continuation.Sort.Return) None ()
+            (Some Return) None ()
         in
         let remaining_params =
           Bound_parameters.create
@@ -830,8 +825,8 @@ let simplify_direct_partial_application simplify_expr dacc apply0
         in
         let contains_no_escaping_local_allocs =
           match result_mode with
-          | Lambda.Maybe_alloc_stack -> false
-          | Lambda.Not_alloc_stack -> true
+          | Maybe_alloc_stack -> false
+          | Not_alloc_stack -> true
         in
         let my_closure =
           (fun x__1 x__2 x__3 -> Variable.create ?user_visible:x__1 x__2 x__3)
@@ -885,12 +880,11 @@ let simplify_direct_partial_application simplify_expr dacc apply0
           in
           let inlined = Inlined_attribute.forward_inlined () in
           let full_application =
-            Apply.create callee
-              (Apply_expr.Result_continuation.Return return_continuation)
-              exn_continuation args0 param_arity result_arity0 call_kind
-              my_alloc_mode dbg inlined
+            Apply.create callee (Return return_continuation) exn_continuation
+              args0 param_arity result_arity0 call_kind my_alloc_mode dbg
+              inlined
               (Apply.inlining_state apply0)
-              None Apply_expr.Position.Normal Inlining_history.Relative.empty
+              None Normal Inlining_history.Relative.empty
           in
           let cost_metrics =
             Cost_metrics.from_size (Code_size.apply full_application)
@@ -966,16 +960,14 @@ let simplify_direct_partial_application simplify_expr dacc apply0
             Code.create params_and_body free_names code_id None
               remaining_param_arity remaining_params_alloc_modes
               first_complex_local_param0 result_arity0
-              Or_unknown_or_bottom.Unknown result_mode true
-              Inline_attribute.Default_inline Lambda.Default_zero_alloc
-              Poll_attribute.Default Lambda.Default_regalloc
-              Lambda.Default_regalloc_params false false false recursive
+              Or_unknown_or_bottom.Unknown result_mode true Default_inline
+              Lambda.Default_zero_alloc Default Default_regalloc
+              Default_regalloc_params false false false recursive
               cost_metrics_of_body
               (DE.inlining_arguments (DA.denv dacc))
               dbg false
               (Function_params_and_body.is_my_closure_used params_and_body)
-              Function_decl_inlining_decision_type.Stub absolute_history
-              relative_history Loopify_attribute.Never_loopify
+              Stub absolute_history relative_history Never_loopify
           in
           Static_const_or_code.create_code code
         in
@@ -1045,8 +1037,7 @@ let simplify_direct_partial_application simplify_expr dacc apply0
       expr, dacc0
     | Or_bottom.Bottom ->
       ( Expr.create_invalid
-          (Flambda.Invalid.Partial_application_mode_mismatch
-             (apply0, callee's_code_metadata)),
+          (Partial_application_mode_mismatch (apply0, callee's_code_metadata)),
         dacc )
   in
   let down_to_up1 =
@@ -1140,7 +1131,7 @@ let simplify_function_call_where_callee's_type_unavailable dacc apply0 call
   let env_at_use = denv in
   let dacc0, use_id0 =
     match Apply.continuation apply0 with
-    | Apply_expr.Result_continuation.Return continuation ->
+    | Return continuation ->
       let dacc0, use_id0 =
         DA.record_continuation_use dacc continuation
           ((fun x__1 ->
@@ -1156,7 +1147,7 @@ let simplify_function_call_where_callee's_type_unavailable dacc apply0 call
              (Apply.return_arity apply0))
       in
       dacc0, Some use_id0
-    | Apply_expr.Result_continuation.Never_returns -> dacc, None
+    | Never_returns -> dacc, None
   in
   let dacc1, exn_cont_use_id0 =
     DA.record_continuation_use dacc0
@@ -1195,7 +1186,7 @@ let simplify_function_call_where_callee's_type_unavailable dacc apply0 call
   let apply2 =
     Apply_expr.with_inlined_attribute apply1
       (Inlined_attribute.with_use_info (Apply.inlined apply1)
-         Inlined_attribute.Use_info.Unused_because_function_unknown)
+         Unused_because_function_unknown)
   in
   let dacc2 =
     record_free_names_of_apply_as_used dacc1 use_id0 exn_cont_use_id0 apply2
@@ -1325,8 +1316,7 @@ let simplify_direct_function_call simplify_expr rebuild_expr dacc apply0
               result_arity_of_application Apply.print apply1
           else
             replace_apply_by_invalid dacc down_to_up0
-              (Flambda.Invalid.Application_result_kind_mismatch
-                 (result_arity0, apply1))
+              (Application_result_kind_mismatch (result_arity0, apply1))
         else
           simplify_direct_full_application simplify_expr rebuild_expr dacc
             apply1 (Some function_decl) params_arity result_arity0 result_types0
@@ -1344,8 +1334,7 @@ let simplify_direct_function_call simplify_expr rebuild_expr dacc apply0
               Apply.print apply1
           else
             replace_apply_by_invalid dacc down_to_up0
-              (Flambda.Invalid.Application_result_kind_mismatch
-                 (result_arity0, apply1))
+              (Application_result_kind_mismatch (result_arity0, apply1))
         else
           simplify_direct_over_application simplify_expr dacc apply1 down_to_up0
             original_call callee's_code_id callee's_code_metadata
@@ -1364,7 +1353,7 @@ let simplify_direct_function_call simplify_expr rebuild_expr dacc apply0
               Apply.print apply1
           else
             replace_apply_by_invalid dacc down_to_up0
-              (Flambda.Invalid.Application_result_kind_mismatch
+              (Application_result_kind_mismatch
                  ( Flambda_arity.create_singletons
                      (Flambda_kind.With_subkind.any_value :: []),
                    apply1 ))
@@ -1386,8 +1375,7 @@ let simplify_direct_function_call simplify_expr rebuild_expr dacc apply0
            with %d arguments: %a"
           num_params provided_num_args Apply.print apply1
   | Or_bottom.Bottom ->
-    replace_apply_by_invalid dacc down_to_up0
-      (Flambda.Invalid.Closure_type_was_invalid apply0)
+    replace_apply_by_invalid dacc down_to_up0 (Closure_type_was_invalid apply0)
 
 (** val simplify_function_call : Expr.t Simplify_common.expr_simplifier -> SE.t
     Simplify_common.rebuild -> DA.t -> Apply.t -> T.t option ->
@@ -1410,8 +1398,7 @@ let simplify_function_call simplify_expr rebuild_expr dacc apply0 callee_ty call
   in
   let not_a_closure =
    fun _ ->
-    down_to_up0 dacc
-      (SE.simplified_invalid (Flambda.Invalid.Closure_type_was_invalid apply0))
+    down_to_up0 dacc (SE.simplified_invalid (Closure_type_was_invalid apply0))
   in
   let denv = DA.denv dacc in
   match callee_ty with
@@ -1617,8 +1604,8 @@ let simplify_method_call dacc apply0 callee_ty _ obj down_to_up0 =
   in
   let apply_cont =
     match Apply.continuation apply0 with
-    | Apply_expr.Result_continuation.Return continuation -> continuation
-    | Apply_expr.Result_continuation.Never_returns ->
+    | Return continuation -> continuation
+    | Never_returns ->
       Misc.fatal_error "Cannot simplify a method call that never returns"
   in
   let denv = DA.denv dacc in
@@ -1685,7 +1672,7 @@ let simplify_c_call simplify_expr dacc apply0 callee_ty arg_types down_to_up0 =
     (fun return_types ->
       let dacc0, use_id0 =
         match Apply.continuation apply0 with
-        | Apply_expr.Result_continuation.Return apply_continuation ->
+        | Return apply_continuation ->
           let apply_continuation_arg_types =
             let from_arity =
               (fun x__1 x__2 x__3 ->
@@ -1713,7 +1700,7 @@ let simplify_c_call simplify_expr dacc apply0 callee_ty arg_types down_to_up0 =
               (DA.denv dacc) apply_continuation_arg_types
           in
           dacc0, Some use_id0
-        | Apply_expr.Result_continuation.Never_returns -> dacc, None
+        | Never_returns -> dacc, None
       in
       let dacc1, exn_cont_use_id0 =
         DA.record_continuation_use dacc0
@@ -1743,7 +1730,7 @@ let simplify_c_call simplify_expr dacc apply0 callee_ty arg_types down_to_up0 =
       simplify_expr dacc0 expr down_to_up1)
     (fun _ ->
       replace_apply_by_invalid dacc down_to_up0
-        (Flambda.Invalid.Closure_type_was_invalid apply0))
+        (Closure_type_was_invalid apply0))
     simplified
 
 (** val simplify_effect_op : DA.t -> Apply.t -> Call_kind.Effect.t -> SE.t
@@ -1809,7 +1796,7 @@ let simplify_effect_op dacc apply0 op down_to_up0 =
   let apply1 = Apply.with_call_kind apply0 (Call_kind.effect_ op0) in
   let dacc0, use_id0 =
     match Apply.continuation apply1 with
-    | Apply_expr.Result_continuation.Return continuation ->
+    | Return continuation ->
       let dacc0, use_id0 =
         DA.record_continuation_use dacc continuation
           ((fun x__1 ->
@@ -1825,7 +1812,7 @@ let simplify_effect_op dacc apply0 op down_to_up0 =
              (Apply.return_arity apply1))
       in
       dacc0, Some use_id0
-    | Apply_expr.Result_continuation.Never_returns -> dacc, None
+    | Never_returns -> dacc, None
   in
   let dacc1, exn_cont_use_id0 =
     DA.record_continuation_use dacc0
@@ -1895,4 +1882,4 @@ let simplify_apply simplify_expr rebuild_expr dacc apply0 down_to_up0 =
       (Apply.call_kind apply1)
   | Invalid args_arity ->
     replace_apply_by_invalid dacc down_to_up0
-      (Flambda.Invalid.Application_argument_kind_mismatch (args_arity, apply0))
+      (Application_argument_kind_mismatch (args_arity, apply0))

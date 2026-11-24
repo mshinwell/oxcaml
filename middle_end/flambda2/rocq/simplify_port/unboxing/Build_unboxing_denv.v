@@ -27,6 +27,8 @@ From SimplifyPort.decl Require Import Simplify_import.
 From SimplifyPort.decl Require Alloc_mode Bound_var Downwards_env
   Flambda2_types Flambda_debug_uid Flambda_kind Flambda_primitive List Misc
   Name Name_mode Or_bottom Simple Tag Unboxing_types Value_slot Variable_.
+(* CONSTRUCTORS-WITHOUT-MODULE: Flambda_kind.Naked_number_kind.t Or_bottom.t
+   Unboxing_types.const_ctors_decision Unboxing_types.unboxing_decision *)
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 

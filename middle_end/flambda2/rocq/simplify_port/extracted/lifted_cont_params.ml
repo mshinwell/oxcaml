@@ -62,8 +62,8 @@ let length t0 = t0.len
 let new_param t0 replay_history bound_param =
   let key =
     match Replay_history.replay_variable_mapping replay_history with
-    | Replay_history.Still_recording -> bound_param
-    | Replay_history.Replayed variable_mapping ->
+    | Still_recording -> bound_param
+    | Replayed variable_mapping ->
       let param_var, param_duid = BP.var_and_uid bound_param in
       let original_var = Variable.Map.find param_var variable_mapping in
       BP.create original_var (BP.kind bound_param) param_duid

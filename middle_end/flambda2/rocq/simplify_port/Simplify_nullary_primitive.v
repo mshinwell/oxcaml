@@ -23,6 +23,8 @@ From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Import Simplify_import.
 From SimplifyPort.decl Require Bound_var Debuginfo Name_mode Simple
   Simplify_primitive_result Target_ocaml_int.
+(* CONSTRUCTORS-WITHOUT-MODULE: Flambda_primitive.nullary_primitive
+   Name_mode.t *)
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 

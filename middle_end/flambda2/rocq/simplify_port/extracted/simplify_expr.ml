@@ -102,7 +102,7 @@ let simplify_toplevel_common dacc simplify params implicit_params
       (Flow.Acc.init_toplevel dummy_toplevel_cont
          (Bound_parameters.append params implicit_params))
       (DA.with_are_lifting_conts dacc
-         (Are_lifting_conts.no_lifting Are_lifting_conts.At_toplevel))
+         (Are_lifting_conts.no_lifting At_toplevel))
   in
   let dacc1 =
     DA.record_continuation dacc0 return_continuation
@@ -231,8 +231,7 @@ let rec simplify_expr dacc expr down_to_up0 =
       Simplify_apply_cont_expr.simplify_apply_cont dacc apply_cont down_to_up0)
     (fun switch -> Simplify_switch_expr.simplify_switch dacc switch down_to_up0)
     (fun message ->
-      down_to_up0 dacc
-        (Simplified_expr.simplified_invalid (Flambda.Invalid.Message message)))
+      down_to_up0 dacc (Simplified_expr.simplified_invalid (Message message)))
     (Expr.descr expr)
 
 (** val simplify_function_body : DA.t -> Expr.t -> Continuation.t -> (_)

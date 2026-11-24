@@ -66,7 +66,7 @@ let introduce_extra_params_in_use_env epa = function
           Apply_cont_rewrite_id.print use_id EPA.print epa)
       (fun extra_args ->
         match extra_args with
-        | Or_invalid.Ok extra_args0 ->
+        | Ok extra_args0 ->
           let tenv_at_use1 =
             List.fold_left2
               (fun tenv_at_use1 param arg ->
@@ -84,7 +84,7 @@ let introduce_extra_params_in_use_env epa = function
               extra_args0
           in
           Some (tenv_at_use1, use_id, kind)
-        | Or_invalid.Invalid -> None)
+        | Invalid -> None)
 
 (** val introduce_extra_params_for_join : DE.t -> (DE.t,
     Apply_cont_rewrite_id.t, Continuation_use_kind.t) Port_monad.tuple3 list ->
@@ -159,10 +159,7 @@ let add_extra_params_from_join_analysis denv analysis use_envs_with_ids' =
             let extra_args =
               T.Join_analysis.Simples_at_join.fold_definitions_at_uses
                 (fun use_id definition_at_use extra_args ->
-                  let (T.Join_analysis.Simples_at_join.At_normal_mode
-                         simple_at_use) =
-                    definition_at_use
-                  in
+                  let (At_normal_mode simple_at_use) = definition_at_use in
                   Apply_cont_rewrite_id.Map.add use_id
                     (EPA.Extra_arg.Already_in_scope simple_at_use) extra_args)
                 simples Apply_cont_rewrite_id.Map.empty
@@ -321,11 +318,10 @@ let add_equations_on_params typing_env is_recursive params' param_types =
                 kind
             in
             match T.meet typing_env0 type_from_kind param_type with
-            | Or_bottom.Ok p ->
+            | Ok p ->
               let meet_ty, typing_env1 = p in
               TE.add_equation typing_env1 name meet_ty
-            | Or_bottom.Bottom ->
-              TE.add_equation typing_env0 name (T.bottom raw_kind)
+            | Bottom -> TE.add_equation typing_env0 name (T.bottom raw_kind)
           else TE.add_equation typing_env0 name param_type
         in
         add_equations_on_params0 typing_env1 params1 param_types1)

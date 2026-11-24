@@ -24,6 +24,7 @@
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Apply_cont_rewrite_id Continuation_use_kind
   Downwards_env Flambda2_types Format.
+(* CONSTRUCTORS-WITHOUT-MODULE: Continuation_use_kind.t *)
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 

@@ -28,6 +28,9 @@ From SimplifyPort.decl Require Apply_cont_rewrite_id Bound_parameter
   Flambda_debug_uid Flambda_features Flambda_kind Format List Name Name_mode
   One_continuation_use Option Or_bottom Or_invalid Profile Replay_history
   Scope Simple Variable_.
+(* CONSTRUCTORS-WITHOUT-MODULE: Continuation_use_kind.t
+   Flambda2_types.Join_analysis.Simples_at_join.definition_at_use
+   Or_bottom.t Or_invalid.t *)
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 

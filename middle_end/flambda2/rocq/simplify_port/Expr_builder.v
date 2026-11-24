@@ -36,6 +36,9 @@ From SimplifyPort.decl Require Apply_cont_expr Apply_cont_rewrite
   Simplified_named Slot_offsets Switch_arm Symbol_projection Target_ocaml_int
   Upwards_acc Upwards_env Value_slot Variable_.
 Import Flambda.Import_.
+(* CONSTRUCTORS-WITHOUT-MODULE: Apply_expr.Result_continuation.t
+   Bound_pattern.t Flambda.Invalid.t Mutability.t Or_invalid.t Or_null.t
+   Or_unknown.t *)
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 Local Open Scope list_scope.

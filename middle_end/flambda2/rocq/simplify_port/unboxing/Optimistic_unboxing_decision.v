@@ -28,6 +28,11 @@ From SimplifyPort.decl Require Alloc_mode Bound_name Flambda2_types
   Flambda_debug_uid Flambda_features Flambda_kind Format List Misc Name
   Name_mode Or_bottom Or_unknown Simple Tag Target_ocaml_int Unboxers
   Unboxing_types Value_slot.
+(* CONSTRUCTORS-WITHOUT-MODULE: Flambda2_types.proof_of_property
+   Flambda_kind.Block_shape.t Flambda_kind.Naked_number_kind.t
+   Flambda_kind.Scannable_block_shape.t Flambda_kind.t Or_bottom.t
+   Or_unknown.t Unboxing_types.do_not_unbox_reason
+   Unboxing_types.unboxing_decision *)
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 

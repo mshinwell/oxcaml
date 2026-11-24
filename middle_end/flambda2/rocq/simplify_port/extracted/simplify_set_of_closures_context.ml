@@ -183,8 +183,7 @@ let compute_closure_types_inside_functions denv all_sets_of_closures
                         in
                         let () =
                           Inlining_report.record_decision_at_function_definition
-                            absolute_history code_metadata
-                            Inlining_report.Pass.Before_simplify
+                            absolute_history code_metadata Before_simplify
                             (DE.are_rebuilding_terms denv)
                             (Code_metadata.inlining_decision code_metadata)
                         in
@@ -337,11 +336,10 @@ let compute_and_erase_depth_variables typing_env denv_inside_functions
                             (Name.var var) None
                         in
                         match T.kind ty0 with
-                        | K.Value -> free_depth_variables
-                        | K.Naked_number _ -> free_depth_variables
-                        | K.Region -> free_depth_variables
-                        | K.Rec_info ->
-                          Variable.Set.add var free_depth_variables))
+                        | Value -> free_depth_variables
+                        | Naked_number _ -> free_depth_variables
+                        | Region -> free_depth_variables
+                        | Rec_info -> Variable.Set.add var free_depth_variables))
                   value_slot_types))
            value_slot_types_all_sets)
     in

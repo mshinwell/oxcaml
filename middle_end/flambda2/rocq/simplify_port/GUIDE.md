@@ -377,6 +377,21 @@ the fields are then `Simplify_simple.simples`. A field READ written
 through an abbreviation (`sorted.(LCS.innermost_first)`) is printed as a
 call, `LCS.innermost_first sorted`, which OCaml refuses: write the field
 whole (`sorted.(Lifted_constant_state.innermost_first)`).
+CONSTRUCTORS WITHOUT THEIR MODULE. The compiler often writes a constructor
+of another module bare (`Unary (Tag_immediate, x)`, `| Naked_float32 ->`),
+and OCaml finds the type from the place. A ported file can ask for the
+same, TYPE BY TYPE, in a comment before its `Local Open Scope` lines:
+`(* CONSTRUCTORS-WITHOUT-MODULE: Flambda_primitive.unary_primitive
+Flambda_kind.Boxable_number.t *)` (the names of the inductive types as
+`decl/` has them, from the file's name). Every constructor of a listed
+type is then printed bare in that file, whatever the Rocq text writes
+(the Rocq text still needs the module). List a type when the compiler's
+file never writes its constructors with a module. If OCaml cannot find
+the type at some place (the compiler's file has a type annotation there
+that the extracted text has not), the file does not type-check: take the
+type off the list. This cannot change what the file does without
+changing its instructions: `tools/samecode.sh` must say that all 78 files
+have the same ones.
 AFTER THE ABBREVIATIONS, NO `open` AND NO `include` AT THE LEFT MARGIN OF
 THE OCAML HEAD (after `open! Simplify_import`, after a line `module A =
 P`): such a line could give `A` another meaning than Rocq's, the tool does

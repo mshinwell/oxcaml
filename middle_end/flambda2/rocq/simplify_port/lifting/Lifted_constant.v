@@ -31,6 +31,8 @@ From SimplifyPort.decl Require Bound_static Code_id Flambda2_types
   Flambda_kind Format Function_slot List ListLabels Name_mode
   Name_occurrences Rebuilt_static_const Simple Stdlib_ Symbol
   Symbol_projection Variable_.
+(* CONSTRUCTORS-WITHOUT-MODULE: Flambda2_types.meet_shortcut
+   Flambda2_types.reification_result *)
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 Local Open Scope list_scope.

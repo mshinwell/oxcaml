@@ -25,6 +25,7 @@ From SimplifyPort.decl Require Apply_cont_rewrite_id Array Bound_parameters
   Code_id Continuation Flambda2_types Flambda_primitive Flow_types Format
   List Name Name_mode Name_occurrences Numeric_types Or_unknown Queue Simple
   Value_slot Variable_.
+(* CONSTRUCTORS-WITHOUT-MODULE: Flow_types.Mutable_prim.t *)
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 

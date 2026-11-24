@@ -261,10 +261,9 @@ let decide_param_usage_non_recursive free_names required_names removed_aliased
   let param_var = BP.var param in
   let is_used =
     match NO.count_variable_normal_mode free_names param_var with
-    | Num_occurrences.Zero ->
-      Option.equal Variable.equal exn_bucket (Some param_var)
-    | Num_occurrences.One -> true
-    | Num_occurrences.More_than_one -> true
+    | Zero -> Option.equal Variable.equal exn_bucket (Some param_var)
+    | One -> true
+    | More_than_one -> true
   in
   let () =
     if is_used && not (Name.Set.mem (Name.var param_var) required_names)
@@ -354,9 +353,8 @@ let add_extra_params_for_mutable_unboxing cont0 uacc extra_params_and_args0 =
     UA.mutable_unboxing_result uacc
   in
   match Continuation.Map.find_or_null cont0 additional_epa0 with
-  | Or_null.Null -> extra_params_and_args0
-  | Or_null.This additional_epa1 ->
-    EPA.concat additional_epa1 extra_params_and_args0
+  | Null -> extra_params_and_args0
+  | This additional_epa1 -> EPA.concat additional_epa1 extra_params_and_args0
 
 type behaviour =
   | Invalid
@@ -420,7 +418,7 @@ let make_rewrite_for_recursive_continuation uacc cont0 is_cold0
         let uenv0 = UE.add_apply_cont_rewrite uenv cont0 rewrite in
         UE.add_non_inlinable_continuation
           (UA.are_rebuilding_terms uacc)
-          uenv0 cont0 is_cold0 params0 Or_unknown.Unknown)
+          uenv0 cont0 is_cold0 params0 Unknown)
   in
   uacc0
 
@@ -507,9 +505,9 @@ let rebuild_let_cont_ data after_rebuild body uacc =
           in
           let remove_let_cont_leaving_body =
             match num_free_occurrences_of_cont_in_body with
-            | Num_occurrences.Zero -> true
-            | Num_occurrences.One -> false
-            | Num_occurrences.More_than_one -> false
+            | Zero -> true
+            | One -> false
+            | More_than_one -> false
           in
           let name_occurrences_body1 =
             NO.remove_continuation name_occurrences_body0 cont0
@@ -836,7 +834,7 @@ let rebuild_single_non_recursive_handler rebuild_expr at_unit_toplevel
                 UE.add_non_inlinable_continuation
                   (UA.are_rebuilding_terms uacc4)
                   uenv cont0 is_cold1 params2
-                  (Or_unknown.Known
+                  (Known
                      ((fun (x__1, x__2, x__3) ->
                         ( x__1,
                           ~is_exn_handler:x__2,
@@ -1121,7 +1119,7 @@ let create_handler_to_rebuild data cont0 handler0 =
                 -> x__0.invariant_extra_params_and_args)
                   data))
         with
-        | Or_null.Null ->
+        | Null ->
           Or_invalid.Ok
             (List.map
                (fun param ->
@@ -1133,7 +1131,7 @@ let create_handler_to_rebuild data cont0 handler0 =
                              after_downwards_traversal_of_body_and_handlers_data)
                       -> x__0.invariant_extra_params_and_args)
                         data))))
-        | Or_null.This extra_args -> extra_args)
+        | This extra_args -> extra_args)
       use_ids
   in
   let invariant_epa =
@@ -1298,8 +1296,7 @@ let rec compute_specialized_continuation replay simplify_expr original_cont
     in
     let dacc1 =
       DA.with_are_lifting_conts dacc0
-        (Are_lifting_conts.no_lifting
-           Are_lifting_conts.In_continuation_specialization)
+        (Are_lifting_conts.no_lifting In_continuation_specialization)
     in
     simplify_handler simplify_expr is_recursive is_exn_handler1
       Bound_parameters.empty params0 cont0 dacc1
@@ -1632,7 +1629,7 @@ and prepare_dacc_for_handlers dacc replay env_at_fork params0 is_recursive
   in
   let handler_env1, unbox_decisions0, is_exn_handler0, dacc0 =
     match continuation_sort with
-    | Continuation.Sort.Normal_or_exn ->
+    | Normal_or_exn ->
       if join_result.Join_points.is_single_inlinable_use
       then
         match is_exn_handler_cont with
@@ -1643,8 +1640,7 @@ and prepare_dacc_for_handlers dacc replay env_at_fork params0 is_recursive
         | None ->
           let dacc0 =
             DA.with_are_lifting_conts dacc
-              (Are_lifting_conts.no_lifting
-                 Are_lifting_conts.In_inlinable_continuation)
+              (Are_lifting_conts.no_lifting In_inlinable_continuation)
           in
           handler_env0, do_not_unbox (), false, dacc0
       else
@@ -1670,12 +1666,11 @@ and prepare_dacc_for_handlers dacc replay env_at_fork params0 is_recursive
           in
           let handler_env1, decisions =
             Unbox_continuation_params.make_decisions
-              (Unbox_continuation_params.Non_recursive arg_types_by_use_id0)
-              handler_env0 params_including_lifted_params
-              param_types_including_lifted
+              (Non_recursive arg_types_by_use_id0) handler_env0
+              params_including_lifted_params param_types_including_lifted
           in
           handler_env1, decisions, false, dacc0
-    | Continuation.Sort.Return -> (
+    | Return -> (
       match is_exn_handler_cont with
       | Some cont0 ->
         Misc.fatal_errorf
@@ -1683,7 +1678,7 @@ and prepare_dacc_for_handlers dacc replay env_at_fork params0 is_recursive
            [Toplevel_return]:@ %a"
           Continuation.print cont0
       | None -> handler_env0, do_not_unbox (), false, dacc)
-    | Continuation.Sort.Define_root_symbol ->
+    | Define_root_symbol ->
       let dacc0, is_exn_handler0 =
         match is_exn_handler_cont with
         | Some cont0 ->
@@ -1706,12 +1701,11 @@ and prepare_dacc_for_handlers dacc replay env_at_fork params0 is_recursive
         in
         let handler_env1, decisions =
           Unbox_continuation_params.make_decisions
-            (Unbox_continuation_params.Non_recursive arg_types_by_use_id0)
-            handler_env0 params_including_lifted_params
-            param_types_including_lifted
+            (Non_recursive arg_types_by_use_id0) handler_env0
+            params_including_lifted_params param_types_including_lifted
         in
         handler_env1, decisions, false, dacc0
-    | Continuation.Sort.Toplevel_return -> (
+    | Toplevel_return -> (
       match is_exn_handler_cont with
       | Some cont0 ->
         Misc.fatal_errorf
@@ -1788,8 +1782,8 @@ and simplify_single_recursive_handler simplify_expr cont_uses_env_so_far
   let handler_env4, unbox_decisions0, dacc0 =
     let param_types = TE.find_params (DE.typing_env handler_env3) params0 in
     let handler_env4, decisions =
-      Unbox_continuation_params.make_decisions
-        Unbox_continuation_params.Recursive handler_env3 params0 param_types
+      Unbox_continuation_params.make_decisions Recursive handler_env3 params0
+        param_types
     in
     handler_env4, decisions, dacc
   in
@@ -1937,8 +1931,7 @@ and simplify_handlers simplify_expr down_to_up0 denv_for_join simplified_body
     (fun invariant_params lifted_params0 continuation_handlers _ ->
       let dacc1 =
         DA.with_are_lifting_conts dacc0
-          (Are_lifting_conts.no_lifting
-             Are_lifting_conts.In_recursive_continuation)
+          (Are_lifting_conts.no_lifting In_recursive_continuation)
       in
       let denv0 = DE.set_at_unit_toplevel_state denv false in
       let all_conts_set =
@@ -1961,8 +1954,8 @@ and simplify_handlers simplify_expr down_to_up0 denv_for_join simplified_body
       let uses = List.concat_map Continuation_uses.get_uses all_uses in
       let dacc2, unbox_decisions0, is_exn_handler0, extra_params_and_args0 =
         prepare_dacc_for_handlers dacc1 None denv0 invariant_params true
-          consts_lifted_during_body Continuation.Sort.Normal_or_exn None uses
-          lifted_params0 arg_types_by_use_id
+          consts_lifted_during_body Normal_or_exn None uses lifted_params0
+          arg_types_by_use_id
       in
       let arg_types_by_use_id_including_lifted =
         arg_types_by_use_id
@@ -2265,9 +2258,9 @@ let simplify_let_cont0 simplify_expr dacc data down_to_up0 =
       Replay_history.replay_continuation_mapping
         (DE.replay_history denv_for_body0)
     with
-    | Replay_history.Still_recording ->
+    | Still_recording ->
       (fun (x__0 : simplify_let_cont_data) -> x__0.handlers) data
-    | Replay_history.Replayed continuation_mapping ->
+    | Replayed continuation_mapping ->
       (fun f__1 f__2 x__0 ->
         match (x__0 : Original_handlers.t) with
         | Original_handlers.Recursive

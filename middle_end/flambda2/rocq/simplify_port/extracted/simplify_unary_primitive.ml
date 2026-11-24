@@ -170,23 +170,23 @@ let simplify_unbox_number boxable_number_kind dacc original_term arg
   in
   SPR.map_dacc result (fun dacc0 ->
       match alloc_mode with
-      | T.Proved t -> (
+      | Proved t -> (
         match t with
-        | Alloc_mode.For_types.Heap ->
+        | Heap ->
           let alloc_region = get_my_alloc_region dacc0 in
           DA.map_denv dacc0 (fun denv ->
               DE.add_cse denv
                 (P.Eligible_for_cse.create_exn
-                   (P.Unary
-                      ( P.Box_number
+                   (Unary
+                      ( Box_number
                           ( boxable_number_kind,
                             Alloc_mode.For_allocations.heap alloc_region ),
                         Simple.var result_var' )))
                 arg
                 (Bound_var.name_mode result_var))
-        | Alloc_mode.For_types.Local -> dacc0
-        | Alloc_mode.For_types.Heap_or_local -> dacc0)
-      | T.Unknown -> dacc0)
+        | Local -> dacc0
+        | Heap_or_local -> dacc0)
+      | Unknown -> dacc0)
 
 (** val simplify_untag_immediate : DA.t -> Named.t -> Simple.t -> T.t ->
     Bound_var.t -> SPR.t coq_M **)
@@ -204,7 +204,7 @@ let simplify_untag_immediate dacc original_term arg boxed_number_ty result_var =
       DA.map_denv dacc0 (fun denv ->
           DE.add_cse denv
             (P.Eligible_for_cse.create_exn
-               (P.Unary (P.Tag_immediate, Simple.var result_var')))
+               (Unary (Tag_immediate, Simple.var result_var')))
             arg
             (Bound_var.name_mode result_var)))
 
@@ -263,12 +263,12 @@ let simplify_is_int variant_only dacc original_term scrutinee scrutinee_ty
       result_var TE.add_is_int_relation
   else
     match T.prove_is_int (DA.typing_env dacc) scrutinee_ty with
-    | T.Proved b ->
+    | Proved b ->
       let machine_width = DE.machine_width (DA.denv dacc) in
       let ty = T.this_naked_immediate (Target_ocaml_int.bool machine_width b) in
       let dacc0 = DA.add_variable dacc result_var ty in
       SPR.create original_term false dacc0
-    | T.Unknown ->
+    | Unknown ->
       SPR.create_unknown dacc result_var K.naked_immediate original_term
 
 (** val simplify_get_tag : DA.t -> Named.t -> Simple.t -> T.t -> Bound_var.t ->
@@ -276,13 +276,13 @@ let simplify_is_int variant_only dacc original_term scrutinee scrutinee_ty
 
 let simplify_get_tag dacc original_term scrutinee scrutinee_ty result_var =
   match T.prove_is_int (DA.typing_env dacc) scrutinee_ty with
-  | T.Proved b ->
+  | Proved b ->
     if b
     then SPR.create_invalid dacc
     else
       simplify_relational_primitive dacc original_term scrutinee scrutinee_ty
         result_var TE.add_get_tag_relation
-  | T.Unknown ->
+  | Unknown ->
     simplify_relational_primitive dacc original_term scrutinee scrutinee_ty
       result_var TE.add_get_tag_relation
 
@@ -292,7 +292,7 @@ let simplify_get_tag dacc original_term scrutinee scrutinee_ty result_var =
 let simplify_array_length _ dacc original_term _ array_ty result_var =
   let result = Simple.var (Bound_var.var result_var) in
   Simplify_common.simplify_projection dacc original_term array_ty
-    (T.array_of_length Or_unknown_or_bottom.Unknown
+    (T.array_of_length Unknown
        (T.alias_type_of K.value result)
        (Alloc_mode.For_types.unknown ()))
     result_var K.value
@@ -928,12 +928,12 @@ let simplify_is_boxed_float dacc original_term _ arg_ty result_var =
   let denv = DA.denv dacc in
   let machine_width = DE.machine_width denv in
   match T.prove_is_or_is_not_a_boxed_float (DA.typing_env dacc) arg_ty with
-  | T.Proved is_a_boxed_float ->
+  | Proved is_a_boxed_float ->
     let imm = Target_ocaml_int.bool machine_width is_a_boxed_float in
     let ty = T.this_naked_immediate imm in
     let dacc0 = DA.add_variable dacc result_var ty in
     SPR.create original_term true dacc0
-  | T.Unknown ->
+  | Unknown ->
     SPR.create_unknown dacc result_var K.naked_immediate original_term
 
 (** val simplify_is_flat_float_array : DA.t -> Named.t -> Simple.t -> T.t ->
@@ -1091,12 +1091,12 @@ let simplify_obj_dup alloc_region dbg dacc original_term arg arg_ty result_var =
     SPR.create (Named.create_simple arg) true dacc0
   in
   match T.prove_is_a_boxed_or_tagged_number typing_env arg_ty with
-  | T.Proved b -> (
+  | Proved b -> (
     match b with
-    | T.Boxed (t, boxable_number, contents_ty) -> (
+    | Boxed (t, boxable_number, contents_ty) -> (
       match t with
-      | Alloc_mode.For_types.Heap -> elide_primitive ()
-      | Alloc_mode.For_types.Local ->
+      | Heap -> elide_primitive ()
+      | Local ->
         Port_monad.match_exn
           (fun _ ->
             (fun x__1 x__2 x__3 x__4 ->
@@ -1112,9 +1112,7 @@ let simplify_obj_dup alloc_region dbg dacc original_term arg arg_ty result_var =
             in
             let contents_var_duid = Flambda_debug_uid.none in
             let unbox_expr =
-              Named.create_prim
-                (P.Unary (P.Unbox_number boxable_number, arg))
-                dbg
+              Named.create_prim (Unary (Unbox_number boxable_number, arg)) dbg
             in
             let contents_pat =
               Bound_pattern.singleton
@@ -1123,8 +1121,8 @@ let simplify_obj_dup alloc_region dbg dacc original_term arg arg_ty result_var =
             let contents_simple = Simple.var contents_var in
             let box_expr =
               Named.create_prim
-                (P.Unary
-                   ( P.Box_number
+                (Unary
+                   ( Box_number
                        ( boxable_number,
                          Alloc_mode.For_allocations.heap alloc_region ),
                      contents_simple ))
@@ -1157,14 +1155,14 @@ let simplify_obj_dup alloc_region dbg dacc original_term arg arg_ty result_var =
             let dacc0 = DA.add_variable dacc result_var ty in
             SPR.create
               (Named.create_prim
-                 (P.Unary
-                    ( P.Box_number
+                 (Unary
+                    ( Box_number
                         ( boxable_number,
                           Alloc_mode.For_allocations.heap alloc_region ),
                       contents ))
                  dbg)
               true dacc0)
-      | Alloc_mode.For_types.Heap_or_local ->
+      | Heap_or_local ->
         Port_monad.match_exn
           (fun _ ->
             (fun x__1 x__2 x__3 x__4 ->
@@ -1180,9 +1178,7 @@ let simplify_obj_dup alloc_region dbg dacc original_term arg arg_ty result_var =
             in
             let contents_var_duid = Flambda_debug_uid.none in
             let unbox_expr =
-              Named.create_prim
-                (P.Unary (P.Unbox_number boxable_number, arg))
-                dbg
+              Named.create_prim (Unary (Unbox_number boxable_number, arg)) dbg
             in
             let contents_pat =
               Bound_pattern.singleton
@@ -1191,8 +1187,8 @@ let simplify_obj_dup alloc_region dbg dacc original_term arg arg_ty result_var =
             let contents_simple = Simple.var contents_var in
             let box_expr =
               Named.create_prim
-                (P.Unary
-                   ( P.Box_number
+                (Unary
+                   ( Box_number
                        ( boxable_number,
                          Alloc_mode.For_allocations.heap alloc_region ),
                      contents_simple ))
@@ -1225,18 +1221,18 @@ let simplify_obj_dup alloc_region dbg dacc original_term arg arg_ty result_var =
             let dacc0 = DA.add_variable dacc result_var ty in
             SPR.create
               (Named.create_prim
-                 (P.Unary
-                    ( P.Box_number
+                 (Unary
+                    ( Box_number
                         ( boxable_number,
                           Alloc_mode.For_allocations.heap alloc_region ),
                       contents ))
                  dbg)
               true dacc0))
-    | T.Tagged_immediate -> elide_primitive ())
-  | T.Unknown -> (
+    | Tagged_immediate -> elide_primitive ())
+  | Unknown -> (
     match T.prove_strings typing_env arg_ty with
-    | T.Proved _ -> elide_primitive ()
-    | T.Unknown -> SPR.create_unknown dacc result_var K.value original_term)
+    | Proved _ -> elide_primitive ()
+    | Unknown -> SPR.create_unknown dacc result_var K.value original_term)
 
 (** val simplify_get_header : P.t -> DA.t -> Named.t -> Simple.t -> T.t ->
     Bound_var.t -> SPR.t coq_M **)
@@ -1281,7 +1277,7 @@ let simplify_immutable_block_load0 access_kind field min_name_mode dacc
             f__3 x__1 x__2 x__3 x__4)
           (fun tag _ _ ->
             ( Or_unknown.map tag Tag.Scannable.to_tag,
-              K.Block_shape.Scannable K.Scannable_block_shape.Value_only ))
+              K.Block_shape.Scannable Value_only ))
           (fun size ->
             ( (match size with
               | Or_unknown.Known size0 ->
@@ -1294,8 +1290,7 @@ let simplify_immutable_block_load0 access_kind field min_name_mode dacc
               K.Block_shape.Float_record ))
           (fun tag _ _ shape ->
             ( Or_unknown.map tag Tag.Scannable.to_tag,
-              K.Block_shape.Scannable
-                (K.Scannable_block_shape.Mixed_record shape) ))
+              K.Block_shape.Scannable (Mixed_record shape) ))
           access_kind
       in
       let result =
@@ -1313,7 +1308,7 @@ let simplify_immutable_block_load0 access_kind field min_name_mode dacc
               T.prove_unique_fully_constructed_immutable_heap_block
                 (DA.typing_env dacc0) block_ty
             with
-            | T.Proved t -> (
+            | Proved t -> (
               let tag0, shape_from_type, _, field_simples = t in
               match Tag.Scannable.of_tag tag0 with
               | Some tag1 -> (
@@ -1345,12 +1340,11 @@ let simplify_immutable_block_load0 access_kind field min_name_mode dacc
                         match shape_from_type with
                         | K.Block_shape.Scannable t0 -> (
                           match t0 with
-                          | K.Scannable_block_shape.Value_only ->
+                          | Value_only ->
                             Misc.fatal_error
                               "Block access kind disagrees with block shape \
                                from type"
-                          | K.Scannable_block_shape.Mixed_record
-                              shape_from_type0 ->
+                          | Mixed_record shape_from_type0 ->
                             if K.Mixed_block_shape.equal shape0 shape_from_type0
                             then ()
                             else
@@ -1368,8 +1362,8 @@ let simplify_immutable_block_load0 access_kind field min_name_mode dacc
                 let alloc_region = get_my_alloc_region dacc0 in
                 let prim =
                   P.Eligible_for_cse.create
-                    (P.Variadic
-                       ( P.Make_block
+                    (Variadic
+                       ( Make_block
                            ( block_kind,
                              Mutability.Immutable,
                              Alloc_mode.For_allocations.heap alloc_region ),
@@ -1382,7 +1376,7 @@ let simplify_immutable_block_load0 access_kind field min_name_mode dacc
                         (Bound_var.name_mode result_var))
                 | None -> dacc0)
               | None -> dacc0)
-            | T.Unknown -> dacc0))
+            | Unknown -> dacc0))
     (fun _ -> SPR.create_invalid dacc)
     (T.meet_block_field_simple typing_env min_name_mode result_kind block_ty
        field)
@@ -1409,11 +1403,9 @@ let simplify_immutable_block_load access_kind field min_name_mode dacc
           | P.Block_access_kind.Mixed
               { tag = x__1; size = x__2; field_kind = x__3; shape = x__4 } ->
             f__3 x__1 x__2 x__3 x__4)
-          (fun _ _ _ ->
-            K.Block_shape.Scannable K.Scannable_block_shape.Value_only)
+          (fun _ _ _ -> K.Block_shape.Scannable Value_only)
           (fun _ -> K.Block_shape.Float_record)
-          (fun _ _ _ shape ->
-            K.Block_shape.Scannable (K.Scannable_block_shape.Mixed_record shape))
+          (fun _ _ _ shape -> K.Block_shape.Scannable (Mixed_record shape))
           access_kind
       in
       Simplify_common.add_symbol_projection dacc0 arg
@@ -1566,20 +1558,17 @@ let simplify_unary_primitive dacc original_prim prim arg arg_ty dbg result_var =
       (fun _ kind dacc0 -> simplify_opaque_identity dacc0 kind)
       (fun kind op ->
         match kind with
-        | K.Standard_int.Tagged_immediate ->
-          Unary_int_arith_tagged_immediate.simplify op
-        | K.Standard_int.Naked_immediate ->
-          Unary_int_arith_naked_immediate.simplify op
-        | K.Standard_int.Naked_int8 -> Unary_int_arith_naked_int8.simplify op
-        | K.Standard_int.Naked_int16 -> Unary_int_arith_naked_int16.simplify op
-        | K.Standard_int.Naked_int32 -> Unary_int_arith_naked_int32.simplify op
-        | K.Standard_int.Naked_int64 -> Unary_int_arith_naked_int64.simplify op
-        | K.Standard_int.Naked_nativeint ->
-          Unary_int_arith_naked_nativeint.simplify op)
+        | Tagged_immediate -> Unary_int_arith_tagged_immediate.simplify op
+        | Naked_immediate -> Unary_int_arith_naked_immediate.simplify op
+        | Naked_int8 -> Unary_int_arith_naked_int8.simplify op
+        | Naked_int16 -> Unary_int_arith_naked_int16.simplify op
+        | Naked_int32 -> Unary_int_arith_naked_int32.simplify op
+        | Naked_int64 -> Unary_int_arith_naked_int64.simplify op
+        | Naked_nativeint -> Unary_int_arith_naked_nativeint.simplify op)
       (fun f op ->
         match f with
-        | P.Float32 -> simplify_float32_arith_op op
-        | P.Float64 -> simplify_float_arith_op op)
+        | Float32 -> simplify_float32_arith_op op
+        | Float64 -> simplify_float_arith_op op)
       (fun src dst ->
         match src with
         | K.Standard_int_or_float.Tagged_immediate ->

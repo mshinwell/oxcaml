@@ -140,10 +140,10 @@ let add_continuation_use t0 cont0 kind id env_at_use arg_types =
               None machine_width kind0
           in
           match T.meet tenv0 arg_type kind_ty with
-          | Or_bottom.Ok p ->
+          | Ok p ->
             let arg_type0, env = p in
             env, arg_type0
-          | Or_bottom.Bottom -> tenv0, arg_type)
+          | Bottom -> tenv0, arg_type)
         tenv arg_types
         (Flambda_arity.unarized_components arity)
     in
@@ -176,8 +176,8 @@ let record_continuation_use t0 cont0 kind env_at_use arg_types =
 
 let get_typing_env_no_more_than_one_use t0 k =
   match Continuation.Map.find_or_null k t0.continuation_uses with
-  | Or_null.Null -> None
-  | Or_null.This cont_uses ->
+  | Null -> None
+  | This cont_uses ->
     Continuation_uses.get_typing_env_no_more_than_one_use cont_uses
 
 (** val get_continuation_uses : t -> Continuation.t -> Continuation_uses.t
@@ -190,8 +190,8 @@ let get_continuation_uses t0 cont0 =
 
 let num_continuation_uses t0 cont0 =
   match Continuation.Map.find_or_null cont0 t0.continuation_uses with
-  | Or_null.Null -> 0
-  | Or_null.This uses -> Continuation_uses.number_of_uses uses
+  | Null -> 0
+  | This uses -> Continuation_uses.number_of_uses uses
 
 (** val all_continuations_used : t -> Continuation.Set.t coq_M **)
 

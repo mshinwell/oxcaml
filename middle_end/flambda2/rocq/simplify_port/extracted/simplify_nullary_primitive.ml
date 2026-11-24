@@ -43,12 +43,12 @@ let simplify_nullary_primitive dacc original_prim prim dbg result_var =
     (fun result_kind ->
       let () =
         match Bound_var.name_mode result_var with
-        | Name_mode.Normal ->
+        | Normal ->
           Misc.fatal_errorf
             "The [Optimised_out] primitive should only be used in bindings of \
              phantom variables"
-        | Name_mode.Phantom -> ()
-        | Name_mode.In_types ->
+        | Phantom -> ()
+        | In_types ->
           Misc.fatal_errorf
             "The [Optimised_out] primitive should only be used in bindings of \
              phantom variables"

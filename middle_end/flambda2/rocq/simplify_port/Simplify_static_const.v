@@ -29,6 +29,8 @@ From SimplifyPort.decl Require Alloc_mode Are_rebuilding_terms Array
   Mutability Name Name_mode Or_unknown_or_bottom Or_variable Simple
   Simplify_common Simplify_set_of_closures Symbol Tag Target_ocaml_int
   Target_system.
+(* CONSTRUCTORS-WITHOUT-MODULE: Flambda_kind.Scannable_block_shape.t
+   Or_unknown_or_bottom.t *)
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 

@@ -30,6 +30,7 @@ From SimplifyPort.decl Require Array ArrayLabels Bound_static
   Code_id_or_symbol Format Function_slot Lifted_constant List ListLabels
   Name_mode Name_occurrences Symbol.
 From SimplifyPort.decl Require Import Lifted_constant_state__local.
+(* CONSTRUCTORS-WITHOUT-MODULE: Lifted_constant.Definition_.descr_ *)
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 

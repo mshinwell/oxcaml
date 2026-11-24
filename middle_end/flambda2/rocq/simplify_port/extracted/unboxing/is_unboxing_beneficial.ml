@@ -83,7 +83,7 @@ let rec filter_non_beneficial_decisions decision =
                   { tag = x__1; shape = x__2; fields = x__3 }
                  : U.unboxing_decision))
                (tag, shape, fields0))
-        else U.Do_not_unbox U.Not_beneficial)
+        else U.Do_not_unbox Not_beneficial)
       (fun tag const_ctors fields_by_tag ->
         let is_unboxing_beneficial = ref false in
         let fields_by_tag0 =
@@ -121,7 +121,7 @@ let rec filter_non_beneficial_decisions decision =
                   { tag = x__1; const_ctors = x__2; fields_by_tag = x__3 }
                  : U.unboxing_decision))
                (tag, const_ctors, fields_by_tag0))
-        else U.Do_not_unbox U.Not_beneficial)
+        else U.Do_not_unbox Not_beneficial)
       (fun function_slot vars_within_closure ->
         let is_unboxing_beneficial = ref false in
         let vars_within_closure0 =
@@ -149,53 +149,53 @@ let rec filter_non_beneficial_decisions decision =
                   { function_slot = x__1; vars_within_closure = x__2 }
                  : U.unboxing_decision))
                (function_slot, vars_within_closure0))
-        else U.Do_not_unbox U.Not_beneficial)
+        else U.Do_not_unbox Not_beneficial)
       (fun t0 epa ->
         match t0 with
-        | K.Naked_number_kind.Naked_immediate -> decision
-        | K.Naked_number_kind.Naked_float32 ->
+        | Naked_immediate -> decision
+        | Naked_float32 ->
           if is_unboxing_beneficial_for_epa epa
           then decision
-          else U.Do_not_unbox U.Not_beneficial
-        | K.Naked_number_kind.Naked_float ->
+          else U.Do_not_unbox Not_beneficial
+        | Naked_float ->
           if is_unboxing_beneficial_for_epa epa
           then decision
-          else U.Do_not_unbox U.Not_beneficial
-        | K.Naked_number_kind.Naked_int8 ->
+          else U.Do_not_unbox Not_beneficial
+        | Naked_int8 ->
           if is_unboxing_beneficial_for_epa epa
           then decision
-          else U.Do_not_unbox U.Not_beneficial
-        | K.Naked_number_kind.Naked_int16 ->
+          else U.Do_not_unbox Not_beneficial
+        | Naked_int16 ->
           if is_unboxing_beneficial_for_epa epa
           then decision
-          else U.Do_not_unbox U.Not_beneficial
-        | K.Naked_number_kind.Naked_int32 ->
+          else U.Do_not_unbox Not_beneficial
+        | Naked_int32 ->
           if is_unboxing_beneficial_for_epa epa
           then decision
-          else U.Do_not_unbox U.Not_beneficial
-        | K.Naked_number_kind.Naked_int64 ->
+          else U.Do_not_unbox Not_beneficial
+        | Naked_int64 ->
           if is_unboxing_beneficial_for_epa epa
           then decision
-          else U.Do_not_unbox U.Not_beneficial
-        | K.Naked_number_kind.Naked_nativeint ->
+          else U.Do_not_unbox Not_beneficial
+        | Naked_nativeint ->
           if is_unboxing_beneficial_for_epa epa
           then decision
-          else U.Do_not_unbox U.Not_beneficial
-        | K.Naked_number_kind.Naked_vec128 ->
+          else U.Do_not_unbox Not_beneficial
+        | Naked_vec128 ->
           if is_unboxing_beneficial_for_epa epa
           then decision
-          else U.Do_not_unbox U.Not_beneficial
-        | K.Naked_number_kind.Naked_vec256 ->
+          else U.Do_not_unbox Not_beneficial
+        | Naked_vec256 ->
           if is_unboxing_beneficial_for_epa epa
           then decision
-          else U.Do_not_unbox U.Not_beneficial
-        | K.Naked_number_kind.Naked_vec512 ->
+          else U.Do_not_unbox Not_beneficial
+        | Naked_vec512 ->
           if is_unboxing_beneficial_for_epa epa
           then decision
-          else U.Do_not_unbox U.Not_beneficial
-        | K.Naked_number_kind.Naked_mask ->
+          else U.Do_not_unbox Not_beneficial
+        | Naked_mask ->
           if is_unboxing_beneficial_for_epa epa
           then decision
-          else U.Do_not_unbox U.Not_beneficial)
+          else U.Do_not_unbox Not_beneficial)
       u
   | U.Do_not_unbox _ -> decision

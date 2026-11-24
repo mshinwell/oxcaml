@@ -28,6 +28,9 @@ From SimplifyPort.decl Require Apply_cont_expr Are_lifting_conts
   Debuginfo Flambda_arity Flow List Loopify_state One_continuation_use
   Or_unknown Simplify_apply_cont_expr Simplify_apply_expr Simplify_common
   Simplify_let_cont_expr Simplify_let_expr Simplify_switch_expr.
+(* CONSTRUCTORS-WITHOUT-MODULE: Are_lifting_conts.reason
+   Closure_info.in_or_out_of_closure_ Closure_info.t Flambda.Invalid.t
+   Flambda.expr_descr *)
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 
