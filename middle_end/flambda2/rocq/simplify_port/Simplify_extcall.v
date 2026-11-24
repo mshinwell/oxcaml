@@ -144,6 +144,7 @@ Definition simplify_comparison_of_boxed_numbers (dbg : Debuginfo.t)
   let& tagged_duid := Flambda_debug_uid.none in
   (* 85-93: [f x @@ g y @@ e] is [f x (g y e)]. *)
   let* '(_free_names, res) :=
+    (* XXX try to remove @@ *)
     let! tmp1 := apply_cont cont tagged dbg in
     let! tmp2 := Simple.var v_comp in
     let! tmp3 :=
