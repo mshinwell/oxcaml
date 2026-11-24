@@ -36,7 +36,7 @@ Module Unrolling_state.
   Extract Inlined Constant unrolling => "Rec_info_expr.Unrolling_state.unrolling".
 End Unrolling_state.
 (* rec_info_expr0.mli:46  type t = private | Const of { depth : int Or_infinity.t; unrolling : Unrolling_state.t } | Var of variable ( ** A variable of kind [Flambda_kind.rec_info]. * ) | Succ of t ( ** The next depth. If we inline an occurrence with depth [d], then in the inlined body, recursive references will have depth [succ d]. * ) | Unroll_to of int * t *)
-Parameter t : Type.
+Definition t : Type := Int_ids.Rec_info_expr.t.
 Extract Inlined Constant t => "Rec_info_expr.t".
 (* rec_info_expr0.mli:60  val initial : t *)
 Parameter initial : t.

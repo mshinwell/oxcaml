@@ -30,7 +30,7 @@ Extract Inlined Constant t => "Code_metadata.t".
 Parameter code_id : t -> M Code_id.t.
 Extract Inlined Constant code_id => "Code_metadata.code_id".
 (* code_metadata.mli:93  include Code_metadata_accessors_result_type with type 'a t := t *)
-Parameter params_arity : t -> M Flambda_arity.t.
+Parameter params_arity : t -> M Flambda_arity.t_Complex.
 Extract Inlined Constant params_arity => "Code_metadata.params_arity".
 (* code_metadata.mli:93  include Code_metadata_accessors_result_type with type 'a t := t *)
 Parameter param_modes : t -> M (list Alloc_mode.For_types.t).
@@ -39,7 +39,7 @@ Extract Inlined Constant param_modes => "Code_metadata.param_modes".
 Parameter first_complex_local_param : t -> M First_complex_local_param.t.
 Extract Inlined Constant first_complex_local_param => "Code_metadata.first_complex_local_param".
 (* code_metadata.mli:93  include Code_metadata_accessors_result_type with type 'a t := t *)
-Parameter result_arity : t -> M Flambda_arity.t.
+Parameter result_arity : t -> M Flambda_arity.t_Complex.
 Extract Inlined Constant result_arity => "Code_metadata.result_arity".
 (* code_metadata.mli:93  include Code_metadata_accessors_result_type with type 'a t := t *)
 Parameter result_types : t -> M (Or_unknown_or_bottom.t Result_types.t).
@@ -84,7 +84,7 @@ Extract Inlined Constant relative_history => "Code_metadata.relative_history".
 Parameter function_slot_size : t -> M int.
 Extract Inlined Constant function_slot_size => "Code_metadata.function_slot_size".
 (* code_metadata.mli:95  type 'a create_type = Code_id.t -> newer_version_of:Code_id.t option -> params_arity:[`Complex] Flambda_arity.t -> param_modes:Alloc_mode.For_types.t list -> first_complex_local_param:First_complex_local_param.t -> result_arity:[`Complex] Flambda_arity.t -> result_types:Result_types.t Or_unknown_or_bottom.t -> result_mode:Lambda.return_mode -> stub:bool -> inline:Inline_attribute.t -> zero_allo... *)
-Definition create_type (A : Type) : Type := Code_id.t -> option Code_id.t -> Flambda_arity.t -> list Alloc_mode.For_types.t -> First_complex_local_param.t -> Flambda_arity.t -> Or_unknown_or_bottom.t Result_types.t -> Lambda.return_mode -> bool -> Inline_attribute.t -> Zero_alloc_attribute.t -> Poll_attribute.t -> Regalloc_attribute.t -> Regalloc_param_attribute.t -> bool -> bool -> bool -> Recursive.t -> Cost_metrics.t -> Inlining_arguments.t -> Debuginfo.t -> bool -> bool -> Function_decl_inlining_decision_type.t -> Inlining_history.Absolute.t -> Inlining_history.Relative.t -> Loopify_attribute.t -> M A.
+Definition create_type (A : Type) : Type := Code_id.t -> option Code_id.t -> Flambda_arity.t_Complex -> list Alloc_mode.For_types.t -> First_complex_local_param.t -> Flambda_arity.t_Complex -> Or_unknown_or_bottom.t Result_types.t -> Lambda.return_mode -> bool -> Inline_attribute.t -> Zero_alloc_attribute.t -> Poll_attribute.t -> Regalloc_attribute.t -> Regalloc_param_attribute.t -> bool -> bool -> bool -> Recursive.t -> Cost_metrics.t -> Inlining_arguments.t -> Debuginfo.t -> bool -> bool -> Function_decl_inlining_decision_type.t -> Inlining_history.Absolute.t -> Inlining_history.Relative.t -> Loopify_attribute.t -> M A.
 Extract Constant create_type "'a1" => "('a1) Code_metadata.create_type".
 (* code_metadata.mli:125  val createk : (t -> 'a) -> 'a create_type *)
 Parameter createk : forall {A : Type}, (t -> M A) -> create_type A.

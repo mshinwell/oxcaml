@@ -36,13 +36,13 @@ Inductive simplified_handlers_group : Type :=
 | Non_recursive : Continuation.t -> simplified_handler_ -> bool -> simplified_handlers_group.
 Extract Inductive simplified_handlers_group => "Simplified_expr.simplified_handlers_group" [ "(fun x__1 -> (Simplified_expr.Recursive { simplified_continuation_handlers = x__1 } : Simplified_expr.simplified_handlers_group))" "(fun (x__1, x__2, x__3) -> (Simplified_expr.Non_recursive { cont = x__1; handler = x__2; is_single_inlinable_use = x__3 } : Simplified_expr.simplified_handlers_group))" ] "(fun f__1 f__2 x__0 -> match (x__0 : Simplified_expr.simplified_handlers_group) with Simplified_expr.Recursive { simplified_continuation_handlers = x__1 } -> f__1 x__1 | Simplified_expr.Non_recursive { cont = x__1; handler = x__2; is_single_inlinable_use = x__3 } -> f__2 x__1 x__2 x__3)".
 (* simplified_expr.mli:88  and simplified_apply = private { apply : Apply.t; use_id : Apply_cont_rewrite_id.t option; exn_cont_use_id : Apply_cont_rewrite_id.t; result_arity : [`Complex] Flambda_arity.t; is_cold : bool } *)
-Record simplified_apply_ : Type := { apply : Flambda.Import_.Apply.t; use_id : option Apply_cont_rewrite_id.t; exn_cont_use_id : Apply_cont_rewrite_id.t; result_arity : Flambda_arity.t; is_cold : bool }.
+Record simplified_apply_ : Type := { apply : Flambda.Import_.Apply.t; use_id : option Apply_cont_rewrite_id.t; exn_cont_use_id : Apply_cont_rewrite_id.t; result_arity : Flambda_arity.t_Complex; is_cold : bool }.
 (* simplified_expr.mli:102  and simplified_apply_cont = private { apply_cont : Apply_cont.t; args : Simple.t list; rewrite_id : Apply_cont_rewrite_id.t } *)
 (* PORT-GAP(type): the name of a field of it is taken in Rocq: abstract, with a maker for each constructor and one eliminator. *)
 Parameter simplified_apply_cont_ : Type.
 Extract Inlined Constant simplified_apply_cont_ => "Simplified_expr.simplified_apply_cont".
 (* simplified_expr.mli:108  and simplified_switch = private { arms : (Apply_cont_expr.t * annotations:Branch_annotations.t * Apply_cont_rewrite_id.t * [`Unarized] Flambda_arity.t * Typing_env.t) Target_ocaml_int.Map.t; condition_dbg : Debuginfo.t; scrutinee : Simple.t; scrutinee_ty : flambda_type; shareable_constants : Symbol.t Static_const.Map.t; typing_env_before_switch : Typing_env.t; cse_before_switch : Common_subexpr... *)
-Record simplified_switch_ : Type := { arms : Target_ocaml_int.Map.t (tuple5 Apply_cont_expr.t Branch_annotations.t Apply_cont_rewrite_id.t Flambda_arity.t Flambda2_types.Typing_env.t); condition_dbg : Debuginfo.t; scrutinee : Simple.t; scrutinee_ty : Flambda2_types.flambda_type; shareable_constants : Flambda.Import_.Static_const.Map.t Symbol.t; typing_env_before_switch : Flambda2_types.Typing_env.t; cse_before_switch : Common_subexpression_elimination.t }.
+Record simplified_switch_ : Type := { arms : Target_ocaml_int.Map.t (tuple5 Apply_cont_expr.t Branch_annotations.t Apply_cont_rewrite_id.t Flambda_arity.t_Unarized Flambda2_types.Typing_env.t); condition_dbg : Debuginfo.t; scrutinee : Simple.t; scrutinee_ty : Flambda2_types.flambda_type; shareable_constants : Flambda.Import_.Static_const.Map.t Symbol.t; typing_env_before_switch : Flambda2_types.Typing_env.t; cse_before_switch : Common_subexpression_elimination.t }.
 (* simplified_expr.mli:96  and simplified_terminator = private | Simplified_apply of simplified_apply | Simplified_apply_cont of simplified_apply_cont | Simplified_switch of simplified_switch | Simplified_invalid of Flambda.Invalid.t *)
 Inductive simplified_terminator_ : Type :=
 | Simplified_apply : simplified_apply_ -> simplified_terminator_
@@ -75,13 +75,13 @@ Extract Inlined Constant simplified_let => "Simplified_expr.simplified_let".
 Parameter simplified_let_cont : simplified_let_cont_handlers -> t -> M t.
 Extract Inlined Constant simplified_let_cont => "Simplified_expr.simplified_let_cont".
 (* simplified_expr.mli:140  val simplified_apply : ?result_arity:[`Complex] Flambda_arity.t -> Apply.t -> use_id:Apply_cont_rewrite_id.t option -> exn_cont_use_id:Apply_cont_rewrite_id.t -> is_cold:bool -> t *)
-Parameter simplified_apply : option Flambda_arity.t -> Flambda.Import_.Apply.t -> option Apply_cont_rewrite_id.t -> Apply_cont_rewrite_id.t -> bool -> M t.
+Parameter simplified_apply : option Flambda_arity.t_Complex -> Flambda.Import_.Apply.t -> option Apply_cont_rewrite_id.t -> Apply_cont_rewrite_id.t -> bool -> M t.
 Extract Inlined Constant simplified_apply => "(fun x__1 x__2 x__3 x__4 x__5 -> Simplified_expr.simplified_apply ?result_arity:x__1 x__2 x__3 x__4 x__5)".
 (* simplified_expr.mli:148  val simplified_apply_cont : Apply_cont.t -> args:Simple.t list -> rewrite_id:Apply_cont_rewrite_id.t -> t *)
 Parameter simplified_apply_cont : Flambda.Import_.Apply_cont.t -> list Simple.t -> Apply_cont_rewrite_id.t -> M t.
 Extract Inlined Constant simplified_apply_cont => "Simplified_expr.simplified_apply_cont".
 (* simplified_expr.mli:151  val simplified_switch : arms: (Apply_cont_expr.t * annotations:Branch_annotations.t * Apply_cont_rewrite_id.t * [`Unarized] Flambda_arity.t * Typing_env.t) Target_ocaml_int.Map.t -> condition_dbg:Debuginfo.t -> scrutinee:Simple.t -> scrutinee_ty:flambda_type -> shareable_constants:Symbol.t Static_const.Map.t -> typing_env_before_switch:Typing_env.t -> cse_before_switch:Common_subexpression_elim... *)
-Parameter simplified_switch : Target_ocaml_int.Map.t (tuple5 Apply_cont_expr.t Branch_annotations.t Apply_cont_rewrite_id.t Flambda_arity.t Flambda2_types.Typing_env.t) -> Debuginfo.t -> Simple.t -> Flambda2_types.flambda_type -> Flambda.Import_.Static_const.Map.t Symbol.t -> Flambda2_types.Typing_env.t -> Common_subexpression_elimination.t -> M t.
+Parameter simplified_switch : Target_ocaml_int.Map.t (tuple5 Apply_cont_expr.t Branch_annotations.t Apply_cont_rewrite_id.t Flambda_arity.t_Unarized Flambda2_types.Typing_env.t) -> Debuginfo.t -> Simple.t -> Flambda2_types.flambda_type -> Flambda.Import_.Static_const.Map.t Symbol.t -> Flambda2_types.Typing_env.t -> Common_subexpression_elimination.t -> M t.
 Extract Inlined Constant simplified_switch => "Simplified_expr.simplified_switch".
 (* simplified_expr.mli:167  val simplified_invalid : Flambda.Invalid.t -> t *)
 Parameter simplified_invalid : Flambda.Invalid.t -> M t.

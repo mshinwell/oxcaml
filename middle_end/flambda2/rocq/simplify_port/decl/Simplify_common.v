@@ -36,10 +36,10 @@ Extract Constant down_to_up "'a1" => "('a1) Simplify_common.down_to_up".
 Definition expr_simplifier (A : Type) : Type := Downwards_acc.t -> A -> down_to_up Simplified_expr.t -> M (Simplified_expr.t * Downwards_acc.t).
 Extract Constant expr_simplifier "'a1" => "('a1) Simplify_common.expr_simplifier".
 (* simplify_common.mli:81  type simplify_toplevel = Downwards_acc.t -> Expr.t -> return_continuation:Continuation.t -> return_arity:[`Complex] Flambda_arity.t -> exn_continuation:Continuation.t -> Rebuilt_expr.t * Upwards_acc.t *)
-Definition simplify_toplevel : Type := Downwards_acc.t -> Flambda.Expr.t -> Continuation.t -> Flambda_arity.t -> Continuation.t -> M (Rebuilt_expr.t * Upwards_acc.t).
+Definition simplify_toplevel : Type := Downwards_acc.t -> Flambda.Expr.t -> Continuation.t -> Flambda_arity.t_Complex -> Continuation.t -> M (Rebuilt_expr.t * Upwards_acc.t).
 Extract Inlined Constant simplify_toplevel => "Simplify_common.simplify_toplevel".
 (* simplify_common.mli:89  type simplify_function_body = Downwards_acc.t -> Expr.t -> return_continuation:Continuation.t -> return_arity:[`Complex] Flambda_arity.t -> exn_continuation:Continuation.t -> loopify_state:Loopify_state.t -> params:Bound_parameters.t -> implicit_params:Bound_parameters.t -> Rebuilt_expr.t * Upwards_acc.t *)
-Definition simplify_function_body : Type := Downwards_acc.t -> Flambda.Expr.t -> Continuation.t -> Flambda_arity.t -> Continuation.t -> Loopify_state.t -> Bound_parameters.t -> Bound_parameters.t -> M (Rebuilt_expr.t * Upwards_acc.t).
+Definition simplify_function_body : Type := Downwards_acc.t -> Flambda.Expr.t -> Continuation.t -> Flambda_arity.t_Complex -> Continuation.t -> Loopify_state.t -> Bound_parameters.t -> Bound_parameters.t -> M (Rebuilt_expr.t * Upwards_acc.t).
 Extract Inlined Constant simplify_function_body => "Simplify_common.simplify_function_body".
 (* simplify_common.mli:100  val simplify_projection : Downwards_acc.t -> original_term:Named.t -> deconstructing:Flambda2_types.t -> shape:Flambda2_types.t -> result_var:Bound_var.t -> result_kind:Flambda_kind.t -> Simplify_primitive_result.t *)
 Parameter simplify_projection : Downwards_acc.t -> Flambda.Named.t -> Flambda2_types.t -> Flambda2_types.t -> Bound_var.t -> Flambda_kind.t -> M Simplify_primitive_result.t.

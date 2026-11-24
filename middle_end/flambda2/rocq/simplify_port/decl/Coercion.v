@@ -25,7 +25,7 @@ From SimplifyPort.decl Require Int_ids Name_occurrences.
 Definition rec_info_expr : Type := Int_ids.Rec_info_expr.t.
 Extract Inlined Constant rec_info_expr => "Coercion.rec_info_expr".
 (* coercion0.mli:37  type t = private | Id | Change_depth of { from : rec_info_expr; to_ : rec_info_expr } *)
-Parameter t : Type.
+Definition t : Type := Int_ids.Coercion.t.
 Extract Inlined Constant t => "Coercion.t".
 (* coercion0.mli:44  val change_depth : from:rec_info_expr -> to_:rec_info_expr -> t *)
 Parameter change_depth : rec_info_expr -> rec_info_expr -> M t.

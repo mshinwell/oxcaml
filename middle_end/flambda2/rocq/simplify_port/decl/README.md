@@ -76,7 +76,11 @@ OCaml name, Rocq name, kind, number of arguments, interface and line.
   is never printed since no file of decl/ is extracted; where the type is
   used, in a term or a comment, Rocq prints its name in Rocq, which is the
   compiler's when the modules have the compiler's names.
-- An abbreviation: a `Definition`.
+- An abbreviation: a `Definition`. So is a variant or a record that an
+  interface gives again from another unit (`Coercion.t`, which is
+  `Int_ids.Coercion.t`, also when its constructors are private): the two are
+  one type in Rocq as in OCaml. A private abbreviation (`type t = private
+  int`) stays abstract: it is not equal to its definition.
 - A variant that Simplify builds or matches: an `Inductive` with the
   compiler's constructors, and always an `Extract Inductive` that gives each
   constructor its qualified name in OCaml (so a constructor that had to take
@@ -128,7 +132,7 @@ does a second declaration of a name. Type variables are capitals (`'a` is
 | a functor of outside applied inside a file of Simplify | the module is declared in `FILE__local.v` (below). Not declared: `Set` and `Pair` inside the functor `Binary_arith_like` of `simplify_binary_primitive.ml`; the `include` of `non_constructed_code.ml` |
 | module types | not declared |
 | GADTs | abstract, with makers only (no eliminator: its branches could not have one type) |
-| polymorphic variants | given as an index to an abstract type or a GADT (``[`Unarized] Flambda_arity.t``): dropped, with the parameter. Elsewhere the declaration is left out |
+| polymorphic variants | given as an index to an abstract type or a GADT (``[`Unarized] Flambda_arity.t``): dropped, with the parameter; each instance that the interfaces write is a named abbreviation of the type (`Flambda_arity.t_Unarized`, `t_Complex`), used where the interface has that instance and printed as the instance in OCaml; the bare `t` is where the interface has `'a t` or `_ t`. Elsewhere the declaration is left out |
 | first-class modules, objects | the declaration is left out |
 | a type with parameters in a module whose name Rocq reserves (`Variable.Map.t`) | it has its `Extract Constant` like another; where it is used Rocq prints `Variable_.Map.t`, so the runtime has `module Variable_ = Variable` |
 

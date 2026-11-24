@@ -27,7 +27,7 @@ From SimplifyPort.decl Require Apply_cont_rewrite_id Continuation Flambda2_types
 Parameter t : Type.
 Extract Inlined Constant t => "Continuation_uses.t".
 (* continuation_uses.mli:24  val create : Continuation.t -> [`Unarized] Flambda_arity.t -> t *)
-Parameter create : Continuation.t -> Flambda_arity.t -> M t.
+Parameter create : Continuation.t -> Flambda_arity.t_Unarized -> M t.
 Extract Inlined Constant create => "Continuation_uses.create".
 (* continuation_uses.mli:26  val print : Format.formatter -> t -> unit *)
 Parameter print : Format.formatter -> t -> M unit.
@@ -50,7 +50,7 @@ Extract Inlined Constant print_arg_type_at_use => "Continuation_uses.print_arg_t
 Parameter get_arg_types_by_use_id : t -> M arg_types_by_use_id.
 Extract Inlined Constant get_arg_types_by_use_id => "Continuation_uses.get_arg_types_by_use_id".
 (* continuation_uses.mli:48  val get_arg_types_by_use_id_for_invariant_params : [`Unarized] Flambda_arity.t -> t list -> arg_types_by_use_id *)
-Parameter get_arg_types_by_use_id_for_invariant_params : Flambda_arity.t -> list t -> M arg_types_by_use_id.
+Parameter get_arg_types_by_use_id_for_invariant_params : Flambda_arity.t_Unarized -> list t -> M arg_types_by_use_id.
 Extract Inlined Constant get_arg_types_by_use_id_for_invariant_params => "Continuation_uses.get_arg_types_by_use_id_for_invariant_params".
 (* continuation_uses.mli:51  val get_use_ids : t -> Apply_cont_rewrite_id.Set.t *)
 Parameter get_use_ids : t -> M Apply_cont_rewrite_id.Set_.t.
@@ -59,7 +59,7 @@ Extract Inlined Constant get_use_ids => "Continuation_uses.get_use_ids".
 Parameter number_of_uses : t -> M int.
 Extract Inlined Constant number_of_uses => "Continuation_uses.number_of_uses".
 (* continuation_uses.mli:55  val arity : t -> [`Unarized] Flambda_arity.t *)
-Parameter arity : t -> M Flambda_arity.t.
+Parameter arity : t -> M Flambda_arity.t_Unarized.
 Extract Inlined Constant arity => "Continuation_uses.arity".
 (* continuation_uses.mli:57  val get_typing_env_no_more_than_one_use : t -> Flambda2_types.Typing_env.t option *)
 Parameter get_typing_env_no_more_than_one_use : t -> M (option Flambda2_types.Typing_env.t).

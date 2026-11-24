@@ -44,7 +44,7 @@ Module Position.
   Extract Inductive t => "Apply_expr.Position.t" [ "Apply_expr.Position.Normal" "Apply_expr.Position.Nontail" ].
 End Position.
 (* apply_expr.mli:83  val return_arity : t -> [`Complex] Flambda_arity.t *)
-Parameter return_arity : t -> M Flambda_arity.t.
+Parameter return_arity : t -> M Flambda_arity.t_Complex.
 Extract Inlined Constant return_arity => "Apply_expr.return_arity".
 (* apply_expr.mli:89  val return_mode : t -> Alloc_mode.For_applications.t *)
 Parameter return_mode : t -> M Alloc_mode.For_applications.t.

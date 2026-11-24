@@ -24,7 +24,7 @@ From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Call_site_inlining_decision_type Downwards_acc Flambda Flambda2_types Flambda_arity Rec_info_expr Simplified_expr Simplify_common.
 
 (* call_site_inlining_decision.mli:19  val make_decision : Downwards_acc.t -> simplify_expr:Expr.t Simplify_common.expr_simplifier -> rebuild_expr:Simplified_expr.t Simplify_common.rebuild -> function_type:Flambda2_types.Function_type.t -> apply:Apply.t -> return_arity:[`Complex] Flambda_arity.t -> Call_site_inlining_decision_type.t *)
-Parameter make_decision : Downwards_acc.t -> Simplify_common.expr_simplifier Flambda.Import_.Expr.t -> Simplify_common.rebuild Simplified_expr.t -> Flambda2_types.Function_type.t -> Flambda.Import_.Apply.t -> Flambda_arity.t -> M Call_site_inlining_decision_type.t.
+Parameter make_decision : Downwards_acc.t -> Simplify_common.expr_simplifier Flambda.Import_.Expr.t -> Simplify_common.rebuild Simplified_expr.t -> Flambda2_types.Function_type.t -> Flambda.Import_.Apply.t -> Flambda_arity.t_Complex -> M Call_site_inlining_decision_type.t.
 Extract Inlined Constant make_decision => "Call_site_inlining_decision.make_decision".
 (* call_site_inlining_decision.mli:28  val get_rec_info : Downwards_acc.t -> function_type:Flambda2_types.Function_type.t -> Rec_info_expr.t *)
 Parameter get_rec_info : Downwards_acc.t -> Flambda2_types.Function_type.t -> M Rec_info_expr.t.

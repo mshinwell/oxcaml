@@ -26,6 +26,12 @@ From SimplifyPort.decl Require Flambda_kind Format.
 (* flambda_arity.mli:30  type _ t *)
 Parameter t : Type.
 Extract Inlined Constant t => "(_) Flambda_arity.t".
+(* [t] where the interface writes this instance of the index that Rocq does not have. *)
+Definition t_Complex : Type := t.
+Extract Inlined Constant t_Complex => "[ `Complex ] Flambda_arity.t".
+(* [t] where the interface writes this instance of the index that Rocq does not have. *)
+Definition t_Unarized : Type := t.
+Extract Inlined Constant t_Unarized => "[ `Unarized ] Flambda_arity.t".
 (* flambda_arity.mli:33  val print : Format.formatter -> _ t -> unit *)
 Parameter print : Format.formatter -> t -> M unit.
 Extract Inlined Constant print => "Flambda_arity.print".
@@ -34,9 +40,12 @@ Module Component_for_creation.
   (* PORT-GAP(type): it is a GADT: abstract, with a maker for each constructor and one eliminator. *)
   Parameter t : Type.
   Extract Inlined Constant t => "(_) Flambda_arity.Component_for_creation.t".
+  (* [t] where the interface writes this instance of the index that Rocq does not have. *)
+  Definition t_Complex : Type := t.
+  Extract Inlined Constant t_Complex => "[ `Complex ] Flambda_arity.Component_for_creation.t".
   Parameter mk_Singleton : Flambda_kind.With_subkind.t -> t.
   Extract Inlined Constant mk_Singleton => "(fun x__1 -> Flambda_arity.Component_for_creation.Singleton x__1)".
-  Parameter mk_Unboxed_product : list t -> t.
+  Parameter mk_Unboxed_product : list t -> t_Complex.
   Extract Inlined Constant mk_Unboxed_product => "(fun x__1 -> Flambda_arity.Component_for_creation.Unboxed_product x__1)".
 End Component_for_creation.
 (* flambda_arity.mli:51  val create : 'uc Component_for_creation.t list -> 'uc t *)
@@ -61,19 +70,19 @@ Extract Inlined Constant is_one_param_of_kind_value => "Flambda_arity.is_one_par
 Parameter unarize : t -> M (list Flambda_kind.With_subkind.t).
 Extract Inlined Constant unarize => "Flambda_arity.unarize".
 (* flambda_arity.mli:111  val unarized_components : [`Unarized] t -> Flambda_kind.With_subkind.t list *)
-Parameter unarized_components : t -> M (list Flambda_kind.With_subkind.t).
+Parameter unarized_components : t_Unarized -> M (list Flambda_kind.With_subkind.t).
 Extract Inlined Constant unarized_components => "Flambda_arity.unarized_components".
 (* flambda_arity.mli:114  val unarize_per_parameter : [`Complex] t -> Flambda_kind.With_subkind.t list list *)
-Parameter unarize_per_parameter : t -> M (list (list Flambda_kind.With_subkind.t)).
+Parameter unarize_per_parameter : t_Complex -> M (list (list Flambda_kind.With_subkind.t)).
 Extract Inlined Constant unarize_per_parameter => "Flambda_arity.unarize_per_parameter".
 (* flambda_arity.mli:118  val unarize_t : [`Complex] t -> [`Unarized] t *)
-Parameter unarize_t : t -> M t.
+Parameter unarize_t : t_Complex -> M t_Unarized.
 Extract Inlined Constant unarize_t => "Flambda_arity.unarize_t".
 (* flambda_arity.mli:131  val cardinal_unarized : _ t -> int *)
 Parameter cardinal_unarized : t -> M int.
 Extract Inlined Constant cardinal_unarized => "Flambda_arity.cardinal_unarized".
 (* flambda_arity.mli:144  val partially_apply : [`Complex] t -> num_non_unarized_params_provided:int -> [`Complex] t *)
-Parameter partially_apply : t -> int -> M t.
+Parameter partially_apply : t_Complex -> int -> M t_Complex.
 Extract Inlined Constant partially_apply => "Flambda_arity.partially_apply".
 (* flambda_arity.mli:149  val concat : 'a t -> 'a t -> 'a t *)
 Parameter concat : t -> t -> M t.

@@ -7004,6 +7004,9 @@ Warnings.redundant_modifier_reason	Warnings.redundant_modifier_reason	type	0	war
 Warnings.type_declaration_usage_warning	Warnings.type_declaration_usage_warning	type	0	warnings.mli:53
 Warnings.upstream_compat_warning	Warnings.upstream_compat_warning	type	0	warnings.mli:42
 Zero_alloc_attribute.t	Zero_alloc_attribute.t	type	0	zero_alloc_attribute.mli:13
+[ `Complex ] Flambda_arity.Component_for_creation.t	Flambda_arity.Component_for_creation.t_Complex	type	0	flambda_arity.mli:36
+[ `Complex ] Flambda_arity.t	Flambda_arity.t_Complex	type	0	flambda_arity.mli:30
+[ `Unarized ] Flambda_arity.t	Flambda_arity.t_Unarized	type	0	flambda_arity.mli:30
 __LOC__	Stdlib_.__LOC__	value	0	stdlib/stdlib.mli
 at_exit	Stdlib_.at_exit	value	1	stdlib/stdlib.mli
 char	Stdlib_.char	type	0	predefined

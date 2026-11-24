@@ -65,10 +65,10 @@ Extract Inlined Constant no_rewrite_apply_cont => "Expr_builder.no_rewrite_apply
 Parameter rewrite_apply_cont : Upwards_acc.t -> Apply_cont_rewrite.t -> Apply_cont_rewrite_id.t -> Flambda.Import_.Apply_cont.t -> M rewrite_apply_cont_result.
 Extract Inlined Constant rewrite_apply_cont => "Expr_builder.rewrite_apply_cont".
 (* expr_builder.mli:129  val rewrite_switch_arm : Upwards_acc.t -> Apply_cont.t -> use_id:Apply_cont_rewrite_id.t -> [`Unarized] Flambda_arity.t -> rewrite_switch_arm_result *)
-Parameter rewrite_switch_arm : Upwards_acc.t -> Flambda.Import_.Apply_cont.t -> Apply_cont_rewrite_id.t -> Flambda_arity.t -> M rewrite_switch_arm_result.
+Parameter rewrite_switch_arm : Upwards_acc.t -> Flambda.Import_.Apply_cont.t -> Apply_cont_rewrite_id.t -> Flambda_arity.t_Unarized -> M rewrite_switch_arm_result.
 Extract Inlined Constant rewrite_switch_arm => "Expr_builder.rewrite_switch_arm".
 (* expr_builder.mli:136  val rewrite_fixed_arity_apply : Upwards_acc.t -> use_id:Apply_cont_rewrite_id.t option -> is_cold:bool -> [`Unarized] Flambda_arity.t -> Apply.t -> Upwards_acc.t * Rebuilt_expr.t *)
-Parameter rewrite_fixed_arity_apply : Upwards_acc.t -> option Apply_cont_rewrite_id.t -> bool -> Flambda_arity.t -> Flambda.Import_.Apply.t -> M (Upwards_acc.t * Rebuilt_expr.t).
+Parameter rewrite_fixed_arity_apply : Upwards_acc.t -> option Apply_cont_rewrite_id.t -> bool -> Flambda_arity.t_Unarized -> Flambda.Import_.Apply.t -> M (Upwards_acc.t * Rebuilt_expr.t).
 Extract Inlined Constant rewrite_fixed_arity_apply => "Expr_builder.rewrite_fixed_arity_apply".
 (* expr_builder.mli:144  val rewrite_exn_continuation : Apply_cont_rewrite.t -> Apply_cont_rewrite_id.t -> Exn_continuation.t -> Exn_continuation.t *)
 Parameter rewrite_exn_continuation : Apply_cont_rewrite.t -> Apply_cont_rewrite_id.t -> Exn_continuation.t -> M Exn_continuation.t.

@@ -76,9 +76,9 @@ Module Invalid.
   | Apply_cont_of_unreachable_continuation : Continuation.t -> t
   | Defining_expr_of_let : Bound_pattern.t -> Flambda.named -> t
   | Closure_type_was_invalid : Apply_expr.t -> t
-  | Direct_application_parameter_kind_mismatch : Flambda_arity.t -> Flambda_arity.t -> Apply_expr.t -> t
-  | Application_argument_kind_mismatch : Flambda_arity.t -> Apply_expr.t -> t
-  | Application_result_kind_mismatch : Flambda_arity.t -> Apply_expr.t -> t
+  | Direct_application_parameter_kind_mismatch : Flambda_arity.t_Complex -> Flambda_arity.t_Complex -> Apply_expr.t -> t
+  | Application_argument_kind_mismatch : Flambda_arity.t_Unarized -> Apply_expr.t -> t
+  | Application_result_kind_mismatch : Flambda_arity.t_Complex -> Apply_expr.t -> t
   | Application_result_kind_mismatch_in_lambda : Debuginfo.t -> t
   | Partial_application_mode_mismatch : Apply_expr.t -> Code_metadata.t -> t
   | Partial_application_mode_mismatch_in_lambda : Debuginfo.t -> t
@@ -281,7 +281,7 @@ Module Apply.
     Extract Inlined Constant t => "Flambda.Apply.Position.t".
   End Position.
   (* apply_expr.mli:49  val create : callee:Simple.t option -> continuation:Result_continuation.t -> Exn_continuation.t -> args:Simple.t list -> args_arity:[`Complex] Flambda_arity.t -> return_arity:[`Complex] Flambda_arity.t -> call_kind:Call_kind.t -> return_mode:Alloc_mode.For_applications.t -> Debuginfo.t -> inlined:Inlined_attribute.t -> inlining_state:Inlining_state.t -> probe:Probe.t -> position:Position.t -> r... *)
-  Parameter create : option Simple.t -> Flambda.Apply.Result_continuation.t -> Exn_continuation.t -> list Simple.t -> Flambda_arity.t -> Flambda_arity.t -> Call_kind.t -> Alloc_mode.For_applications.t -> Debuginfo.t -> Inlined_attribute.t -> Inlining_state.t -> Probe.t -> Flambda.Apply.Position.t -> Inlining_history.Relative.t -> M t.
+  Parameter create : option Simple.t -> Flambda.Apply.Result_continuation.t -> Exn_continuation.t -> list Simple.t -> Flambda_arity.t_Complex -> Flambda_arity.t_Complex -> Call_kind.t -> Alloc_mode.For_applications.t -> Debuginfo.t -> Inlined_attribute.t -> Inlining_state.t -> Probe.t -> Flambda.Apply.Position.t -> Inlining_history.Relative.t -> M t.
   Extract Inlined Constant create => "Flambda.Apply.create".
   (* apply_expr.mli:74  val callee : t -> Simple.t option *)
   Parameter callee : t -> M (option Simple.t).
@@ -290,10 +290,10 @@ Module Apply.
   Parameter args : t -> M (list Simple.t).
   Extract Inlined Constant args => "Flambda.Apply.args".
   (* apply_expr.mli:80  val args_arity : t -> [`Complex] Flambda_arity.t *)
-  Parameter args_arity : t -> M Flambda_arity.t.
+  Parameter args_arity : t -> M Flambda_arity.t_Complex.
   Extract Inlined Constant args_arity => "Flambda.Apply.args_arity".
   (* apply_expr.mli:83  val return_arity : t -> [`Complex] Flambda_arity.t *)
-  Parameter return_arity : t -> M Flambda_arity.t.
+  Parameter return_arity : t -> M Flambda_arity.t_Complex.
   Extract Inlined Constant return_arity => "Flambda.Apply.return_arity".
   (* apply_expr.mli:87  val call_kind : t -> Call_kind.t *)
   Parameter call_kind : t -> M Call_kind.t.
@@ -326,7 +326,7 @@ Module Apply.
   Parameter with_exn_continuation : t -> Exn_continuation.t -> M t.
   Extract Inlined Constant with_exn_continuation => "Flambda.Apply.with_exn_continuation".
   (* apply_expr.mli:117  val with_args : t -> Simple.t list -> args_arity:[`Complex] Flambda_arity.t -> t *)
-  Parameter with_args : t -> list Simple.t -> Flambda_arity.t -> M t.
+  Parameter with_args : t -> list Simple.t -> Flambda_arity.t_Complex -> M t.
   Extract Inlined Constant with_args => "Flambda.Apply.with_args".
   (* apply_expr.mli:120  val with_call_kind : t -> Call_kind.t -> t *)
   Parameter with_call_kind : t -> Call_kind.t -> M t.

@@ -33,7 +33,7 @@ Extract Inlined Constant flambda_type => "Flambda2_types.flambda_type".
 Parameter print : Format.formatter -> t -> M unit.
 Extract Inlined Constant print => "Flambda2_types.print".
 (* flambda2_types.mli:26  val arity_of_list : t list -> [`Unarized] Flambda_arity.t *)
-Parameter arity_of_list : list t -> M Flambda_arity.t.
+Parameter arity_of_list : list t -> M Flambda_arity.t_Unarized.
 Extract Inlined Constant arity_of_list => "Flambda2_types.arity_of_list".
 (* flambda2_types.mli:38  type typing_env *)
 Parameter typing_env : Type.

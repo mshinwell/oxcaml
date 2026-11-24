@@ -36,7 +36,7 @@ Extract Inlined Constant code_id => "Non_constructed_code.code_id".
 Parameter newer_version_of : t -> M (option Code_id.t).
 Extract Inlined Constant newer_version_of => "Non_constructed_code.newer_version_of".
 (* non_constructed_code.mli:24  include Code_metadata.Code_metadata_accessors_result_type with type 'a t := t *)
-Parameter params_arity : t -> M Flambda_arity.t.
+Parameter params_arity : t -> M Flambda_arity.t_Complex.
 Extract Inlined Constant params_arity => "Non_constructed_code.params_arity".
 (* non_constructed_code.mli:24  include Code_metadata.Code_metadata_accessors_result_type with type 'a t := t *)
 Parameter param_modes : t -> M (list Alloc_mode.For_types.t).
@@ -45,7 +45,7 @@ Extract Inlined Constant param_modes => "Non_constructed_code.param_modes".
 Parameter first_complex_local_param : t -> M First_complex_local_param.t.
 Extract Inlined Constant first_complex_local_param => "Non_constructed_code.first_complex_local_param".
 (* non_constructed_code.mli:24  include Code_metadata.Code_metadata_accessors_result_type with type 'a t := t *)
-Parameter result_arity : t -> M Flambda_arity.t.
+Parameter result_arity : t -> M Flambda_arity.t_Complex.
 Extract Inlined Constant result_arity => "Non_constructed_code.result_arity".
 (* non_constructed_code.mli:24  include Code_metadata.Code_metadata_accessors_result_type with type 'a t := t *)
 Parameter result_types : t -> M (Or_unknown_or_bottom.t Result_types.t).

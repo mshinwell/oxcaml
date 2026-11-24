@@ -39,7 +39,7 @@ Extract Inlined Constant print => "Upwards_env.print".
 Parameter add_non_inlinable_continuation : Are_rebuilding_terms.t -> t -> Continuation.t -> bool -> Bound_parameters.t -> Or_unknown.t (tuple3 Rebuilt_expr.t bool Name_occurrences.t) -> M t.
 Extract Inlined Constant add_non_inlinable_continuation => "Upwards_env.add_non_inlinable_continuation".
 (* upwards_env.mli:44  val add_invalid_continuation : t -> Continuation.t -> [`Unarized] Flambda_arity.t -> t *)
-Parameter add_invalid_continuation : t -> Continuation.t -> Flambda_arity.t -> M t.
+Parameter add_invalid_continuation : t -> Continuation.t -> Flambda_arity.t_Unarized -> M t.
 Extract Inlined Constant add_invalid_continuation => "Upwards_env.add_invalid_continuation".
 (* upwards_env.mli:47  val add_continuation_shortcut : t -> Continuation.t -> params:Bound_parameters.t -> shortcut_to:Continuation.t -> args:Simple.t list -> t *)
 Parameter add_continuation_shortcut : t -> Continuation.t -> Bound_parameters.t -> Continuation.t -> list Simple.t -> M t.
@@ -48,7 +48,7 @@ Extract Inlined Constant add_continuation_shortcut => "Upwards_env.add_continuat
 Parameter add_linearly_used_inlinable_continuation : t -> Continuation.t -> Bound_parameters.t -> Rebuilt_expr.t -> Name_occurrences.t -> Cost_metrics.t -> M t.
 Extract Inlined Constant add_linearly_used_inlinable_continuation => "Upwards_env.add_linearly_used_inlinable_continuation".
 (* upwards_env.mli:64  val add_function_return_or_exn_continuation : t -> Continuation.t -> is_cold:bool -> [`Unarized] Flambda_arity.t -> t *)
-Parameter add_function_return_or_exn_continuation : t -> Continuation.t -> bool -> Flambda_arity.t -> M t.
+Parameter add_function_return_or_exn_continuation : t -> Continuation.t -> bool -> Flambda_arity.t_Unarized -> M t.
 Extract Inlined Constant add_function_return_or_exn_continuation => "Upwards_env.add_function_return_or_exn_continuation".
 (* upwards_env.mli:67  val find_continuation : t -> Continuation.t -> Continuation_in_env.t *)
 Parameter find_continuation : t -> Continuation.t -> M Continuation_in_env.t.

@@ -33,7 +33,7 @@ Extract Inlined Constant print => "Continuation_uses_env.print".
 Parameter empty : t.
 Extract Inlined Constant empty => "Continuation_uses_env.empty".
 (* continuation_uses_env.mli:23  include Continuation_uses_env_intf.S with type t := t *)
-Parameter record_continuation : t -> Continuation.t -> Flambda_arity.t -> M t.
+Parameter record_continuation : t -> Continuation.t -> Flambda_arity.t_Unarized -> M t.
 Extract Inlined Constant record_continuation => "Continuation_uses_env.record_continuation".
 (* continuation_uses_env.mli:23  include Continuation_uses_env_intf.S with type t := t *)
 Parameter record_continuation_use : t -> Continuation.t -> Continuation_use_kind.t -> Downwards_env.t -> list Flambda2_types.t -> M (t * Apply_cont_rewrite_id.t).
