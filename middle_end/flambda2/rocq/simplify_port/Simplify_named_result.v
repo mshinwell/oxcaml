@@ -81,8 +81,12 @@ Definition create_have_lifted_set_of_closures (dacc : Downwards_acc.t)
     let! tmp1 := Downwards_acc.denv dacc in
     Downwards_env.machine_width tmp1
   in
-  (* 42-52: the fields of the record of [Keep_binding] by place; their
-     values in the order in which OCaml evaluates them, the last first. *)
+  (* 42-52: the fields of the record of [Keep_binding] by place. *)
+  (* PORT-GAP(record-order): 45-48, the record of [Keep_binding] has calls in
+     two fields, [let_bound] and [simplified_defining_expr]. OCaml leaves the
+     order of the fields of a record unspecified; this is the order that the
+     port chooses for a record: the fields in the order of the type, the
+     last first ([simplified_defining_expr], then [let_bound]). *)
   let! tmp5 :=
     List.mapi
       (fun (i : int) '(var, sym) =>
