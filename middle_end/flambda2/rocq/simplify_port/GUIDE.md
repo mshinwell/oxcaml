@@ -280,6 +280,18 @@ review. If OCaml says `Unbound record field`, `This form is not allowed as
 the type of the inlined record could escape`, or a name is not the
 compiler's, the cause is in section 7.
 
+A CHANGE THAT ONLY WRITES NAMES OTHERWISE (`tools/samecode.sh REV`; not
+part of `make`; CMI_ROOT set as for `make`): it compiles the extracted
+files of this folder and those of the commit REV and compares the
+bytecode instructions that `ocamlc` makes of each (`-dinstr`). The
+instructions hold no name of a variable and no spelling of a module. So a
+mend that only respells (an abbreviation of a module, a constructor
+without its module, a variable without its number) must give `78 with
+the same instructions`; a mend that changes what a function does gives
+others, and the script names the files. From checkpoint 5 to checkpoint
+6 all 78 are the same. Run it before you send such a mend, and say the
+line that it prints.
+
 THE LINK TEST (`tools/linktest.sh`; not part of `make`): in a SCRATCH work
 tree of the compiler, `tools/linktest.sh swap TREE` puts the extracted
 files in the place of `middle_end/flambda2/simplify/*.ml`, adds

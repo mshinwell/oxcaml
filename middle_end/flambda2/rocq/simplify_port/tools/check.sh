@@ -31,6 +31,10 @@
 # (the _build/default of a dune build). It follows no file of the compiler.
 # check.sh --runtime runtime/FILE.ml : compiles one file of the runtime of the
 # port (port_monad.ml, port_abbreviations.ml) into the directory RUNTIME.
+# check.sh --instr FILE.ml SIMPLIFY_DIR OUT_FILE : compiles the extracted file
+# in the same way and writes to OUT_FILE the bytecode instructions that ocamlc
+# makes of it (-dinstr), with the places of assertions made blank; for
+# tools/samecode.sh.
 #
 # The file is compiled as the module Foo__port with the -open flags of
 # middle_end/flambda2/simplify/dune, so every name in it is the compiler's
@@ -66,8 +70,10 @@ if [ "$1" = --runtime ]; then
   $OCAMLC -c -w -a $INC "$RUNTIME/$r.ml" || exit 1
   echo "check: $2: compiled"; exit 0
 fi
+mode=check
+if [ "$1" = --instr ]; then mode=instr; shift; fi
 f=$1; simplify=$2; status=$3
-rel=${f#extracted/}; dir=$(dirname "$rel"); base=$(basename "$rel" .ml)
+rel=${f#*extracted/}; dir=$(dirname "$rel"); base=$(basename "$rel" .ml)
 out=$(dirname "$status")/$base.d
 rm -rf "$out"; mkdir -p "$out"
 if ! have_cmi; then
@@ -91,6 +97,19 @@ if [ -e "$mli" ] && [ -e "$built" ] && ! cmp -s "$mli" "$built"; then
   exit 1
 fi
 cp "$f" "$out/${base}__port.ml"
+if [ $mode = instr ]; then
+  # The instructions say no name of a variable and no spelling of a module:
+  # two extracted files that differ only in how names are written give the
+  # same text here. An assertion carries the name of the file and its line.
+  if [ -e "$mli" ]; then
+    cp "$mli" "$out/${base}__port.mli"
+    $CC "$out/${base}__port.mli" > "$out/instr.log" 2>&1 || { cat "$out/instr.log"; exit 1; }
+  fi
+  $CC -dinstr "$out/${base}__port.ml" > "$out/instr.raw" 2>&1 || { head -20 "$out/instr.raw"; exit 1; }
+  perl -0pe 's/"[^"]*__port\.ml"\s+\d+\s+\d+/"FILE" N N/g; s/File \\"[^"]*__port\.ml\\", line \d+, characters \d+-\d+/FILE-PLACE/g' \
+    "$out/instr.raw" > "$status"
+  exit 0
+fi
 if [ -e "$mli" ]; then
   cp "$mli" "$out/${base}__port.mli"
   if $CC "$out/${base}__port.mli" > "$out/strict.log" 2>&1 \
