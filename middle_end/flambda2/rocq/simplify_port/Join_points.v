@@ -314,6 +314,36 @@ Definition join (cut_after : option Scope.t) (denv : DE.t)
        and
 
        https://github.com/oxcaml/oxcaml/issues/3181 *)
+    (* CR bclement: Once the old join is gone, this should be able to entirely
+      supersede the tracking of projections (`Is_int`, `Get_tag`, `Is_null`,
+      etc.) in the CSE environment and allow the typing env to take over. *)
+    (* CR bclement: We could (should?) in fact create normal mode variables for
+       the existential variables that are created during the join and have a
+       value in "normal" name mode at all the uses where they are defined, but
+       are not necessarily defined in all uses.
+
+       This would allow to improve simplifications in patterns where we perform
+       the same match multiple times, such as the following snippet:
+     *)
+    (* type t = A | B of int | C | D of int
+     *
+     * let f ~g x y =
+     *   let a : string =
+     *     match x with
+     *     | A -> "a"
+     *     | B _ -> "b"
+     *     | C -> "c"
+     *     | D _ -> "d"
+     *   in
+     *   let _ : unit = g a in
+     *   match x with
+     *   | A -> "A"
+     *   | B _ -> "B"
+     *   | C -> "C"
+     *   | D _ -> "D"
+     *)
+    (* where we currently keep one instances of `%untag_imm x` and `%get_tag x` per
+       instance of `match x` but we could eliminate all except the last one. *)
     match join_analysis with
     | None => ret (denv, extra_params_and_args)
     | Some analysis =>
