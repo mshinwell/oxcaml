@@ -165,7 +165,10 @@ Record t : Type :=
     has_seen_a_non_liftable_continuation : bool
     (* This flag is used to mark as non-liftable any continuation that is
        bound after a non-liftable continuation, since any continuation bound
-       after a non-liftable continuation may refer to it. *);
+       after a non-liftable continuation may refer to it.
+
+       CR gbury: we may not need to do this if we had free_names on handlers
+       that we have not explored yet. *);
     is_cold : bool
     (* This flag is used to mark cold contexts, i.e. the body of cold
        functions and continuations. *)
@@ -2596,6 +2599,11 @@ Definition enter_continuation_handler (lifted_params : Lifted_cont_params.t)
          lifted_params :: t.(Downwards_env.defined_variables_by_scope);
        lifted := lifted;
        cost_of_lifting_continuations_out_of_current_one := 0;
+       (* we only do shallow lifting : thus the question of whether a continuation
+          k' can be lifted out of the handler of a continuation k, does not depend
+          on whether k has been lifted or not (or was liftable or not). Therefore
+          we reset the `has_seen_a_non_liftable_continuation` when we enter a new
+          continuation handler *)
        has_seen_a_non_liftable_continuation := false;
        is_cold := t.(Downwards_env.is_cold)
     |}.
@@ -2947,10 +2955,10 @@ Definition denv_for_lifted_continuation (denv_for_join denv : Downwards_env.t)
 
      And we need to decide which parts of denv to use to simplify the handler of
      k' after they are lifted out from the handler of k. *)
+  (* 908-945: the fields are in the order of the compiler's text. *)
   ret
-    {| round := denv.(Downwards_env.round);
+    {| (* denv *)
        machine_width := denv.(Downwards_env.machine_width);
-       typing_env := denv_for_join.(Downwards_env.typing_env);
        inlined_debuginfo := denv.(Downwards_env.inlined_debuginfo);
        disable_inlining := denv.(Downwards_env.disable_inlining);
        disable_partial_application_stub_generation :=
@@ -2958,26 +2966,16 @@ Definition denv_for_lifted_continuation (denv_for_join denv : Downwards_env.t)
        inlined_attribute_to_forward :=
          denv.(Downwards_env.inlined_attribute_to_forward);
        inlining_state := denv.(Downwards_env.inlining_state);
-       propagating_float_consts :=
-         denv.(Downwards_env.propagating_float_consts);
+       inlining_history_tracker :=
+         denv.(Downwards_env.inlining_history_tracker);
+       (* denv_for_join *)
+       all_code := denv_for_join.(Downwards_env.all_code);
+       typing_env := denv_for_join.(Downwards_env.typing_env);
        at_unit_toplevel := denv_for_join.(Downwards_env.at_unit_toplevel);
-       unit_toplevel_return_continuation :=
-         denv.(Downwards_env.unit_toplevel_return_continuation);
-       unit_toplevel_exn_continuation :=
-         denv.(Downwards_env.unit_toplevel_exn_continuation);
-       unit_toplevel_alloc_region :=
-         denv.(Downwards_env.unit_toplevel_alloc_region);
        variables_defined_at_toplevel :=
          denv_for_join.(Downwards_env.variables_defined_at_toplevel);
        cse := denv_for_join.(Downwards_env.cse);
        comparison_results := denv_for_join.(Downwards_env.comparison_results);
-       are_rebuilding_terms := denv.(Downwards_env.are_rebuilding_terms);
-       closure_info := denv.(Downwards_env.closure_info);
-       get_imported_code := denv.(Downwards_env.get_imported_code);
-       all_code := denv_for_join.(Downwards_env.all_code);
-       inlining_history_tracker :=
-         denv.(Downwards_env.inlining_history_tracker);
-       loopify_state := denv.(Downwards_env.loopify_state);
        replay_history := denv_for_join.(Downwards_env.replay_history);
        specialization_cost :=
          denv_for_join.(Downwards_env.specialization_cost);
@@ -2989,5 +2987,20 @@ Definition denv_for_lifted_continuation (denv_for_join denv : Downwards_env.t)
          denv_for_join.(Downwards_env.cost_of_lifting_continuations_out_of_current_one);
        has_seen_a_non_liftable_continuation :=
          denv_for_join.(Downwards_env.has_seen_a_non_liftable_continuation);
-       is_cold := denv_for_join.(Downwards_env.is_cold)
+       is_cold := denv_for_join.(Downwards_env.is_cold);
+       (* For the following fields, both denvs should have the same value of these
+          fields *)
+       round := denv.(Downwards_env.round);
+       propagating_float_consts :=
+         denv.(Downwards_env.propagating_float_consts);
+       unit_toplevel_return_continuation :=
+         denv.(Downwards_env.unit_toplevel_return_continuation);
+       unit_toplevel_exn_continuation :=
+         denv.(Downwards_env.unit_toplevel_exn_continuation);
+       unit_toplevel_alloc_region :=
+         denv.(Downwards_env.unit_toplevel_alloc_region);
+       are_rebuilding_terms := denv.(Downwards_env.are_rebuilding_terms);
+       closure_info := denv.(Downwards_env.closure_info);
+       get_imported_code := denv.(Downwards_env.get_imported_code);
+       loopify_state := denv.(Downwards_env.loopify_state)
     |}.
