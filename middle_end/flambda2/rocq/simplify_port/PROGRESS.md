@@ -28,7 +28,7 @@ compiler's own definitions; alone: no interface).
 | `env/upwards_env.ml` | 211 | 21 | 21 | loose:2 type:1 papp:1 | yes | strict |
 | `expr_builder.ml` | 800 | 25 | 25 | loose:8 type:4 | yes | strict |
 | `flow/control_flow_graph.ml` | 476 | 9 | 9 | type:1 verbatim:3 decl:1 papp:1 | yes | strict |
-| `flow/data_flow_graph.ml` | 451 | 11 | 11 | loose:5 decl:1 papp:2 | yes | strict |
+| `flow/data_flow_graph.ml` | 451 | 11 | 11 | loose:5 papp:2 | yes | strict |
 | `flow/dominator_graph.ml` | 359 | 14 | 14 | verbatim:1 decl:1 | yes | strict |
 | `flow/flow.ml` | 16 | 0 | 0 | none | yes | strict |
 | `flow/flow_acc.ml` | 638 | 32 | 32 | loose:3 | yes | strict |
@@ -77,7 +77,7 @@ compiler's own definitions; alone: no interface).
 | `simplify_static_const.ml` | 483 | 6 | 6 | loose:1 | yes | strict |
 | `simplify_switch_expr.ml` | 1096 | 26 | 26 | loose:10 type:5 verbatim:1 decl:1 papp:4 record-order:1 | yes | strict |
 | `simplify_ternary_primitive.ml` | 116 | 8 | 8 | none | yes | strict |
-| `simplify_unary_primitive.ml` | 1106 | 35 | 35 | loose:16 decl:1 | yes | strict |
+| `simplify_unary_primitive.ml` | 1106 | 35 | 35 | loose:16 | yes | strict |
 | `simplify_variadic_primitive.ml` | 186 | 4 | 4 | loose:2 | yes | strict |
 | `specialization_cost.ml` | 202 | 12 | 12 | type:1 verbatim:1 papp:4 | yes | strict |
 | `unboxing/build_unboxing_denv.ml` | 291 | 3 | 3 | type:1 | yes | strict |
@@ -87,7 +87,7 @@ compiler's own definitions; alone: no interface).
 | `unboxing/unboxers.ml` | 260 | 0 | 0 | loose:1 init:10 record-order:1 | yes | strict |
 | `unboxing/unboxing_epa.ml` | 553 | 15 | 15 | loose:1 type:2 verbatim:1 | yes | strict |
 | `unboxing/unboxing_types.ml` | 185 | 6 | 6 | type:1 verbatim:2 papp:4 | yes | strict |
-| **total: 78 files of 78** | 26900 | 930 | 926 | 447 marks | 78 | 78 |
+| **total: 78 files of 78** | 26900 | 930 | 926 | 445 marks | 78 | 78 |
 
 Gaps by kind, all files:
 
@@ -98,6 +98,6 @@ Gaps by kind, all files:
 - verbatim: 47
 - init: 22
 - order: 0
-- decl: 14
+- decl: 12
 - papp: 83
 - record-order: 23
