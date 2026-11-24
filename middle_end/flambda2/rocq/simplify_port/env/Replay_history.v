@@ -29,7 +29,9 @@ Local Open Scope list_scope.
 
 (* List of actions that should be replayed, currently only cares about bound
    variables and continuations. In the future, we may want to also store
-   inlining decisions. *)
+   inlining decisions.
+
+   CR gbury: move to a [Replay_action.ml] file ? *)
 (* 21-39 *)
 Module Action.
   Inductive t : Type :=
@@ -64,21 +66,29 @@ End Action.
    Rocq it is [t_], with the fields by place (a constructor is built by a
    function of the tuple of its fields, and the type is matched by one
    function for each constructor), and [t] is that type, printed as the
-   compiler's definition. In the compiler each field has a comment:
-   [history]: bindables opened, with the head of the list being the
-   innermost/last binder opened. [always_inline]: force inlining of all
-   function calls during replay; this is for instance set by the
-   match-in-match specialization. [previous_history]: bindables opened
-   during the first pass, with the head of the list being the
-   outermost/first one opened. [variables]: map from the variables of the
-   current pass to the corresponding variable from the first pass.
-   [continuations]: map from the continuations of the current pass to the
-   corresponding variable from the first pass. *)
+   compiler's definition. The compiler's comment on each field stands after
+   the type of that field: [history] (47); [always_inline] (52),
+   [previous_history] (55), [variables] (58), [continuations] (61). *)
 Inductive t_ : Type :=
-| First_pass : list Action.t -> t_
+| First_pass :
+    list Action.t
+    (* Bindables opened, with the head of the list being the
+       innermost/last binder opened *) ->
+    t_
 | Replaying :
-    bool -> list Action.t -> Variable_.Map.t Variable_.t ->
-    Continuation.Map.t Continuation.t -> t_.
+    bool
+    (* Force inlining of all function calls during replay. This is for
+       instance set by the match-in-match specialization. *) ->
+    list Action.t
+    (* Bindables opened during the first pass, with the head of the list
+       being the outermost/first one opened. *) ->
+    Variable_.Map.t Variable_.t
+    (* Map from the variables of the current pass to the corresponding
+       variable from the first pass. *) ->
+    Continuation.Map.t Continuation.t
+    (* Map from the continuations of the current pass to the
+       corresponding variable from the first pass. *) ->
+    t_.
 Extract Inductive t_ => "t" [ "(fun x__1 -> First_pass { history = x__1 })" "(fun (x__1, x__2, x__3, x__4) -> Replaying { always_inline = x__1; previous_history = x__2; variables = x__3; continuations = x__4 })" ] "(fun f__1 f__2 x__0 -> match x__0 with First_pass { history = x__1 } -> f__1 x__1 | Replaying { always_inline = x__1; previous_history = x__2; variables = x__3; continuations = x__4 } -> f__2 x__1 x__2 x__3 x__4)".
 Definition t : Type := t_.
 Extract Constant t => "| First_pass of { history : Action.t list } | Replaying of { always_inline : bool; previous_history : Action.t list; variables : Variable.t Variable.Map.t; continuations : Continuation.t Continuation.Map.t }".
