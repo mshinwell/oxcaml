@@ -342,7 +342,10 @@ abbreviation of `Simplify_import` that is `Simplify_import.S.simples`
 (OCaml takes it, but it is not the compiler's text). Where the fields of a
 result are read, write the function that gives it whole
 (`Simplify_simple.simplify_simples`, as `Simplify_apply_cont_expr.v` does):
-the fields are then `Simplify_simple.simples`.
+the fields are then `Simplify_simple.simples`. A field READ written
+through an abbreviation (`sorted.(LCS.innermost_first)`) is printed as a
+call, `LCS.innermost_first sorted`, which OCaml refuses: write the field
+whole (`sorted.(Lifted_constant_state.innermost_first)`).
 What the tool cannot reach: an abbreviation that is only OCaml text in the
 head of the file (Rocq does not know it: the names stay whole; make it
 Rocq's `Module A := P.`); one made inside a module of the file; a name
