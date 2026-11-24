@@ -18,8 +18,7 @@
    commit ecc5c0d968c892b4312065caef0f19ffffa042a9, function by function
    under the compiler's names; the numbers in the comments are the lines of
    that file. What is not from that file: the form (the monad, the
-   temporaries [tmpN] and their order) is that of GUIDE.md; the declaration
-   of OCaml's division of integers. No proof. *)
+   temporaries [tmpN] and their order) is that of GUIDE.md. No proof. *)
 
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Import Simplify_import.
@@ -35,11 +34,6 @@ Local Open Scope Z_scope.
 (*OCAML
 open! Simplify_import
 OCAML*)
-
-(* PORT-GAP(decl): OCaml's [( / )] on integers has no declaration and the
-   kit has no operation for it (203). *)
-Parameter int_div : int -> int -> M int.
-Extract Inlined Constant int_div => "( / )".
 
 (* 19-21 *)
 Inductive cse_result : Type :=
@@ -308,7 +302,7 @@ Definition simplify_primitive (dacc : DA.t) (prim : P.t) (dbg : Debuginfo.t)
       | P.Variadic_unboxed_product kinds =>
         let* num_arg_tys := List.length arg_tys in
         let* num_kinds := List.length kinds in
-        (let! tmp1 := Stdlib_.mod_ num_arg_tys num_kinds in
+        (let! tmp1 := int_mod num_arg_tys num_kinds in
          if tmp1 <>? 0
          then
            fatal_errorf4
