@@ -57,7 +57,8 @@ Definition is_unboxing_beneficial_for_epa (epa : Extra_param_and_args.t)
       end)
     epa.(Unboxing_types.Extra_param_and_args.args).
 
-(* 36-98. PORT-GAP(type): [U.field_decision] is abstract in decl/: its
+(* 36-98 *)
+(* PORT-GAP(type): [U.field_decision] is abstract in decl/: its
    eliminator [U.match_field_decision] stands for the compiler's record
    pattern [{ epa; decision; kind }], and its maker [U.mk_field_decision] for
    the record that the compiler builds. *)
