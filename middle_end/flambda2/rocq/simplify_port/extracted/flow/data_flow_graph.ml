@@ -311,15 +311,7 @@ let add_code_id_dep src dst t0 =
         | None -> if Code_id.Set.is_empty dst then None else Some dst)
       name_to_code_id0
   in
-  { code_age_relation = t0.code_age_relation;
-    name_to_name = t0.name_to_name;
-    name_to_code_id = name_to_code_id1;
-    code_id_to_name = t0.code_id_to_name;
-    code_id_to_code_id = t0.code_id_to_code_id;
-    unconditionally_used = t0.unconditionally_used;
-    code_id_unconditionally_used = t0.code_id_unconditionally_used;
-    is_toplevel = t0.is_toplevel
-  }
+  (fun t x__1 -> { t with name_to_code_id = x__1 }) t0 name_to_code_id1
 
 (** val add_dependency : Name.t -> Name.t -> t -> t coq_M **)
 
@@ -343,15 +335,7 @@ let add_dependency src dst t0 =
         | None -> Some (Name.Set.singleton dst))
       name_to_name0
   in
-  { code_age_relation = t0.code_age_relation;
-    name_to_name = name_to_name1;
-    name_to_code_id = t0.name_to_code_id;
-    code_id_to_name = t0.code_id_to_name;
-    code_id_to_code_id = t0.code_id_to_code_id;
-    unconditionally_used = t0.unconditionally_used;
-    code_id_unconditionally_used = t0.code_id_unconditionally_used;
-    is_toplevel = t0.is_toplevel
-  }
+  (fun t x__1 -> { t with name_to_name = x__1 }) t0 name_to_name1
 
 (** val add_code_id_dependency : Code_id.t -> Name.t -> t -> t coq_M **)
 
@@ -375,15 +359,7 @@ let add_code_id_dependency src dst t0 =
         | None -> Some (Name.Set.singleton dst))
       code_id_to_name0
   in
-  { code_age_relation = t0.code_age_relation;
-    name_to_name = t0.name_to_name;
-    name_to_code_id = t0.name_to_code_id;
-    code_id_to_name = code_id_to_name1;
-    code_id_to_code_id = t0.code_id_to_code_id;
-    unconditionally_used = t0.unconditionally_used;
-    code_id_unconditionally_used = t0.code_id_unconditionally_used;
-    is_toplevel = t0.is_toplevel
-  }
+  (fun t x__1 -> { t with code_id_to_name = x__1 }) t0 code_id_to_name1
 
 (** val add_code_id_to_code_id : Code_id.t -> Code_id.Set.t -> t -> t coq_M **)
 
@@ -409,15 +385,7 @@ let add_code_id_to_code_id src dst t0 =
         | None -> if Code_id.Set.is_empty dst then None else Some dst)
       code_id_to_code_id0
   in
-  { code_age_relation = t0.code_age_relation;
-    name_to_name = t0.name_to_name;
-    name_to_code_id = t0.name_to_code_id;
-    code_id_to_name = t0.code_id_to_name;
-    code_id_to_code_id = code_id_to_code_id1;
-    unconditionally_used = t0.unconditionally_used;
-    code_id_unconditionally_used = t0.code_id_unconditionally_used;
-    is_toplevel = t0.is_toplevel
-  }
+  (fun t x__1 -> { t with code_id_to_code_id = x__1 }) t0 code_id_to_code_id1
 
 (** val add_name_occurrences : Name_occurrences.t -> t -> t coq_M **)
 
@@ -442,15 +410,9 @@ let add_name_occurrences name_occurrences t0 =
       (Name_occurrences.code_ids name_occurrences)
       code_id_unconditionally_used0
   in
-  { code_age_relation = t0.code_age_relation;
-    name_to_name = t0.name_to_name;
-    name_to_code_id = t0.name_to_code_id;
-    code_id_to_name = t0.code_id_to_name;
-    code_id_to_code_id = t0.code_id_to_code_id;
-    unconditionally_used = unconditionally_used1;
-    code_id_unconditionally_used = code_id_unconditionally_used1;
-    is_toplevel = t0.is_toplevel
-  }
+  (fun t x__1 x__2 ->
+    { t with unconditionally_used = x__1; code_id_unconditionally_used = x__2 })
+    t0 unconditionally_used1 code_id_unconditionally_used1
 
 (** val add_continuation_info : T.Continuation_info.t Continuation.Map.t ->
     Continuation.t -> Continuation.t -> Name_occurrences.t Or_unknown.t ->

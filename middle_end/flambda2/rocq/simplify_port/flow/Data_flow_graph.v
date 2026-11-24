@@ -302,6 +302,24 @@ Definition fold_name_occurrences {A : Type}
   let! tmp2 := code_ids init tmp1 in
   Name_occurrences.fold_names name_occurrences tmp2 names.
 
+(* PORT-GAP(update): 202, [{ t with name_to_code_id }]. *)
+Definition update_name_to_code_id (t : Data_flow_graph.t)
+    (name_to_code_id : Name.Map.t Code_id.Set_.t) : Data_flow_graph.t :=
+  {| Data_flow_graph.code_age_relation := t.(Data_flow_graph.code_age_relation);
+     Data_flow_graph.name_to_name := t.(Data_flow_graph.name_to_name);
+     Data_flow_graph.name_to_code_id := name_to_code_id;
+     Data_flow_graph.code_id_to_name := t.(Data_flow_graph.code_id_to_name);
+     Data_flow_graph.code_id_to_code_id :=
+       t.(Data_flow_graph.code_id_to_code_id);
+     Data_flow_graph.unconditionally_used :=
+       t.(Data_flow_graph.unconditionally_used);
+     Data_flow_graph.code_id_unconditionally_used :=
+       t.(Data_flow_graph.code_id_unconditionally_used);
+     Data_flow_graph.is_toplevel := t.(Data_flow_graph.is_toplevel)
+  |}.
+Extract Inlined Constant update_name_to_code_id =>
+  "(fun t x__1 -> { t with name_to_code_id = x__1 })".
+
 (* Some auxiliary functions *)
 (* 192-202. The compiler's last parameter is the pattern
    [({ name_to_code_id; _ } as t)]. *)
@@ -321,20 +339,25 @@ Definition add_code_id_dep (src : Name.t) (dst : Code_id.Set_.t)
         end)
       name_to_code_id
   in
-  ret
-    {| Data_flow_graph.code_age_relation :=
-         t.(Data_flow_graph.code_age_relation);
-       Data_flow_graph.name_to_name := t.(Data_flow_graph.name_to_name);
-       Data_flow_graph.name_to_code_id := name_to_code_id;
-       Data_flow_graph.code_id_to_name := t.(Data_flow_graph.code_id_to_name);
-       Data_flow_graph.code_id_to_code_id :=
-         t.(Data_flow_graph.code_id_to_code_id);
-       Data_flow_graph.unconditionally_used :=
-         t.(Data_flow_graph.unconditionally_used);
-       Data_flow_graph.code_id_unconditionally_used :=
-         t.(Data_flow_graph.code_id_unconditionally_used);
-       Data_flow_graph.is_toplevel := t.(Data_flow_graph.is_toplevel)
-    |}.
+  ret (update_name_to_code_id t name_to_code_id).
+
+(* PORT-GAP(update): 212, [{ t with name_to_name }]. *)
+Definition update_name_to_name (t : Data_flow_graph.t)
+    (name_to_name : Name.Map.t Name.Set_.t) : Data_flow_graph.t :=
+  {| Data_flow_graph.code_age_relation := t.(Data_flow_graph.code_age_relation);
+     Data_flow_graph.name_to_name := name_to_name;
+     Data_flow_graph.name_to_code_id := t.(Data_flow_graph.name_to_code_id);
+     Data_flow_graph.code_id_to_name := t.(Data_flow_graph.code_id_to_name);
+     Data_flow_graph.code_id_to_code_id :=
+       t.(Data_flow_graph.code_id_to_code_id);
+     Data_flow_graph.unconditionally_used :=
+       t.(Data_flow_graph.unconditionally_used);
+     Data_flow_graph.code_id_unconditionally_used :=
+       t.(Data_flow_graph.code_id_unconditionally_used);
+     Data_flow_graph.is_toplevel := t.(Data_flow_graph.is_toplevel)
+  |}.
+Extract Inlined Constant update_name_to_name =>
+  "(fun t x__1 -> { t with name_to_name = x__1 })".
 
 (* 204-212. The compiler's last parameter is the pattern
    [({ name_to_name; _ } as t)]. *)
@@ -354,20 +377,25 @@ Definition add_dependency (src dst : Name.t) (t : Data_flow_graph.t)
         end)
       name_to_name
   in
-  ret
-    {| Data_flow_graph.code_age_relation :=
-         t.(Data_flow_graph.code_age_relation);
-       Data_flow_graph.name_to_name := name_to_name;
-       Data_flow_graph.name_to_code_id := t.(Data_flow_graph.name_to_code_id);
-       Data_flow_graph.code_id_to_name := t.(Data_flow_graph.code_id_to_name);
-       Data_flow_graph.code_id_to_code_id :=
-         t.(Data_flow_graph.code_id_to_code_id);
-       Data_flow_graph.unconditionally_used :=
-         t.(Data_flow_graph.unconditionally_used);
-       Data_flow_graph.code_id_unconditionally_used :=
-         t.(Data_flow_graph.code_id_unconditionally_used);
-       Data_flow_graph.is_toplevel := t.(Data_flow_graph.is_toplevel)
-    |}.
+  ret (update_name_to_name t name_to_name).
+
+(* PORT-GAP(update): 222, [{ t with code_id_to_name }]. *)
+Definition update_code_id_to_name (t : Data_flow_graph.t)
+    (code_id_to_name : Code_id.Map.t Name.Set_.t) : Data_flow_graph.t :=
+  {| Data_flow_graph.code_age_relation := t.(Data_flow_graph.code_age_relation);
+     Data_flow_graph.name_to_name := t.(Data_flow_graph.name_to_name);
+     Data_flow_graph.name_to_code_id := t.(Data_flow_graph.name_to_code_id);
+     Data_flow_graph.code_id_to_name := code_id_to_name;
+     Data_flow_graph.code_id_to_code_id :=
+       t.(Data_flow_graph.code_id_to_code_id);
+     Data_flow_graph.unconditionally_used :=
+       t.(Data_flow_graph.unconditionally_used);
+     Data_flow_graph.code_id_unconditionally_used :=
+       t.(Data_flow_graph.code_id_unconditionally_used);
+     Data_flow_graph.is_toplevel := t.(Data_flow_graph.is_toplevel)
+  |}.
+Extract Inlined Constant update_code_id_to_name =>
+  "(fun t x__1 -> { t with code_id_to_name = x__1 })".
 
 (* 214-222. The compiler's last parameter is the pattern
    [({ code_id_to_name; _ } as t)]. *)
@@ -387,20 +415,24 @@ Definition add_code_id_dependency (src : Code_id.t) (dst : Name.t)
         end)
       code_id_to_name
   in
-  ret
-    {| Data_flow_graph.code_age_relation :=
-         t.(Data_flow_graph.code_age_relation);
-       Data_flow_graph.name_to_name := t.(Data_flow_graph.name_to_name);
-       Data_flow_graph.name_to_code_id := t.(Data_flow_graph.name_to_code_id);
-       Data_flow_graph.code_id_to_name := code_id_to_name;
-       Data_flow_graph.code_id_to_code_id :=
-         t.(Data_flow_graph.code_id_to_code_id);
-       Data_flow_graph.unconditionally_used :=
-         t.(Data_flow_graph.unconditionally_used);
-       Data_flow_graph.code_id_unconditionally_used :=
-         t.(Data_flow_graph.code_id_unconditionally_used);
-       Data_flow_graph.is_toplevel := t.(Data_flow_graph.is_toplevel)
-    |}.
+  ret (update_code_id_to_name t code_id_to_name).
+
+(* PORT-GAP(update): 234, [{ t with code_id_to_code_id }]. *)
+Definition update_code_id_to_code_id (t : Data_flow_graph.t)
+    (code_id_to_code_id : Code_id.Map.t Code_id.Set_.t) : Data_flow_graph.t :=
+  {| Data_flow_graph.code_age_relation := t.(Data_flow_graph.code_age_relation);
+     Data_flow_graph.name_to_name := t.(Data_flow_graph.name_to_name);
+     Data_flow_graph.name_to_code_id := t.(Data_flow_graph.name_to_code_id);
+     Data_flow_graph.code_id_to_name := t.(Data_flow_graph.code_id_to_name);
+     Data_flow_graph.code_id_to_code_id := code_id_to_code_id;
+     Data_flow_graph.unconditionally_used :=
+       t.(Data_flow_graph.unconditionally_used);
+     Data_flow_graph.code_id_unconditionally_used :=
+       t.(Data_flow_graph.code_id_unconditionally_used);
+     Data_flow_graph.is_toplevel := t.(Data_flow_graph.is_toplevel)
+  |}.
+Extract Inlined Constant update_code_id_to_code_id =>
+  "(fun t x__1 -> { t with code_id_to_code_id = x__1 })".
 
 (* 224-234. The compiler's last parameter is the pattern
    [({ code_id_to_code_id; _ } as t)]. *)
@@ -422,19 +454,27 @@ Definition add_code_id_to_code_id (src : Code_id.t) (dst : Code_id.Set_.t)
         end)
       code_id_to_code_id
   in
-  ret
-    {| Data_flow_graph.code_age_relation :=
-         t.(Data_flow_graph.code_age_relation);
-       Data_flow_graph.name_to_name := t.(Data_flow_graph.name_to_name);
-       Data_flow_graph.name_to_code_id := t.(Data_flow_graph.name_to_code_id);
-       Data_flow_graph.code_id_to_name := t.(Data_flow_graph.code_id_to_name);
-       Data_flow_graph.code_id_to_code_id := code_id_to_code_id;
-       Data_flow_graph.unconditionally_used :=
-         t.(Data_flow_graph.unconditionally_used);
-       Data_flow_graph.code_id_unconditionally_used :=
-         t.(Data_flow_graph.code_id_unconditionally_used);
-       Data_flow_graph.is_toplevel := t.(Data_flow_graph.is_toplevel)
-    |}.
+  ret (update_code_id_to_code_id t code_id_to_code_id).
+
+(* PORT-GAP(update): 248, [{ t with unconditionally_used;
+   code_id_unconditionally_used }]. *)
+Definition update_unconditionally_used_code_id_unconditionally_used
+    (t : Data_flow_graph.t) (unconditionally_used : Name.Set_.t)
+    (code_id_unconditionally_used : Code_id.Set_.t) : Data_flow_graph.t :=
+  {| Data_flow_graph.code_age_relation := t.(Data_flow_graph.code_age_relation);
+     Data_flow_graph.name_to_name := t.(Data_flow_graph.name_to_name);
+     Data_flow_graph.name_to_code_id := t.(Data_flow_graph.name_to_code_id);
+     Data_flow_graph.code_id_to_name := t.(Data_flow_graph.code_id_to_name);
+     Data_flow_graph.code_id_to_code_id :=
+       t.(Data_flow_graph.code_id_to_code_id);
+     Data_flow_graph.unconditionally_used := unconditionally_used;
+     Data_flow_graph.code_id_unconditionally_used :=
+       code_id_unconditionally_used;
+     Data_flow_graph.is_toplevel := t.(Data_flow_graph.is_toplevel)
+  |}.
+Extract Inlined Constant
+    update_unconditionally_used_code_id_unconditionally_used =>
+  "(fun t x__1 x__2 -> { t with unconditionally_used = x__1; code_id_unconditionally_used = x__2 })".
 
 (* 236-248. The compiler's last parameter is the pattern
    [({ unconditionally_used; code_id_unconditionally_used; _ } as t)]. *)
@@ -455,18 +495,8 @@ Definition add_name_occurrences (name_occurrences : Name_occurrences.t)
     Code_id.Set_.union tmp1 code_id_unconditionally_used
   in
   ret
-    {| Data_flow_graph.code_age_relation :=
-         t.(Data_flow_graph.code_age_relation);
-       Data_flow_graph.name_to_name := t.(Data_flow_graph.name_to_name);
-       Data_flow_graph.name_to_code_id := t.(Data_flow_graph.name_to_code_id);
-       Data_flow_graph.code_id_to_name := t.(Data_flow_graph.code_id_to_name);
-       Data_flow_graph.code_id_to_code_id :=
-         t.(Data_flow_graph.code_id_to_code_id);
-       Data_flow_graph.unconditionally_used := unconditionally_used;
-       Data_flow_graph.code_id_unconditionally_used :=
-         code_id_unconditionally_used;
-       Data_flow_graph.is_toplevel := t.(Data_flow_graph.is_toplevel)
-    |}.
+    (update_unconditionally_used_code_id_unconditionally_used t
+      unconditionally_used code_id_unconditionally_used).
 
 (* 250-412. In the compiler the fifth parameter is [_] and the sixth is the
    pattern of all the fields of [T.Continuation_info.t]. *)
