@@ -104,7 +104,7 @@ Definition bind {A B : Type} (m : M A) (k : A -> M B) : M B :=
     | Out_of_fuel => Out_of_fuel
     end.
 
-(* [let* x := e in k] is OCaml's [let x = e in k]; [e ;; k] is [e; k]. *)
+(* [let* x := e in k] is OCaml's [let x = e in k]. *)
 Notation "'let*' x ':=' m 'in' k" := (bind m (fun x => k))
   (at level 10, x name, m at level 200, k at level 200,
    format "'[v' 'let*'  x  ':='  m  'in' '/' k ']'").
@@ -112,13 +112,16 @@ Notation "'let*' ' p ':=' m 'in' k" :=
   (bind m (fun x => match x with p => k end))
   (at level 10, p strict pattern, m at level 200, k at level 200,
    format "'[v' 'let*'  ' p  ':='  m  'in' '/' k ']'").
-Notation "m ;; k" := (bind m (fun _ : unit => k))
-  (at level 100, right associativity).
 
-(* The type and the two operations are removed by tools/unmonad. *)
+(* [m ;; k] is OCaml's [m; k]. *)
+Definition seq {B : Type} (m : M unit) (k : M B) : M B := bind m (fun _ => k).
+Notation "m ;; k" := (seq m k) (at level 100, right associativity).
+
+(* The type and the three operations are removed by tools/unmonad. *)
 Extract Constant M "'a" => "'a".
 Extract Inlined Constant ret => "port__ret".
 Extract Inlined Constant bind => "port__bind".
+Extract Inlined Constant seq => "port__seq".
 
 (* ------------------------------------------------------------------ *)
 (* Fatal errors and assertions                                        *)
@@ -167,7 +170,9 @@ Extract Inlined Constant assert_false => "(assert false)".
 (* Exceptions                                                         *)
 (* ------------------------------------------------------------------ *)
 
-(* [raise (E p)]; for a constant exception [raise_ E tt] is [raise E]. *)
+(* [raise (E p)]; for a constant exception [raise_ E tt] is [raise E]. A
+   constant exception is declared with the string "E"; one with an argument
+   with the string "(fun x__1 -> E x__1)". *)
 Definition raise_ {P A : Type} (e : exception P) (p : P) : M A :=
   fun w => Raised (exn_make e p) w.
 Extract Inlined Constant raise_ => "port__raise".
@@ -348,15 +353,32 @@ Extract Inductive tuple6 => "port__tuple6" [ "" ].
 
 (* OCaml's polymorphic comparisons and physical equality. *)
 Parameter poly_equal : forall {A : Type}, A -> A -> M bool.
-Extract Inlined Constant poly_equal => "(=)".
+Extract Inlined Constant poly_equal => "port__poly_equal".
 Parameter poly_not_equal : forall {A : Type}, A -> A -> M bool.
-Extract Inlined Constant poly_not_equal => "(<>)".
+Extract Inlined Constant poly_not_equal => "port__poly_not_equal".
 Parameter poly_compare : forall {A : Type}, A -> A -> M int.
-Extract Inlined Constant poly_compare => "compare".
+Extract Inlined Constant poly_compare => "port__poly_compare".
 Parameter phys_equal : forall {A : Type}, A -> A -> M bool.
-Extract Inlined Constant phys_equal => "(==)".
+Extract Inlined Constant phys_equal => "port__phys_equal".
 Parameter phys_not_equal : forall {A : Type}, A -> A -> M bool.
-Extract Inlined Constant phys_not_equal => "(!=)".
+Extract Inlined Constant phys_not_equal => "port__phys_not_equal".
+
+(* A PARTIAL APPLICATION, where the compiler gives a function only its first
+   arguments and passes the result on ([~f:(Flow.Acc.exit_continuation k)],
+   [~simplify_expr]): [let* tmp1 := papp1 f a in]. In OCaml it is [f a]. *)
+Definition papp1 {A B : Type} (f : A -> B) (a : A) : M B := ret (f a).
+Definition papp2 {A1 A2 B : Type} (f : A1 -> A2 -> B) (a1 : A1) (a2 : A2)
+    : M B := ret (f a1 a2).
+Definition papp3 {A1 A2 A3 B : Type} (f : A1 -> A2 -> A3 -> B) (a1 : A1)
+    (a2 : A2) (a3 : A3) : M B := ret (f a1 a2 a3).
+Definition papp4 {A1 A2 A3 A4 B : Type} (f : A1 -> A2 -> A3 -> A4 -> B)
+    (a1 : A1) (a2 : A2) (a3 : A3) (a4 : A4) : M B := ret (f a1 a2 a3 a4).
+Extract Inlined Constant papp1 => "(fun f__1 x__1 -> f__1 x__1)".
+Extract Inlined Constant papp2 => "(fun f__1 x__1 x__2 -> f__1 x__1 x__2)".
+Extract Inlined Constant papp3 =>
+  "(fun f__1 x__1 x__2 x__3 -> f__1 x__1 x__2 x__3)".
+Extract Inlined Constant papp4 =>
+  "(fun f__1 x__1 x__2 x__3 x__4 -> f__1 x__1 x__2 x__3 x__4)".
 
 (* [ignore x]. *)
 Definition ignore {A : Type} (_ : A) : M unit := ret tt.

@@ -1,0 +1,10 @@
+let f dacc n k =
+  let (dacc0, m) = Dacc.record dacc n ~env_at_use:(Dacc.denv dacc) in
+  assert (n = m);
+  (let kd = Dacc.kind dacc0 in
+   match kd with
+   | Dacc.A n0 -> k dacc0 n0
+   | Dacc.B { a; b = _ } ->
+       (match Dacc.find a dacc0 with | exception Not_found -> 0 | v -> v + 1))
+let rec g dacc n = let x = f dacc n (fun dacc0 n0 -> g dacc0 n0) in g dacc x
+let top dacc = g dacc 0
