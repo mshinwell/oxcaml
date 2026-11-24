@@ -228,9 +228,6 @@ Extract Inlined Constant i0xffff => "0xffff".
 (* PORT-GAP(decl): what the file takes from [Target_ocaml_int] by [include
    Target_ocaml_int] (199, 294) under its short name, and decl/ does not
    declare. *)
-Parameter Target_ocaml_int_compare :
-  Target_ocaml_int.t -> Target_ocaml_int.t -> M int.
-Extract Inlined Constant Target_ocaml_int_compare => "Target_ocaml_int.compare".
 Parameter Target_ocaml_int_unsigned_div :
   Target_ocaml_int.t -> Target_ocaml_int.t -> M Target_ocaml_int.t.
 Extract Inlined Constant Target_ocaml_int_unsigned_div => "Target_ocaml_int.unsigned_div".
@@ -469,7 +466,7 @@ Module For_tagged_immediates.
 
     (* 213-214 *)
     Definition compare_unsigned (t1 t2 : Target_ocaml_int.t) : M int :=
-      compare_unsigned_generic t1 t2 Target_ocaml_int_compare
+      compare_unsigned_generic t1 t2 Target_ocaml_int.compare
         strictly_negative.
 
     (* 216-221 *)
@@ -652,7 +649,7 @@ Module For_naked_immediates.
 
     (* 306-307 *)
     Definition compare_unsigned (t1 t2 : Target_ocaml_int.t) : M int :=
-      compare_unsigned_generic t1 t2 Target_ocaml_int_compare
+      compare_unsigned_generic t1 t2 Target_ocaml_int.compare
         strictly_negative.
 
     (* 309-314 *)
