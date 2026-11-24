@@ -44,14 +44,20 @@ Record t : Type := {
   was_lifted_set_of_closures : bool
 }.
 
+(* PORT-GAP(update): 23, [{ t with dacc }]. *)
+Definition update_dacc (t : Simplify_named_result.t) (dacc : Downwards_acc.t)
+    : Simplify_named_result.t :=
+  {| dacc := dacc;
+     bindings_to_place := t.(bindings_to_place);
+     was_lifted_set_of_closures := t.(was_lifted_set_of_closures)
+  |}.
+Extract Inlined Constant update_dacc =>
+  "(fun t x__1 -> { t with dacc = x__1 })".
+
 (* 23 *)
 Definition with_dacc (dacc : Downwards_acc.t) (t : Simplify_named_result.t)
     : M Simplify_named_result.t :=
-  ret
-    {| dacc := dacc;
-       bindings_to_place := t.(bindings_to_place);
-       was_lifted_set_of_closures := t.(was_lifted_set_of_closures)
-    |}.
+  ret (update_dacc t dacc).
 
 (* 25-31 *)
 Definition create (dacc : Downwards_acc.t)

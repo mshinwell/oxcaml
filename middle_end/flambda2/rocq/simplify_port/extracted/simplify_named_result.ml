@@ -41,11 +41,7 @@ let was_lifted_set_of_closures t0 = t0.was_lifted_set_of_closures
 
 (** val with_dacc : Downwards_acc.t -> t -> t coq_M **)
 
-let with_dacc dacc0 t0 =
-  { dacc = dacc0;
-    bindings_to_place = t0.bindings_to_place;
-    was_lifted_set_of_closures = t0.was_lifted_set_of_closures
-  }
+let with_dacc dacc0 t0 = (fun t x__1 -> { t with dacc = x__1 }) t0 dacc0
 
 (** val create : Downwards_acc.t -> Simplified_named.binding_to_place -> t coq_M
     **)
