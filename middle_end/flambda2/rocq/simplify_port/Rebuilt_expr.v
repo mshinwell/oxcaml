@@ -49,22 +49,6 @@ Import Flambda.Import_.
 (* 16 *)
 Module ART := Are_rebuilding_terms.
 
-(* PORT-GAP(decl): [Coercion.equal], [Flambda_primitive.Without_args.equal]
-   and [Flambda_primitive.Without_args.free_names] are not in decl/ (the
-   compiler names them only through the first-class modules of 533 and
-   551). *)
-Parameter Coercion_equal : Coercion.t -> Coercion.t -> M bool.
-Extract Inlined Constant Coercion_equal => "Coercion.equal".
-Parameter Without_args_equal :
-  Flambda_primitive.Without_args.t -> Flambda_primitive.Without_args.t ->
-  M bool.
-Extract Inlined Constant Without_args_equal =>
-  "Flambda_primitive.Without_args.equal".
-Parameter Without_args_free_names :
-  Flambda_primitive.Without_args.t -> M Name_occurrences.t.
-Extract Inlined Constant Without_args_free_names =>
-  "Flambda_primitive.Without_args.free_names".
-
 (* 18-21. The type has the name of a field of [t]: it gets one [_]. *)
 Record contents_hash_ : Type :=
   { depth : int;
@@ -853,7 +837,7 @@ Module Matching_for_unique_handler.
         Simple.pattern_match simple2
           (fun name2 coercion2 =>
             (* 533: [(module Coercion)] *)
-            match_equal_and_free_names Coercion_equal Coercion.free_names env
+            match_equal_and_free_names Coercion.equal Coercion.free_names env
               coercion1 coercion2 ;;
             match_name env name1 name2)
           (fun _ => fail tt))
@@ -888,8 +872,8 @@ Module Matching_for_unique_handler.
        P.Without_args)]. *)
     (let! tmp1 := Flambda_primitive.without_args prim2 in
      let! tmp2 := Flambda_primitive.without_args prim1 in
-     match_equal_and_free_names Without_args_equal Without_args_free_names
-       env tmp2 tmp1) ;;
+     match_equal_and_free_names Flambda_primitive.Without_args.equal
+       Flambda_primitive.Without_args.free_names env tmp2 tmp1) ;;
     let! tmp1 := Flambda_primitive.args prim2 in
     let! tmp2 := Flambda_primitive.args prim1 in
     match_simples env tmp2 tmp1.
