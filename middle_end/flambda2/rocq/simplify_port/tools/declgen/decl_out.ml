@@ -238,7 +238,18 @@ let emit_value modc name =
             let own = Tr.var_names () in
             let prefix = if List.exists (fun v -> String.length v > 1 && v.[0] = 'A') own then "B" else "A" in
             let place = comment vd.val_loc ("val " ^ name ^ " : " ^ type_text vd.val_type) in
-            for n = 0 to max_format_args do
+            (* and each greater number of arguments that a file gives *)
+            let more =
+              List.filter_map
+                (fun given ->
+                  let n = given - List.length before in
+                  if n > max_format_args then Some n else None)
+                (Option.value ~default:[] (Hashtbl.find_opt Uses.applied (key comps)))
+            in
+            let numbers =
+              List.init (max_format_args + 1) (fun n -> n) @ List.sort_uniq compare more
+            in
+            List.iter (fun n ->
               let extra = List.init n (fun i -> Printf.sprintf "%s%d" prefix (i + 1)) in
               let ty' = Tr.Arrow (before @ List.map (fun v -> Tr.Var v) extra, res) in
               let vars = own @ extra in
@@ -250,8 +261,8 @@ let emit_value modc name =
               let rname = claim (Printf.sprintf "%s%d" (Sigs.value_rocq name) n) in
               line "Parameter %s : %s%s." rname q (Print.pp ty');
               extract rname ocaml;
-              add_index ocaml rname "value" (List.length before + n) place
-            done)
+              add_index ocaml rname "value" (List.length before + n) place)
+              numbers)
         | _ ->
           let ty = Tr.tr vd.val_type in
           let text = Print.pp ty in

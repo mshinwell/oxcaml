@@ -49,6 +49,16 @@ let types : (string, type_use) Hashtbl.t = Hashtbl.create 997
 
 let exceptions : (string, string list) Hashtbl.t = Hashtbl.create 17
 
+(* For a value that the files apply: the numbers of arguments that they
+   give it (key of the name). A function with a format is declared once for
+   each number of arguments that may follow the format. *)
+let applied : (string, int list) Hashtbl.t = Hashtbl.create 97
+
+let use_applied comps n =
+  let k = key comps in
+  let l = Option.value ~default:[] (Hashtbl.find_opt applied k) in
+  if not (List.mem n l) then Hashtbl.replace applied k (n :: l)
+
 (* The module types of other units that the files name. *)
 let modtypes : (string, string list) Hashtbl.t = Hashtbl.create 17
 
@@ -392,6 +402,29 @@ let indirect_use use kind env (p : Path.t) =
     | _ -> ())
   | _ -> ()
 
+(* What the file uses when it gives the module [v] where all that the
+   module type [mty] names is wanted: a first-class module ([(module
+   Coercion)] in rebuilt_expr.ml). *)
+let uses_of_whole use env (mty : Types.module_type) (v : modval) =
+  List.iter
+    (fun (names, kind) ->
+      match kind with
+      | `Module_type _ -> ()
+      | (`Value | `Type) as kind -> (
+        match List.rev names with
+        | [] -> ()
+        | last :: rest -> (
+          match project v (List.rev rest) with
+          | Path (env', q) -> (
+            match
+              comps_of_path (source_path (env_of env') (Path.Pdot (q, last)))
+            with
+            | Some comps -> use kind comps
+            | None -> ())
+          | Under (param, ns) -> add_param_use param (ns @ [last]) kind
+          | Struct _ | Applied _ | Own | Unknown -> ())))
+    (items_of_modtype env mty [] [])
+
 (* At the end of a file: what each application makes the file use. An
    application inside another functor may give a module under that
    functor's parameter: that is a use of the parameter, so this is done
@@ -586,6 +619,24 @@ let iterator =
       | Some comps -> use_value comps
       | None -> indirect_use use `Value e.exp_env p)
     | Texp_letmodule (Some id, _, _, me, _) -> module_defined id me
+    | Texp_apply ({ exp_desc = Texp_ident (p, _, _); exp_env; _ }, args) -> (
+      match comps_of_path (source_path (env_of exp_env) p) with
+      | Some comps ->
+        use_applied comps
+          (List.length
+             (List.filter
+                (fun (_, a) -> match a with Arg _ -> true | Omitted _ -> false)
+                args))
+      | None -> ())
+    | Texp_pack me -> (
+      match Types.get_desc e.exp_type with
+      | Tpackage pack -> (
+        let env = env_of e.exp_env in
+        match Env.find_modtype pack.pack_path env with
+        | { mtd_type = Some mty; _ } -> uses_of_whole use env mty (modval_of me)
+        | { mtd_type = None; _ } -> ()
+        | exception Not_found -> ())
+      | _ -> ())
     | Texp_construct (_, cd, _) -> constructor e.exp_env cd `Built
     | Texp_record { fields; _ } ->
       Array.iter (fun (l, _) -> field e.exp_env l `Read) fields
