@@ -382,13 +382,13 @@ Definition compute_and_erase_depth_variables (typing_env : TE.t)
      expensive (upwards of 5% of the total compilation time in pathological
      cases).
 
-     The compiler's note for some day (lmaurer): It would be better to
-     propagate depth variables into closures properly, as this would allow
-     things like unrolling [Seq.map] where the recursive call goes through a
-     closure. For the moment, we often just stop unrolling cold in that
-     situation. (It's important that we use [Rec_info_expr.do_not_inline]
-     here so that we don't start unrolling, since without propagating the
-     rec info into the closure, we don't know when to stop unrolling.)
+     CR-someday lmaurer: It would be better to propagate depth variables into
+     closures properly, as this would allow things like unrolling [Seq.map]
+     where the recursive call goes through a closure. For the moment, we
+     often just stop unrolling cold in that situation. (It's important that
+     we use [Rec_info_expr.do_not_inline] here so that we don't start
+     unrolling, since without propagating the rec info into the closure, we
+     don't know when to stop unrolling.)
 
      mshinwell: Leo and I have discussed allowing In_types variables in
      closures, which should cover this case, if we allowed such variables to
