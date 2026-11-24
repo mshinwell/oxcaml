@@ -83,14 +83,8 @@ OCAML*)
    involved), the semantics of the Flambda 2 compile-time evaluation should
    always match that of runtime evaluation by the processor. *)
 
-(* ALSO-FOLLOWS: middle_end/flambda2/simplify/number_adjuncts.mli, lines 21-149 *)
-(* PORT-GAP(verbatim): 50-176, the module types of the compiler's file, in
-   the text of the compiler's interface (number_adjuncts.mli, 21-149). That
-   text is the same but for [Flambda_kind] in the place of [K] three times
-   (101, 148, 157) and one comment more. It stands at the head of the
-   extracted file, before the line [module K = Flambda_kind] that Rocq
-   prints, so it cannot name [K]. (Rocq's module types cannot say [include
-   Container_types.S].) *)
+(* PORT-GAP(verbatim): 50-176, the module types of the compiler's file.
+   (Rocq's module types cannot say [include Container_types.S].) *)
 (*OCAML
 module type Num_common = sig
   include Container_types.S
@@ -142,7 +136,7 @@ end
 module type Number_kind_common = sig
   module Num : Container_types.S
 
-  val standard_int_or_float_kind : Flambda_kind.Standard_int_or_float.t
+  val standard_int_or_float_kind : K.Standard_int_or_float.t
 
   val unboxed_prover :
     Flambda2_types.Typing_env.t ->
@@ -180,8 +174,6 @@ module type Int_number_kind = sig
 
     val shift_left : t -> Target_ocaml_int.t -> t
 
-    (* [shift_right] is arithmetic shift right, matching [Int32], [Int64],
-       etc. *)
     val shift_right : t -> Target_ocaml_int.t -> t
 
     val shift_right_logical : t -> Target_ocaml_int.t -> t
@@ -195,13 +187,13 @@ module type Int_number_kind = sig
 
   include Number_kind_common with module Num := Num
 
-  val standard_int_kind : Flambda_kind.Standard_int.t
+  val standard_int_kind : K.Standard_int.t
 end
 
 module type Boxable = sig
   module Num : Container_types.S
 
-  val boxable_number_kind : Flambda_kind.Boxable_number.t
+  val boxable_number_kind : K.Boxable_number.t
 
   val this_boxed : Num.t -> Alloc_mode.For_types.t -> Flambda2_types.t
 
