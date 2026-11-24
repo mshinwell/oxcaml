@@ -33,25 +33,19 @@ Local Open Scope string_scope.
 Local Open Scope Z_scope.
 Local Open Scope list_scope.
 
-(* PORT-GAP(verbatim): 17-20, the four abbreviations of modules are the
-   compiler's text, and the Rocq text below writes the modules' own names.
-   As Rocq modules ([Module DE := Downwards_env.]) they make Rocq write an
-   [open] line for each of them and for what they name, and such a line can
-   hide a module that the rest of the extracted file names. *)
-(*OCAML
-module CUE = Continuation_uses_env
-module DE = Downwards_env
-module LCS = Lifted_constant_state
-module TE = Flambda2_types.Typing_env
-OCAML*)
+(* 17-20 *)
+Module CUE := Continuation_uses_env.
+Module DE := Downwards_env.
+Module LCS := Lifted_constant_state.
+Module TE := Flambda2_types.Typing_env.
 
 (* 22-43 *)
 Record t : Type :=
-  { denv : Downwards_env.t;
-    continuation_uses_env : Continuation_uses_env.t;
+  { denv : DE.t;
+    continuation_uses_env : CUE.t;
     shareable_constants : Static_const.Map.t Symbol.t;
     used_value_slots : Name_occurrences.t;
-    lifted_constants : Lifted_constant_state.t;
+    lifted_constants : LCS.t;
     flow_acc : Flow.Acc.t;
     demoted_exn_handlers : Continuation.Set_.t;
     code_ids_to_remember : Code_id.Set_.t;
@@ -60,7 +54,7 @@ Record t : Type :=
     slot_offsets : Code_id.Map.t Slot_offsets.t;
     debuginfo_rewrites : Simple.Map.t Debuginfo.t;
     are_lifting_conts : Are_lifting_conts.t;
-    lifted_continuations : list (Downwards_env.t * Original_handlers.t);
+    lifted_continuations : list (DE.t * Original_handlers.t);
     (* head of the list is the innermost continuation being lifted *)
     continuation_lifting_budget : int;
     continuations_to_specialize : Continuation.Set_.t;
@@ -70,11 +64,11 @@ Record t : Type :=
 (* 45-48 *)
 (* PORT-GAP(loose): the pair pattern of the parameter is a [let]. *)
 Definition print_lifted_cont (ppf : Format.formatter)
-    (lifted_cont : Downwards_env.t * Original_handlers.t) : M unit :=
+    (lifted_cont : DE.t * Original_handlers.t) : M unit :=
   let* '(denv, original_handlers) := ret lifted_cont in
   Format.fprintf4 ppf
     "@[<hov 1>(@[<hov 1>(denv %a)@]@ @[<hov 1>(original_handlers %a)@])@]"
-    Downwards_env.print denv Original_handlers.print original_handlers.
+    DE.print denv Original_handlers.print original_handlers.
 
 (* 50-92 *)
 (* PORT-GAP(loose): the attribute [@ocamlformat "disable"] is not kept, and
@@ -112,22 +106,20 @@ Definition print (ppf : Format.formatter) (t : Downwards_acc.t) : M unit :=
     let! tmp6 := papp1 Static_const.Map.print Symbol.print in
     Format.fprintf33 ppf
       "@[<hov 1>(@[<hov 1>(denv@ %a)@]@ @[<hov 1>(continuation_uses_env@ %a)@]@ @[<hov 1>(shareable_constants@ %a)@]@ @[<hov 1>(used_value_slots@ %a)@]@ @[<hov 1>(lifted_constant_state@ %a)@]@ @[<hov 1>(flow_acc@ %a)@]@ @[<hov 1>(demoted_exn_handlers@ %a)@]@ @[<hov 1>(code_ids_to_remember@ %a)@]@ @[<hov 1>(code_ids_to_never_delete@ %a)@]@ @[<hov 1>(code_ids_never_simplified@ %a)@]@ @[<hov 1>(slot_offsets@ %a)@ @[<hov 1>(debuginfo_rewrites@ %a)@]@ @[<hov 1>(are_lifting_conts@ %a)@]@ @[<hov 1>(lifted_continuations@ %a)@]@ @[<hov 1>(continuation_lifting_budget %d)@]@ @[<hov 1>(continuations_to_specialize %a)@]@ @[<hov 1>(specialization_map %a)@])@]"
-      Downwards_env.print denv Continuation_uses_env.print
-      continuation_uses_env tmp6 shareable_constants Name_occurrences.print
-      used_value_slots Lifted_constant_state.print lifted_constants
+      DE.print denv CUE.print continuation_uses_env tmp6 shareable_constants
+      Name_occurrences.print used_value_slots LCS.print lifted_constants
       Flow.Acc.print flow_acc Continuation.Set_.print demoted_exn_handlers
       Code_id.Set_.print code_ids_to_remember Code_id.Set_.print
-      code_ids_to_never_delete Code_id.Set_.print code_ids_never_simplified
-      tmp5 slot_offsets tmp4 debuginfo_rewrites Are_lifting_conts.print
+      code_ids_to_never_delete Code_id.Set_.print code_ids_never_simplified tmp5
+      slot_offsets tmp4 debuginfo_rewrites Are_lifting_conts.print
       are_lifting_conts tmp3 lifted_continuations continuation_lifting_budget
       Continuation.Set_.print continuations_to_specialize tmp2
       specialization_map
   end.
 
 (* 94-112 *)
-Definition create (denv : Downwards_env.t)
-    (slot_offsets : Code_id.Map.t Slot_offsets.t)
-    (continuation_uses_env : Continuation_uses_env.t) : M Downwards_acc.t :=
+Definition create (denv : DE.t) (slot_offsets : Code_id.Map.t Slot_offsets.t)
+    (continuation_uses_env : CUE.t) : M Downwards_acc.t :=
   (* PORT-GAP(record-order): three fields of the record are calls
      ([flow_acc], [are_lifting_conts], [continuation_lifting_budget]); they
      are taken in the order of the type, the last field first, and each is
@@ -144,7 +136,7 @@ Definition create (denv : Downwards_env.t)
        continuation_uses_env := continuation_uses_env;
        shareable_constants := Static_const.Map.empty;
        used_value_slots := Name_occurrences.empty;
-       lifted_constants := Lifted_constant_state.empty;
+       lifted_constants := LCS.empty;
        flow_acc := flow_acc;
        demoted_exn_handlers := Continuation.Set_.empty;
        code_ids_to_remember := Code_id.Set_.empty;
@@ -208,8 +200,7 @@ Definition map_flow_acc (t : Downwards_acc.t)
   ret (update_flow_acc t tmp1).
 
 (* PORT-GAP(update): 122, [{ t with denv }]. *)
-Definition update_denv (t : Downwards_acc.t)
-    (denv : Downwards_env.t) : Downwards_acc.t :=
+Definition update_denv (t : Downwards_acc.t) (denv : DE.t) : Downwards_acc.t :=
   {| denv := denv;
      continuation_uses_env := t.(continuation_uses_env);
      shareable_constants := t.(shareable_constants);
@@ -232,19 +223,18 @@ Extract Inlined Constant update_denv =>
   "(fun t denv -> { t with denv = denv })".
 
 (* 122 *)
-Definition map_denv (t : Downwards_acc.t)
-    (f : Downwards_env.t -> M Downwards_env.t) : M Downwards_acc.t :=
+Definition map_denv (t : Downwards_acc.t) (f : DE.t -> M DE.t)
+    : M Downwards_acc.t :=
   let! tmp1 := f t.(denv) in
   ret (update_denv t tmp1).
 
 (* 124 *)
-Definition with_denv (t : Downwards_acc.t) (denv : Downwards_env.t)
-    : M Downwards_acc.t :=
+Definition with_denv (t : Downwards_acc.t) (denv : DE.t) : M Downwards_acc.t :=
   ret (update_denv t denv).
 
 (* PORT-GAP(update): 127, [{ t with continuation_uses_env }]. *)
 Definition update_continuation_uses_env (t : Downwards_acc.t)
-    (continuation_uses_env : Continuation_uses_env.t) : Downwards_acc.t :=
+    (continuation_uses_env : CUE.t) : Downwards_acc.t :=
   {| denv := t.(denv);
      continuation_uses_env := continuation_uses_env;
      shareable_constants := t.(shareable_constants);
@@ -269,25 +259,24 @@ Extract Inlined Constant update_continuation_uses_env =>
 
 (* 126-127 *)
 Definition with_continuation_uses_env (t : Downwards_acc.t)
-    (cont_uses_env : Continuation_uses_env.t) : M Downwards_acc.t :=
+    (cont_uses_env : CUE.t) : M Downwards_acc.t :=
   ret (update_continuation_uses_env t cont_uses_env).
 
 (* 129-133 *)
 Definition record_continuation (t : Downwards_acc.t) (cont : Continuation.t)
     (arity : Flambda_arity.t_Unarized) : M Downwards_acc.t :=
   let* cont_uses_env :=
-    Continuation_uses_env.record_continuation t.(continuation_uses_env) cont
-      arity
+    CUE.record_continuation t.(continuation_uses_env) cont arity
   in
   with_continuation_uses_env t cont_uses_env.
 
 (* 135-140 *)
-Definition record_continuation_use (t : Downwards_acc.t)
-    (cont : Continuation.t) (use_kind : Continuation_use_kind.t)
-    (env_at_use : Downwards_env.t) (arg_types : list Flambda2_types.t)
+Definition record_continuation_use (t : Downwards_acc.t) (cont : Continuation.t)
+    (use_kind : Continuation_use_kind.t) (env_at_use : DE.t)
+    (arg_types : list Flambda2_types.t)
     : M (Downwards_acc.t * Apply_cont_rewrite_id.t) :=
   let* '(cont_uses_env, id) :=
-    Continuation_uses_env.record_continuation_use t.(continuation_uses_env)
+    CUE.record_continuation_use t.(continuation_uses_env)
       cont use_kind env_at_use arg_types
   in
   let! tmp1 := with_continuation_uses_env t cont_uses_env in
@@ -297,53 +286,50 @@ Definition record_continuation_use (t : Downwards_acc.t)
 Definition delete_continuation_uses (t : Downwards_acc.t)
     (cont : Continuation.t) : M Downwards_acc.t :=
   let* cont_uses_env :=
-    Continuation_uses_env.delete_continuation_uses t.(continuation_uses_env)
-      cont
+    CUE.delete_continuation_uses t.(continuation_uses_env) cont
   in
   with_continuation_uses_env t cont_uses_env.
 
 (* 148-149 *)
 Definition num_continuation_uses (t : Downwards_acc.t) (cont : Continuation.t)
     : M int :=
-  Continuation_uses_env.num_continuation_uses t.(continuation_uses_env) cont.
+  CUE.num_continuation_uses t.(continuation_uses_env) cont.
 
 (* 153 *)
 Definition code_age_relation (t : Downwards_acc.t)
     : M Flambda2_types.Code_age_relation.t :=
-  let! tmp1 := Downwards_env.typing_env t.(denv) in
-  Flambda2_types.Typing_env.code_age_relation tmp1.
+  let! tmp1 := DE.typing_env t.(denv) in
+  TE.code_age_relation tmp1.
 
 (* 155-159 *)
 Definition with_code_age_relation (t : Downwards_acc.t)
     (code_age_relation : Flambda2_types.Code_age_relation.t)
     : M Downwards_acc.t :=
   let* typing_env :=
-    let! tmp1 := Downwards_env.typing_env t.(denv) in
-    Flambda2_types.Typing_env.with_code_age_relation tmp1 code_age_relation
+    let! tmp1 := DE.typing_env t.(denv) in
+    TE.with_code_age_relation tmp1 code_age_relation
   in
-  let! tmp1 := Downwards_env.with_typing_env t.(denv) typing_env in
+  let! tmp1 := DE.with_typing_env t.(denv) typing_env in
   with_denv t tmp1.
 
 (* 161 *)
-Definition typing_env (t : Downwards_acc.t) : M Flambda2_types.Typing_env.t :=
-  Downwards_env.typing_env t.(denv).
+Definition typing_env (t : Downwards_acc.t) : M TE.t :=
+  DE.typing_env t.(denv).
 
 (* 163 *)
 Definition add_variable (t : Downwards_acc.t) (var : Bound_var.t)
     (ty : Flambda2_types.t) : M Downwards_acc.t :=
-  let! tmp1 := Downwards_env.add_variable t.(denv) var ty in
+  let! tmp1 := DE.add_variable t.(denv) var ty in
   with_denv t tmp1.
 
 (* 165-166 *)
 Definition get_typing_env_no_more_than_one_use (t : Downwards_acc.t)
-    (k : Continuation.t) : M (option Flambda2_types.Typing_env.t) :=
-  Continuation_uses_env.get_typing_env_no_more_than_one_use
-    t.(continuation_uses_env) k.
+    (k : Continuation.t) : M (option TE.t) :=
+  CUE.get_typing_env_no_more_than_one_use t.(continuation_uses_env) k.
 
 (* PORT-GAP(update): 178, [{ t with lifted_constants; denv }]. *)
 Definition update_lifted_constants_denv (t : Downwards_acc.t)
-    (lifted_constants : Lifted_constant_state.t)
-    (denv : Downwards_env.t) : Downwards_acc.t :=
+    (lifted_constants : LCS.t) (denv : DE.t) : Downwards_acc.t :=
   {| denv := denv;
      continuation_uses_env := t.(continuation_uses_env);
      shareable_constants := t.(shareable_constants);
@@ -369,31 +355,26 @@ Extract Inlined Constant update_lifted_constants_denv =>
 (* 168-178. The optional argument [?also_add_to_env] is by place; the
    wrapper at the end of the extracted file gives it its label. *)
 Definition add_to_lifted_constant_accumulator (also_add_to_env : option unit)
-    (t : Downwards_acc.t) (constants : Lifted_constant_state.t)
-    : M Downwards_acc.t :=
+    (t : Downwards_acc.t) (constants : LCS.t) : M Downwards_acc.t :=
   let& also_add_to_env :=
     match also_add_to_env with None => false | Some tt => true end
   in
-  let* lifted_constants :=
-    Lifted_constant_state.union t.(lifted_constants) constants
-  in
+  let* lifted_constants := LCS.union t.(lifted_constants) constants in
   let* denv :=
     if also_add_to_env
     then
-      Downwards_env.add_lifted_constant_state None t.(Downwards_acc.denv)
-        constants
+      DE.add_lifted_constant_state None t.(Downwards_acc.denv) constants
     else ret t.(Downwards_acc.denv)
   in
   ret (update_lifted_constants_denv t lifted_constants denv).
 
 (* 180 *)
-Definition get_lifted_constants (t : Downwards_acc.t)
-    : M Lifted_constant_state.t :=
+Definition get_lifted_constants (t : Downwards_acc.t) : M LCS.t :=
   ret t.(lifted_constants).
 
 (* PORT-GAP(update): 182, [{ t with lifted_constants }]. *)
 Definition update_lifted_constants (t : Downwards_acc.t)
-    (lifted_constants : Lifted_constant_state.t) : Downwards_acc.t :=
+    (lifted_constants : LCS.t) : Downwards_acc.t :=
   {| denv := t.(denv);
      continuation_uses_env := t.(continuation_uses_env);
      shareable_constants := t.(shareable_constants);
@@ -417,22 +398,22 @@ Extract Inlined Constant update_lifted_constants =>
 
 (* 182 *)
 Definition clear_lifted_constants (t : Downwards_acc.t) : M Downwards_acc.t :=
-  ret (update_lifted_constants t Lifted_constant_state.empty).
+  ret (update_lifted_constants t LCS.empty).
 
 (* 184 *)
 Definition no_lifted_constants (t : Downwards_acc.t) : M bool :=
-  Lifted_constant_state.is_empty t.(lifted_constants).
+  LCS.is_empty t.(lifted_constants).
 
 (* 186-189 *)
 Definition get_and_clear_lifted_constants (t : Downwards_acc.t)
-    : M (Downwards_acc.t * Lifted_constant_state.t) :=
+    : M (Downwards_acc.t * LCS.t) :=
   let& constants := t.(lifted_constants) in
   let* t := clear_lifted_constants t in
   ret (t, constants).
 
 (* 191 *)
-Definition set_lifted_constants (t : Downwards_acc.t)
-    (consts : Lifted_constant_state.t) : M Downwards_acc.t :=
+Definition set_lifted_constants (t : Downwards_acc.t) (consts : LCS.t)
+    : M Downwards_acc.t :=
   ret (update_lifted_constants t consts).
 
 (* 193-194 *)
@@ -519,7 +500,7 @@ Definition add_use_of_value_slot (t : Downwards_acc.t)
 (* 219-220 *)
 Definition all_continuations_used (t : Downwards_acc.t)
     : M Continuation.Set_.t :=
-  Continuation_uses_env.all_continuations_used t.(continuation_uses_env).
+  CUE.all_continuations_used t.(continuation_uses_env).
 
 (* 222 *)
 Definition with_used_value_slots (t : Downwards_acc.t)
@@ -554,7 +535,7 @@ Extract Inlined Constant update_code_ids_to_remember =>
 (* 224-230 *)
 Definition add_code_ids_to_remember (t : Downwards_acc.t)
     (code_ids : Code_id.Set_.t) : M Downwards_acc.t :=
-  let! tmp1 := Downwards_env.at_unit_toplevel t.(denv) in
+  let! tmp1 := DE.at_unit_toplevel t.(denv) in
   if tmp1
   then ret t
   else
@@ -643,7 +624,7 @@ Definition with_code_ids_never_simplified (t : Downwards_acc.t)
 (* 259 *)
 Definition are_rebuilding_terms (t : Downwards_acc.t)
     : M Are_rebuilding_terms.t :=
-  Downwards_env.are_rebuilding_terms t.(denv).
+  DE.are_rebuilding_terms t.(denv).
 
 (* PORT-GAP(update): 262, [{ t with demoted_exn_handlers }]. *)
 Definition update_demoted_exn_handlers (t : Downwards_acc.t)
@@ -782,7 +763,7 @@ Definition with_are_lifting_conts (t : Downwards_acc.t)
 
 (* PORT-GAP(update): 291, [{ t with lifted_continuations }]. *)
 Definition update_lifted_continuations (t : Downwards_acc.t)
-    (lifted_continuations : list (Downwards_env.t * Original_handlers.t))
+    (lifted_continuations : list (DE.t * Original_handlers.t))
     : Downwards_acc.t :=
   {| denv := t.(denv);
      continuation_uses_env := t.(continuation_uses_env);
@@ -808,11 +789,11 @@ Extract Inlined Constant update_lifted_continuations =>
 
 (* 290-291 *)
 Definition get_and_clear_lifted_continuations (t : Downwards_acc.t)
-    : M (Downwards_acc.t * list (Downwards_env.t * Original_handlers.t)) :=
+    : M (Downwards_acc.t * list (DE.t * Original_handlers.t)) :=
   ret (update_lifted_continuations t [], t.(lifted_continuations)).
 
 (* 293-296 *)
-Definition add_lifted_continuation (denv : Downwards_env.t)
+Definition add_lifted_continuation (denv : DE.t)
     (original_handlers : Original_handlers.t) (t : Downwards_acc.t)
     : M Downwards_acc.t :=
   ret
@@ -876,8 +857,8 @@ Definition prepare_for_speculative_inlining (dacc : Downwards_acc.t)
   let* dacc :=
     map_denv dacc
       (fun denv =>
-        Downwards_env.set_do_not_rebuild_terms_and_disable_inlining denv
-          Downwards_env.Disable_inlining_reason.Speculative_inlining)
+        DE.set_do_not_rebuild_terms_and_disable_inlining denv
+          DE.Disable_inlining_reason.Speculative_inlining)
   in
   let! tmp1 :=
     Are_lifting_conts.no_lifting Are_lifting_conts.In_speculative_inlining
