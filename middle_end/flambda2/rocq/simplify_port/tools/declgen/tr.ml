@@ -76,6 +76,42 @@ let add_drop k i =
       (i :: Option.value ~default:[] (Hashtbl.find_opt dropped k));
     changed := true)
 
+(* The instances of a dropped index that the interfaces write
+   ([[`Unarized] Flambda_arity.t]): each is a named abbreviation of the
+   type ([t_Unarized]), whose string is the instance in OCaml. For the type
+   of this key: the end of the name, and for each parameter of the type in
+   OCaml the index that is written there, or [None] for a parameter that
+   Rocq has. *)
+let instances : (string, (string * string option list) list) Hashtbl.t =
+  Hashtbl.create 17
+
+let add_instance k inst =
+  let l = Option.value ~default:[] (Hashtbl.find_opt instances k) in
+  if not (List.mem inst l)
+  then (
+    Hashtbl.replace instances k (inst :: l);
+    changed := true)
+
+(* The tags of a polymorphic variant type that is closed and has only
+   constant tags, all present: [[`A | `B]]. *)
+let fixed_tags (ty : Types.type_expr) : string list option =
+  match Types.get_desc ty with
+  | Tvariant row ->
+    if not (Types.row_closed row)
+    then None
+    else
+      let fields = Types.row_fields row in
+      if fields <> []
+         && List.for_all
+              (fun (_, f) ->
+                match Types.row_field_repr f with
+                | Rpresent None -> true
+                | _ -> false)
+              fields
+      then Some (List.sort compare (List.map fst fields))
+      else None
+  | _ -> None
+
 (* ---- type variables, for one declaration at a time ---- *)
 
 let vars : (int * string) list ref = ref []
@@ -216,8 +252,36 @@ let rec tr (ty : Types.type_expr) : ty =
           | _ -> ())
         args;
       need_type comps;
-      let args = List.filteri (fun i _ -> not (is_dropped k i)) args in
-      Constr (Global comps, List.map tr args))
+      let kept = List.filteri (fun i _ -> not (is_dropped k i)) args in
+      let tags =
+        List.mapi (fun i a -> if is_dropped k i then fixed_tags a else None) args
+      in
+      let dropped_tags =
+        List.filteri (fun i _ -> is_dropped k i) tags
+      in
+      if dropped_tags = [] || List.exists (fun t -> t = None) dropped_tags
+      then Constr (Global comps, List.map tr kept)
+      else
+        (* an instance of the index: its own name *)
+        let suffix =
+          String.concat "_" (List.concat_map (fun t -> Option.get t) dropped_tags)
+        in
+        let positional =
+          List.map
+            (Option.map (fun l ->
+                 "[ " ^ String.concat " | " (List.map (fun t -> "`" ^ t) l) ^ " ]"))
+            tags
+        in
+        add_instance k (suffix, positional);
+        let rec split = function
+          | [last] -> [], last
+          | x :: l ->
+            let a, b = split l in
+            x :: a, b
+          | [] -> [], ""
+        in
+        let modc, name = split comps in
+        Constr (Global (modc @ [name ^ "_" ^ suffix]), List.map tr kept))
   | Tpoly (t, []) -> tr t
   | Tpoly _ -> raise (Unsupported "a polymorphic field or method")
   | Tvariant _ -> raise (Unsupported "a polymorphic variant")

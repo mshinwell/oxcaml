@@ -82,7 +82,12 @@ let member_kind modc name =
     | exception Not_found -> Abstract
     | decl -> (
       match decl.type_manifest, decl.type_private, decl.type_kind with
-      | Some ty, Public, kind -> (
+      | Some ty, priv, kind
+        when priv = Asttypes.Public
+             || (match kind with Type_variant _ | Type_record _ -> true | _ -> false)
+        -> (
+        (* [type t = M.t = private A | B]: the equation holds though the
+           constructors are private *)
         Tr.reset_vars ();
         match Tr.tr ty, kind with
         | _ -> Abbreviation
@@ -96,6 +101,51 @@ let member_kind modc name =
         Candidate
       | _ -> Abstract)
 
+(* The instances of a dropped index of the type that the interfaces write:
+   each an abbreviation of the type, with the instance as its string. *)
+let emit_instances comps params rname place =
+  match Hashtbl.find_opt Tr.instances (key comps) with
+  | None -> ()
+  | Some l ->
+    let modc, name = Print.split_last comps in
+    let ocaml = Print.ocaml_name comps in
+    List.iter
+      (fun (suffix, positional) ->
+        let icomps = modc @ [name ^ "_" ^ suffix] in
+        let iname = claim (Sigs.type_rocq modc (name ^ "_" ^ suffix)) in
+        Print.set_type_name icomps iname;
+        let n = ref 0 in
+        let args =
+          List.map
+            (function
+              | Some s -> s
+              | None ->
+                incr n;
+                Printf.sprintf "'a%d" !n)
+            positional
+        in
+        let applied =
+          match args with
+          | [a] -> a ^ " " ^ ocaml
+          | _ -> "(" ^ String.concat ", " args ^ ") " ^ ocaml
+        in
+        line
+          "(* [%s] where the interface writes this instance of the index that \
+           Rocq does not have. *)"
+          rname;
+        line "Definition %s %s: Type := %s." iname
+          (String.concat "" (List.map (fun p -> Printf.sprintf "(%s : Type) " p) params))
+          (String.concat " " (rname :: params));
+        if params = []
+        then extract iname applied
+        else
+          line "Extract Constant %s %s => %s." iname
+            (String.concat " "
+               (List.mapi (fun i _ -> Print.quote (Printf.sprintf "'a%d" (i + 1))) params))
+            (Print.quote applied);
+        add_index applied iname "type" (List.length params) place)
+      (List.sort compare l)
+
 (* An abstract type: the parameter and its directive. *)
 let declare_abstract comps (decl : Types.type_declaration) params rname place =
   let k = key comps in
@@ -104,7 +154,8 @@ let declare_abstract comps (decl : Types.type_declaration) params rname place =
   extract_type
     ~kept:(List.mapi (fun i _ -> not (Tr.is_dropped k i)) decl.type_params)
     rname (Print.ocaml_name comps) (List.length params);
-  add_index (Print.ocaml_name comps) rname "type" (List.length params) place
+  add_index (Print.ocaml_name comps) rname "type" (List.length params) place;
+  emit_instances comps params rname place
 
 (* A type that is abstract, or an abbreviation. [canon]: the module of
    which the open module is an alias; the type is then the type of the same
@@ -136,14 +187,20 @@ let emit_type ?gap ~canon modc name =
         in
         line "Definition %s %s: Type := %s." rname binders body;
         extract_type rname ocaml (List.length params);
-        add_index ocaml rname "type" (List.length params) place
+        add_index ocaml rname "type" (List.length params) place;
+        emit_instances comps params rname place
       in
       match canon, decl.type_manifest, decl.type_private with
       | Some target, _, _ ->
         Tr.need_type (target @ [name]);
         definition
           (String.concat " " (Print.global_name `Type (target @ [name]) :: params))
-      | None, Some ty, Public when gap = None -> (
+      | None, Some ty, priv
+        when gap = None
+             && (priv = Asttypes.Public
+                || match decl.type_kind with
+                   | Type_variant _ | Type_record _ -> true
+                   | _ -> false) -> (
         try
           let body = Print.pp (Tr.tr ty) in
           if List.length (Tr.var_names ()) <> List.length params
@@ -158,7 +215,16 @@ let emit_type ?gap ~canon modc name =
             line "(* abstract here: it is %s. *)" why;
             abstract None)
           else abstract (Some ("abstract here; its definition has " ^ why)))
-      | None, _, _ -> abstract gap)
+      | None, _, _ ->
+        (match decl.type_manifest with
+        | Some ty when gap = None ->
+          (* said when the generator runs: a type that is equal to another
+             in OCaml and abstract here *)
+          warn "abstract though it has a definition: %s = %s%s" ocaml
+            (if decl.type_private = Asttypes.Private then "private " else "")
+            (Format.asprintf "%a" Printtyp.type_expr ty)
+        | _ -> ());
+        abstract gap)
 
 (* ---- a recursive definition of types ---- *)
 
