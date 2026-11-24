@@ -11,7 +11,7 @@ compiler's own definitions; alone: no interface).
 |---|---:|---:|---:|---|---|---|
 | `apply_cont_rewrite.ml` | 307 | 13 | 13 | loose:1 papp:2 | yes | strict |
 | `are_lifting_conts.ml` | 68 | 5 | 5 | loose:1 type:1 verbatim:1 | yes | strict |
-| `common_subexpression_elimination.ml` | 481 | 5 | 0 | - | - | - |
+| `common_subexpression_elimination.ml` | 481 | 5 | 5 | loose:8 verbatim:1 decl:1 papp:3 | yes | strict |
 | `comparison_result.ml` | 86 | 3 | 3 | loose:3 | yes | strict |
 | `continuation_extra_params_and_args.ml` | 198 | 10 | 10 | loose:2 type:2 verbatim:1 papp:3 | yes | strict |
 | `continuation_in_env.ml` | 79 | 2 | 2 | loose:1 type:1 verbatim:1 papp:2 | yes | strict |
@@ -20,22 +20,22 @@ compiler's own definitions; alone: no interface).
 | `env/continuation_uses.ml` | 158 | 17 | 17 | loose:3 verbatim:1 papp:2 | yes | strict |
 | `env/continuation_uses_env.ml` | 167 | 16 | 16 | loose:2 verbatim:1 papp:2 record-order:1 | yes | strict |
 | `env/continuation_uses_env_intf.ml` | 39 | 0 | 0 | loose:1 | yes | alone |
-| `env/downwards_acc.ml` | 342 | 63 | 0 | - | - | - |
-| `env/downwards_env.ml` | 945 | 102 | 0 | - | - | - |
+| `env/downwards_acc.ml` | 342 | 63 | 63 | loose:4 verbatim:2 decl:1 papp:1 record-order:1 | yes | strict |
+| `env/downwards_env.ml` | 945 | 102 | 102 | loose:9 type:1 verbatim:4 papp:6 record-order:2 | yes | strict |
 | `env/one_continuation_use.ml` | 49 | 7 | 7 | loose:3 papp:1 | yes | strict |
-| `env/replay_history.ml` | 230 | 14 | 0 | - | - | - |
+| `env/replay_history.ml` | 230 | 14 | 14 | loose:1 type:1 papp:1 | yes | strict |
 | `env/upwards_acc.ml` | 183 | 40 | 40 | loose:2 verbatim:1 papp:1 | yes | strict |
-| `env/upwards_env.ml` | 211 | 21 | 0 | - | - | - |
+| `env/upwards_env.ml` | 211 | 21 | 21 | loose:2 type:1 papp:1 | yes | strict |
 | `expr_builder.ml` | 800 | 25 | 0 | - | - | - |
-| `flow/control_flow_graph.ml` | 476 | 9 | 0 | - | - | - |
+| `flow/control_flow_graph.ml` | 476 | 9 | 9 | type:1 verbatim:3 decl:1 papp:1 | yes | strict |
 | `flow/data_flow_graph.ml` | 451 | 11 | 11 | loose:5 decl:1 papp:2 | yes | strict |
 | `flow/dominator_graph.ml` | 359 | 14 | 14 | verbatim:1 decl:2 | yes | strict |
 | `flow/flow.ml` | 16 | 0 | 0 | none | yes | strict |
-| `flow/flow_acc.ml` | 638 | 32 | 0 | - | - | - |
+| `flow/flow_acc.ml` | 638 | 32 | 32 | loose:3 | yes | strict |
 | `flow/flow_analysis.ml` | 211 | 7 | 4 | verbatim:1 init:3 papp:2 | yes | strict |
 | `flow/flow_types.ml` | 363 | 0 | 0 | loose:8 type:2 decl:1 papp:7 | yes | strict |
 | `flow/mutable_unboxing.ml` | 716 | 21 | 0 | - | - | - |
-| `inlining/call_site_inlining_decision.ml` | 464 | 7 | 0 | - | - | - |
+| `inlining/call_site_inlining_decision.ml` | 464 | 7 | 7 | loose:4 type:1 init:1 papp:1 | yes | strict |
 | `inlining/inlining_transforms.ml` | 181 | 3 | 3 | loose:3 | yes | strict |
 | `join_points.ml` | 442 | 7 | 7 | loose:4 verbatim:1 papp:1 | yes | strict |
 | `lifted_cont_params.ml` | 88 | 11 | 11 | loose:1 papp:1 | yes | strict |
@@ -46,58 +46,58 @@ compiler's own definitions; alone: no interface).
 | `named_rewrite.ml` | 48 | 2 | 2 | type:1 | yes | strict |
 | `non_constructed_code.ml` | 41 | 6 | 6 | verbatim:1 papp:4 | yes | strict |
 | `non_recursive_handler.ml` | 75 | 5 | 5 | loose:1 | yes | strict |
-| `number_adjuncts.ml` | 1035 | 2 | 2 | unported:7 loose:1 verbatim:3 init:2 decl:1 | yes | strict |
+| `number_adjuncts.ml` | 1035 | 2 | 2 | loose:3 verbatim:12 init:3 decl:2 | yes | strict |
 | `one_recursive_handler.ml` | 30 | 3 | 3 | none | yes | strict |
 | `original_handlers.ml` | 97 | 6 | 6 | loose:2 type:1 papp:1 | yes | strict |
-| `rebuilt_expr.ml` | 753 | 22 | 0 | - | - | - |
+| `rebuilt_expr.ml` | 753 | 22 | 21 | loose:9 type:2 verbatim:1 init:2 decl:2 papp:1 record-order:1 | yes | strict |
 | `rebuilt_static_const.ml` | 522 | 44 | 44 | loose:5 type:2 init:2 papp:1 record-order:5 | yes | strict |
 | `simplified_expr.ml` | 185 | 14 | 9 | type:1 verbatim:1 | yes | strict |
 | `simplified_named.ml` | 100 | 6 | 6 | loose:1 type:1 | yes | strict |
 | `simplify.ml` | 99 | 1 | 1 | type:1 verbatim:1 papp:1 | yes | strict |
 | `simplify_apply_cont_expr.ml` | 199 | 3 | 3 | papp:1 | yes | strict |
-| `simplify_apply_expr.ml` | 1539 | 21 | 0 | - | - | - |
-| `simplify_binary_primitive.ml` | 1270 | 12 | 0 | - | - | - |
+| `simplify_apply_expr.ml` | 1539 | 21 | 21 | loose:5 type:2 decl:1 papp:2 | yes | strict |
+| `simplify_binary_primitive.ml` | 1270 | 12 | 12 | loose:4 verbatim:1 papp:1 | yes | strict |
 | `simplify_coercion.ml` | 25 | 1 | 1 | none | yes | strict |
 | `simplify_common.ml` | 479 | 10 | 10 | loose:2 type:6 | yes | strict |
 | `simplify_expr.ml` | 231 | 7 | 7 | loose:1 type:2 papp:2 | yes | strict |
 | `simplify_extcall.ml` | 239 | 9 | 9 | loose:2 type:1 | yes | strict |
 | `simplify_import.ml` | 67 | 1 | 1 | none | yes | strict |
-| `simplify_let_cont_expr.ml` | 2039 | 36 | 0 | - | - | - |
+| `simplify_let_cont_expr.ml` | 2039 | 36 | 36 | loose:3 type:11 verbatim:1 decl:1 papp:4 record-order:2 | yes | strict |
 | `simplify_let_expr.ml` | 461 | 6 | 6 | loose:2 papp:1 | yes | strict |
 | `simplify_named.ml` | 333 | 4 | 4 | loose:2 papp:1 | yes | strict |
 | `simplify_named_result.ml` | 63 | 8 | 8 | loose:1 record-order:1 | yes | strict |
 | `simplify_nullary_primitive.ml` | 77 | 1 | 1 | none | yes | strict |
-| `simplify_primitive.ml` | 235 | 4 | 4 | decl:1 | yes | strict |
+| `simplify_primitive.ml` | 235 | 4 | 4 | none | yes | strict |
 | `simplify_primitive_result.ml` | 66 | 8 | 8 | loose:1 | yes | strict |
 | `simplify_quaternary_primitive.ml` | 112 | 4 | 4 | none | yes | alone |
 | `simplify_rec_info_expr.ml` | 164 | 8 | 8 | loose:4 | yes | strict |
-| `simplify_set_of_closures.ml` | 1230 | 15 | 0 | - | - | - |
+| `simplify_set_of_closures.ml` | 1230 | 15 | 15 | loose:3 decl:1 papp:6 record-order:2 | yes | strict |
 | `simplify_set_of_closures_context.ml` | 375 | 18 | 18 | loose:1 verbatim:1 papp:1 | yes | strict |
 | `simplify_simple.ml` | 65 | 4 | 4 | verbatim:1 | yes | strict |
-| `simplify_static_const.ml` | 483 | 6 | 0 | - | - | - |
+| `simplify_static_const.ml` | 483 | 6 | 6 | loose:1 | yes | strict |
 | `simplify_switch_expr.ml` | 1096 | 26 | 25 | loose:10 type:5 verbatim:1 decl:3 papp:4 record-order:1 | yes | strict |
 | `simplify_ternary_primitive.ml` | 116 | 8 | 8 | none | yes | strict |
-| `simplify_unary_primitive.ml` | 1106 | 35 | 0 | - | - | - |
+| `simplify_unary_primitive.ml` | 1106 | 35 | 35 | loose:16 decl:1 | yes | strict |
 | `simplify_variadic_primitive.ml` | 186 | 4 | 4 | loose:2 | yes | strict |
 | `specialization_cost.ml` | 202 | 12 | 12 | type:1 verbatim:1 papp:4 | yes | strict |
-| `unboxing/build_unboxing_denv.ml` | 291 | 3 | 0 | - | - | - |
+| `unboxing/build_unboxing_denv.ml` | 291 | 3 | 3 | type:1 | yes | strict |
 | `unboxing/is_unboxing_beneficial.ml` | 98 | 2 | 2 | type:1 | yes | strict |
 | `unboxing/optimistic_unboxing_decision.ml` | 228 | 12 | 12 | loose:3 | yes | strict |
 | `unboxing/unbox_continuation_params.ml` | 203 | 4 | 4 | loose:2 | yes | strict |
-| `unboxing/unboxers.ml` | 260 | 0 | 0 | - | - | - |
+| `unboxing/unboxers.ml` | 260 | 0 | 0 | loose:1 init:10 record-order:1 | yes | strict |
 | `unboxing/unboxing_epa.ml` | 553 | 15 | 0 | - | - | - |
 | `unboxing/unboxing_types.ml` | 185 | 9 | 7 | type:1 verbatim:2 papp:4 | yes | strict |
-| **total: 58 files of 78** | 26900 | 938 | 463 | 246 marks | 58 | 58 |
+| **total: 75 files of 78** | 26900 | 938 | 865 | 417 marks | 75 | 75 |
 
 Gaps by kind, all files:
 
-- unported: 7
+- unported: 0
 - partial: 0
-- loose: 96
-- type: 35
-- verbatim: 24
-- init: 7
+- loose: 171
+- type: 56
+- verbatim: 46
+- init: 21
 - order: 0
-- decl: 10
-- papp: 55
-- record-order: 12
+- decl: 19
+- papp: 83
+- record-order: 21
