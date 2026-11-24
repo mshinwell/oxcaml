@@ -85,9 +85,11 @@ for n, m in enumerate(binds):
 #   Definition update_X (t : T) (p1 : ..) .. : T := {| .. |}.
 # so it is checked here, as words: the record of the definition gives the
 # fields F1 .. the parameters p1 .. in that order, and every other field g is
-# [g := t.(g)].
+# [g := t.(g)]. Names are compared without the underscores that end them.
 raw = open(path).read()
-def last(name): return name.strip().split(".")[-1]
+# The last part of a name; a Rocq field may have underscores after it where
+# Rocq's one name space needs them ([handlers__] for OCaml's [handlers]).
+def last(name): return name.strip().split(".")[-1].rstrip("_")
 for m in re.finditer(r'Extract\s+Inlined\s+Constant\s+(update_[A-Za-z_0-9\']*)\s*=>\s*"([^"]*)"\s*\.', raw):
     name = m.group(1); txt = re.sub(r"\s+", " ", m.group(2)).strip()
     where = "%s:%d: setter %s" % (path, raw.count("\n", 0, m.start()) + 1, name)
