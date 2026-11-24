@@ -26,7 +26,7 @@ compiler's own definitions; alone: no interface).
 | `env/replay_history.ml` | 230 | 14 | 14 | loose:1 type:1 papp:1 | yes | strict |
 | `env/upwards_acc.ml` | 183 | 40 | 40 | loose:2 verbatim:1 papp:1 | yes | strict |
 | `env/upwards_env.ml` | 211 | 21 | 21 | loose:2 type:1 papp:1 | yes | strict |
-| `expr_builder.ml` | 800 | 25 | 0 | - | - | - |
+| `expr_builder.ml` | 800 | 25 | 25 | loose:8 type:4 | yes | strict |
 | `flow/control_flow_graph.ml` | 476 | 9 | 9 | type:1 verbatim:3 decl:1 papp:1 | yes | strict |
 | `flow/data_flow_graph.ml` | 451 | 11 | 11 | loose:5 decl:1 papp:2 | yes | strict |
 | `flow/dominator_graph.ml` | 359 | 14 | 14 | verbatim:1 decl:2 | yes | strict |
@@ -85,17 +85,17 @@ compiler's own definitions; alone: no interface).
 | `unboxing/optimistic_unboxing_decision.ml` | 228 | 12 | 12 | loose:3 | yes | strict |
 | `unboxing/unbox_continuation_params.ml` | 203 | 4 | 4 | loose:2 | yes | strict |
 | `unboxing/unboxers.ml` | 260 | 0 | 0 | loose:1 init:10 record-order:1 | yes | strict |
-| `unboxing/unboxing_epa.ml` | 553 | 15 | 0 | - | - | - |
+| `unboxing/unboxing_epa.ml` | 553 | 15 | 15 | loose:1 type:2 verbatim:1 | yes | strict |
 | `unboxing/unboxing_types.ml` | 185 | 9 | 7 | type:1 verbatim:2 papp:4 | yes | strict |
-| **total: 76 files of 78** | 26900 | 938 | 886 | 422 marks | 76 | 76 |
+| **total: 78 files of 78** | 26900 | 938 | 926 | 438 marks | 78 | 78 |
 
 Gaps by kind, all files:
 
 - unported: 0
 - partial: 0
-- loose: 172
-- type: 56
-- verbatim: 46
+- loose: 181
+- type: 62
+- verbatim: 47
 - init: 21
 - order: 0
 - decl: 20
