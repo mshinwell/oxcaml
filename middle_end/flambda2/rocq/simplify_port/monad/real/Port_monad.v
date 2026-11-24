@@ -430,6 +430,14 @@ Arguments T6 {A B C D E F}.
 Definition int_neq (a b : int) : bool := negb (Z.eqb a b).
 Notation "a <>? b" := (int_neq a b) (at level 70, no associativity).
 
+(* OCaml's [a / b] and [a mod b] on integers: they round towards zero and
+   raise [Division_by_zero]. *)
+Parameter Division_by_zero : exception unit.
+Definition int_div (a b : int) : M int :=
+  if Z.eqb b 0 then raise_ Division_by_zero tt else ret (Z.quot a b).
+Definition int_mod (a b : int) : M int :=
+  if Z.eqb b 0 then raise_ Division_by_zero tt else ret (Z.rem a b).
+
 (* OCaml's [a || b] and [a && b] where [b] is a call: [b] is not run when
    [a] decides. ([a] is a value: a call there is a [let!] before.) *)
 Definition or_else (a : bool) (b : M bool) : M bool :=

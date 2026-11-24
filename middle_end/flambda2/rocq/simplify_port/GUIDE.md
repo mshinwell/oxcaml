@@ -67,6 +67,9 @@ record, or passed as an argument (but `or_else`, `and_then`). HUMAN: OCaml
 leaves the order of evaluation of arguments unspecified; the port fixes
 right-to-left, which is what ocamlopt does. `a |> f b` is `f b a`.
 
+A function OF THE FILE applied to its first arguments only (`let simplifier
+= simplify_x a b in`) is a value in both builds: `let&`, no mark.
+
 PARTIAL APPLICATION of a declared function (`~f:(Acc.exit_continuation k)`):
 `let! tmp1 := papp1 Acc.exit_continuation k in` (also `papp2`..`papp4`),
 marked `PORT-GAP(papp)`, or write the `fun`. HUMAN: the port ASSUMES of every
@@ -90,6 +93,8 @@ its interface. A ported recursive function passed as a value
 | `ref v`, `!r`, `r := v`; `lazy e`, `Lazy.force l` | `mk_ref v`, `get r`, `set r v`; `lazy_ (fun _ => e)`, `force l` |
 | `while c do b done` | `while_ (fun _ => c) (fun _ => b)` |
 | `x == y`, `compare x y`, `x = y` not on integers | `phys_equal x y`, `poly_compare x y`, `poly_equal x y` (calls) |
+| `a / b`, `a mod b` on integers | `int_div a b`, `int_mod a b` (calls: they may raise) |
+| `E v` as a value (`raise_with_backtrace E bt`) | `exn_make M.E v` |
 | `f ?opt:None x`, `f ~opt:v x` (optional argument) | `f None x`, `f (Some v) x` by place |
 | `p when c -> e` | the pattern, then `if c then e else` the other cases |
 
@@ -206,10 +211,14 @@ opened module; the short names of Simplify_import are written out
 `a :: []` for `[a]`; an optional argument is the applied text `(fun x__1
 x__2 -> F.f ?l:x__1 x__2) None a`; a match on a variant with an inline
 record, and the building of such a constructor, are applied functions (`(fun
-f__1 f__2 x__0 -> match x__0 with ...) (fun a -> ...) (fun b -> ...) x`), and
-there the body of a case with several patterns, or of `_`, is written once
-for each constructor; a record that the file defines brings one function
-for each field (`let name i = i.name`);
+f__1 f__2 x__0 -> match x__0 with ...) (fun a -> ...) (fun b -> ...) x`);
+in EVERY match the body of a case with several patterns, or of `_`, is
+written once for each constructor that it stands for (a `_` over a type of
+30 constructors is 30 cases); a record that the file defines brings one
+function for each field (`let name i = i.name`); Rocq's `open` lines come
+AFTER the verbatim head, so a name of the head that an opened module also
+has is hidden from the rest of the file (do not write a bare `t` in a
+string of `Extract Inductive`);
 `try`, `match .. with exception`, `while` are calls of `Port_monad`
 (`runtime/port_monad.ml`), `lazy e` is `Lazy.from_fun`; a local function is
 `let f = fun x -> ...`; each definition has a comment `(** val f : ... **)`

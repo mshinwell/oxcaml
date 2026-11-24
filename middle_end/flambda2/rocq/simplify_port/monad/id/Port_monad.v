@@ -143,6 +143,10 @@ Parameter Fatal_error : exception unit.
 Extract Inlined Constant Fatal_error => "Port_monad.fatal_error_exception".
 Parameter Not_found : exception unit.
 Extract Inlined Constant Not_found => "Port_monad.not_found".
+(* The value [E p] of a declared exception, for a function that takes an
+   [exn]. *)
+Parameter exn_make : forall {P : Type}, exception P -> P -> exn.
+Extract Inlined Constant exn_make => "Port_monad.exn_make".
 Parameter raise_ : forall {P A : Type}, exception P -> P -> M A.
 Extract Inlined Constant raise_ => "Port_monad.raise_".
 Parameter raise_exn : forall {A : Type}, exn -> M A.
@@ -262,6 +266,13 @@ Extract Inductive tuple6 => "Port_monad.tuple6" [ "" ].
 Definition int_neq (a b : int) : bool := negb (Z.eqb a b).
 Extract Inlined Constant int_neq => "(<>)".
 Notation "a <>? b" := (int_neq a b) (at level 70, no associativity).
+
+Parameter Division_by_zero : exception unit.
+Extract Inlined Constant Division_by_zero => "Port_monad.division_by_zero".
+Parameter int_div : int -> int -> M int.
+Extract Inlined Constant int_div => "(/)".
+Parameter int_mod : int -> int -> M int.
+Extract Inlined Constant int_mod => "(mod)".
 
 (* Printed [a || b] and [a && b]: OCaml does not evaluate [b] when [a]
    decides. *)

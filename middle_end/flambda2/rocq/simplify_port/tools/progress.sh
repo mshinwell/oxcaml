@@ -32,7 +32,8 @@
 #   lines    the lines of the compiler's file
 #   defs     its definitions at the left margin (let, and), by name
 #   ported   those of them that the .v file defines (Definition, Fixpoint,
-#            with) and does not leave as a parameter
+#            with, or a field of a Record of the file: Rocq makes the
+#            function that reads it) and does not leave as a parameter
 #   gaps     the marks of the .v file, by kind: the comments that BEGIN
 #            with "PORT-GAP(kind)"
 #   Rocq     whether the .v file is compiled against both implementations
@@ -45,7 +46,11 @@ names_ml() {
     | grep -v '^_$' | sort -u
 }
 names_v() {
-  sed -n -E 's/^(Definition|Fixpoint|with) +([a-z_][A-Za-z0-9_'"'"']*).*/\2/p' "$1" | sort -u
+  { sed -n -E 's/^(Definition|Fixpoint|with) +([a-z_][A-Za-z0-9_'"'"']*).*/\2/p' "$1"
+    # the fields of the file's records: Rocq makes one function for each
+    awk '/^Record /{r=1} r{print} r&&/}\./{r=0}' "$1" \
+      | grep -o -E '[{;] *[a-z_][A-Za-z0-9_'"'"']* *:' | sed -E 's/[{;: ]//g'
+  } | sort -u
 }
 echo "# The port of Simplify: progress"
 echo

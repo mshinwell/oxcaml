@@ -59,6 +59,13 @@ let fatal_error_exception : unit exception_ =
   ( (fun () -> Misc.Fatal_error),
     function Misc.Fatal_error -> Some () | _ -> None )
 
+let division_by_zero : unit exception_ =
+  ( (fun () -> Division_by_zero),
+    function Division_by_zero -> Some () | _ -> None )
+
+(* [E p] *)
+let exn_make ((make, _) : 'p exception_) (p : 'p) = make p
+
 (* [raise (E p)] *)
 let raise_ ((make, _) : 'p exception_) (p : 'p) = raise (make p)
 

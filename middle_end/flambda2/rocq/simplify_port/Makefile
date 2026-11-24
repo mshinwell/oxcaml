@@ -134,8 +134,12 @@ $(B)/id/%.vo: $(B)/id/%.v
 # used once (the temporaries of [let!]); every other optimisation of the
 # extraction is off, and so is its automatic inlining. KeepSingleton: a
 # record of one field stays a record (the payload of [Invalid { message }]).
+# When the declarations of the file's own module (decl/Foo.v) are loaded
+# too, through what the file requires, Rocq names its output Foo0.ml: the
+# rule gives it the name Foo.ml.
 $(B)/id/out/%.ml: $(B)/id/%.vo Makefile
 	@mkdir -p $(dir $@) $(dir $(B)/id/extract/$*)
+	@rm -f $@ $(B)/id/out/$*0.ml
 	@printf '%s\n' \
 	  'From SimplifyPort Require Import Port_monad.' \
 	  'Require SimplifyPort.$(subst /,.,$*).' \
@@ -145,6 +149,7 @@ $(B)/id/out/%.ml: $(B)/id/%.vo Makefile
 	  'Set Extraction KeepSingleton.' \
 	  'Extraction Library $(notdir $*).' > $(B)/id/extract/$*_extract.v
 	cd $(B)/id && $(ROCQ) compile -q -Q . SimplifyPort -w -extraction extract/$*_extract.v
+	@[ -e $@ ] || mv $(B)/id/out/$*0.ml $@
 
 # extracted/DIR/foo.ml: the header of the donor, a line that says where the
 # file comes from, the OCaml text that the .v file carries verbatim, then
