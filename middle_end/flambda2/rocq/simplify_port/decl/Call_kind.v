@@ -40,9 +40,25 @@ Module Method_kind.
 End Method_kind.
 Module Effect.
   (* call_kind.mli:51  type t = private | Perform of { eff : Simple.t } | Reperform of { eff : Simple.t; cont : Simple.t; last_fiber : Simple.t } | With_stack of { valuec : Simple.t; exnc : Simple.t; effc : Simple.t; f : Simple.t; arg : Simple.t } | With_stack_preemptible of { valuec : Simple.t; exnc : Simple.t; effc : Simple.t; handle_tick : Simple.t; f : Simple.t; arg : Simple.t } | Continue of { cont : Simple.t; v... *)
-  (* PORT-GAP(type): the name of the field [eff] is taken in Rocq: abstract, with a maker for each constructor and one eliminator. *)
-  Parameter t : Type.
-  Extract Inlined Constant t => "Call_kind.Effect.t".
+  Record perform_payload_ : Type := { eff : Simple.t }.
+  (* The inline record of [Reperform]: abstract (a name of its fields is taken, or it holds the type); [mk_Reperform] makes one, [match_t] reads it. *)
+  Parameter reperform_payload_ : Type.
+  Record with_stack_payload_ : Type := { valuec : Simple.t; exnc : Simple.t; effc : Simple.t; f : Simple.t; arg : Simple.t }.
+  (* The inline record of [With_stack_preemptible]: abstract (a name of its fields is taken, or it holds the type); [mk_With_stack_preemptible] makes one, [match_t] reads it. *)
+  Parameter with_stack_preemptible_payload_ : Type.
+  Record continue_payload_ : Type := { cont : Simple.t; value : Simple.t }.
+  (* The inline record of [Discontinue]: abstract (a name of its fields is taken, or it holds the type); [mk_Discontinue] makes one, [match_t] reads it. *)
+  Parameter discontinue_payload_ : Type.
+  (* The inline record of [Discontinue_with_backtrace]: abstract (a name of its fields is taken, or it holds the type); [mk_Discontinue_with_backtrace] makes one, [match_t] reads it. *)
+  Parameter discontinue_with_backtrace_payload_ : Type.
+  Inductive t : Type :=
+  | Perform : perform_payload_ -> t
+  | Reperform : reperform_payload_ -> t
+  | With_stack : with_stack_payload_ -> t
+  | With_stack_preemptible : with_stack_preemptible_payload_ -> t
+  | Continue : continue_payload_ -> t
+  | Discontinue : discontinue_payload_ -> t
+  | Discontinue_with_backtrace : discontinue_with_backtrace_payload_ -> t.
   Parameter match_t : forall {Res : Type}, t -> (Simple.t -> M Res) -> (Simple.t -> Simple.t -> Simple.t -> M Res) -> (Simple.t -> Simple.t -> Simple.t -> Simple.t -> Simple.t -> M Res) -> (Simple.t -> Simple.t -> Simple.t -> Simple.t -> Simple.t -> Simple.t -> M Res) -> (Simple.t -> Simple.t -> M Res) -> (Simple.t -> Simple.t -> M Res) -> (Simple.t -> Simple.t -> Simple.t -> M Res) -> M Res.
   Extract Inlined Constant match_t => "(fun x__0 f__1 f__2 f__3 f__4 f__5 f__6 f__7 -> match x__0 with Call_kind.Effect.Perform { eff = x__1 } -> f__1 x__1 | Call_kind.Effect.Reperform { eff = x__1; cont = x__2; last_fiber = x__3 } -> f__2 x__1 x__2 x__3 | Call_kind.Effect.With_stack { valuec = x__1; exnc = x__2; effc = x__3; f = x__4; arg = x__5 } -> f__3 x__1 x__2 x__3 x__4 x__5 | Call_kind.Effect.With_stack_preemptible { valuec = x__1; exnc = x__2; effc = x__3; handle_tick = x__4; f = x__5; arg = x__6 } -> f__4 x__1 x__2 x__3 x__4 x__5 x__6 | Call_kind.Effect.Continue { cont = x__1; value = x__2 } -> f__5 x__1 x__2 | Call_kind.Effect.Discontinue { cont = x__1; exn = x__2 } -> f__6 x__1 x__2 | Call_kind.Effect.Discontinue_with_backtrace { cont = x__1; exn = x__2; bt = x__3 } -> f__7 x__1 x__2 x__3)".
   (* call_kind.mli:89  val perform : eff:Simple.t -> t *)

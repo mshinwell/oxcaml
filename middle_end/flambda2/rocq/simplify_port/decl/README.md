@@ -63,15 +63,24 @@ OCaml name, Rocq name, kind, number of arguments, interface and line.
 - An abbreviation: a `Definition`.
 - A variant that Simplify builds or matches: an `Inductive` with the
   compiler's constructors. A constructor with an inline record takes one
-  argument, a `Record` named `CONSTRUCTOR_payload_` with the compiler's fields.
+  argument, a `Record` named `CONSTRUCTOR_payload_` with the compiler's
+  fields. Rocq has one name space for the fields of a module, so a later
+  inline record with the same fields and types uses the same `Record`, and
+  any other with a field name already taken is `Parameter C_payload_ : Type.`
+  (the port matches `C _`; `mk_C` makes one and `match_T` reads it).
 - A record whose fields Simplify reads or builds: a `Record` with the
   compiler's fields; a mutable field also has `set_FIELD`.
+- Types defined together (`type a = ... and b = ...`): the abstract ones
+  first, then the others, each after what it mentions; variants that mention
+  each other are one `Inductive ... with ...`.
 - A type that cannot be so (a GADT; a type that holds itself inside an
-  abstract type; two inline records of one module with a field of the same
-  name; a type recursive with one declared after it): abstract, marked
-  `PORT-GAP(type)`, with a pure maker `mk_C` for each constructor and one
-  eliminator `match_T` whose branches are in `M`. (No maker for a private
-  type: OCaml makes none outside its module. No eliminator for a GADT.)
+  abstract type; a record recursive with other types; a record with a field
+  name already taken): abstract, marked `PORT-GAP(type)`, with a pure maker
+  `mk_C` for each constructor and one eliminator `match_T` whose branches are
+  in `M`. (No maker for a private type: OCaml makes none outside its module.
+  No eliminator for a GADT.) A mirrored type that has an abstract payload, or
+  that mentions a type declared after it, has `mk_C` and `match_T` too.
+- A module that a file of Simplify names by an alias exists, though empty.
 
 ## Names
 

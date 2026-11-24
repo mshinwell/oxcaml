@@ -144,9 +144,15 @@ Module Mixed_block_access_field_kind.
 End Mixed_block_access_field_kind.
 Module Block_access_kind.
   (* flambda_primitive.mli:230  type t = | Values of { tag : Tag.Scannable.t Or_unknown.t; size : Target_ocaml_int.t Or_unknown.t; field_kind : Block_access_field_kind.t } | Naked_floats of { size : Target_ocaml_int.t Or_unknown.t } | Mixed of { tag : Tag.Scannable.t Or_unknown.t; size : Target_ocaml_int.t Or_unknown.t; field_kind : Mixed_block_access_field_kind.t; shape : Flambda_kind.Mixed_block_shape.t } *)
-  (* PORT-GAP(type): the name of the field [size] is taken in Rocq: abstract, with a maker for each constructor and one eliminator. *)
-  Parameter t : Type.
-  Extract Inlined Constant t => "Flambda_primitive.Block_access_kind.t".
+  Record values_payload_ : Type := { tag : Or_unknown.t Tag.Scannable.t; size : Or_unknown.t Target_ocaml_int.t; field_kind : Flambda_primitive.Block_access_field_kind.t }.
+  (* The inline record of [Naked_floats]: abstract (a name of its fields is taken, or it holds the type); [mk_Naked_floats] makes one, [match_t] reads it. *)
+  Parameter naked_floats_payload_ : Type.
+  (* The inline record of [Mixed]: abstract (a name of its fields is taken, or it holds the type); [mk_Mixed] makes one, [match_t] reads it. *)
+  Parameter mixed_payload_ : Type.
+  Inductive t : Type :=
+  | Values : values_payload_ -> t
+  | Naked_floats : naked_floats_payload_ -> t
+  | Mixed : mixed_payload_ -> t.
   Parameter mk_Values : Or_unknown.t Tag.Scannable.t -> Or_unknown.t Target_ocaml_int.t -> Flambda_primitive.Block_access_field_kind.t -> t.
   Extract Inlined Constant mk_Values => "(fun x__1 x__2 x__3 -> Flambda_primitive.Block_access_kind.Values { tag = x__1; size = x__2; field_kind = x__3 })".
   Parameter mk_Naked_floats : Or_unknown.t Target_ocaml_int.t -> t.
@@ -247,9 +253,54 @@ Module Reinterpret_64_bit_word.
   | Unboxed_float64_as_unboxed_int64 : t.
 End Reinterpret_64_bit_word.
 (* flambda_primitive.mli:422  type unary_primitive = | Block_load of { kind : Block_access_kind.t; mut : Mutability.t; field : Target_ocaml_int.t } | Duplicate_block of { kind : Duplicate_block_kind.t; alloc_region : Variable.t } ( ** [Duplicate_block] may not be used to change the tag or the mutability of a block. * ) | Duplicate_array of { kind : Duplicate_array_kind.t; source_mutability : Mutability.t; destination_mutabi... *)
-(* PORT-GAP(type): the name of the field [kind] is taken in Rocq: abstract, with a maker for each constructor and one eliminator. *)
-Parameter unary_primitive : Type.
-Extract Inlined Constant unary_primitive => "Flambda_primitive.unary_primitive".
+Record block_load_payload_ : Type := { kind : Flambda_primitive.Block_access_kind.t; mut : Mutability.t; field : Target_ocaml_int.t }.
+(* The inline record of [Duplicate_block]: abstract (a name of its fields is taken, or it holds the type); [mk_Duplicate_block] makes one, [match_unary_primitive] reads it. *)
+Parameter duplicate_block_payload_ : Type.
+(* The inline record of [Duplicate_array]: abstract (a name of its fields is taken, or it holds the type); [mk_Duplicate_array] makes one, [match_unary_primitive] reads it. *)
+Parameter duplicate_array_payload_ : Type.
+Record is_int_payload_ : Type := { variant_only : bool }.
+Record bigarray_length_payload_ : Type := { dimension : int }.
+(* The inline record of [Opaque_identity]: abstract (a name of its fields is taken, or it holds the type); [mk_Opaque_identity] makes one, [match_unary_primitive] reads it. *)
+Parameter opaque_identity_payload_ : Type.
+Record num_conv_payload_ : Type := { src : Flambda_kind.Standard_int_or_float.t; dst : Flambda_kind.Standard_int_or_float.t }.
+Record project_function_slot_payload_ : Type := { move_from : Function_slot.t; move_to : Function_slot.t }.
+Record project_value_slot_payload_ : Type := { project_from : Function_slot.t; value_slot : Value_slot.t }.
+Record end_region_payload_ : Type := { ghost : bool }.
+Record obj_dup_payload_ : Type := { alloc_region : Variable_.t }.
+(* The inline record of [Make_lazy]: abstract (a name of its fields is taken, or it holds the type); [mk_Make_lazy] makes one, [match_unary_primitive] reads it. *)
+Parameter make_lazy_payload_ : Type.
+Inductive unary_primitive : Type :=
+| Block_load : block_load_payload_ -> unary_primitive
+| Duplicate_block : duplicate_block_payload_ -> unary_primitive
+| Duplicate_array : duplicate_array_payload_ -> unary_primitive
+| Is_int : is_int_payload_ -> unary_primitive
+| Is_null : unary_primitive
+| Get_tag : unary_primitive
+| Array_length : Flambda_primitive.Array_kind_for_length.t -> unary_primitive
+| Bigarray_length : bigarray_length_payload_ -> unary_primitive
+| String_length : string_or_bytes -> unary_primitive
+| Int_as_pointer : Alloc_mode.For_allocations.t -> unary_primitive
+| Opaque_identity : opaque_identity_payload_ -> unary_primitive
+| Int_arith : Flambda_kind.Standard_int.t -> unary_int_arith_op -> unary_primitive
+| Float_arith : float_bitwidth -> unary_float_arith_op -> unary_primitive
+| Num_conv : num_conv_payload_ -> unary_primitive
+| Boolean_not : unary_primitive
+| Reinterpret_64_bit_word : Flambda_primitive.Reinterpret_64_bit_word.t -> unary_primitive
+| Reinterpret_boxed_vector : unary_primitive
+| Unbox_number : Flambda_kind.Boxable_number.t -> unary_primitive
+| Box_number : Flambda_kind.Boxable_number.t -> Alloc_mode.For_allocations.t -> unary_primitive
+| Untag_immediate : unary_primitive
+| Tag_immediate : unary_primitive
+| Project_function_slot : project_function_slot_payload_ -> unary_primitive
+| Project_value_slot : project_value_slot_payload_ -> unary_primitive
+| Is_boxed_float : unary_primitive
+| Is_flat_float_array : unary_primitive
+| End_region : end_region_payload_ -> unary_primitive
+| End_try_region : end_region_payload_ -> unary_primitive
+| Obj_dup : obj_dup_payload_ -> unary_primitive
+| Get_header : unary_primitive
+| Peek : Flambda_kind.Standard_int_or_float.t -> unary_primitive
+| Make_lazy : make_lazy_payload_ -> unary_primitive.
 Parameter mk_Block_load : Flambda_primitive.Block_access_kind.t -> Mutability.t -> Target_ocaml_int.t -> unary_primitive.
 Extract Inlined Constant mk_Block_load => "(fun x__1 x__2 x__3 -> Flambda_primitive.Block_load { kind = x__1; mut = x__2; field = x__3 })".
 Parameter mk_Duplicate_block : Flambda_primitive.Duplicate_block_kind.t -> Variable_.t -> unary_primitive.
@@ -346,22 +397,54 @@ Extract Inductive binary_float_arith_op => "Flambda_primitive.binary_float_arith
 Parameter atomic_offset_units : Type.
 Extract Inlined Constant atomic_offset_units => "Flambda_primitive.atomic_offset_units".
 (* flambda_primitive.mli:558  type binary_primitive = | Block_set of { kind : Block_access_kind.t; init : Init_or_assign.t; field : Target_ocaml_int.t } | Array_load of Array_kind.t * Array_load_kind.t * Mutability.t ( ** Unarized or SIMD array load. The array kind preserves unboxed product information but the load kind and index all correspond to the unarized representation. See also [Array_length], above. * ) | String_or_... *)
-Record block_set_payload_ : Type := { kind : Flambda_primitive.Block_access_kind.t; init : Flambda_primitive.Init_or_assign.t; field : Target_ocaml_int.t }.
+(* The inline record of [Block_set]: abstract (a name of its fields is taken, or it holds the type); [mk_Block_set] makes one, [match_binary_primitive] reads it. *)
+Parameter block_set_payload_ : Type.
 Inductive binary_primitive : Type :=
 | Block_set : block_set_payload_ -> binary_primitive
 | Array_load : Flambda_primitive.Array_kind.t -> Flambda_primitive.Array_load_kind.t -> Mutability.t -> binary_primitive
 | String_or_bigstring_load : string_like_value -> string_accessor_width -> binary_primitive
 | Bigarray_load : num_dimensions -> Flambda_primitive.Bigarray_kind.t -> Flambda_primitive.Bigarray_layout.t -> binary_primitive
 | Phys_equal : equality_comparison -> binary_primitive
-| Int_arith : Flambda_kind.Standard_int.t -> binary_int_arith_op -> binary_primitive
+| Int_arith_ : Flambda_kind.Standard_int.t -> binary_int_arith_op -> binary_primitive
 | Int_shift : Flambda_kind.Standard_int.t -> int_shift_op -> binary_primitive
 | Int_comp : Flambda_kind.Standard_int.t -> comparison_behaviour signed_or_unsigned -> binary_primitive
-| Float_arith : float_bitwidth -> binary_float_arith_op -> binary_primitive
+| Float_arith_ : float_bitwidth -> binary_float_arith_op -> binary_primitive
 | Float_comp : float_bitwidth -> comparison_behaviour unit -> binary_primitive
 | Bigarray_get_alignment : int -> binary_primitive
 | Atomic_load : atomic_offset_units -> Flambda_primitive.Block_access_field_kind.t -> binary_primitive
 | Poke : Flambda_kind.Standard_int_or_float.t -> binary_primitive
 | Read_offset : Flambda_kind.With_subkind.t -> Asttypes.mutable_flag -> binary_primitive.
+Extract Inductive binary_primitive => "Flambda_primitive.binary_primitive" [ "Flambda_primitive.Block_set" "Flambda_primitive.Array_load" "Flambda_primitive.String_or_bigstring_load" "Flambda_primitive.Bigarray_load" "Flambda_primitive.Phys_equal" "Flambda_primitive.Int_arith" "Flambda_primitive.Int_shift" "Flambda_primitive.Int_comp" "Flambda_primitive.Float_arith" "Flambda_primitive.Float_comp" "Flambda_primitive.Bigarray_get_alignment" "Flambda_primitive.Atomic_load" "Flambda_primitive.Poke" "Flambda_primitive.Read_offset" ].
+Parameter mk_Block_set : Flambda_primitive.Block_access_kind.t -> Flambda_primitive.Init_or_assign.t -> Target_ocaml_int.t -> binary_primitive.
+Extract Inlined Constant mk_Block_set => "(fun x__1 x__2 x__3 -> Flambda_primitive.Block_set { kind = x__1; init = x__2; field = x__3 })".
+Parameter mk_Array_load : Flambda_primitive.Array_kind.t -> Flambda_primitive.Array_load_kind.t -> Mutability.t -> binary_primitive.
+Extract Inlined Constant mk_Array_load => "(fun x__1 x__2 x__3 -> Flambda_primitive.Array_load (x__1, x__2, x__3))".
+Parameter mk_String_or_bigstring_load : string_like_value -> string_accessor_width -> binary_primitive.
+Extract Inlined Constant mk_String_or_bigstring_load => "(fun x__1 x__2 -> Flambda_primitive.String_or_bigstring_load (x__1, x__2))".
+Parameter mk_Bigarray_load : num_dimensions -> Flambda_primitive.Bigarray_kind.t -> Flambda_primitive.Bigarray_layout.t -> binary_primitive.
+Extract Inlined Constant mk_Bigarray_load => "(fun x__1 x__2 x__3 -> Flambda_primitive.Bigarray_load (x__1, x__2, x__3))".
+Parameter mk_Phys_equal : equality_comparison -> binary_primitive.
+Extract Inlined Constant mk_Phys_equal => "(fun x__1 -> Flambda_primitive.Phys_equal x__1)".
+Parameter mk_Int_arith_ : Flambda_kind.Standard_int.t -> binary_int_arith_op -> binary_primitive.
+Extract Inlined Constant mk_Int_arith_ => "(fun x__1 x__2 -> Flambda_primitive.Int_arith (x__1, x__2))".
+Parameter mk_Int_shift : Flambda_kind.Standard_int.t -> int_shift_op -> binary_primitive.
+Extract Inlined Constant mk_Int_shift => "(fun x__1 x__2 -> Flambda_primitive.Int_shift (x__1, x__2))".
+Parameter mk_Int_comp : Flambda_kind.Standard_int.t -> comparison_behaviour signed_or_unsigned -> binary_primitive.
+Extract Inlined Constant mk_Int_comp => "(fun x__1 x__2 -> Flambda_primitive.Int_comp (x__1, x__2))".
+Parameter mk_Float_arith_ : float_bitwidth -> binary_float_arith_op -> binary_primitive.
+Extract Inlined Constant mk_Float_arith_ => "(fun x__1 x__2 -> Flambda_primitive.Float_arith (x__1, x__2))".
+Parameter mk_Float_comp : float_bitwidth -> comparison_behaviour unit -> binary_primitive.
+Extract Inlined Constant mk_Float_comp => "(fun x__1 x__2 -> Flambda_primitive.Float_comp (x__1, x__2))".
+Parameter mk_Bigarray_get_alignment : int -> binary_primitive.
+Extract Inlined Constant mk_Bigarray_get_alignment => "(fun x__1 -> Flambda_primitive.Bigarray_get_alignment x__1)".
+Parameter mk_Atomic_load : atomic_offset_units -> Flambda_primitive.Block_access_field_kind.t -> binary_primitive.
+Extract Inlined Constant mk_Atomic_load => "(fun x__1 x__2 -> Flambda_primitive.Atomic_load (x__1, x__2))".
+Parameter mk_Poke : Flambda_kind.Standard_int_or_float.t -> binary_primitive.
+Extract Inlined Constant mk_Poke => "(fun x__1 -> Flambda_primitive.Poke x__1)".
+Parameter mk_Read_offset : Flambda_kind.With_subkind.t -> Asttypes.mutable_flag -> binary_primitive.
+Extract Inlined Constant mk_Read_offset => "(fun x__1 x__2 -> Flambda_primitive.Read_offset (x__1, x__2))".
+Parameter match_binary_primitive : forall {Res : Type}, binary_primitive -> (Flambda_primitive.Block_access_kind.t -> Flambda_primitive.Init_or_assign.t -> Target_ocaml_int.t -> M Res) -> (Flambda_primitive.Array_kind.t -> Flambda_primitive.Array_load_kind.t -> Mutability.t -> M Res) -> (string_like_value -> string_accessor_width -> M Res) -> (num_dimensions -> Flambda_primitive.Bigarray_kind.t -> Flambda_primitive.Bigarray_layout.t -> M Res) -> (equality_comparison -> M Res) -> (Flambda_kind.Standard_int.t -> binary_int_arith_op -> M Res) -> (Flambda_kind.Standard_int.t -> int_shift_op -> M Res) -> (Flambda_kind.Standard_int.t -> comparison_behaviour signed_or_unsigned -> M Res) -> (float_bitwidth -> binary_float_arith_op -> M Res) -> (float_bitwidth -> comparison_behaviour unit -> M Res) -> (int -> M Res) -> (atomic_offset_units -> Flambda_primitive.Block_access_field_kind.t -> M Res) -> (Flambda_kind.Standard_int_or_float.t -> M Res) -> (Flambda_kind.With_subkind.t -> Asttypes.mutable_flag -> M Res) -> M Res.
+Extract Inlined Constant match_binary_primitive => "(fun x__0 f__1 f__2 f__3 f__4 f__5 f__6 f__7 f__8 f__9 f__10 f__11 f__12 f__13 f__14 -> match x__0 with Flambda_primitive.Block_set { kind = x__1; init = x__2; field = x__3 } -> f__1 x__1 x__2 x__3 | Flambda_primitive.Array_load (x__1, x__2, x__3) -> f__2 x__1 x__2 x__3 | Flambda_primitive.String_or_bigstring_load (x__1, x__2) -> f__3 x__1 x__2 | Flambda_primitive.Bigarray_load (x__1, x__2, x__3) -> f__4 x__1 x__2 x__3 | Flambda_primitive.Phys_equal x__1 -> f__5 x__1 | Flambda_primitive.Int_arith (x__1, x__2) -> f__6 x__1 x__2 | Flambda_primitive.Int_shift (x__1, x__2) -> f__7 x__1 x__2 | Flambda_primitive.Int_comp (x__1, x__2) -> f__8 x__1 x__2 | Flambda_primitive.Float_arith (x__1, x__2) -> f__9 x__1 x__2 | Flambda_primitive.Float_comp (x__1, x__2) -> f__10 x__1 x__2 | Flambda_primitive.Bigarray_get_alignment x__1 -> f__11 x__1 | Flambda_primitive.Atomic_load (x__1, x__2) -> f__12 x__1 x__2 | Flambda_primitive.Poke x__1 -> f__13 x__1 | Flambda_primitive.Read_offset (x__1, x__2) -> f__14 x__1 x__2)".
 (* flambda_primitive.mli:588  type int_atomic_op = | Fetch_add | Add | Sub | And | Or | Xor *)
 Parameter int_atomic_op : Type.
 Extract Inlined Constant int_atomic_op => "Flambda_primitive.int_atomic_op".
@@ -385,19 +468,11 @@ Inductive quaternary_primitive : Type :=
 | Atomic_compare_and_set : atomic_offset_units -> Flambda_primitive.Block_access_field_kind.t -> Alloc_mode.For_assignments.t -> quaternary_primitive
 | Atomic_compare_exchange : atomic_compare_exchange_payload_ -> quaternary_primitive.
 (* flambda_primitive.mli:653  type variadic_primitive = | Begin_region of { ghost : bool } ( ** Starting delimiter of local allocation region, returning a region name. For regions for the 'try' part of a 'try...with', use [Begin_try_region] (below) instead. * ) | Begin_try_region of { ghost : bool } ( ** Starting delimiter of local allocation region, when used for a 'try' body. * ) | Make_block of Block_kind.t * Mutability.... *)
-(* PORT-GAP(type): the name of the field [ghost] is taken in Rocq: abstract, with a maker for each constructor and one eliminator. *)
-Parameter variadic_primitive : Type.
-Extract Inlined Constant variadic_primitive => "Flambda_primitive.variadic_primitive".
-Parameter mk_Begin_region : bool -> variadic_primitive.
-Extract Inlined Constant mk_Begin_region => "(fun x__1 -> Flambda_primitive.Begin_region { ghost = x__1 })".
-Parameter mk_Begin_try_region : bool -> variadic_primitive.
-Extract Inlined Constant mk_Begin_try_region => "(fun x__1 -> Flambda_primitive.Begin_try_region { ghost = x__1 })".
-Parameter mk_Make_block : Flambda_primitive.Block_kind.t -> Mutability.t -> Alloc_mode.For_allocations.t -> variadic_primitive.
-Extract Inlined Constant mk_Make_block => "(fun x__1 x__2 x__3 -> Flambda_primitive.Make_block (x__1, x__2, x__3))".
-Parameter mk_Make_array : Flambda_primitive.Array_kind.t -> Mutability.t -> Alloc_mode.For_allocations.t -> variadic_primitive.
-Extract Inlined Constant mk_Make_array => "(fun x__1 x__2 x__3 -> Flambda_primitive.Make_array (x__1, x__2, x__3))".
-Parameter match_variadic_primitive : forall {Res : Type}, variadic_primitive -> (bool -> M Res) -> (bool -> M Res) -> (Flambda_primitive.Block_kind.t -> Mutability.t -> Alloc_mode.For_allocations.t -> M Res) -> (Flambda_primitive.Array_kind.t -> Mutability.t -> Alloc_mode.For_allocations.t -> M Res) -> M Res.
-Extract Inlined Constant match_variadic_primitive => "(fun x__0 f__1 f__2 f__3 f__4 -> match x__0 with Flambda_primitive.Begin_region { ghost = x__1 } -> f__1 x__1 | Flambda_primitive.Begin_try_region { ghost = x__1 } -> f__2 x__1 | Flambda_primitive.Make_block (x__1, x__2, x__3) -> f__3 x__1 x__2 x__3 | Flambda_primitive.Make_array (x__1, x__2, x__3) -> f__4 x__1 x__2 x__3)".
+Inductive variadic_primitive : Type :=
+| Begin_region : end_region_payload_ -> variadic_primitive
+| Begin_try_region : end_region_payload_ -> variadic_primitive
+| Make_block : Flambda_primitive.Block_kind.t -> Mutability.t -> Alloc_mode.For_allocations.t -> variadic_primitive
+| Make_array : Flambda_primitive.Array_kind.t -> Mutability.t -> Alloc_mode.For_allocations.t -> variadic_primitive.
 (* flambda_primitive.mli:667  type t = | Nullary of nullary_primitive | Unary of unary_primitive * Simple.t | Binary of binary_primitive * Simple.t * Simple.t | Ternary of ternary_primitive * Simple.t * Simple.t * Simple.t | Quaternary of quaternary_primitive * Simple.t * Simple.t * Simple.t * Simple.t | Variadic of variadic_primitive * Simple.t list *)
 Inductive t : Type :=
 | Nullary : nullary_primitive -> t

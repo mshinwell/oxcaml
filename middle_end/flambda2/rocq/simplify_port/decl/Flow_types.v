@@ -33,9 +33,17 @@ Module Cont_arg.
 End Cont_arg.
 Module Mutable_prim.
   (* flow_types.mli:39  type t = | Is_int of Variable.t | Get_tag of Variable.t | Block_load of { bak : Flambda_primitive.Block_access_kind.t; mut : Mutability.t; block : Variable.t; field : int } | Block_set of { bak : Flambda_primitive.Block_access_kind.t; block : Variable.t; field : int; value : Simple.t } | Make_block of { kind : Flambda_primitive.Block_kind.t; mut : Mutability.t; alloc_mode : Alloc_mode.For_alloc... *)
-  (* PORT-GAP(type): the name of the field [bak] is taken in Rocq: abstract, with a maker for each constructor and one eliminator. *)
-  Parameter t : Type.
-  Extract Inlined Constant t => "Flow_types.Mutable_prim.t".
+  Record block_load_payload_ : Type := { bak : Flambda_primitive.Block_access_kind.t; mut : Mutability.t; block : Variable_.t; field : int }.
+  (* The inline record of [Block_set]: abstract (a name of its fields is taken, or it holds the type); [mk_Block_set] makes one, [match_t] reads it. *)
+  Parameter block_set_payload_ : Type.
+  (* The inline record of [Make_block]: abstract (a name of its fields is taken, or it holds the type); [mk_Make_block] makes one, [match_t] reads it. *)
+  Parameter make_block_payload_ : Type.
+  Inductive t : Type :=
+  | Is_int : Variable_.t -> t
+  | Get_tag : Variable_.t -> t
+  | Block_load : block_load_payload_ -> t
+  | Block_set : block_set_payload_ -> t
+  | Make_block : make_block_payload_ -> t.
   Parameter mk_Is_int : Variable_.t -> t.
   Extract Inlined Constant mk_Is_int => "(fun x__1 -> Flow_types.Mutable_prim.Is_int x__1)".
   Parameter mk_Get_tag : Variable_.t -> t.

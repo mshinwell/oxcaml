@@ -45,22 +45,34 @@ Module Extra_param_and_args.
   Parameter print : Format.formatter -> t -> M unit.
   Extract Inlined Constant print => "Unboxing_types.Extra_param_and_args.print".
 End Extra_param_and_args.
-(* unboxing_types.mli:46  type unboxing_decision = | Unique_tag_and_size of { tag : Tag.t; shape : Flambda_kind.Block_shape.t; fields : field_decision list } | Variant of { tag : Extra_param_and_args.t; const_ctors : const_ctors_decision; fields_by_tag : (Flambda_kind.Block_shape.t * field_decision list) Tag.Scannable.Map.t } | Closure_single_entry of { function_slot : Function_slot.t; vars_within_closure : field_decisi... *)
-(* PORT-GAP(type): it is recursive with a type that is declared after it: abstract, with a maker for each constructor and one eliminator. *)
-Parameter unboxing_decision : Type.
-Extract Inlined Constant unboxing_decision => "Unboxing_types.unboxing_decision".
 (* unboxing_types.mli:66  and field_decision = { epa : Extra_param_and_args.t; decision : decision; kind : Flambda_kind.With_subkind.t } *)
-(* PORT-GAP(type): it is recursive with a type that is declared after it: abstract, with a maker for each constructor and one eliminator. *)
+(* PORT-GAP(type): it is a record that is recursive with other types: abstract, with a maker for each constructor and one eliminator. *)
 Parameter field_decision : Type.
 Extract Inlined Constant field_decision => "Unboxing_types.field_decision".
+(* unboxing_types.mli:46  type unboxing_decision = | Unique_tag_and_size of { tag : Tag.t; shape : Flambda_kind.Block_shape.t; fields : field_decision list } | Variant of { tag : Extra_param_and_args.t; const_ctors : const_ctors_decision; fields_by_tag : (Flambda_kind.Block_shape.t * field_decision list) Tag.Scannable.Map.t } | Closure_single_entry of { function_slot : Function_slot.t; vars_within_closure : field_decisi... *)
 (* unboxing_types.mli:72  and const_ctors_decision = | Zero | At_least_one of { is_int : Extra_param_and_args.t; ctor : decision } *)
-(* PORT-GAP(type): it is recursive with a type that is declared after it: abstract, with a maker for each constructor and one eliminator. *)
-Parameter const_ctors_decision : Type.
-Extract Inlined Constant const_ctors_decision => "Unboxing_types.const_ctors_decision".
 (* unboxing_types.mli:79  and decision = | Unbox of unboxing_decision | Do_not_unbox of do_not_unbox_reason *)
-Inductive decision_ : Type :=
+Record unique_tag_and_size_payload_ : Type := { tag : Tag.t; shape : Flambda_kind.Block_shape.t; fields : list field_decision }.
+(* The inline record of [Variant]: abstract (a name of its fields is taken, or it holds the type); [mk_Variant] makes one, [match_unboxing_decision] reads it. *)
+Parameter variant_payload_ : Type.
+Record closure_single_entry_payload_ : Type := { function_slot : Function_slot.t; vars_within_closure : Value_slot.Map.t field_decision }.
+(* The inline record of [At_least_one]: abstract (a name of its fields is taken, or it holds the type); [mk_At_least_one] makes one, [match_const_ctors_decision] reads it. *)
+Parameter at_least_one_payload_ : Type.
+Inductive unboxing_decision : Type :=
+| Unique_tag_and_size : unique_tag_and_size_payload_ -> unboxing_decision
+| Variant : variant_payload_ -> unboxing_decision
+| Closure_single_entry : closure_single_entry_payload_ -> unboxing_decision
+| Number : Flambda_kind.Naked_number_kind.t -> Unboxing_types.Extra_param_and_args.t -> unboxing_decision
+with const_ctors_decision : Type :=
+| Zero : const_ctors_decision
+| At_least_one : at_least_one_payload_ -> const_ctors_decision
+with decision_ : Type :=
 | Unbox : unboxing_decision -> decision_
 | Do_not_unbox : do_not_unbox_reason -> decision_.
+Parameter mk_field_decision : Unboxing_types.Extra_param_and_args.t -> decision_ -> Flambda_kind.With_subkind.t -> field_decision.
+Extract Inlined Constant mk_field_decision => "(fun x__1 x__2 x__3 -> { Unboxing_types.epa = x__1; decision = x__2; kind = x__3 })".
+Parameter match_field_decision : forall {Res : Type}, field_decision -> (Unboxing_types.Extra_param_and_args.t -> decision_ -> Flambda_kind.With_subkind.t -> M Res) -> M Res.
+Extract Inlined Constant match_field_decision => "(fun x__0 f__1 -> let { Unboxing_types.epa = x__1; decision = x__2; kind = x__3 } = x__0 in f__1 x__1 x__2 x__3)".
 Parameter mk_Unique_tag_and_size : Tag.t -> Flambda_kind.Block_shape.t -> list field_decision -> unboxing_decision.
 Extract Inlined Constant mk_Unique_tag_and_size => "(fun x__1 x__2 x__3 -> Unboxing_types.Unique_tag_and_size { tag = x__1; shape = x__2; fields = x__3 })".
 Parameter mk_Variant : Unboxing_types.Extra_param_and_args.t -> const_ctors_decision -> Tag.Scannable.Map.t (Flambda_kind.Block_shape.t * list field_decision) -> unboxing_decision.
@@ -71,10 +83,6 @@ Parameter mk_Number : Flambda_kind.Naked_number_kind.t -> Unboxing_types.Extra_p
 Extract Inlined Constant mk_Number => "(fun x__1 x__2 -> Unboxing_types.Number (x__1, x__2))".
 Parameter match_unboxing_decision : forall {Res : Type}, unboxing_decision -> (Tag.t -> Flambda_kind.Block_shape.t -> list field_decision -> M Res) -> (Unboxing_types.Extra_param_and_args.t -> const_ctors_decision -> Tag.Scannable.Map.t (Flambda_kind.Block_shape.t * list field_decision) -> M Res) -> (Function_slot.t -> Value_slot.Map.t field_decision -> M Res) -> (Flambda_kind.Naked_number_kind.t -> Unboxing_types.Extra_param_and_args.t -> M Res) -> M Res.
 Extract Inlined Constant match_unboxing_decision => "(fun x__0 f__1 f__2 f__3 f__4 -> match x__0 with Unboxing_types.Unique_tag_and_size { tag = x__1; shape = x__2; fields = x__3 } -> f__1 x__1 x__2 x__3 | Unboxing_types.Variant { tag = x__1; const_ctors = x__2; fields_by_tag = x__3 } -> f__2 x__1 x__2 x__3 | Unboxing_types.Closure_single_entry { function_slot = x__1; vars_within_closure = x__2 } -> f__3 x__1 x__2 | Unboxing_types.Number (x__1, x__2) -> f__4 x__1 x__2)".
-Parameter mk_field_decision : Unboxing_types.Extra_param_and_args.t -> decision_ -> Flambda_kind.With_subkind.t -> field_decision.
-Extract Inlined Constant mk_field_decision => "(fun x__1 x__2 x__3 -> { Unboxing_types.epa = x__1; decision = x__2; kind = x__3 })".
-Parameter match_field_decision : forall {Res : Type}, field_decision -> (Unboxing_types.Extra_param_and_args.t -> decision_ -> Flambda_kind.With_subkind.t -> M Res) -> M Res.
-Extract Inlined Constant match_field_decision => "(fun x__0 f__1 -> let { Unboxing_types.epa = x__1; decision = x__2; kind = x__3 } = x__0 in f__1 x__1 x__2 x__3)".
 Parameter mk_Zero : const_ctors_decision.
 Extract Inlined Constant mk_Zero => "Unboxing_types.Zero".
 Parameter mk_At_least_one : Unboxing_types.Extra_param_and_args.t -> decision_ -> const_ctors_decision.

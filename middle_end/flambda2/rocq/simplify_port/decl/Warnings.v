@@ -32,9 +32,111 @@ Extract Inlined Constant type_declaration_usage_warning => "Warnings.type_declar
 Parameter redundant_modifier_reason : Type.
 Extract Inlined Constant redundant_modifier_reason => "Warnings.redundant_modifier_reason".
 (* warnings.mli:61  type t = | Comment_start ( * 1 * ) | Comment_not_end ( * 2 * ) ( *| Deprecated --> alert 'deprecated' * ) ( * 3 * ) | Fragile_match of string ( * 4 * ) | Ignored_partial_application ( * 5 * ) | Labels_omitted of string list ( * 6 * ) | Method_override of string list ( * 7 * ) | Partial_match of Format_doc.t ( * 8 * ) | Missing_record_field_pattern of { form : string ; unbound : string } ( * 9 *... *)
-(* PORT-GAP(type): the name of the field [name] is taken in Rocq: abstract, with a maker for each constructor and one eliminator. *)
-Parameter t : Type.
-Extract Inlined Constant t => "Warnings.t".
+Record missing_record_field_pattern_payload_ : Type := { form : string; unbound : string }.
+Record unused_var_payload_ : Type := { name : string; mutated : bool }.
+Record no_cmx_file_payload_ : Type := { missing_extension : string; module_name : string }.
+(* The inline record of [Unused_field]: abstract (a name of its fields is taken, or it holds the type); [mk_Unused_field] makes one, [match_t] reads it. *)
+Parameter unused_field_payload_ : Type.
+(* The inline record of [Imprecise_kind_annotation]: abstract (a name of its fields is taken, or it holds the type); [mk_Imprecise_kind_annotation] makes one, [match_t] reads it. *)
+Parameter imprecise_kind_annotation_payload_ : Type.
+Record ignored_kind_modifier_payload_ : Type := { modifier : string; abbrev : string }.
+(* The inline record of [Redundant_modifier]: abstract (a name of its fields is taken, or it holds the type); [mk_Redundant_modifier] makes one, [match_t] reads it. *)
+Parameter redundant_modifier_payload_ : Type.
+Record implied_attribute_payload_ : Type := { implying : string; implied : string }.
+Inductive t : Type :=
+| Comment_start : t
+| Comment_not_end : t
+| Fragile_match : string -> t
+| Ignored_partial_application : t
+| Labels_omitted : list string -> t
+| Method_override : list string -> t
+| Partial_match : Format_doc.t -> t
+| Missing_record_field_pattern : missing_record_field_pattern_payload_ -> t
+| Non_unit_statement : t
+| Redundant_case : t
+| Redundant_subpat : t
+| Instance_variable_override : list string -> t
+| Illegal_backslash : t
+| Implicit_public_methods : list string -> t
+| Unerasable_optional_argument : t
+| Undeclared_virtual_method : string -> t
+| Not_principal : Format_doc.t -> t
+| Non_principal_labels : string -> t
+| Ignored_extra_argument : t
+| Nonreturning_statement : t
+| Preprocessor : string -> t
+| Useless_record_with : string -> t
+| Bad_module_name : string -> t
+| All_clauses_guarded : t
+| Unused_var : unused_var_payload_ -> t
+| Unused_var_strict : unused_var_payload_ -> t
+| Wildcard_arg_to_constant_constr : t
+| Eol_in_string : t
+| Duplicate_definitions : string -> string -> string -> string -> t
+| Unused_value_declaration : string -> t
+| Unused_open : string -> t
+| Unused_type_declaration : string -> type_declaration_usage_warning -> t
+| Unused_for_index : string -> t
+| Unused_ancestor : string -> t
+| Unused_constructor : string -> constructor_usage_warning -> t
+| Unused_extension : string -> bool -> constructor_usage_warning -> t
+| Unused_rec_flag : t
+| Name_out_of_scope : string -> name_out_of_scope_warning -> t
+| Ambiguous_name : list string -> list string -> bool -> string -> t
+| Disambiguated_name : string -> t
+| Nonoptional_label : string -> t
+| Open_shadow_identifier : string -> string -> t
+| Open_shadow_label_constructor : string -> string -> t
+| Bad_env_variable : string -> string -> t
+| Attribute_payload : string -> string -> t
+| Eliminated_optional_arguments : list string -> t
+| No_cmi_file : string -> option string -> t
+| Unexpected_docstring : bool -> t
+| Wrong_tailcall_expectation : bool -> t
+| Fragile_literal_pattern : t
+| Misplaced_attribute : string -> t
+| Duplicated_attribute : string -> t
+| Inlining_impossible : string -> t
+| Unreachable_case : t
+| Ambiguous_var_in_pattern_guard : list string -> t
+| No_cmx_file : no_cmx_file_payload_ -> t
+| Flambda_assignment_to_non_mutable_value : t
+| Unused_module : string -> t
+| Unboxable_type_in_prim_decl : string -> t
+| Constraint_on_gadt : t
+| Erroneous_printed_signature : string -> t
+| Unsafe_array_syntax_without_parsing : t
+| Redefining_unit : string -> t
+| Unused_open_bang : string -> t
+| Unused_functor_parameter : string -> t
+| Match_on_mutable_state_prevent_uncurry : t
+| Unused_field : unused_field_payload_ -> t
+| Missing_mli : t
+| Unused_tmc_attribute : t
+| Tmc_breaks_tailcall : t
+| Generative_application_expects_unit : t
+| Degraded_to_partial_match : t
+| Unnecessarily_partial_tuple_pattern : t
+| Imprecise_kind_annotation : imprecise_kind_annotation_payload_ -> t
+| Untagged_external_small_int_return : t
+| Redundant_kind_modifier : string -> t
+| Ignored_kind_modifier : ignored_kind_modifier_payload_ -> t
+| Unmutated_mutable : string -> t
+| Incompatible_with_upstream : upstream_compat_warning -> t
+| Unerasable_position_argument : t
+| Probe_name_too_long : string -> t
+| Unused_kind_declaration : string -> t
+| Zero_alloc_all_hidden_arrow : string -> t
+| Unchecked_zero_alloc_attribute : t
+| Unboxing_impossible : t
+| Redundant_modifier : redundant_modifier_payload_ -> t
+| Atomic_float_record_boxed : t
+| Implied_attribute : implied_attribute_payload_ -> t
+| Use_during_borrowing : t
+| Lpoly_in_letrec : t
+| Useless_valpoly : t
+| Redundant_modality : t
+| Unused_alert_disable : string -> t.
 Parameter mk_Comment_start : t.
 Extract Inlined Constant mk_Comment_start => "Warnings.Comment_start".
 Parameter mk_Comment_not_end : t.

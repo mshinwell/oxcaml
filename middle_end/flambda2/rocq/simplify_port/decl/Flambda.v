@@ -41,10 +41,20 @@ Extract Inlined Constant function_params_and_body => "Flambda.function_params_an
 (* flambda.mli:51  type static_const_group *)
 Parameter static_const_group : Type.
 Extract Inlined Constant static_const_group => "Flambda.static_const_group".
+(* flambda.mli:85  and let_cont_expr = private | Non_recursive of { handler : non_recursive_let_cont_handler; num_free_occurrences : Num_occurrences.t Or_unknown.t; ( ** [num_free_occurrences] can be used, for example, to decide whether to inline out a linearly-used continuation. It will always be strictly greater than zero. * ) is_applied_with_traps : bool; ( ** [is_applied_with_traps] is used to prevent inlinin... *)
+Record non_recursive_payload_ : Type := { handler : non_recursive_let_cont_handler; num_free_occurrences : Or_unknown.t Num_occurrences.t; is_applied_with_traps : bool; can_be_lifted : bool }.
+Inductive let_cont_expr : Type :=
+| Non_recursive : non_recursive_payload_ -> let_cont_expr
+| Recursive : recursive_let_cont_handlers -> let_cont_expr.
 (* flambda.mli:53  type expr_descr = private | Let of let_expr ( ** Bind variable(s), symbol(s) and/or code ID(s). The defining expression (the part after the '=', as in 'let x = defining_expr in body') never has any effect on control flow. * ) | Let_cont of let_cont_expr ( ** Define one or more continuations. * ) | Apply of Apply_expr.t ( ** Call an OCaml function, external function or method. * ) | Apply_cont o... *)
-(* PORT-GAP(type): it is recursive with a type that is declared after it: abstract, with a maker for each constructor and one eliminator. *)
-Parameter expr_descr : Type.
-Extract Inlined Constant expr_descr => "Flambda.expr_descr".
+Record invalid_payload_ : Type := { message : string }.
+Inductive expr_descr : Type :=
+| Let : let_expr -> expr_descr
+| Let_cont : let_cont_expr -> expr_descr
+| Apply : Apply_expr.t -> expr_descr
+| Apply_cont : Apply_cont_expr.t -> expr_descr
+| Switch : Switch_expr.t -> expr_descr
+| Invalid : invalid_payload_ -> expr_descr.
 (* flambda.mli:70  and named = private | Simple of Simple.t ( ** Things that fit in a register (variables, symbols, constants). These do not have to be [Let]-bound but are allowed here for convenience. * ) | Prim of Flambda_primitive.t * Debuginfo.t ( ** Primitive operations (arithmetic, memory access, allocation, etc). * ) | Set_of_closures of Set_of_closures.t * Alloc_mode.For_allocations.t ( ** Definition of a... *)
 Inductive named : Type :=
 | Simple : Simple.t -> named
@@ -52,11 +62,6 @@ Inductive named : Type :=
 | Set_of_closures : decl.Set_of_closures.t -> Alloc_mode.For_allocations.t -> named
 | Static_consts : static_const_group -> named
 | Rec_info : Rec_info_expr.t -> named.
-(* flambda.mli:85  and let_cont_expr = private | Non_recursive of { handler : non_recursive_let_cont_handler; num_free_occurrences : Num_occurrences.t Or_unknown.t; ( ** [num_free_occurrences] can be used, for example, to decide whether to inline out a linearly-used continuation. It will always be strictly greater than zero. * ) is_applied_with_traps : bool; ( ** [is_applied_with_traps] is used to prevent inlinin... *)
-Record non_recursive_payload_ : Type := { handler : non_recursive_let_cont_handler; num_free_occurrences : Or_unknown.t Num_occurrences.t; is_applied_with_traps : bool; can_be_lifted : bool }.
-Inductive let_cont_expr : Type :=
-| Non_recursive : non_recursive_payload_ -> let_cont_expr
-| Recursive : recursive_let_cont_handlers -> let_cont_expr.
 (* flambda.mli:101  and static_const_or_code = private | Code of function_params_and_body Code0.t | Deleted_code | Static_const of Static_const.t *)
 Inductive static_const_or_code : Type :=
 | Code : Code0.t function_params_and_body -> static_const_or_code

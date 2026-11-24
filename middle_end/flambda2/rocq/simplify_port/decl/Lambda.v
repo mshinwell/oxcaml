@@ -18,9 +18,13 @@ Inductive return_mode : Type :=
 Parameter lazy_block_tag : Type.
 Extract Inlined Constant lazy_block_tag => "Lambda.lazy_block_tag".
 (* lambda.mli:860  type zero_alloc_attribute = | Default_zero_alloc | Check of { strict: bool; ( * [strict=true] property holds on all paths. [strict=false] if the function returns normally, then the property holds (but property violations on exceptional returns or divering loops are ignored). This definition may not be applicable to new properties. * ) loc: Location.t; custom_error_msg: string option; partial: b... *)
-(* PORT-GAP(type): the name of the field [strict] is taken in Rocq: abstract, with a maker for each constructor and one eliminator. *)
-Parameter zero_alloc_attribute : Type.
-Extract Inlined Constant zero_alloc_attribute => "Lambda.zero_alloc_attribute".
+Record check_payload_ : Type := { strict : bool; loc : Location.t; custom_error_msg : option string; partial : bool }.
+(* The inline record of [Assume]: abstract (a name of its fields is taken, or it holds the type); [mk_Assume] makes one, [match_zero_alloc_attribute] reads it. *)
+Parameter assume_payload_ : Type.
+Inductive zero_alloc_attribute : Type :=
+| Default_zero_alloc : zero_alloc_attribute
+| Check : check_payload_ -> zero_alloc_attribute
+| Assume : assume_payload_ -> zero_alloc_attribute.
 Parameter mk_Default_zero_alloc : zero_alloc_attribute.
 Extract Inlined Constant mk_Default_zero_alloc => "Lambda.Default_zero_alloc".
 Parameter mk_Check : bool -> Location.t -> option string -> bool -> zero_alloc_attribute.

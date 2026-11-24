@@ -53,11 +53,11 @@ Inductive rewrite_apply_cont_result : Type :=
 | Apply_cont : Flambda.Import_.Apply_cont.t -> rewrite_apply_cont_result
 | Expr : ((Flambda.Import_.Apply_cont.t -> M (tuple3 Rebuilt_expr.t Cost_metrics.t Name_occurrences.t)) -> M (tuple3 Rebuilt_expr.t Cost_metrics.t Name_occurrences.t)) -> rewrite_apply_cont_result.
 (* expr_builder.mli:114  type rewrite_switch_arm_result = private | Invalid of { message : string } | Apply_cont of Apply_cont.t | New_wrapper of new_let_cont *)
-(* PORT-GAP(type): the name of the field [message] is taken in Rocq: abstract, with a maker for each constructor and one eliminator. *)
-Parameter rewrite_switch_arm_result : Type.
-Extract Inlined Constant rewrite_switch_arm_result => "Expr_builder.rewrite_switch_arm_result".
-Parameter match_rewrite_switch_arm_result : forall {Res : Type}, rewrite_switch_arm_result -> (string -> M Res) -> (Flambda.Import_.Apply_cont.t -> M Res) -> (new_let_cont -> M Res) -> M Res.
-Extract Inlined Constant match_rewrite_switch_arm_result => "(fun x__0 f__1 f__2 f__3 -> match x__0 with Expr_builder.Invalid { message = x__1 } -> f__1 x__1 | Expr_builder.Apply_cont x__1 -> f__2 x__1 | Expr_builder.New_wrapper x__1 -> f__3 x__1)".
+Inductive rewrite_switch_arm_result : Type :=
+| Invalid_ : invalid_payload_ -> rewrite_switch_arm_result
+| Apply_cont_ : Flambda.Import_.Apply_cont.t -> rewrite_switch_arm_result
+| New_wrapper : new_let_cont -> rewrite_switch_arm_result.
+Extract Inductive rewrite_switch_arm_result => "Expr_builder.rewrite_switch_arm_result" [ "Expr_builder.Invalid" "Expr_builder.Apply_cont" "Expr_builder.New_wrapper" ].
 (* expr_builder.mli:119  val no_rewrite_apply_cont : Upwards_env.t -> Apply_cont.t -> rewrite_apply_cont_result *)
 Parameter no_rewrite_apply_cont : Upwards_env.t -> Flambda.Import_.Apply_cont.t -> M rewrite_apply_cont_result.
 Extract Inlined Constant no_rewrite_apply_cont => "Expr_builder.no_rewrite_apply_cont".

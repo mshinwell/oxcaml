@@ -24,9 +24,26 @@ From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Code_size.
 
 (* function_decl_inlining_decision_type.mli:17  type t = | Not_yet_decided | Never_inline_attribute | Function_body_too_large of Code_size.t | Functor_body_too_large of Code_size.t | Stub | Attribute_inline ( * CR mshinwell/bclement: we could consider combining Small_function and Small_functor in the future, with a flag for functors * ) | Small_function of { size : Code_size.t; small_function_size : Code_size.t } | Small_functor of { size : ... *)
-(* PORT-GAP(type): the name of the field [size] is taken in Rocq: abstract, with a maker for each constructor and one eliminator. *)
-Parameter t : Type.
-Extract Inlined Constant t => "Function_decl_inlining_decision_type.t".
+Record small_function_payload_ : Type := { size : Code_size.t; small_function_size : Code_size.t }.
+(* The inline record of [Small_functor]: abstract (a name of its fields is taken, or it holds the type); [mk_Small_functor] makes one, [match_t] reads it. *)
+Parameter small_functor_payload_ : Type.
+(* The inline record of [Speculatively_inlinable]: abstract (a name of its fields is taken, or it holds the type); [mk_Speculatively_inlinable] makes one, [match_t] reads it. *)
+Parameter speculatively_inlinable_payload_ : Type.
+(* The inline record of [Speculatively_inlinable_functor]: abstract (a name of its fields is taken, or it holds the type); [mk_Speculatively_inlinable_functor] makes one, [match_t] reads it. *)
+Parameter speculatively_inlinable_functor_payload_ : Type.
+Inductive t : Type :=
+| Not_yet_decided : t
+| Never_inline_attribute : t
+| Function_body_too_large : Code_size.t -> t
+| Functor_body_too_large : Code_size.t -> t
+| Stub : t
+| Attribute_inline : t
+| Small_function : small_function_payload_ -> t
+| Small_functor : small_functor_payload_ -> t
+| Speculatively_inlinable : speculatively_inlinable_payload_ -> t
+| Speculatively_inlinable_functor : speculatively_inlinable_functor_payload_ -> t
+| Recursive : t
+| Jsir_inlining_disabled : t.
 Parameter mk_Not_yet_decided : t.
 Extract Inlined Constant mk_Not_yet_decided => "Function_decl_inlining_decision_type.Not_yet_decided".
 Parameter mk_Never_inline_attribute : t.

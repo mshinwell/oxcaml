@@ -25,9 +25,15 @@ From SimplifyPort.decl Require Bound_static Code_id Flambda2_types Format Functi
 
 Module Definition_.
   (* lifted_constant.mli:25  type descr = private | Code of Code_id.t | Set_of_closures of { typing_env : Typing_env.t; closure_symbols_with_types : (Symbol.t * Flambda2_types.t) Function_slot.Lmap.t; symbol_projections : Symbol_projection.t Variable.Map.t } | Block_like of { symbol : Symbol.t; typing_env : Typing_env.t; ty : Flambda2_types.t; symbol_projections : Symbol_projection.t Variable.Map.t } *)
-  (* PORT-GAP(type): the name of the field [typing_env] is taken in Rocq: abstract, with a maker for each constructor and one eliminator. *)
-  Parameter descr_ : Type.
-  Extract Inlined Constant descr_ => "Lifted_constant.Definition.descr".
+  (* The inline record of [Set_of_closures]: abstract (a name of its fields is taken, or it holds the type); [mk_Set_of_closures] makes one, [match_descr_] reads it. *)
+  Parameter set_of_closures_payload_ : Type.
+  (* The inline record of [Block_like]: abstract (a name of its fields is taken, or it holds the type); [mk_Block_like] makes one, [match_descr_] reads it. *)
+  Parameter block_like_payload_ : Type.
+  Inductive descr_ : Type :=
+  | Code : Code_id.t -> descr_
+  | Set_of_closures : set_of_closures_payload_ -> descr_
+  | Block_like : block_like_payload_ -> descr_.
+  Extract Inductive descr_ => "Lifted_constant.Definition.descr" [ "Lifted_constant.Definition.Code" "Lifted_constant.Definition.Set_of_closures" "Lifted_constant.Definition.Block_like" ].
   Parameter match_descr_ : forall {Res : Type}, descr_ -> (Code_id.t -> M Res) -> (Flambda2_types.Typing_env.t -> Function_slot.Lmap.t (Symbol.t * Flambda2_types.t) -> Variable_.Map.t Symbol_projection.t -> M Res) -> (Symbol.t -> Flambda2_types.Typing_env.t -> Flambda2_types.t -> Variable_.Map.t Symbol_projection.t -> M Res) -> M Res.
   Extract Inlined Constant match_descr_ => "(fun x__0 f__1 f__2 f__3 -> match x__0 with Lifted_constant.Definition.Code x__1 -> f__1 x__1 | Lifted_constant.Definition.Set_of_closures { typing_env = x__1; closure_symbols_with_types = x__2; symbol_projections = x__3 } -> f__2 x__1 x__2 x__3 | Lifted_constant.Definition.Block_like { symbol = x__1; typing_env = x__2; ty = x__3; symbol_projections = x__4 } -> f__3 x__1 x__2 x__3 x__4)".
   (* lifted_constant.mli:40  type t *)

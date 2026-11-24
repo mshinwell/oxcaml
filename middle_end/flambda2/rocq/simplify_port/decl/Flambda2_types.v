@@ -759,9 +759,58 @@ Extract Inlined Constant prove_alloc_mode_of_boxed_number => "Flambda2_types.pro
 Parameter prove_physical_equality : Flambda2_types.Typing_env.t -> t -> t -> M (proof_of_property bool).
 Extract Inlined Constant prove_physical_equality => "Flambda2_types.prove_physical_equality".
 (* flambda2_types.mli:942  type to_lift = private | Immutable_block of { tag : Tag.Scannable.t; is_unique : bool; shape : Flambda_kind.Scannable_block_shape.t; fields : Simple.t list } | Boxed_float32 of Numeric_types.Float32_by_bit_pattern.t | Boxed_float of Numeric_types.Float_by_bit_pattern.t | Boxed_int32 of Numeric_types.Int32.t | Boxed_int64 of Numeric_types.Int64.t | Boxed_nativeint of Targetint_32_64.t | Boxed_ve... *)
-(* PORT-GAP(type): the name of the field [fields] is taken in Rocq: abstract, with a maker for each constructor and one eliminator. *)
-Parameter to_lift : Type.
-Extract Inlined Constant to_lift => "Flambda2_types.to_lift".
+Record immutable_block_payload_ : Type := { tag : Tag.Scannable.t; is_unique : bool; shape : Flambda_kind.Scannable_block_shape.t; fields : list Simple.t }.
+(* The inline record of [Immutable_float32_array]: abstract (a name of its fields is taken, or it holds the type); [mk_Immutable_float32_array] makes one, [match_to_lift] reads it. *)
+Parameter immutable_float32_array_payload_ : Type.
+(* The inline record of [Immutable_float_array]: abstract (a name of its fields is taken, or it holds the type); [mk_Immutable_float_array] makes one, [match_to_lift] reads it. *)
+Parameter immutable_float_array_payload_ : Type.
+(* The inline record of [Immutable_int_array]: abstract (a name of its fields is taken, or it holds the type); [mk_Immutable_int_array] makes one, [match_to_lift] reads it. *)
+Parameter immutable_int_array_payload_ : Type.
+(* The inline record of [Immutable_int8_array]: abstract (a name of its fields is taken, or it holds the type); [mk_Immutable_int8_array] makes one, [match_to_lift] reads it. *)
+Parameter immutable_int8_array_payload_ : Type.
+(* The inline record of [Immutable_int16_array]: abstract (a name of its fields is taken, or it holds the type); [mk_Immutable_int16_array] makes one, [match_to_lift] reads it. *)
+Parameter immutable_int16_array_payload_ : Type.
+(* The inline record of [Immutable_int32_array]: abstract (a name of its fields is taken, or it holds the type); [mk_Immutable_int32_array] makes one, [match_to_lift] reads it. *)
+Parameter immutable_int32_array_payload_ : Type.
+(* The inline record of [Immutable_int64_array]: abstract (a name of its fields is taken, or it holds the type); [mk_Immutable_int64_array] makes one, [match_to_lift] reads it. *)
+Parameter immutable_int64_array_payload_ : Type.
+(* The inline record of [Immutable_nativeint_array]: abstract (a name of its fields is taken, or it holds the type); [mk_Immutable_nativeint_array] makes one, [match_to_lift] reads it. *)
+Parameter immutable_nativeint_array_payload_ : Type.
+(* The inline record of [Immutable_vec128_array]: abstract (a name of its fields is taken, or it holds the type); [mk_Immutable_vec128_array] makes one, [match_to_lift] reads it. *)
+Parameter immutable_vec128_array_payload_ : Type.
+(* The inline record of [Immutable_vec256_array]: abstract (a name of its fields is taken, or it holds the type); [mk_Immutable_vec256_array] makes one, [match_to_lift] reads it. *)
+Parameter immutable_vec256_array_payload_ : Type.
+(* The inline record of [Immutable_vec512_array]: abstract (a name of its fields is taken, or it holds the type); [mk_Immutable_vec512_array] makes one, [match_to_lift] reads it. *)
+Parameter immutable_vec512_array_payload_ : Type.
+(* The inline record of [Immutable_mask_array]: abstract (a name of its fields is taken, or it holds the type); [mk_Immutable_mask_array] makes one, [match_to_lift] reads it. *)
+Parameter immutable_mask_array_payload_ : Type.
+(* The inline record of [Immutable_value_array]: abstract (a name of its fields is taken, or it holds the type); [mk_Immutable_value_array] makes one, [match_to_lift] reads it. *)
+Parameter immutable_value_array_payload_ : Type.
+Inductive to_lift : Type :=
+| Immutable_block : immutable_block_payload_ -> to_lift
+| Boxed_float32 : Numeric_types.Float32_by_bit_pattern.t -> to_lift
+| Boxed_float : Numeric_types.Float_by_bit_pattern.t -> to_lift
+| Boxed_int32 : Numeric_types.Int32.t -> to_lift
+| Boxed_int64 : Numeric_types.Int64.t -> to_lift
+| Boxed_nativeint : Targetint_32_64.t -> to_lift
+| Boxed_vec128 : Vector_types.Vec128.Bit_pattern.t -> to_lift
+| Boxed_vec256 : Vector_types.Vec256.Bit_pattern.t -> to_lift
+| Boxed_vec512 : Vector_types.Vec512.Bit_pattern.t -> to_lift
+| Boxed_mask : Vector_types.Mask.Bit_pattern.t -> to_lift
+| Immutable_float32_array : immutable_float32_array_payload_ -> to_lift
+| Immutable_float_array : immutable_float_array_payload_ -> to_lift
+| Immutable_int_array : immutable_int_array_payload_ -> to_lift
+| Immutable_int8_array : immutable_int8_array_payload_ -> to_lift
+| Immutable_int16_array : immutable_int16_array_payload_ -> to_lift
+| Immutable_int32_array : immutable_int32_array_payload_ -> to_lift
+| Immutable_int64_array : immutable_int64_array_payload_ -> to_lift
+| Immutable_nativeint_array : immutable_nativeint_array_payload_ -> to_lift
+| Immutable_vec128_array : immutable_vec128_array_payload_ -> to_lift
+| Immutable_vec256_array : immutable_vec256_array_payload_ -> to_lift
+| Immutable_vec512_array : immutable_vec512_array_payload_ -> to_lift
+| Immutable_mask_array : immutable_mask_array_payload_ -> to_lift
+| Immutable_value_array : immutable_value_array_payload_ -> to_lift
+| Empty_array : Empty_array_kind.t -> to_lift.
 Parameter match_to_lift : forall {Res : Type}, to_lift -> (Tag.Scannable.t -> bool -> Flambda_kind.Scannable_block_shape.t -> list Simple.t -> M Res) -> (Numeric_types.Float32_by_bit_pattern.t -> M Res) -> (Numeric_types.Float_by_bit_pattern.t -> M Res) -> (Numeric_types.Int32.t -> M Res) -> (Numeric_types.Int64.t -> M Res) -> (Targetint_32_64.t -> M Res) -> (Vector_types.Vec128.Bit_pattern.t -> M Res) -> (Vector_types.Vec256.Bit_pattern.t -> M Res) -> (Vector_types.Vec512.Bit_pattern.t -> M Res) -> (Vector_types.Mask.Bit_pattern.t -> M Res) -> (list Numeric_types.Float32_by_bit_pattern.t -> M Res) -> (list Numeric_types.Float_by_bit_pattern.t -> M Res) -> (list Target_ocaml_int.t -> M Res) -> (list Numeric_types.Int8.t -> M Res) -> (list Numeric_types.Int16.t -> M Res) -> (list Int32.t -> M Res) -> (list Int64.t -> M Res) -> (list Targetint_32_64.t -> M Res) -> (list Vector_types.Vec128.Bit_pattern.t -> M Res) -> (list Vector_types.Vec256.Bit_pattern.t -> M Res) -> (list Vector_types.Vec512.Bit_pattern.t -> M Res) -> (list Vector_types.Mask.Bit_pattern.t -> M Res) -> (list Simple.t -> M Res) -> (Empty_array_kind.t -> M Res) -> M Res.
 Extract Inlined Constant match_to_lift => "(fun x__0 f__1 f__2 f__3 f__4 f__5 f__6 f__7 f__8 f__9 f__10 f__11 f__12 f__13 f__14 f__15 f__16 f__17 f__18 f__19 f__20 f__21 f__22 f__23 f__24 -> match x__0 with Flambda2_types.Immutable_block { tag = x__1; is_unique = x__2; shape = x__3; fields = x__4 } -> f__1 x__1 x__2 x__3 x__4 | Flambda2_types.Boxed_float32 x__1 -> f__2 x__1 | Flambda2_types.Boxed_float x__1 -> f__3 x__1 | Flambda2_types.Boxed_int32 x__1 -> f__4 x__1 | Flambda2_types.Boxed_int64 x__1 -> f__5 x__1 | Flambda2_types.Boxed_nativeint x__1 -> f__6 x__1 | Flambda2_types.Boxed_vec128 x__1 -> f__7 x__1 | Flambda2_types.Boxed_vec256 x__1 -> f__8 x__1 | Flambda2_types.Boxed_vec512 x__1 -> f__9 x__1 | Flambda2_types.Boxed_mask x__1 -> f__10 x__1 | Flambda2_types.Immutable_float32_array { fields = x__1 } -> f__11 x__1 | Flambda2_types.Immutable_float_array { fields = x__1 } -> f__12 x__1 | Flambda2_types.Immutable_int_array { fields = x__1 } -> f__13 x__1 | Flambda2_types.Immutable_int8_array { fields = x__1 } -> f__14 x__1 | Flambda2_types.Immutable_int16_array { fields = x__1 } -> f__15 x__1 | Flambda2_types.Immutable_int32_array { fields = x__1 } -> f__16 x__1 | Flambda2_types.Immutable_int64_array { fields = x__1 } -> f__17 x__1 | Flambda2_types.Immutable_nativeint_array { fields = x__1 } -> f__18 x__1 | Flambda2_types.Immutable_vec128_array { fields = x__1 } -> f__19 x__1 | Flambda2_types.Immutable_vec256_array { fields = x__1 } -> f__20 x__1 | Flambda2_types.Immutable_vec512_array { fields = x__1 } -> f__21 x__1 | Flambda2_types.Immutable_mask_array { fields = x__1 } -> f__22 x__1 | Flambda2_types.Immutable_value_array { fields = x__1 } -> f__23 x__1 | Flambda2_types.Empty_array x__1 -> f__24 x__1)".
 (* flambda2_types.mli:978  type reification_result = private | Lift of to_lift | Simple of Simple.t | Cannot_reify | Invalid *)

@@ -56,9 +56,12 @@ Inductive or_rewritten (A : Type) : Type :=
 Arguments Simplified {A}.
 Arguments Rewritten {A}.
 (* simplified_named.mli:58  type binding_to_place = | Keep_binding of { let_bound : Bound_pattern.t; simplified_defining_expr : t; original_defining_expr : Named.t option } | Delete_binding of { original_defining_expr : Named.t option } *)
-(* PORT-GAP(type): the name of the field [original_defining_expr] is taken in Rocq: abstract, with a maker for each constructor and one eliminator. *)
-Parameter binding_to_place : Type.
-Extract Inlined Constant binding_to_place => "Simplified_named.binding_to_place".
+Record keep_binding_payload_ : Type := { let_bound : Bound_pattern.t; simplified_defining_expr : t; original_defining_expr : option Flambda.Import_.Named.t }.
+(* The inline record of [Delete_binding]: abstract (a name of its fields is taken, or it holds the type); [mk_Delete_binding] makes one, [match_binding_to_place] reads it. *)
+Parameter delete_binding_payload_ : Type.
+Inductive binding_to_place : Type :=
+| Keep_binding : keep_binding_payload_ -> binding_to_place
+| Delete_binding : delete_binding_payload_ -> binding_to_place.
 Parameter mk_Keep_binding : Bound_pattern.t -> t -> option Flambda.Import_.Named.t -> binding_to_place.
 Extract Inlined Constant mk_Keep_binding => "(fun x__1 x__2 x__3 -> Simplified_named.Keep_binding { let_bound = x__1; simplified_defining_expr = x__2; original_defining_expr = x__3 })".
 Parameter mk_Delete_binding : option Flambda.Import_.Named.t -> binding_to_place.
