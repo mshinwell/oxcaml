@@ -365,6 +365,11 @@ the fields are then `Simplify_simple.simples`. A field READ written
 through an abbreviation (`sorted.(LCS.innermost_first)`) is printed as a
 call, `LCS.innermost_first sorted`, which OCaml refuses: write the field
 whole (`sorted.(Lifted_constant_state.innermost_first)`).
+AFTER THE ABBREVIATIONS, NO `open` AND NO `include` AT THE LEFT MARGIN OF
+THE OCAML HEAD (after `open! Simplify_import`, after a line `module A =
+P`): such a line could give `A` another meaning than Rocq's, the tool does
+not follow it, and `make` stops. Nor may an abbreviation have the name of
+a module of `runtime/port_monad.ml` (`Variable_`, `Stdlib_`).
 What the tool cannot reach: an abbreviation that is only OCaml text in the
 head of the file (Rocq does not know it: the names stay whole; put it in
 the file's library); one made inside a module of the file; a name inside a

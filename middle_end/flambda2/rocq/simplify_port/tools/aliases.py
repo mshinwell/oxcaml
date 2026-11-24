@@ -65,6 +65,21 @@ WHICH ABBREVIATIONS.
 In all cases P must name, perhaps through earlier abbreviations, a module
 that DECL_DIR declares outside module types and functors.
 
+WHAT MAY HIDE AN ABBREVIATION LATER IN THE EXTRACTED FILE, and what the
+tool does about it. (a) An [open] or [include] at the left margin of the
+OCaml head after [open Simplify_import] (if that module's abbreviations are
+used) or after a line [module A = P]: the tool does not follow it and
+STOPS. (b) The two lines that Rocq writes after the head: [open
+Port_abbreviations], an empty module, and [open Port_monad]: an
+abbreviation with the name of a module that runtime/port_monad.ml defines
+is refused (kind 2) or left out (kind 1). (c) A module of that name which
+FILE.v itself defines: such an abbreviation is not used for the whole
+names (next paragraph); for the names reached through it Rocq and OCaml
+then agree, both taking the nearer module. NOT CHECKED: an [open] inside a
+module of the OCaml head that is itself opened by a line which is not at
+the left margin; OCaml text at the END of the file (it stands after every
+printed name).
+
 WHERE ROCQ CHOOSES THE NAME (the type of a matched value, as decl/ wrote it:
 whole). The whole name of a declared constant or inductive type gets the
 abbreviation too, when (1) FILE.v writes that constant, or that type or a
@@ -268,12 +283,43 @@ def main():
         m = re.match(r"\s*module\s+(?:type\s+)?(%s)" % NAME, l)
         if m:
             head_binds.add(m.group(1))
+    # WHAT MAY HIDE AN ABBREVIATION AFTER IT IS MADE. An [open] or [include]
+    # at the left margin of the OCaml head: the tool does not follow it, so
+    # it stops if one stands after [open Simplify_import] (when that
+    # module's abbreviations are used) or after a line [module A = P].
+    # After the head Rocq writes [open Port_abbreviations] (empty) and
+    # [open Port_monad]: an abbreviation may not have the name of a module
+    # of runtime/port_monad.ml.
+    si_line = None
+    alias_line = None
+    for i, l in enumerate(head):
+        if si_line is None and re.match(r"open!?\s+Simplify_import\s*$", l):
+            si_line = i
+        if alias_line is None and re.match(r"module\s+%s\s*=\s*%s\s*$" % (NAME, OPATH), l):
+            alias_line = i
+    late_opens = [
+        (i, l) for i, l in enumerate(head) if re.match(r"(open|include)(?![A-Za-z0-9_'])", l)
+    ]
+    runtime = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "runtime", "port_monad.ml")
+    runtime_modules = set()
+    if os.path.exists(runtime):
+        runtime_modules = set(re.findall(r"^module\s+(%s)" % NAME, open(runtime).read(), re.M))
+
+    def stop_if_hidden(after, what):
+        for i, l in late_opens:
+            if after is not None and i > after:
+                sys.stderr.write(
+                    "%s: in the OCaml head, [%s] stands after %s: it may hide an "
+                    "abbreviation, and this tool does not follow it\n" % (v_path, l.strip(), what)
+                )
+                sys.exit(1)
     if imports and opened:
+        stop_if_hidden(si_line, "[open Simplify_import]")
         env = {}
         for a, target in decl.aliases["Simplify_import"]:
             mod = resolve(target, env, decl)
             env[a] = mod
-            if mod is not None and a not in head_binds:
+            if mod is not None and a not in head_binds and a not in runtime_modules:
                 found.append(("SimplifyPort.decl.Simplify_import." + a, a, mod, None))
         import_env = dict(env)
     else:
@@ -283,6 +329,7 @@ def main():
     own_env = {}
     m = re.search(r"^From\s+SimplifyPort\.abbrev\.(%s)\s+Require\s+Import\s+Port_abbreviations\.\s*$" % NAME, rocq, re.M)
     if m and abbrev_dir is not None:
+        stop_if_hidden(alias_line, "a line [module A = P]")
         lib = m.group(1) + ".Port_abbreviations"
         a_text = strip_rocq(open(os.path.join(abbrev_dir, m.group(1), "Port_abbreviations.v")).read())
         env = {}
@@ -311,6 +358,13 @@ def main():
             want = decl.ocaml_path(mod)
             if want is None:
                 want = ".".join(c[:-1] if c.endswith("_") else c for c in mod)
+            if a in runtime_modules:
+                sys.stderr.write(
+                    "%s: the abbreviation %s of %s has the name of a module of "
+                    "runtime/port_monad.ml, which the extracted file opens after its head\n" % (v_path, a, lib)
+                )
+                bad += 1
+                continue
             if ml.get(a) != want or not any(
                 re.match(r"module\s+%s\s*=" % re.escape(a), l) for l in head
             ):
