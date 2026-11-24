@@ -31,14 +31,6 @@ Local Open Scope Z_scope.
 (* 15 *)
 Module T := Flow_types.
 
-(* PORT-GAP(decl): [Name.Map.find] and [Name.Set.diff] have no declaration
-   in decl/: the file uses them only as members of the arguments of its
-   functor [Edge] (lines 49-51). In the form of decl/. *)
-Parameter Name_Map_find : forall {A : Type}, Name.t -> Name.Map.t A -> M A.
-Extract Inlined Constant Name_Map_find => "Name.Map.find".
-Parameter Name_Set_diff : Name.Set_.t -> Name.Set_.t -> M Name.Set_.t.
-Extract Inlined Constant Name_Set_diff => "Name.Set.diff".
-
 (* 17-26 *)
 Record t : Type :=
   { code_age_relation : Flambda2_types.Code_age_relation.t;
@@ -86,7 +78,7 @@ Module Reachable.
     Definition push (src : Name.t) (enqueued : Name.Set_.t)
         (queue : Queue.t Name.t) (graph : Name.Map.t Name.Set_.t)
         : M Name.Set_.t :=
-      Edge.push Name_Map_find Name.Set_.empty Name_Set_diff Name.Set_.iter
+      Edge.push Name.Map.find Name.Set_.empty Name.Set_.diff Name.Set_.iter
         Name.Set_.union src enqueued queue graph.
   End Name_Name_Edge.
 
@@ -95,7 +87,7 @@ Module Reachable.
     Definition push (src : Name.t) (enqueued : Code_id.Set_.t)
         (queue : Queue.t Code_id.t) (graph : Name.Map.t Code_id.Set_.t)
         : M Code_id.Set_.t :=
-      Edge.push Name_Map_find Code_id.Set_.empty Code_id.Set_.diff
+      Edge.push Name.Map.find Code_id.Set_.empty Code_id.Set_.diff
         Code_id.Set_.iter Code_id.Set_.union src enqueued queue graph.
   End Name_Code_id_Edge.
 
@@ -104,8 +96,8 @@ Module Reachable.
     Definition push (src : Code_id.t) (enqueued : Name.Set_.t)
         (queue : Queue.t Name.t) (graph : Code_id.Map.t Name.Set_.t)
         : M Name.Set_.t :=
-      Edge.push Code_id.Map.find Name.Set_.empty Name_Set_diff Name.Set_.iter
-        Name.Set_.union src enqueued queue graph.
+      Edge.push Code_id.Map.find Name.Set_.empty Name.Set_.diff
+        Name.Set_.iter Name.Set_.union src enqueued queue graph.
   End Code_id_Name_Edge.
 
   (* PORT-GAP(loose): 52, [Edge (Code_id.Map) (Code_id.Set)], as above. *)
