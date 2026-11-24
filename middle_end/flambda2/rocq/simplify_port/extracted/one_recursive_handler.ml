@@ -56,4 +56,4 @@ let print ppf pat =
 (** val with_handler : Flambda.Expr.t -> t -> t coq_M **)
 
 let with_handler handler0 t0 =
-  { params = t0.params; handler = handler0; is_cold = t0.is_cold }
+  (fun t x__1 -> { t with handler = x__1 }) t0 handler0

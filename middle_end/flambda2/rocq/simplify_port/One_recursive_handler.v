@@ -44,8 +44,14 @@ Definition print (ppf : Format.formatter)
     "@[<hov 1>(@[<hv 1>(params@ %a)@]@ @[<hv 1>(is_cold@ %b)@]@ @[<hv 1>(handler@ %a)@])@]"
     Bound_parameters.print params is_cold Flambda.Expr.print handler.
 
+(* PORT-GAP(update): 30, [{ t with handler }]. *)
+Definition update_handler (t : One_recursive_handler.t)
+    (handler : Flambda.Expr.t) : One_recursive_handler.t :=
+  {| params := t.(params); handler := handler; is_cold := t.(is_cold) |}.
+Extract Inlined Constant update_handler =>
+  "(fun t x__1 -> { t with handler = x__1 })".
+
 (* 30 *)
 Definition with_handler (handler : Flambda.Expr.t)
     (t : One_recursive_handler.t) : M One_recursive_handler.t :=
-  ret
-    {| params := t.(params); handler := handler; is_cold := t.(is_cold) |}.
+  ret (update_handler t handler).
