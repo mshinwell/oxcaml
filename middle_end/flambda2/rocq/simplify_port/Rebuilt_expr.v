@@ -96,6 +96,22 @@ Definition mark_as_cold (t : Rebuilt_expr.t) : M Rebuilt_expr.t :=
   ret
     {| expr := t.(expr); is_cold := true; contents_hash := t.(contents_hash) |}.
 
+(* 40-54 *)
+(* Rebuilt terms with no [contents_hash] cannot be deduplicated (e.g. because
+   they contain not-shareable subterms such as sets of closures). We also want
+   to clear it for terms that are "too big": sharing those is unlikely to
+   succeed, and might cause hash collisions.
+
+   This limit is added out of abundance of caution; it is likely fine to
+   increase it or even remove it completely if needed (e.g. we end up having
+   programs where we do want to share very large terms). Note that unlike the
+   sharing of match branches in [lambda.ml] (which computes a sharing key with
+   the same size as the term), there is no prohibitive memory cost to increasing
+   this limit.
+
+   The value of [32] matches [max_raw] in [lambda.ml], which is at the time of
+   writing the limit for the size of sub-expressions that can be shared across
+   switch branches. *)
 (* 55 *)
 Definition i32 : int := 32.
 Extract Inlined Constant i32 => "32".
@@ -110,6 +126,10 @@ Definition max_hash_depth : int := i32.
    both places. *)
 Definition create (contents_hash : option contents_hash_) (is_cold : bool)
     (expr : Expr.t) : M t :=
+  (* Since we are building terms from the bottom-up, we don't know initially at
+     which depth they will end up. Instead, we eagerly compute hashes as we
+     rebuild expressions (so that computing the hash does not need another
+     traversal), and zero it out when we reach the maximum depth. *)
   let* contents_hash :=
     match contents_hash with
     | Some {| depth := depth |} =>
@@ -189,6 +209,9 @@ Extract Constant term_not_rebuilt =>
 (* 104-115. [Simple.pattern_match' simple ~const ~symbol ~var]: the
    arguments are in the order of the interface, [var], [symbol], [const]. *)
 Definition contents_hash_simple (simple : Simple.t) : M int :=
+  (* We want a "structural" hash that doesn't depend on names bound by
+     continuations, so we ignore the names of variables, including inside
+     coercions (but we still record whether we had a coercion or not). *)
   Simple.pattern_match' simple
     (fun (_ : Variable_.t) coercion =>
       let* has_coercion :=
@@ -236,6 +259,11 @@ Definition create_let (are_rebuilding : ART.t) (bound_vars : Bound_pattern.t)
             List.map contents_hash_simple tmp2
           in
           let* prim := Flambda_primitive.without_args prim in
+          (* We use [Hashtbl.hash] directly on [prim] here, which should be
+             fine. Worst case scenario, we have two primitives that should later
+             compare equal but have different hashes (e.g. because they contain
+             different regions), and we miss out on an optimisation. This should
+             be rare and mostly inconsequential, though. *)
           let! tmp2 := Hashtbl.hash (T3 1 prim args_hash) in
           simple_expr tmp2
         | Flambda.Set_of_closures _ _ | Flambda.Static_consts _
@@ -359,6 +387,23 @@ Module Continuation_handler.
     | Continuation_handler_not_rebuilt => ret dummy
     | Continuation_handler params handler free_names_of_handler
         is_exn_handler is_cold =>
+      (* If the body of the continuation handler is cold, then it is the
+         responsibility of our context to introduce a coldness boundary (at
+         another continuation handler or function definition).
+
+         It is important that we clear the [is_cold] flag here: being cold
+         prevents *all* inlining (both in flambda and cmm), but we only actually
+         care about inlining of cold continuations into hot contexts (or across
+         different cold contexts, e.g. within a loop and outside of a loop), not
+         within a single cold context.
+
+         Note that this is a (likely) good enough approximation but does not
+         deal with all possible situations. For instance, if we have successive
+         cold handlers ([let [@cold] k1 = ... in let[@cold] k2 = ... in ...])
+         then we will still prevent inlining of [k1] into [k2]. This is likely
+         fine, and not worth doing something specific to deal with that
+         situation. Sinking the definition of [k1] to the dominator of its uses
+         would cleanly prevent this issue. *)
       let& is_cold := is_cold && negb body_is_cold in
       Flambda.Import_.Continuation_handler.create params handler
         (Or_unknown.Known free_names_of_handler)
@@ -521,6 +566,17 @@ Definition bind_no_simplification (are_rebuilding : ART.t)
 
 (* 342-663 *)
 Module Matching_for_unique_handler.
+  (* Computes an approximate equality between terms. Terms that are equal in
+     this way can be substituted for each other, and in particular two
+     continuation handlers with equal content can be merged.
+
+     As an extension, we support detecting continuations that have identical
+     handlers up to permutation of their parameters.
+
+     This is done by a matching algorithm that enforce a bipartite matching
+     between the parameters of the two continuations when they occur at the same
+     position in the term. *)
+
   (* 354: [exception Match_failure] is at the head of the extracted file. *)
   Parameter Match_failure : exception unit.
   Extract Inlined Constant Match_failure =>
@@ -544,10 +600,18 @@ Module Matching_for_unique_handler.
      type [t] is not abstract and what is before it in the module is seen
      from outside. *)
   Module Match_permutable_parameters.
+    (* 363-366, the comment of the type [t] in the signature: *)
+    (** Bipartite matcher between two lists of parameters.
+
+        This is an imperative data structure that gets updated by calling
+        [match_variable]. *)
+
     (* 390: [module HV = Hashtbl.Make (Variable)] is at the head of the
        extracted file. *)
 
-    (* 394-397 *)
+    (* 392-397 *)
+    (** Represents a parameter in one of the two parameter lists, and maps it to
+        the corresponding parameter (as a variable) in the other list. *)
     (* PORT-GAP(type): the record has a mutable field. In Rocq the type is
        abstract: [mk_parameter_on_one_side] makes a record (in the monad:
        the record has a state), [kind] reads the field that does not
@@ -601,7 +665,11 @@ Module Matching_for_unique_handler.
                variable). *)
       }.
 
-    (* 408-414 *)
+    (* 408-414; 383-386, the comment of the function in the signature: *)
+    (** Returns an argument that can be used to bind the provided parameter from
+        the second list from a parameter in the first list.
+
+        Fails if the parameter has not been matched. *)
     Definition matching_variable_for_param2
         (t : Match_permutable_parameters.t) (param2 : Bound_parameter.t)
         : M Variable_.t :=
@@ -623,7 +691,10 @@ Module Matching_for_unique_handler.
           | Some var => ret var
           end).
 
-    (* 416-432 *)
+    (* 416-432; 369-371, the comment of the function in the signature: *)
+    (** Create a new matcher.
+
+        Fails if the two parameter lists have distinct number of parameters. *)
     Definition create (params1 params2 : Bound_parameters.t) : M t :=
       (* Must have the same number of parameters in both cases, but we allow
          permutations -- kinds are checked in [match_variable]. *)
@@ -652,7 +723,14 @@ Module Matching_for_unique_handler.
            Match_permutable_parameters.params2 := mapping2
         |}.
 
-    (* 434-456 *)
+    (* 434-456; 374-380, the comment of the function in the signature: *)
+    (** [match_variable t var1 var2] records that [var1] and [var2] must match
+        in the respective parameter lists.
+
+        Fails if either [var1] or [var2] are not part of this matching, if
+        either has already been matched to another variable, or if [var1] and
+        [var2] are bound with incompatible kinds in their respective parameter
+        lists. *)
     Definition match_variable (t : Match_permutable_parameters.t)
         (var1 var2 : Variable_.t) : M unit :=
       match_exn
@@ -694,7 +772,31 @@ Module Matching_for_unique_handler.
           end).
   End Match_permutable_parameters.
 
-  (* 483-486 *)
+  (* 459-486 *)
+  (** Maps each variable that is a parameter to the corresponding matching
+      between two [Bound_parameters.t].
+
+      It might be surprising to see two nested mappings from variables here,
+      since [Match_permutable_parameters] is itself a mapping from variables.
+      The two nested mappings have fundamentally distinct meanings: the outer
+      mapping ([matching_env]) maps variables to the permutation (if any) that
+      they participate in, while the inner mapping
+      ([Match_permutable_parameters]) records, for each variable participating
+      in that specific permutation, its matching parameter in the other list.
+
+      This is helpful in two situations:
+
+      - For exception handlers, the exception parameter is matched directly and
+        then there is a permutation for the remaining params.
+
+      - If we want to support deduplication of continuations containing
+        [let_cont]s, we must make sure not to match variables from different
+        continuations together, which is taken care of by creating a distinct
+        [Match_permutable_parameters] instance for each continuation.
+
+      {b Note}: Matching information is recorded by mutably modifying the
+      [Match_permutable_parameters.t] instance(s), so environments should only
+      be passed down the call stack, not returned. *)
   Record matching_env : Type :=
     { permutable_params1 : Variable_.Map.t Match_permutable_parameters.t;
       permutable_params2 : Variable_.Map.t Match_permutable_parameters.t
@@ -795,6 +897,13 @@ Module Matching_for_unique_handler.
   (* 555-569 *)
   Definition match_named (env : matching_env) (named1 named2 : Named.t)
       : M unit :=
+    (* We only try to match simples and prims; other types of [named]s prevent
+       deduplication.
+
+       It is unlikely we find the same set of closure twice since we resimplify
+       them; static consts are already deduplicated separately, and rec infos
+       are unlikely to appear in the continuations we want to deduplicate (arms
+       of switches). *)
     match named1, named2 with
     | Flambda.Simple simple1, Flambda.Simple simple2 =>
       match_simple env simple1 simple2
@@ -991,6 +1100,15 @@ Module Unique_continuation_handlers.
       | Or_null.Null => ret Or_null.null
       | Or_null.This
           {| depth := depth; structural_hash := structural_hash |} =>
+        (* The [contents_hash] does not include variable names (it is not clear
+           how to do this up to alpha-equivalence since we are computing the
+           hashes from the bottom up), so we include the free names of variables
+           in the hash.
+
+           This is an approximation, since we can't distinguish e.g. [x + y]
+           from [y + x] in this way, but should be discriminating enough.
+
+           CR-someday bclement: consider occurrence count. *)
         let! tmp1 := Bool.hash is_exn_handler in
         let! tmp2 := Hashtbl.hash (T3 depth structural_hash tmp1) in
         let! tmp3 :=
