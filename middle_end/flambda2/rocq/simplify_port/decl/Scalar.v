@@ -1,9 +1,20 @@
-(* This file follows an interface whose source was not found: see the
-   comment below. *)
+(**************************************************************************)
+(*                                                                        *)
+(*                                 OCaml                                  *)
+(*                                                                        *)
+(*                 Jacob Van Buren, Jane Street, New York                 *)
+(*                                                                        *)
+(*   Copyright 2025 Jane Street Group LLC                                 *)
+(*                                                                        *)
+(*   All rights reserved.  This file is distributed under the terms of    *)
+(*   the GNU Lesser General Public License version 2.1, with the          *)
+(*   special exception on linking described in the file LICENSE.          *)
+(*                                                                        *)
+(**************************************************************************)
 
 (* GENERATED, not written by hand: the declarations of what the port of
    Simplify uses of the compiler's module [Scalar], after its interface
-   (source not found)
+   typing/scalar.mli
    at commit ecc5c0d968c892b4312065caef0f19ffffa042a9. Made by tools/declgen (see decl/README.md): a
    change is made there, not here. *)
 

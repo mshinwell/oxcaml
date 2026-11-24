@@ -9,6 +9,8 @@ One file for each compilation unit of OCaml that the 78 files of
 `Flambda.v`, `List.v`), and one for each file of Simplify itself (whole
 interface). A sub-module of OCaml is a `Module` of the file. Each file begins
 with the header of the interface that it follows, then names it and the commit.
+Two interfaces have no header (`backend/debug/dwarf/dwarf_flags/dwarf_flags.mli`
+and `utils/target_system.mli`): their files say so in its place.
 
 ## To make them again
 

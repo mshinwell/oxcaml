@@ -1,5 +1,5 @@
-(* This file follows an interface whose source was not found: see the
-   comment below. *)
+(* The interface that this file follows has no header: see the comment
+   below. *)
 
 (* GENERATED, not written by hand: the declarations of what the port of
    Simplify uses of the compiler's module [Dwarf_flags], after its interface
