@@ -18,12 +18,8 @@
    ecc5c0d968c892b4312065caef0f19ffffa042a9, definition by definition under
    the compiler's names; the numbers in the comments are the lines of that
    file. What is not from that file: the form (the monad, the temporaries
-   [tmpN] and their order) is that of GUIDE.md; the declarations, marked
-   PORT-GAP(decl), of what the file takes from a module that it includes and
-   decl/ does not declare, after the interfaces of those modules
-   (middle_end/flambda2/numbers/target_ocaml_int.mli, numeric_types.mli,
-   targetint_32_64.mli and the standard library's int32.mli and int64.mli);
-   and the form of the modules, which is this:
+   [tmpN] and their order) is that of GUIDE.md; and the form of the modules,
+   which is this:
 
    - Each module of the compiler's file is a Rocq [Module] of the same name,
      with the compiler's definitions in the compiler's order.
@@ -225,178 +221,6 @@ Extract Inlined Constant i0xff => "0xff".
 Definition i0xffff : int := 65535.
 Extract Inlined Constant i0xffff => "0xffff".
 
-(* PORT-GAP(decl): what the file takes from [Target_ocaml_int] by [include
-   Target_ocaml_int] (199, 294) under its short name, and decl/ does not
-   declare. *)
-Parameter Target_ocaml_int_unsigned_div :
-  Target_ocaml_int.t -> Target_ocaml_int.t -> M Target_ocaml_int.t.
-Extract Inlined Constant Target_ocaml_int_unsigned_div => "Target_ocaml_int.unsigned_div".
-Parameter Target_ocaml_int_unsigned_mod :
-  Target_ocaml_int.t -> Target_ocaml_int.t -> M Target_ocaml_int.t.
-Extract Inlined Constant Target_ocaml_int_unsigned_mod => "Target_ocaml_int.unsigned_mod".
-Parameter Target_ocaml_int_xor :
-  Target_ocaml_int.t -> Target_ocaml_int.t -> M Target_ocaml_int.t.
-Extract Inlined Constant Target_ocaml_int_xor => "Target_ocaml_int.xor".
-
-(* PORT-GAP(decl): what the file takes from [Numeric_types] and
-   [Targetint_32_64] by [include Float32_by_bit_pattern] (388), [include
-   Float_by_bit_pattern] (449), [include Int8] (510), [include Int16] (636),
-   [include Int32] (766), [include Int64] (857) and [include
-   Targetint_32_64] (948) under its short name, and decl/ does not declare. *)
-Parameter Float32_by_bit_pattern_to_float :
-  Numeric_types.Float32_by_bit_pattern.t -> M Stdlib_.float_.
-Extract Inlined Constant Float32_by_bit_pattern_to_float => "Numeric_types.Float32_by_bit_pattern.to_float".
-Parameter Float_by_bit_pattern_to_float :
-  Numeric_types.Float_by_bit_pattern.t -> M Stdlib_.float_.
-Extract Inlined Constant Float_by_bit_pattern_to_float => "Numeric_types.Float_by_bit_pattern.to_float".
-Parameter Int8_compare :
-  Numeric_types.Int8.t -> Numeric_types.Int8.t -> M int.
-Extract Inlined Constant Int8_compare => "Numeric_types.Int8.compare".
-Parameter Int8_equal :
-  Numeric_types.Int8.t -> Numeric_types.Int8.t -> M bool.
-Extract Inlined Constant Int8_equal => "Numeric_types.Int8.equal".
-Parameter Int8_to_int :
-  Numeric_types.Int8.t -> M int.
-Extract Inlined Constant Int8_to_int => "Numeric_types.Int8.to_int".
-Parameter Int8_unsigned_to_int :
-  Numeric_types.Int8.t -> M int.
-Extract Inlined Constant Int8_unsigned_to_int => "Numeric_types.Int8.unsigned_to_int".
-Parameter Int8_to_float :
-  Numeric_types.Int8.t -> M Stdlib_.float_.
-Extract Inlined Constant Int8_to_float => "Numeric_types.Int8.to_float".
-Parameter Int16_compare :
-  Numeric_types.Int16.t -> Numeric_types.Int16.t -> M int.
-Extract Inlined Constant Int16_compare => "Numeric_types.Int16.compare".
-Parameter Int16_equal :
-  Numeric_types.Int16.t -> Numeric_types.Int16.t -> M bool.
-Extract Inlined Constant Int16_equal => "Numeric_types.Int16.equal".
-Parameter Int16_to_int :
-  Numeric_types.Int16.t -> M int.
-Extract Inlined Constant Int16_to_int => "Numeric_types.Int16.to_int".
-Parameter Int16_unsigned_to_int :
-  Numeric_types.Int16.t -> M int.
-Extract Inlined Constant Int16_unsigned_to_int => "Numeric_types.Int16.unsigned_to_int".
-Parameter Int16_to_float :
-  Numeric_types.Int16.t -> M Stdlib_.float_.
-Extract Inlined Constant Int16_to_float => "Numeric_types.Int16.to_float".
-Parameter Int32_compare :
-  Numeric_types.Int32.t -> Numeric_types.Int32.t -> M int.
-Extract Inlined Constant Int32_compare => "Numeric_types.Int32.compare".
-Parameter Int32_equal :
-  Numeric_types.Int32.t -> Numeric_types.Int32.t -> M bool.
-Extract Inlined Constant Int32_equal => "Numeric_types.Int32.equal".
-Parameter Int32_logxor :
-  Numeric_types.Int32.t -> Numeric_types.Int32.t -> M Numeric_types.Int32.t.
-Extract Inlined Constant Int32_logxor => "Numeric_types.Int32.logxor".
-Parameter Int32_logor :
-  Numeric_types.Int32.t -> Numeric_types.Int32.t -> M Numeric_types.Int32.t.
-Extract Inlined Constant Int32_logor => "Numeric_types.Int32.logor".
-Parameter Int32_logand :
-  Numeric_types.Int32.t -> Numeric_types.Int32.t -> M Numeric_types.Int32.t.
-Extract Inlined Constant Int32_logand => "Numeric_types.Int32.logand".
-Parameter Int32_lognot :
-  Numeric_types.Int32.t -> M Numeric_types.Int32.t.
-Extract Inlined Constant Int32_lognot => "Numeric_types.Int32.lognot".
-Parameter Int32_div :
-  Numeric_types.Int32.t -> Numeric_types.Int32.t -> M Numeric_types.Int32.t.
-Extract Inlined Constant Int32_div => "Numeric_types.Int32.div".
-Parameter Int32_unsigned_div :
-  Numeric_types.Int32.t -> Numeric_types.Int32.t -> M Numeric_types.Int32.t.
-Extract Inlined Constant Int32_unsigned_div => "Numeric_types.Int32.unsigned_div".
-Parameter Int32_rem :
-  Numeric_types.Int32.t -> Numeric_types.Int32.t -> M Numeric_types.Int32.t.
-Extract Inlined Constant Int32_rem => "Numeric_types.Int32.rem".
-Parameter Int32_unsigned_rem :
-  Numeric_types.Int32.t -> Numeric_types.Int32.t -> M Numeric_types.Int32.t.
-Extract Inlined Constant Int32_unsigned_rem => "Numeric_types.Int32.unsigned_rem".
-Parameter Int32_shift_left :
-  Numeric_types.Int32.t -> int -> M Numeric_types.Int32.t.
-Extract Inlined Constant Int32_shift_left => "Numeric_types.Int32.shift_left".
-Parameter Int32_shift_right :
-  Numeric_types.Int32.t -> int -> M Numeric_types.Int32.t.
-Extract Inlined Constant Int32_shift_right => "Numeric_types.Int32.shift_right".
-Parameter Int32_shift_right_logical :
-  Numeric_types.Int32.t -> int -> M Numeric_types.Int32.t.
-Extract Inlined Constant Int32_shift_right_logical => "Numeric_types.Int32.shift_right_logical".
-Parameter Int64_compare :
-  Numeric_types.Int64.t -> Numeric_types.Int64.t -> M int.
-Extract Inlined Constant Int64_compare => "Numeric_types.Int64.compare".
-Parameter Int64_equal :
-  Numeric_types.Int64.t -> Numeric_types.Int64.t -> M bool.
-Extract Inlined Constant Int64_equal => "Numeric_types.Int64.equal".
-Parameter Int64_logxor :
-  Numeric_types.Int64.t -> Numeric_types.Int64.t -> M Numeric_types.Int64.t.
-Extract Inlined Constant Int64_logxor => "Numeric_types.Int64.logxor".
-Parameter Int64_logor :
-  Numeric_types.Int64.t -> Numeric_types.Int64.t -> M Numeric_types.Int64.t.
-Extract Inlined Constant Int64_logor => "Numeric_types.Int64.logor".
-Parameter Int64_logand :
-  Numeric_types.Int64.t -> Numeric_types.Int64.t -> M Numeric_types.Int64.t.
-Extract Inlined Constant Int64_logand => "Numeric_types.Int64.logand".
-Parameter Int64_lognot :
-  Numeric_types.Int64.t -> M Numeric_types.Int64.t.
-Extract Inlined Constant Int64_lognot => "Numeric_types.Int64.lognot".
-Parameter Int64_div :
-  Numeric_types.Int64.t -> Numeric_types.Int64.t -> M Numeric_types.Int64.t.
-Extract Inlined Constant Int64_div => "Numeric_types.Int64.div".
-Parameter Int64_unsigned_div :
-  Numeric_types.Int64.t -> Numeric_types.Int64.t -> M Numeric_types.Int64.t.
-Extract Inlined Constant Int64_unsigned_div => "Numeric_types.Int64.unsigned_div".
-Parameter Int64_rem :
-  Numeric_types.Int64.t -> Numeric_types.Int64.t -> M Numeric_types.Int64.t.
-Extract Inlined Constant Int64_rem => "Numeric_types.Int64.rem".
-Parameter Int64_unsigned_rem :
-  Numeric_types.Int64.t -> Numeric_types.Int64.t -> M Numeric_types.Int64.t.
-Extract Inlined Constant Int64_unsigned_rem => "Numeric_types.Int64.unsigned_rem".
-Parameter Int64_shift_left :
-  Numeric_types.Int64.t -> int -> M Numeric_types.Int64.t.
-Extract Inlined Constant Int64_shift_left => "Numeric_types.Int64.shift_left".
-Parameter Int64_shift_right :
-  Numeric_types.Int64.t -> int -> M Numeric_types.Int64.t.
-Extract Inlined Constant Int64_shift_right => "Numeric_types.Int64.shift_right".
-Parameter Targetint_32_64_zero_like :
-  Targetint_32_64.t -> M Targetint_32_64.t.
-Extract Inlined Constant Targetint_32_64_zero_like => "Targetint_32_64.zero_like".
-Parameter Targetint_32_64_compare :
-  Targetint_32_64.t -> Targetint_32_64.t -> M int.
-Extract Inlined Constant Targetint_32_64_compare => "Targetint_32_64.compare".
-Parameter Targetint_32_64_equal :
-  Targetint_32_64.t -> Targetint_32_64.t -> M bool.
-Extract Inlined Constant Targetint_32_64_equal => "Targetint_32_64.equal".
-Parameter Targetint_32_64_logxor :
-  Targetint_32_64.t -> Targetint_32_64.t -> M Targetint_32_64.t.
-Extract Inlined Constant Targetint_32_64_logxor => "Targetint_32_64.logxor".
-Parameter Targetint_32_64_logor :
-  Targetint_32_64.t -> Targetint_32_64.t -> M Targetint_32_64.t.
-Extract Inlined Constant Targetint_32_64_logor => "Targetint_32_64.logor".
-Parameter Targetint_32_64_logand :
-  Targetint_32_64.t -> Targetint_32_64.t -> M Targetint_32_64.t.
-Extract Inlined Constant Targetint_32_64_logand => "Targetint_32_64.logand".
-Parameter Targetint_32_64_lognot :
-  Targetint_32_64.t -> M Targetint_32_64.t.
-Extract Inlined Constant Targetint_32_64_lognot => "Targetint_32_64.lognot".
-Parameter Targetint_32_64_div :
-  Targetint_32_64.t -> Targetint_32_64.t -> M Targetint_32_64.t.
-Extract Inlined Constant Targetint_32_64_div => "Targetint_32_64.div".
-Parameter Targetint_32_64_unsigned_div :
-  Targetint_32_64.t -> Targetint_32_64.t -> M Targetint_32_64.t.
-Extract Inlined Constant Targetint_32_64_unsigned_div => "Targetint_32_64.unsigned_div".
-Parameter Targetint_32_64_rem :
-  Targetint_32_64.t -> Targetint_32_64.t -> M Targetint_32_64.t.
-Extract Inlined Constant Targetint_32_64_rem => "Targetint_32_64.rem".
-Parameter Targetint_32_64_unsigned_rem :
-  Targetint_32_64.t -> Targetint_32_64.t -> M Targetint_32_64.t.
-Extract Inlined Constant Targetint_32_64_unsigned_rem => "Targetint_32_64.unsigned_rem".
-Parameter Targetint_32_64_shift_left :
-  Targetint_32_64.t -> int -> M Targetint_32_64.t.
-Extract Inlined Constant Targetint_32_64_shift_left => "Targetint_32_64.shift_left".
-Parameter Targetint_32_64_shift_right :
-  Targetint_32_64.t -> int -> M Targetint_32_64.t.
-Extract Inlined Constant Targetint_32_64_shift_right => "Targetint_32_64.shift_right".
-Parameter Targetint_32_64_shift_right_logical :
-  Targetint_32_64.t -> int -> M Targetint_32_64.t.
-Extract Inlined Constant Targetint_32_64_shift_right_logical => "Targetint_32_64.shift_right_logical".
-
 (* 178-185 *)
 Definition with_shift {A : Type} (shift : Target_ocaml_int.t)
     (if_undefined : A) (f : int -> M A) (integer_bit_width : int) : M A :=
@@ -454,7 +278,7 @@ Module For_tagged_immediates.
     Definition not_ (t : Target_ocaml_int.t) : M Target_ocaml_int.t :=
       let! tmp1 := Target_ocaml_int.machine_width t in
       let! tmp2 := minus_one tmp1 in
-      Target_ocaml_int_xor t tmp2.
+      Target_ocaml_int.xor t tmp2.
 
     (* Shift functions inherit correct signature from Target_ocaml_int *)
 
@@ -490,13 +314,13 @@ Module For_tagged_immediates.
     Definition div := checked_div Target_ocaml_int.div.
 
     (* 225 *)
-    Definition unsigned_div := checked_div Target_ocaml_int_unsigned_div.
+    Definition unsigned_div := checked_div Target_ocaml_int.unsigned_div.
 
     (* 227 *)
     Definition mod_ := checked_div Target_ocaml_int.mod_.
 
     (* 229 *)
-    Definition unsigned_mod := checked_div Target_ocaml_int_unsigned_mod.
+    Definition unsigned_mod := checked_div Target_ocaml_int.unsigned_mod.
 
     (* Note this doesn't say 31 and 63! See the comments on the shift
        operations e.g. [lsl] in stdlib.mli. *)
@@ -639,7 +463,7 @@ Module For_naked_immediates.
     Definition not_ (t : Target_ocaml_int.t) : M Target_ocaml_int.t :=
       let! tmp1 := Target_ocaml_int.machine_width t in
       let! tmp2 := minus_one tmp1 in
-      Target_ocaml_int_xor t tmp2.
+      Target_ocaml_int.xor t tmp2.
 
     (* 304: [<] is that of [Target_ocaml_int]. *)
     Definition strictly_negative (t : Target_ocaml_int.t) : M bool :=
@@ -673,13 +497,13 @@ Module For_naked_immediates.
     Definition div := checked_div Target_ocaml_int.div.
 
     (* 318 *)
-    Definition unsigned_div := checked_div Target_ocaml_int_unsigned_div.
+    Definition unsigned_div := checked_div Target_ocaml_int.unsigned_div.
 
     (* 320 *)
     Definition mod_ := checked_div Target_ocaml_int.mod_.
 
     (* 322 *)
-    Definition unsigned_mod := checked_div Target_ocaml_int_unsigned_mod.
+    Definition unsigned_mod := checked_div Target_ocaml_int.unsigned_mod.
 
     (* PORT-GAP(init): 324, a value that the compiler computes by a call
        when the module starts; its text is the compiler's. *)
@@ -842,7 +666,7 @@ Module For_float32s.
     Definition to_immediate (t : Numeric_types.Float32_by_bit_pattern.t)
         (machine_width : Target_system.Machine_width.t)
         : M Target_ocaml_int.t :=
-      let! tmp1 := Float32_by_bit_pattern_to_float t in
+      let! tmp1 := Numeric_types.Float32_by_bit_pattern.to_float t in
       Target_ocaml_int.of_float machine_width tmp1.
 
     (* 411 *)
@@ -853,38 +677,38 @@ Module For_float32s.
     (* 413 *)
     Definition to_naked_float (t : Numeric_types.Float32_by_bit_pattern.t)
         : M Numeric_types.Float_by_bit_pattern.t :=
-      let! tmp1 := Float32_by_bit_pattern_to_float t in
+      let! tmp1 := Numeric_types.Float32_by_bit_pattern.to_float t in
       Numeric_types.Float_by_bit_pattern.create tmp1.
 
     (* 415 *)
     Definition to_naked_int8 (t : Numeric_types.Float32_by_bit_pattern.t)
         : M Numeric_types.Int8.t :=
-      let! tmp1 := Float32_by_bit_pattern_to_float t in
+      let! tmp1 := Numeric_types.Float32_by_bit_pattern.to_float t in
       Numeric_types.Int8.of_float tmp1.
 
     (* 417 *)
     Definition to_naked_int16 (t : Numeric_types.Float32_by_bit_pattern.t)
         : M Numeric_types.Int16.t :=
-      let! tmp1 := Float32_by_bit_pattern_to_float t in
+      let! tmp1 := Numeric_types.Float32_by_bit_pattern.to_float t in
       Numeric_types.Int16.of_float tmp1.
 
     (* 419 *)
     Definition to_naked_int32 (t : Numeric_types.Float32_by_bit_pattern.t)
         : M Numeric_types.Int32.t :=
-      let! tmp1 := Float32_by_bit_pattern_to_float t in
+      let! tmp1 := Numeric_types.Float32_by_bit_pattern.to_float t in
       Numeric_types.Int32.of_float tmp1.
 
     (* 421 *)
     Definition to_naked_int64 (t : Numeric_types.Float32_by_bit_pattern.t)
         : M Numeric_types.Int64.t :=
-      let! tmp1 := Float32_by_bit_pattern_to_float t in
+      let! tmp1 := Numeric_types.Float32_by_bit_pattern.to_float t in
       Numeric_types.Int64.of_float tmp1.
 
     (* 423-424 *)
     Definition to_naked_nativeint (t : Numeric_types.Float32_by_bit_pattern.t)
         (machine_width : Target_system.Machine_width.t)
         : M Targetint_32_64.t :=
-      let! tmp1 := Float32_by_bit_pattern_to_float t in
+      let! tmp1 := Numeric_types.Float32_by_bit_pattern.to_float t in
       Targetint_32_64.of_float machine_width tmp1.
   End Num.
 
@@ -974,13 +798,13 @@ Module For_floats.
     Definition to_immediate (t : Numeric_types.Float_by_bit_pattern.t)
         (machine_width : Target_system.Machine_width.t)
         : M Target_ocaml_int.t :=
-      let! tmp1 := Float_by_bit_pattern_to_float t in
+      let! tmp1 := Numeric_types.Float_by_bit_pattern.to_float t in
       Target_ocaml_int.of_float machine_width tmp1.
 
     (* 472 *)
     Definition to_naked_float32 (t : Numeric_types.Float_by_bit_pattern.t)
         : M Numeric_types.Float32_by_bit_pattern.t :=
-      let! tmp1 := Float_by_bit_pattern_to_float t in
+      let! tmp1 := Numeric_types.Float_by_bit_pattern.to_float t in
       Numeric_types.Float32_by_bit_pattern.create tmp1.
 
     (* 474 *)
@@ -991,32 +815,32 @@ Module For_floats.
     (* 476 *)
     Definition to_naked_int8 (t : Numeric_types.Float_by_bit_pattern.t)
         : M Numeric_types.Int8.t :=
-      let! tmp1 := Float_by_bit_pattern_to_float t in
+      let! tmp1 := Numeric_types.Float_by_bit_pattern.to_float t in
       Numeric_types.Int8.of_float tmp1.
 
     (* 478 *)
     Definition to_naked_int16 (t : Numeric_types.Float_by_bit_pattern.t)
         : M Numeric_types.Int16.t :=
-      let! tmp1 := Float_by_bit_pattern_to_float t in
+      let! tmp1 := Numeric_types.Float_by_bit_pattern.to_float t in
       Numeric_types.Int16.of_float tmp1.
 
     (* 480 *)
     Definition to_naked_int32 (t : Numeric_types.Float_by_bit_pattern.t)
         : M Numeric_types.Int32.t :=
-      let! tmp1 := Float_by_bit_pattern_to_float t in
+      let! tmp1 := Numeric_types.Float_by_bit_pattern.to_float t in
       Numeric_types.Int32.of_float tmp1.
 
     (* 482 *)
     Definition to_naked_int64 (t : Numeric_types.Float_by_bit_pattern.t)
         : M Numeric_types.Int64.t :=
-      let! tmp1 := Float_by_bit_pattern_to_float t in
+      let! tmp1 := Numeric_types.Float_by_bit_pattern.to_float t in
       Numeric_types.Int64.of_float tmp1.
 
     (* 484-485 *)
     Definition to_naked_nativeint (t : Numeric_types.Float_by_bit_pattern.t)
         (machine_width : Target_system.Machine_width.t)
         : M Targetint_32_64.t :=
-      let! tmp1 := Float_by_bit_pattern_to_float t in
+      let! tmp1 := Numeric_types.Float_by_bit_pattern.to_float t in
       Targetint_32_64.of_float machine_width tmp1.
   End Num.
 
@@ -1063,12 +887,13 @@ Module For_int8s.
 
     (* 512 *)
     Definition strictly_negative (t : Numeric_types.Int8.t) : M bool :=
-      let! tmp1 := Int8_compare t Numeric_types.Int8.zero in
+      let! tmp1 := Numeric_types.Int8.compare t Numeric_types.Int8.zero in
       ret (tmp1 <? 0).
 
     (* 514-515 *)
     Definition compare_unsigned (t1 t2 : Numeric_types.Int8.t) : M int :=
-      compare_unsigned_generic t1 t2 Int8_compare strictly_negative.
+      compare_unsigned_generic t1 t2 Numeric_types.Int8.compare
+        strictly_negative.
 
     (* 517 *)
     Definition zero (_machine_width : Target_system.Machine_width.t)
@@ -1087,28 +912,28 @@ Module For_int8s.
 
     (* 523 *)
     Definition neg (x : Numeric_types.Int8.t) : M Numeric_types.Int8.t :=
-      let! tmp1 := Int8_to_int x in
+      let! tmp1 := Numeric_types.Int8.to_int x in
       let! tmp2 := Int.neg tmp1 in
       Numeric_types.Int8.of_int tmp2.
 
     (* 525 *)
     Definition add (x y : Numeric_types.Int8.t) : M Numeric_types.Int8.t :=
-      let! tmp1 := Int8_to_int y in
-      let! tmp2 := Int8_to_int x in
+      let! tmp1 := Numeric_types.Int8.to_int y in
+      let! tmp2 := Numeric_types.Int8.to_int x in
       let! tmp3 := Int.add tmp2 tmp1 in
       Numeric_types.Int8.of_int tmp3.
 
     (* 527 *)
     Definition sub (x y : Numeric_types.Int8.t) : M Numeric_types.Int8.t :=
-      let! tmp1 := Int8_to_int y in
-      let! tmp2 := Int8_to_int x in
+      let! tmp1 := Numeric_types.Int8.to_int y in
+      let! tmp2 := Numeric_types.Int8.to_int x in
       let! tmp3 := Int.sub tmp2 tmp1 in
       Numeric_types.Int8.of_int tmp3.
 
     (* 529 *)
     Definition mul (x y : Numeric_types.Int8.t) : M Numeric_types.Int8.t :=
-      let! tmp1 := Int8_to_int y in
-      let! tmp2 := Int8_to_int x in
+      let! tmp1 := Numeric_types.Int8.to_int y in
+      let! tmp2 := Numeric_types.Int8.to_int x in
       let! tmp3 := Int.mul tmp2 tmp1 in
       Numeric_types.Int8.of_int tmp3.
 
@@ -1118,68 +943,68 @@ Module For_int8s.
        the first definition of each has the name with [_0] here. *)
     (* 531 *)
     Definition div_0 (x y : Numeric_types.Int8.t) : M Numeric_types.Int8.t :=
-      let! tmp1 := Int8_to_int y in
-      let! tmp2 := Int8_to_int x in
+      let! tmp1 := Numeric_types.Int8.to_int y in
+      let! tmp2 := Numeric_types.Int8.to_int x in
       let! tmp3 := Int.div tmp2 tmp1 in
       Numeric_types.Int8.of_int tmp3.
 
     (* 533-534 *)
     Definition unsigned_div_0 (x y : Numeric_types.Int8.t) : M Numeric_types.Int8.t :=
-      let! tmp1 := Int8_unsigned_to_int y in
-      let! tmp2 := Int8_unsigned_to_int x in
+      let! tmp1 := Numeric_types.Int8.unsigned_to_int y in
+      let! tmp2 := Numeric_types.Int8.unsigned_to_int x in
       let! tmp3 := Int.div tmp2 tmp1 in
       Numeric_types.Int8.of_int tmp3.
 
     (* 536 *)
     Definition rem (x y : Numeric_types.Int8.t) : M Numeric_types.Int8.t :=
-      let! tmp1 := Int8_to_int y in
-      let! tmp2 := Int8_to_int x in
+      let! tmp1 := Numeric_types.Int8.to_int y in
+      let! tmp2 := Numeric_types.Int8.to_int x in
       let! tmp3 := Int.rem tmp2 tmp1 in
       Numeric_types.Int8.of_int tmp3.
 
     (* 538-539 *)
     Definition unsigned_rem (x y : Numeric_types.Int8.t) : M Numeric_types.Int8.t :=
-      let! tmp1 := Int8_unsigned_to_int y in
-      let! tmp2 := Int8_unsigned_to_int x in
+      let! tmp1 := Numeric_types.Int8.unsigned_to_int y in
+      let! tmp2 := Numeric_types.Int8.unsigned_to_int x in
       let! tmp3 := Int.rem tmp2 tmp1 in
       Numeric_types.Int8.of_int tmp3.
 
     (* 541 *)
     Definition logand (x y : Numeric_types.Int8.t) : M Numeric_types.Int8.t :=
-      let! tmp1 := Int8_to_int y in
-      let! tmp2 := Int8_to_int x in
+      let! tmp1 := Numeric_types.Int8.to_int y in
+      let! tmp2 := Numeric_types.Int8.to_int x in
       let! tmp3 := Int.logand tmp2 tmp1 in
       Numeric_types.Int8.of_int tmp3.
 
     (* 543 *)
     Definition logor (x y : Numeric_types.Int8.t) : M Numeric_types.Int8.t :=
-      let! tmp1 := Int8_to_int y in
-      let! tmp2 := Int8_to_int x in
+      let! tmp1 := Numeric_types.Int8.to_int y in
+      let! tmp2 := Numeric_types.Int8.to_int x in
       let! tmp3 := Int.logor tmp2 tmp1 in
       Numeric_types.Int8.of_int tmp3.
 
     (* 545 *)
     Definition logxor (x y : Numeric_types.Int8.t) : M Numeric_types.Int8.t :=
-      let! tmp1 := Int8_to_int y in
-      let! tmp2 := Int8_to_int x in
+      let! tmp1 := Numeric_types.Int8.to_int y in
+      let! tmp2 := Numeric_types.Int8.to_int x in
       let! tmp3 := Int.logxor tmp2 tmp1 in
       Numeric_types.Int8.of_int tmp3.
 
     (* 547 *)
     Definition shift_left_0 (x : Numeric_types.Int8.t) (y : int) : M Numeric_types.Int8.t :=
-      let! tmp1 := Int8_to_int x in
+      let! tmp1 := Numeric_types.Int8.to_int x in
       let! tmp2 := Int.shift_left tmp1 y in
       Numeric_types.Int8.of_int tmp2.
 
     (* 549 *)
     Definition shift_right_0 (x : Numeric_types.Int8.t) (y : int) : M Numeric_types.Int8.t :=
-      let! tmp1 := Int8_to_int x in
+      let! tmp1 := Numeric_types.Int8.to_int x in
       let! tmp2 := Int.shift_right tmp1 y in
       Numeric_types.Int8.of_int tmp2.
 
     (* 551-552 *)
     Definition shift_right_logical_0 (x : Numeric_types.Int8.t) (y : int) : M Numeric_types.Int8.t :=
-      let! tmp1 := Int8_to_int x in
+      let! tmp1 := Numeric_types.Int8.to_int x in
       let! tmp2 := Stdlib_.land tmp1 i0xff in
       let! tmp3 := Int.shift_right_logical tmp2 y in
       Numeric_types.Int8.of_int tmp3.
@@ -1195,7 +1020,7 @@ Module For_int8s.
 
     (* 560 *)
     Definition not_ (x : Numeric_types.Int8.t) : M Numeric_types.Int8.t :=
-      let! tmp1 := Int8_to_int x in
+      let! tmp1 := Numeric_types.Int8.to_int x in
       let! tmp2 := Int.lognot tmp1 in
       Numeric_types.Int8.of_int tmp2.
 
@@ -1204,7 +1029,7 @@ Module For_int8s.
         (f : Numeric_types.Int8.t -> Numeric_types.Int8.t -> M Numeric_types.Int8.t)
         (t1 t2 : Numeric_types.Int8.t) : M (option Numeric_types.Int8.t) :=
       let! tmp1 := Numeric_types.Int8.of_int 0 in
-      let! tmp2 := Int8_equal t2 tmp1 in
+      let! tmp2 := Numeric_types.Int8.equal t2 tmp1 in
       if tmp2
       then ret None
       else
@@ -1253,51 +1078,51 @@ Module For_int8s.
     Definition to_immediate (t : Numeric_types.Int8.t)
         (machine_width : Target_system.Machine_width.t)
         : M Target_ocaml_int.t :=
-      let! tmp1 := Int8_to_int t in
+      let! tmp1 := Numeric_types.Int8.to_int t in
       Target_ocaml_int.of_int machine_width tmp1.
 
     (* 593-594 *)
     Definition to_naked_float32 (t : Numeric_types.Int8.t)
         : M Numeric_types.Float32_by_bit_pattern.t :=
-      let! tmp1 := Int8_to_int t in
+      let! tmp1 := Numeric_types.Int8.to_int t in
       let! tmp2 := Numeric_types.Int64.of_int tmp1 in
       Numeric_types.Float32_by_bit_pattern.of_int64 tmp2.
 
     (* 596 *)
     Definition to_naked_float (t : Numeric_types.Int8.t)
         : M Numeric_types.Float_by_bit_pattern.t :=
-      let! tmp1 := Int8_to_float t in
+      let! tmp1 := Numeric_types.Int8.to_float t in
       Numeric_types.Float_by_bit_pattern.create tmp1.
 
     (* 598 *)
     Definition to_naked_int8 (t : Numeric_types.Int8.t)
         : M Numeric_types.Int8.t :=
-      let! tmp1 := Int8_to_int t in
+      let! tmp1 := Numeric_types.Int8.to_int t in
       Numeric_types.Int8.of_int tmp1.
 
     (* 600 *)
     Definition to_naked_int16 (t : Numeric_types.Int8.t)
         : M Numeric_types.Int16.t :=
-      let! tmp1 := Int8_to_int t in
+      let! tmp1 := Numeric_types.Int8.to_int t in
       Numeric_types.Int16.of_int tmp1.
 
     (* 602 *)
     Definition to_naked_int32 (t : Numeric_types.Int8.t)
         : M Numeric_types.Int32.t :=
-      let! tmp1 := Int8_to_int t in
+      let! tmp1 := Numeric_types.Int8.to_int t in
       Numeric_types.Int32.of_int tmp1.
 
     (* 604 *)
     Definition to_naked_int64 (t : Numeric_types.Int8.t)
         : M Numeric_types.Int64.t :=
-      let! tmp1 := Int8_to_int t in
+      let! tmp1 := Numeric_types.Int8.to_int t in
       Numeric_types.Int64.of_int tmp1.
 
     (* 606-607 *)
     Definition to_naked_nativeint (t : Numeric_types.Int8.t)
         (machine_width : Target_system.Machine_width.t)
         : M Targetint_32_64.t :=
-      let! tmp1 := Int8_to_int t in
+      let! tmp1 := Numeric_types.Int8.to_int t in
       Targetint_32_64.of_int machine_width tmp1.
 
     (* PORT-GAP(verbatim): 609-613, the module [Pair], which the compiler
@@ -1350,12 +1175,13 @@ Module For_int16s.
 
     (* 638 *)
     Definition strictly_negative (t : Numeric_types.Int16.t) : M bool :=
-      let! tmp1 := Int16_compare t Numeric_types.Int16.zero in
+      let! tmp1 := Numeric_types.Int16.compare t Numeric_types.Int16.zero in
       ret (tmp1 <? 0).
 
     (* 640-641 *)
     Definition compare_unsigned (t1 t2 : Numeric_types.Int16.t) : M int :=
-      compare_unsigned_generic t1 t2 Int16_compare strictly_negative.
+      compare_unsigned_generic t1 t2 Numeric_types.Int16.compare
+        strictly_negative.
 
     (* 643 *)
     Definition zero (_machine_width : Target_system.Machine_width.t)
@@ -1374,28 +1200,28 @@ Module For_int16s.
 
     (* 649 *)
     Definition neg (x : Numeric_types.Int16.t) : M Numeric_types.Int16.t :=
-      let! tmp1 := Int16_to_int x in
+      let! tmp1 := Numeric_types.Int16.to_int x in
       let! tmp2 := Int.neg tmp1 in
       Numeric_types.Int16.of_int tmp2.
 
     (* 651 *)
     Definition add (x y : Numeric_types.Int16.t) : M Numeric_types.Int16.t :=
-      let! tmp1 := Int16_to_int y in
-      let! tmp2 := Int16_to_int x in
+      let! tmp1 := Numeric_types.Int16.to_int y in
+      let! tmp2 := Numeric_types.Int16.to_int x in
       let! tmp3 := Int.add tmp2 tmp1 in
       Numeric_types.Int16.of_int tmp3.
 
     (* 653 *)
     Definition sub (x y : Numeric_types.Int16.t) : M Numeric_types.Int16.t :=
-      let! tmp1 := Int16_to_int y in
-      let! tmp2 := Int16_to_int x in
+      let! tmp1 := Numeric_types.Int16.to_int y in
+      let! tmp2 := Numeric_types.Int16.to_int x in
       let! tmp3 := Int.sub tmp2 tmp1 in
       Numeric_types.Int16.of_int tmp3.
 
     (* 655 *)
     Definition mul (x y : Numeric_types.Int16.t) : M Numeric_types.Int16.t :=
-      let! tmp1 := Int16_to_int y in
-      let! tmp2 := Int16_to_int x in
+      let! tmp1 := Numeric_types.Int16.to_int y in
+      let! tmp2 := Numeric_types.Int16.to_int x in
       let! tmp3 := Int.mul tmp2 tmp1 in
       Numeric_types.Int16.of_int tmp3.
 
@@ -1405,68 +1231,68 @@ Module For_int16s.
        the first definition of each has the name with [_0] here. *)
     (* 657 *)
     Definition div_0 (x y : Numeric_types.Int16.t) : M Numeric_types.Int16.t :=
-      let! tmp1 := Int16_to_int y in
-      let! tmp2 := Int16_to_int x in
+      let! tmp1 := Numeric_types.Int16.to_int y in
+      let! tmp2 := Numeric_types.Int16.to_int x in
       let! tmp3 := Int.div tmp2 tmp1 in
       Numeric_types.Int16.of_int tmp3.
 
     (* 659-660 *)
     Definition unsigned_div_0 (x y : Numeric_types.Int16.t) : M Numeric_types.Int16.t :=
-      let! tmp1 := Int16_unsigned_to_int y in
-      let! tmp2 := Int16_unsigned_to_int x in
+      let! tmp1 := Numeric_types.Int16.unsigned_to_int y in
+      let! tmp2 := Numeric_types.Int16.unsigned_to_int x in
       let! tmp3 := Int.div tmp2 tmp1 in
       Numeric_types.Int16.of_int tmp3.
 
     (* 662 *)
     Definition rem (x y : Numeric_types.Int16.t) : M Numeric_types.Int16.t :=
-      let! tmp1 := Int16_to_int y in
-      let! tmp2 := Int16_to_int x in
+      let! tmp1 := Numeric_types.Int16.to_int y in
+      let! tmp2 := Numeric_types.Int16.to_int x in
       let! tmp3 := Int.rem tmp2 tmp1 in
       Numeric_types.Int16.of_int tmp3.
 
     (* 664-665 *)
     Definition unsigned_rem (x y : Numeric_types.Int16.t) : M Numeric_types.Int16.t :=
-      let! tmp1 := Int16_unsigned_to_int y in
-      let! tmp2 := Int16_unsigned_to_int x in
+      let! tmp1 := Numeric_types.Int16.unsigned_to_int y in
+      let! tmp2 := Numeric_types.Int16.unsigned_to_int x in
       let! tmp3 := Int.rem tmp2 tmp1 in
       Numeric_types.Int16.of_int tmp3.
 
     (* 667 *)
     Definition logand (x y : Numeric_types.Int16.t) : M Numeric_types.Int16.t :=
-      let! tmp1 := Int16_to_int y in
-      let! tmp2 := Int16_to_int x in
+      let! tmp1 := Numeric_types.Int16.to_int y in
+      let! tmp2 := Numeric_types.Int16.to_int x in
       let! tmp3 := Int.logand tmp2 tmp1 in
       Numeric_types.Int16.of_int tmp3.
 
     (* 669 *)
     Definition logor (x y : Numeric_types.Int16.t) : M Numeric_types.Int16.t :=
-      let! tmp1 := Int16_to_int y in
-      let! tmp2 := Int16_to_int x in
+      let! tmp1 := Numeric_types.Int16.to_int y in
+      let! tmp2 := Numeric_types.Int16.to_int x in
       let! tmp3 := Int.logor tmp2 tmp1 in
       Numeric_types.Int16.of_int tmp3.
 
     (* 671 *)
     Definition logxor (x y : Numeric_types.Int16.t) : M Numeric_types.Int16.t :=
-      let! tmp1 := Int16_to_int y in
-      let! tmp2 := Int16_to_int x in
+      let! tmp1 := Numeric_types.Int16.to_int y in
+      let! tmp2 := Numeric_types.Int16.to_int x in
       let! tmp3 := Int.logxor tmp2 tmp1 in
       Numeric_types.Int16.of_int tmp3.
 
     (* 673 *)
     Definition shift_left_0 (x : Numeric_types.Int16.t) (y : int) : M Numeric_types.Int16.t :=
-      let! tmp1 := Int16_to_int x in
+      let! tmp1 := Numeric_types.Int16.to_int x in
       let! tmp2 := Int.shift_left tmp1 y in
       Numeric_types.Int16.of_int tmp2.
 
     (* 675 *)
     Definition shift_right_0 (x : Numeric_types.Int16.t) (y : int) : M Numeric_types.Int16.t :=
-      let! tmp1 := Int16_to_int x in
+      let! tmp1 := Numeric_types.Int16.to_int x in
       let! tmp2 := Int.shift_right tmp1 y in
       Numeric_types.Int16.of_int tmp2.
 
     (* 677-678 *)
     Definition shift_right_logical_0 (x : Numeric_types.Int16.t) (y : int) : M Numeric_types.Int16.t :=
-      let! tmp1 := Int16_to_int x in
+      let! tmp1 := Numeric_types.Int16.to_int x in
       let! tmp2 := Stdlib_.land tmp1 i0xffff in
       let! tmp3 := Int.shift_right_logical tmp2 y in
       Numeric_types.Int16.of_int tmp3.
@@ -1482,7 +1308,7 @@ Module For_int16s.
 
     (* 686 *)
     Definition not_ (x : Numeric_types.Int16.t) : M Numeric_types.Int16.t :=
-      let! tmp1 := Int16_to_int x in
+      let! tmp1 := Numeric_types.Int16.to_int x in
       let! tmp2 := Int.lognot tmp1 in
       Numeric_types.Int16.of_int tmp2.
 
@@ -1490,7 +1316,7 @@ Module For_int16s.
     Definition checked_div
         (f : Numeric_types.Int16.t -> Numeric_types.Int16.t -> M Numeric_types.Int16.t)
         (t1 t2 : Numeric_types.Int16.t) : M (option Numeric_types.Int16.t) :=
-      let! tmp2 := Int16_equal t2 Numeric_types.Int16.zero in
+      let! tmp2 := Numeric_types.Int16.equal t2 Numeric_types.Int16.zero in
       if tmp2
       then ret None
       else
@@ -1538,51 +1364,51 @@ Module For_int16s.
     Definition to_immediate (t : Numeric_types.Int16.t)
         (machine_width : Target_system.Machine_width.t)
         : M Target_ocaml_int.t :=
-      let! tmp1 := Int16_to_int t in
+      let! tmp1 := Numeric_types.Int16.to_int t in
       Target_ocaml_int.of_int machine_width tmp1.
 
     (* 719-720 *)
     Definition to_naked_float32 (t : Numeric_types.Int16.t)
         : M Numeric_types.Float32_by_bit_pattern.t :=
-      let! tmp1 := Int16_to_int t in
+      let! tmp1 := Numeric_types.Int16.to_int t in
       let! tmp2 := Numeric_types.Int64.of_int tmp1 in
       Numeric_types.Float32_by_bit_pattern.of_int64 tmp2.
 
     (* 722 *)
     Definition to_naked_float (t : Numeric_types.Int16.t)
         : M Numeric_types.Float_by_bit_pattern.t :=
-      let! tmp1 := Int16_to_float t in
+      let! tmp1 := Numeric_types.Int16.to_float t in
       Numeric_types.Float_by_bit_pattern.create tmp1.
 
     (* 724 *)
     Definition to_naked_int8 (t : Numeric_types.Int16.t)
         : M Numeric_types.Int8.t :=
-      let! tmp1 := Int16_to_int t in
+      let! tmp1 := Numeric_types.Int16.to_int t in
       Numeric_types.Int8.of_int tmp1.
 
     (* 726 *)
     Definition to_naked_int16 (t : Numeric_types.Int16.t)
         : M Numeric_types.Int16.t :=
-      let! tmp1 := Int16_to_int t in
+      let! tmp1 := Numeric_types.Int16.to_int t in
       Numeric_types.Int16.of_int tmp1.
 
     (* 728 *)
     Definition to_naked_int32 (t : Numeric_types.Int16.t)
         : M Numeric_types.Int32.t :=
-      let! tmp1 := Int16_to_int t in
+      let! tmp1 := Numeric_types.Int16.to_int t in
       Numeric_types.Int32.of_int tmp1.
 
     (* 730 *)
     Definition to_naked_int64 (t : Numeric_types.Int16.t)
         : M Numeric_types.Int64.t :=
-      let! tmp1 := Int16_to_int t in
+      let! tmp1 := Numeric_types.Int16.to_int t in
       Numeric_types.Int64.of_int tmp1.
 
     (* 732-733 *)
     Definition to_naked_nativeint (t : Numeric_types.Int16.t)
         (machine_width : Target_system.Machine_width.t)
         : M Targetint_32_64.t :=
-      let! tmp1 := Int16_to_int t in
+      let! tmp1 := Numeric_types.Int16.to_int t in
       Targetint_32_64.of_int machine_width tmp1.
 
     (* PORT-GAP(verbatim): 735-739, the module [Pair], which the compiler
@@ -1598,7 +1424,7 @@ Module For_int16s.
     (* 743-747 *)
     Definition swap_byte_endianness (t : Numeric_types.Int16.t)
         : M Numeric_types.Int16.t :=
-      let* i := Int16_to_int t in
+      let* i := Numeric_types.Int16.to_int t in
       let* lo := Stdlib_.land i i0xff in
       let* hi :=
         let! tmp1 := Stdlib_.lsr i i8 in
@@ -1643,12 +1469,13 @@ Module For_int32s.
 
     (* 768 *)
     Definition strictly_negative (t : Numeric_types.Int32.t) : M bool :=
-      let! tmp1 := Int32_compare t Numeric_types.Int32.zero in
+      let! tmp1 := Numeric_types.Int32.compare t Numeric_types.Int32.zero in
       ret (tmp1 <? 0).
 
     (* 770-771 *)
     Definition compare_unsigned (t1 t2 : Numeric_types.Int32.t) : M int :=
-      compare_unsigned_generic t1 t2 Int32_compare strictly_negative.
+      compare_unsigned_generic t1 t2 Numeric_types.Int32.compare
+        strictly_negative.
 
     (* 773 *)
     Definition zero (_machine_width : Target_system.Machine_width.t)
@@ -1666,23 +1493,23 @@ Module For_int32s.
       ret Numeric_types.Int32.minus_one.
 
     (* 779 *)
-    Definition xor := Int32_logxor.
+    Definition xor := Numeric_types.Int32.logxor.
 
     (* 781 *)
-    Definition or_ := Int32_logor.
+    Definition or_ := Numeric_types.Int32.logor.
 
     (* 783 *)
-    Definition and_ := Int32_logand.
+    Definition and_ := Numeric_types.Int32.logand.
 
     (* 785 *)
-    Definition not_ := Int32_lognot.
+    Definition not_ := Numeric_types.Int32.lognot.
 
     (* 787-788 *)
     Definition checked_div
         (f : Numeric_types.Int32.t -> Numeric_types.Int32.t -> M Numeric_types.Int32.t)
         (t1 t2 : Numeric_types.Int32.t) : M (option Numeric_types.Int32.t) :=
       let! tmp1 := Numeric_types.Int32.of_int 0 in
-      let! tmp2 := Int32_equal t2 tmp1 in
+      let! tmp2 := Numeric_types.Int32.equal t2 tmp1 in
       if tmp2
       then ret None
       else
@@ -1690,23 +1517,23 @@ Module For_int32s.
         ret (Some tmp3).
 
     (* 790 *)
-    Definition div := checked_div Int32_div.
+    Definition div := checked_div Numeric_types.Int32.div.
 
     (* 792 *)
-    Definition unsigned_div := checked_div Int32_unsigned_div.
+    Definition unsigned_div := checked_div Numeric_types.Int32.unsigned_div.
 
     (* 794 *)
-    Definition mod_ := checked_div Int32_rem.
+    Definition mod_ := checked_div Numeric_types.Int32.rem.
 
     (* 796 *)
-    Definition unsigned_mod := checked_div Int32_unsigned_rem.
+    Definition unsigned_mod := checked_div Numeric_types.Int32.unsigned_rem.
 
     (* 798-801 *)
     Definition shift_left (t : Numeric_types.Int32.t) (shift : Target_ocaml_int.t)
         : M Numeric_types.Int32.t :=
       let! tmp1 := Numeric_types.Int32.of_int 0 in
       with_shift shift tmp1
-        (fun shift => Int32_shift_left t shift)
+        (fun shift => Numeric_types.Int32.shift_left t shift)
         i32.
 
     (* 803-806 *)
@@ -1714,7 +1541,7 @@ Module For_int32s.
         : M Numeric_types.Int32.t :=
       let! tmp1 := Numeric_types.Int32.of_int 0 in
       with_shift shift tmp1
-        (fun shift => Int32_shift_right t shift)
+        (fun shift => Numeric_types.Int32.shift_right t shift)
         i32.
 
     (* 808-811 *)
@@ -1722,7 +1549,7 @@ Module For_int32s.
         : M Numeric_types.Int32.t :=
       let! tmp1 := Numeric_types.Int32.of_int 0 in
       with_shift shift tmp1
-        (fun shift => Int32_shift_right_logical t shift)
+        (fun shift => Numeric_types.Int32.shift_right_logical t shift)
         i32.
 
     (* 813 *)
@@ -1822,12 +1649,13 @@ Module For_int64s.
 
     (* 859 *)
     Definition strictly_negative (t : Numeric_types.Int64.t) : M bool :=
-      let! tmp1 := Int64_compare t Numeric_types.Int64.zero in
+      let! tmp1 := Numeric_types.Int64.compare t Numeric_types.Int64.zero in
       ret (tmp1 <? 0).
 
     (* 861-862 *)
     Definition compare_unsigned (t1 t2 : Numeric_types.Int64.t) : M int :=
-      compare_unsigned_generic t1 t2 Int64_compare strictly_negative.
+      compare_unsigned_generic t1 t2 Numeric_types.Int64.compare
+        strictly_negative.
 
     (* 864 *)
     Definition zero (_machine_width : Target_system.Machine_width.t)
@@ -1845,22 +1673,22 @@ Module For_int64s.
       ret Numeric_types.Int64.minus_one.
 
     (* 870 *)
-    Definition xor := Int64_logxor.
+    Definition xor := Numeric_types.Int64.logxor.
 
     (* 872 *)
-    Definition or_ := Int64_logor.
+    Definition or_ := Numeric_types.Int64.logor.
 
     (* 874 *)
-    Definition and_ := Int64_logand.
+    Definition and_ := Numeric_types.Int64.logand.
 
     (* 876 *)
-    Definition not_ := Int64_lognot.
+    Definition not_ := Numeric_types.Int64.lognot.
 
     (* 878-879 *)
     Definition checked_div
         (f : Numeric_types.Int64.t -> Numeric_types.Int64.t -> M Numeric_types.Int64.t)
         (t1 t2 : Numeric_types.Int64.t) : M (option Numeric_types.Int64.t) :=
-      let! tmp2 := Int64_equal t2 Numeric_types.Int64.zero in
+      let! tmp2 := Numeric_types.Int64.equal t2 Numeric_types.Int64.zero in
       if tmp2
       then ret None
       else
@@ -1868,29 +1696,29 @@ Module For_int64s.
         ret (Some tmp3).
 
     (* 881 *)
-    Definition div := checked_div Int64_div.
+    Definition div := checked_div Numeric_types.Int64.div.
 
     (* 883 *)
-    Definition unsigned_div := checked_div Int64_unsigned_div.
+    Definition unsigned_div := checked_div Numeric_types.Int64.unsigned_div.
 
     (* 885 *)
-    Definition mod_ := checked_div Int64_rem.
+    Definition mod_ := checked_div Numeric_types.Int64.rem.
 
     (* 887 *)
-    Definition unsigned_mod := checked_div Int64_unsigned_rem.
+    Definition unsigned_mod := checked_div Numeric_types.Int64.unsigned_rem.
 
     (* 889-892 *)
     Definition shift_left (t : Numeric_types.Int64.t) (shift : Target_ocaml_int.t)
         : M Numeric_types.Int64.t :=
       with_shift shift Numeric_types.Int64.zero
-        (fun shift => Int64_shift_left t shift)
+        (fun shift => Numeric_types.Int64.shift_left t shift)
         i64.
 
     (* 894-897 *)
     Definition shift_right (t : Numeric_types.Int64.t) (shift : Target_ocaml_int.t)
         : M Numeric_types.Int64.t :=
       with_shift shift Numeric_types.Int64.zero
-        (fun shift => Int64_shift_right t shift)
+        (fun shift => Numeric_types.Int64.shift_right t shift)
         i64.
 
     (* 899-902 *)
@@ -1996,32 +1824,32 @@ Module For_nativeints.
 
     (* 950-952 *)
     Definition strictly_negative (t : Targetint_32_64.t) : M bool :=
-      let* zero_val := Targetint_32_64_zero_like t in
-      let! tmp1 := Targetint_32_64_compare t zero_val in
+      let* zero_val := Targetint_32_64.zero_like t in
+      let! tmp1 := Targetint_32_64.compare t zero_val in
       ret (tmp1 <? 0).
 
     (* 954-955 *)
     Definition compare_unsigned (t1 t2 : Targetint_32_64.t) : M int :=
-      compare_unsigned_generic t1 t2 Targetint_32_64_compare strictly_negative.
+      compare_unsigned_generic t1 t2 Targetint_32_64.compare strictly_negative.
 
     (* 957 *)
-    Definition xor := Targetint_32_64_logxor.
+    Definition xor := Targetint_32_64.logxor.
 
     (* 959 *)
-    Definition or_ := Targetint_32_64_logor.
+    Definition or_ := Targetint_32_64.logor.
 
     (* 961 *)
-    Definition and_ := Targetint_32_64_logand.
+    Definition and_ := Targetint_32_64.logand.
 
     (* 963 *)
-    Definition not_ := Targetint_32_64_lognot.
+    Definition not_ := Targetint_32_64.lognot.
 
     (* 965-966 *)
     Definition checked_div
         (f : Targetint_32_64.t -> Targetint_32_64.t -> M Targetint_32_64.t)
         (t1 t2 : Targetint_32_64.t) : M (option Targetint_32_64.t) :=
-      let! tmp1 := Targetint_32_64_zero_like t1 in
-      let! tmp2 := Targetint_32_64_equal t2 tmp1 in
+      let! tmp1 := Targetint_32_64.zero_like t1 in
+      let! tmp2 := Targetint_32_64.equal t2 tmp1 in
       if tmp2
       then ret None
       else
@@ -2029,16 +1857,16 @@ Module For_nativeints.
         ret (Some tmp3).
 
     (* 968 *)
-    Definition div := checked_div Targetint_32_64_div.
+    Definition div := checked_div Targetint_32_64.div.
 
     (* 970 *)
-    Definition unsigned_div := checked_div Targetint_32_64_unsigned_div.
+    Definition unsigned_div := checked_div Targetint_32_64.unsigned_div.
 
     (* 972 *)
-    Definition mod_ := checked_div Targetint_32_64_rem.
+    Definition mod_ := checked_div Targetint_32_64.rem.
 
     (* 974 *)
-    Definition unsigned_mod := checked_div Targetint_32_64_unsigned_rem.
+    Definition unsigned_mod := checked_div Targetint_32_64.unsigned_rem.
 
     (* PORT-GAP(init): 976, a value that the compiler computes by a call
        when the module starts; its text is the compiler's. *)
@@ -2048,25 +1876,25 @@ Module For_nativeints.
     (* 978-981 *)
     Definition shift_left (t : Targetint_32_64.t) (shift : Target_ocaml_int.t)
         : M Targetint_32_64.t :=
-      let! tmp1 := Targetint_32_64_zero_like t in
+      let! tmp1 := Targetint_32_64.zero_like t in
       with_shift shift tmp1
-        (fun shift => Targetint_32_64_shift_left t shift)
+        (fun shift => Targetint_32_64.shift_left t shift)
         integer_bit_width.
 
     (* 983-986 *)
     Definition shift_right (t : Targetint_32_64.t) (shift : Target_ocaml_int.t)
         : M Targetint_32_64.t :=
-      let! tmp1 := Targetint_32_64_zero_like t in
+      let! tmp1 := Targetint_32_64.zero_like t in
       with_shift shift tmp1
-        (fun shift => Targetint_32_64_shift_right t shift)
+        (fun shift => Targetint_32_64.shift_right t shift)
         integer_bit_width.
 
     (* 988-991 *)
     Definition shift_right_logical (t : Targetint_32_64.t) (shift : Target_ocaml_int.t)
         : M Targetint_32_64.t :=
-      let! tmp1 := Targetint_32_64_zero_like t in
+      let! tmp1 := Targetint_32_64.zero_like t in
       with_shift shift tmp1
-        (fun shift => Targetint_32_64_shift_right_logical t shift)
+        (fun shift => Targetint_32_64.shift_right_logical t shift)
         integer_bit_width.
 
     (* 993 *)

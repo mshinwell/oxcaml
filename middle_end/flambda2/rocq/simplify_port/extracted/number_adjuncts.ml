@@ -1547,22 +1547,19 @@ module For_int32s = struct
 
     let minus_one _ = Numeric_types.Int32.minus_one
 
-    (** val xor : Numeric_types.Int32.t -> Numeric_types.Int32.t ->
-        Numeric_types.Int32.t coq_M **)
+    (** val xor : int32 -> int32 -> int32 coq_M **)
 
     let xor = Numeric_types.Int32.logxor
 
-    (** val or_ : Numeric_types.Int32.t -> Numeric_types.Int32.t ->
-        Numeric_types.Int32.t coq_M **)
+    (** val or_ : int32 -> int32 -> int32 coq_M **)
 
     let or_ = Numeric_types.Int32.logor
 
-    (** val and_ : Numeric_types.Int32.t -> Numeric_types.Int32.t ->
-        Numeric_types.Int32.t coq_M **)
+    (** val and_ : int32 -> int32 -> int32 coq_M **)
 
     let and_ = Numeric_types.Int32.logand
 
-    (** val not_ : Numeric_types.Int32.t -> Numeric_types.Int32.t coq_M **)
+    (** val not_ : int32 -> int32 coq_M **)
 
     let not_ = Numeric_types.Int32.lognot
 
@@ -1755,22 +1752,19 @@ module For_int64s = struct
 
     let minus_one _ = Numeric_types.Int64.minus_one
 
-    (** val xor : Numeric_types.Int64.t -> Numeric_types.Int64.t ->
-        Numeric_types.Int64.t coq_M **)
+    (** val xor : int64 -> int64 -> int64 coq_M **)
 
     let xor = Numeric_types.Int64.logxor
 
-    (** val or_ : Numeric_types.Int64.t -> Numeric_types.Int64.t ->
-        Numeric_types.Int64.t coq_M **)
+    (** val or_ : int64 -> int64 -> int64 coq_M **)
 
     let or_ = Numeric_types.Int64.logor
 
-    (** val and_ : Numeric_types.Int64.t -> Numeric_types.Int64.t ->
-        Numeric_types.Int64.t coq_M **)
+    (** val and_ : int64 -> int64 -> int64 coq_M **)
 
     let and_ = Numeric_types.Int64.logand
 
-    (** val not_ : Numeric_types.Int64.t -> Numeric_types.Int64.t coq_M **)
+    (** val not_ : int64 -> int64 coq_M **)
 
     let not_ = Numeric_types.Int64.lognot
 
