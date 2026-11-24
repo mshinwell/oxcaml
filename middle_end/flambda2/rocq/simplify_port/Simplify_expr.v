@@ -107,7 +107,10 @@ Definition simplify_toplevel_common (dacc : DA.t)
     (params implicit_params : Bound_parameters.t)
     (return_continuation : Continuation.t) (return_arity : Flambda_arity.t)
     (exn_continuation : Continuation.t) : M (RE.t * UA.t) :=
-  (* 68-70 *)
+  (* 65-70 *)
+  (* The usage analysis needs a continuation whose handler holds the toplevel
+     code of the function. Since such a continuation does not exist, we create a
+     dummy one here. *)
   let* dummy_toplevel_cont :=
     Continuation.create None (Some "dummy_toplevel_continuation") tt
   in
@@ -147,7 +150,13 @@ Definition simplify_toplevel_common (dacc : DA.t)
       let! tmp1 := DA.denv dacc in
       DE.closure_info tmp1
     in
-    (* 98-107 *)
+    (* 92-107 *)
+    (* The code_age_relation and used value_slots are only correct at toplevel,
+       and they are only necessary to compute the live code ids, which are only
+       used when simplifying at the toplevel. So if we are in a closure, we use
+       empty/dummy values for the code_age_relation and used_value_slots, and in
+       return we do not use the reachable_code_id part of the data_flow
+       analysis. *)
     let* '(T3 code_age_relation used_value_slots print_name) :=
       match closure_info with
       | Closure_info.Closure code_id _ _ _ _ =>
@@ -171,7 +180,9 @@ Definition simplify_toplevel_common (dacc : DA.t)
         exn_continuation code_age_relation used_value_slots tmp2 tmp1
         data_flow
     in
-    (* 118-125 *)
+    (* 116-125 *)
+    (* Propagate upwards the coldness information on the return/exn continuation
+       that we collected downwards. *)
     let& continuation_is_cold :=
       fun (cont : Continuation.t) =>
       let! tmp1 := DA.continuation_uses_env dacc in
@@ -219,7 +230,11 @@ Definition simplify_toplevel_common (dacc : DA.t)
     let_fuel! fuel in
     rebuild_expr fuel expr uacc (fun expr uacc => ret (expr, uacc))
   in
-  (* 155-167 *)
+  (* 151-167 *)
+  (* We don't check occurrences of variables or symbols here because the check
+     required depends on whether we're dealing with a lambda or the whole
+     compilation unit. Instead these checks are in [Simplify] or
+     [Simplify_set_of_closures]. *)
   (let! tmp1 := UA.name_occurrences uacc in
    NO.fold_continuations_including_in_trap_actions tmp1 tt
      (fun (_ : unit) cont =>
