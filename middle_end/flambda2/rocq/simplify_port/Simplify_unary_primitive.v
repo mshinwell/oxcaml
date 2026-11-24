@@ -226,6 +226,12 @@ Definition simplify_project_value_slot (function_slot : Function_slot.t)
     match tmp2 with
     | T.Invalid => SPR.create_invalid dacc
     | T.Known_result simple =>
+      (* Owing to the semantics of [Simplify_set_of_closures] when computing the
+         types of value slots -- in particular because it allows depth variables
+         to exist in such types that are not in scope in the body of the
+         function -- we need to ensure that any [Simple] retrieved here from the
+         closure environment is simplified. This will ensure that if it is not
+         in scope, any associated coercion will be erased appropriately. *)
       (* 72-78 *)
       let* simple :=
         let! tmp1 := Simple.coercion simple in
@@ -458,10 +464,33 @@ Definition simplify_is_int (variant_only : bool) (dacc : DA.t)
       SPR.create_unknown dacc result_var K.naked_immediate original_term
     end.
 
-(* 253-282 (the compiler's long comment is not copied). *)
+(* 253-282 *)
 Definition simplify_get_tag (dacc : DA.t) (original_term : Named.t)
     (scrutinee : Simple.t) (scrutinee_ty : T.t) (result_var : Bound_var.t)
     : M SPR.t :=
+  (* CR mshinwell: This is provisional ("for now"). [Get_tag] reads the header
+     of its argument, so here it is made [Invalid] when the argument is known to
+     be a tagged immediate: a constant, or a name whose type has no blocks.
+     Nothing changes when the argument may be a block.
+
+     Code using GADTs puts [Get_tag] of an immediate in branches that are never
+     executed (a match on a variant with no constant constructors, in a function
+     inlined where the GADT's index is a type of immediates): see
+     testsuite/tests/flambda2/simplify/get_tag_of_immediate.ml. Before this the
+     primitive was left in the term when the argument was a constant, and when
+     its result was used in arithmetic and not in a [Switch]. The Rocq model of
+     Flambda 2 (middle_end/flambda2/rocq) gives [Get_tag] of an immediate no
+     meaning (its decision D5).
+
+     This concerns the primitive only. The [Get_tag] relation that
+     [TE.add_get_tag_relation] records is still recorded on names that may be
+     immediates (unboxing does so, and passes tag 0 where a constant constructor
+     is passed).
+
+     The other primitives that read through their argument and are left in the
+     term when it is an immediate have not been changed: [Get_header],
+     [Block_set], [Block_load] of a mutable field, and the array loads and
+     sets. *)
   let! tmp1 := DA.typing_env dacc in
   let! tmp2 := T.prove_is_int tmp1 scrutinee_ty in
   match tmp2 with
@@ -1377,6 +1406,12 @@ Definition simplify_obj_dup (alloc_region : Variable_.t) (dbg : Debuginfo.t)
       Not_found
       (fun _ =>
         (* 811-847 *)
+        (* Add a projection so we have a variable bound to the contents of the
+           boxed value. This means that when the contents are used directly, e.g.
+           after unboxing of the boxed value, the duplicated block itself can
+           become unused. This might have the effect of moving a projection
+           earlier in the event that it already exists later, but this is probably
+           fine: this operation isn't that common. *)
         let* contents_var :=
           let! tmp1 := T.kind contents_ty in
           Variable_.create None "obj_dup_contents" tmp1
@@ -1584,8 +1619,9 @@ Definition simplify_immutable_block_load0
                   ret (P.Block_kind.Mixed tag shape)
                 end
               in
-              (* 971-973: the compiler's comment on [my_alloc_region] is not
-                 copied. *)
+              (* CR alloc_regions: this uses the function's [my_alloc_region] to
+                 put in the CSE. This deserves testing with zero_alloc functions
+                 to figure out whether this is what we really want. *)
               let* alloc_region := get_my_alloc_region dacc in
               let* prim :=
                 let! tmp1 := Alloc_mode.For_allocations.heap alloc_region in
