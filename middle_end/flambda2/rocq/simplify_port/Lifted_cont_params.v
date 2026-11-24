@@ -35,8 +35,9 @@ Record t : Type :=
     new_params_indexed : BP.Map.t BP.t
   }.
 
-(* 23-25. PORT-GAP(loose): the record pattern of the parameter is a match,
-   here and at [is_empty], [length] and [fold_aux]. *)
+(* 23-25 *)
+(* PORT-GAP(loose): the record pattern of the parameter is a match, here and
+   at [is_empty], [length] and [fold_aux]. *)
 Definition print (ppf : Format.formatter) (t : Lifted_cont_params.t) : M unit :=
   match t with
   | {| len := _; new_params_indexed := new_params_indexed |} =>
@@ -124,6 +125,14 @@ Fixpoint find_arg (bp : BP.t) (l : list Lifted_cont_params.t) : M Simple.t :=
     end
   end.
 
+(* NOTE about the order of the returned args/params for the {args} and
+   {bound_parameters} functions: The exact order does not matter as long as both
+   functions return params (or their corresponding arguments) **in the same
+   order**.
+
+   The current implementations return the parameters/arguments in the reverse
+   order of the bindings in the Map, but that's fine since it is the case for
+   both functions. *)
 (* 82-84. In the compiler: [fold_aux callee_lifted_params ~init:[] ~f]. *)
 Definition args (callee_lifted_params : Lifted_cont_params.t)
     (caller_stack_lifted_params : list Lifted_cont_params.t)
