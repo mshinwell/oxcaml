@@ -126,7 +126,12 @@ Definition loopify_decision_for_call (dacc : DA.t) (apply : Apply.t)
        is not true for a function being loopified since an apply_expr can be
        turned into an apply_cont pointing to the `self` continuation, which is
        missing from the Flow Accumulator. Therefore, during speculative inlining
-       (and thus when we are not rebuilding terms), we disable loopification. *)
+       (and thus when we are not rebuilding terms), we disable loopification.
+
+       CR gbury: even if we do not perform the loopification during speculative
+       inlining, we actually do it when rebuilding the term for real. We could
+       continue to not loopify during speculation, but nevertheless try and
+       count the benefit of the loopification (but it may be a bit hack-ish). *)
     ret Loopify_state.do_not_loopify
   else
     let! tmp3 := DE.closure_info denv in
@@ -310,6 +315,15 @@ Definition rebuild_apply (simplified_apply : Simplified_expr.simplified_apply_)
       apply
   in
   let& erase_callee := false in
+  (* CR ncourant: find out how we can erase the callee in simplify mode and
+      still update to newer code pointers after resimplification. *)
+  (* let erase_callee =
+    *   match Apply.callee apply with
+    *   | None -> false
+    *   | Some callee ->
+    *     Simple.is_symbol callee
+    *     && not (Code_metadata.is_my_closure_used callee's_code_metadata)
+    * in *)
   let* apply := if erase_callee then Apply.erase_callee apply else ret apply in
   let* '(uacc, expr) :=
     let! tmp1 := Flambda_arity.unarize_t result_arity in
@@ -586,7 +600,11 @@ Definition simplify_direct_full_application
 Inductive applied_value_ : Type :=
 | Const (const : Reg_width_const.t)
 | Symbol (symbol : Symbol.t)
-| In_closure (var : Variable_.t) (value : Simple.t) (value_slot : Value_slot.t).
+| In_closure (var : Variable_.t)
+    (* name to bind to projected variable *)
+    (value : Simple.t)
+    (* value to store in closure *)
+    (value_slot : Value_slot.t).
 Extract Inductive applied_value_ => "applied_value" [ "Const" "Symbol" "(fun (x__1, x__2, x__3) -> In_closure { var = x__1; value = x__2; value_slot = x__3 })" ] "(fun f__1 f__2 f__3 x__0 -> match x__0 with Const x__1 -> f__1 x__1 | Symbol x__1 -> f__2 x__1 | In_closure { var = x__1; value = x__2; value_slot = x__3 } -> f__3 x__1 x__2 x__3)".
 Definition applied_value : Type := applied_value_.
 Extract Constant applied_value => "| Const of Reg_width_const.t | Symbol of Symbol.t | In_closure of { var : Variable.t; value : Simple.t; value_slot : Value_slot.t }".
@@ -1293,6 +1311,11 @@ Definition simplify_direct_function_call
       (Flambda.Invalid.Closure_type_was_invalid apply)
   | Or_bottom.Ok callee's_code_ids =>
     let* '(callee's_code_id, callee's_code_metadata) :=
+      (* XXX: go to indirect_known_arity if there are multiple code ids even
+         with the types.
+
+         bclement: We need to be careful not to prevent inlining by doing
+         this. *)
       let! tmp1 := Code_id.Set_.get_singleton callee's_code_ids in
       match tmp1 with
       | None =>
