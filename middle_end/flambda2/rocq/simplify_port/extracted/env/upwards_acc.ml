@@ -20,18 +20,18 @@
    edit this file: change the .v file and run make in
    middle_end/flambda2/rocq/simplify_port. *)
 
+open Port_monad
 module ART = Are_rebuilding_terms
 module DA = Downwards_acc
 module DE = Downwards_env
 module LCS = Lifted_constant_state
 module TE = Flambda2_types.Typing_env
 module UE = Upwards_env
-open Port_monad
 
 type t =
-  { uenv : Upwards_env.t;
-    creation_dacc : Downwards_acc.t;
-    lifted_constants : Lifted_constant_state.t;
+  { uenv : UE.t;
+    creation_dacc : DA.t;
+    lifted_constants : LCS.t;
     all_code : Exported_code.t;
     name_occurrences : Name_occurrences.t;
     cost_metrics : Cost_metrics.t;
@@ -40,15 +40,15 @@ type t =
     resimplify : bool
   }
 
-(** val uenv : t -> Upwards_env.t **)
+(** val uenv : t -> UE.t **)
 
 let uenv t0 = t0.uenv
 
-(** val creation_dacc : t -> Downwards_acc.t **)
+(** val creation_dacc : t -> DA.t **)
 
 let creation_dacc t0 = t0.creation_dacc
 
-(** val lifted_constants : t -> Lifted_constant_state.t **)
+(** val lifted_constants : t -> LCS.t **)
 
 let lifted_constants t0 = t0.lifted_constants
 
@@ -95,8 +95,8 @@ let print ppf t0 =
     "@[<hov 1>(@[<hov 1>(uenv@ %a)@]@ @[<hov 1>(lifted_constants@ %a)@]@ \
      @[<hov 1>(name_occurrences@ %a)@]@ @[<hov 1>(cost_metrics@ %a)@]@ @[<hov \
      1>(slot_offsets@ %a@)@]@ @[<hov 1>(flow_result@ %a)@]%a)@]"
-    Upwards_env.print uenv0 Lifted_constant_state.print lifted_constants0
-    Name_occurrences.print name_occurrences0 Cost_metrics.print cost_metrics0
+    UE.print uenv0 LCS.print lifted_constants0 Name_occurrences.print
+    name_occurrences0 Cost_metrics.print cost_metrics0
     (Or_unknown.print Slot_offsets.print)
     slot_offsets0 Flow_types.Flow_result.print flow_result0
     (if resimplify0
@@ -104,8 +104,7 @@ let print ppf t0 =
      else fun _ _ -> ())
     ()
 
-(** val create : Flow_types.Flow_result.t -> bool -> Upwards_env.t ->
-    Downwards_acc.t -> t coq_M **)
+(** val create : Flow_types.Flow_result.t -> bool -> UE.t -> DA.t -> t coq_M **)
 
 let create flow_result0 compute_slot_offsets uenv0 dacc =
   let slot_offsets0 =
@@ -115,7 +114,7 @@ let create flow_result0 compute_slot_offsets uenv0 dacc =
   in
   { uenv = uenv0;
     creation_dacc = dacc;
-    lifted_constants = Lifted_constant_state.empty;
+    lifted_constants = LCS.empty;
     all_code = Exported_code.empty;
     name_occurrences = Name_occurrences.empty;
     cost_metrics = Cost_metrics.zero;
@@ -126,16 +125,12 @@ let create flow_result0 compute_slot_offsets uenv0 dacc =
 
 (** val code_age_relation : t -> Flambda2_types.Code_age_relation.t coq_M **)
 
-let code_age_relation t0 =
-  Flambda2_types.Typing_env.code_age_relation
-    (Downwards_acc.typing_env t0.creation_dacc)
+let code_age_relation t0 = TE.code_age_relation (DA.typing_env t0.creation_dacc)
 
-(** val get_and_clear_lifted_constants : t -> (t * Lifted_constant_state.t)
-    coq_M **)
+(** val get_and_clear_lifted_constants : t -> (t * LCS.t) coq_M **)
 
 let get_and_clear_lifted_constants t0 =
-  ( (fun t lifted_constants -> { t with lifted_constants })
-      t0 Lifted_constant_state.empty,
+  ( (fun t lifted_constants -> { t with lifted_constants }) t0 LCS.empty,
     t0.lifted_constants )
 
 (** val add_lifted_constant : t -> Lifted_constant.t -> t coq_M **)
@@ -143,40 +138,38 @@ let get_and_clear_lifted_constants t0 =
 let add_lifted_constant t0 const =
   (fun t lifted_constants -> { t with lifted_constants })
     t0
-    (Lifted_constant_state.add t0.lifted_constants const)
+    (LCS.add t0.lifted_constants const)
 
-(** val are_rebuilding_terms : t -> Are_rebuilding_terms.t coq_M **)
+(** val are_rebuilding_terms : t -> ART.t coq_M **)
 
-let are_rebuilding_terms t0 =
-  Downwards_env.are_rebuilding_terms (Downwards_acc.denv t0.creation_dacc)
+let are_rebuilding_terms t0 = DE.are_rebuilding_terms (DA.denv t0.creation_dacc)
 
-(** val with_lifted_constants : t -> Lifted_constant_state.t -> t coq_M **)
+(** val with_lifted_constants : t -> LCS.t -> t coq_M **)
 
 let with_lifted_constants =
  fun t lifted_constants -> { t with lifted_constants }
 
 (** val no_lifted_constants : t -> bool coq_M **)
 
-let no_lifted_constants t0 = Lifted_constant_state.is_empty t0.lifted_constants
+let no_lifted_constants t0 = LCS.is_empty t0.lifted_constants
 
-(** val map_uenv : t -> (Upwards_env.t -> Upwards_env.t coq_M) -> t coq_M **)
+(** val map_uenv : t -> (UE.t -> UE.t coq_M) -> t coq_M **)
 
 let map_uenv t0 f = (fun t uenv -> { t with uenv }) t0 (f t0.uenv)
 
-(** val with_uenv : t -> Upwards_env.t -> t coq_M **)
+(** val with_uenv : t -> UE.t -> t coq_M **)
 
 let with_uenv = fun t uenv -> { t with uenv }
 
 (** val remember_code_for_cmx : t -> Code.t Code_id.Map.t -> t coq_M **)
 
 let remember_code_for_cmx t0 code =
-  if Are_rebuilding_terms.do_not_rebuild_terms (are_rebuilding_terms t0)
+  if ART.do_not_rebuild_terms (are_rebuilding_terms t0)
   then t0
   else
     let keep_code =
      fun code_id ->
-      Code_id.Set.mem code_id
-        (Downwards_acc.code_ids_to_remember t0.creation_dacc)
+      Code_id.Set.mem code_id (DA.code_ids_to_remember t0.creation_dacc)
     in
     let all_code0 = Exported_code.add_code keep_code code t0.all_code in
     (fun t all_code -> { t with all_code }) t0 all_code0
@@ -203,11 +196,11 @@ let add_free_names t0 free_names =
 
 (** val used_value_slots : t -> Name_occurrences.t coq_M **)
 
-let used_value_slots t0 = Downwards_acc.used_value_slots t0.creation_dacc
+let used_value_slots t0 = DA.used_value_slots t0.creation_dacc
 
 (** val shareable_constants : t -> Symbol.t Static_const.Map.t coq_M **)
 
-let shareable_constants t0 = Downwards_acc.shareable_constants t0.creation_dacc
+let shareable_constants t0 = DA.shareable_constants t0.creation_dacc
 
 (** val remove_all_occurrences_of_free_names : t -> Name_occurrences.t -> t
     coq_M **)
@@ -261,13 +254,12 @@ let add_cost_metrics_and_with_name_occurrences t0 cost_metrics0
 (** val generate_phantom_lets : t -> bool coq_M **)
 
 let generate_phantom_lets t0 =
-  Downwards_env.generate_phantom_lets (Downwards_acc.denv t0.creation_dacc)
+  DE.generate_phantom_lets (DA.denv t0.creation_dacc)
 
 (** val is_demoted_exn_handler : t -> Continuation.t -> bool coq_M **)
 
 let is_demoted_exn_handler t0 cont =
-  Continuation.Set.mem cont
-    (Downwards_acc.demoted_exn_handlers t0.creation_dacc)
+  Continuation.Set.mem cont (DA.demoted_exn_handlers t0.creation_dacc)
 
 (** val with_slot_offsets : t -> Slot_offsets.t Or_unknown.t -> t coq_M **)
 
@@ -304,4 +296,4 @@ let set_resimplify t0 = (fun t resimplify -> { t with resimplify }) t0 true
 (** val specialization_map : t -> Continuation.t Apply_cont_rewrite_id.Map.t
     Continuation.Map.t coq_M **)
 
-let specialization_map t0 = Downwards_acc.specialization_map t0.creation_dacc
+let specialization_map t0 = DA.specialization_map t0.creation_dacc

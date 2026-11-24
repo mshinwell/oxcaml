@@ -31,25 +31,19 @@ Local Open Scope string_scope.
 Local Open Scope Z_scope.
 Local Open Scope list_scope.
 
-(* PORT-GAP(verbatim): 17-22, the six abbreviations of modules are the
-   compiler's text, and the Rocq text below writes the modules' own names.
-   As Rocq modules ([Module DA := Downwards_acc.]) they make Rocq write an
-   [open] line for each of them and for what they name, and such a line can
-   hide a module that the rest of the extracted file names. *)
-(*OCAML
-module ART = Are_rebuilding_terms
-module DA = Downwards_acc
-module DE = Downwards_env
-module LCS = Lifted_constant_state
-module TE = Flambda2_types.Typing_env
-module UE = Upwards_env
-OCAML*)
+(* 17-22 *)
+Module ART := Are_rebuilding_terms.
+Module DA := Downwards_acc.
+Module DE := Downwards_env.
+Module LCS := Lifted_constant_state.
+Module TE := Flambda2_types.Typing_env.
+Module UE := Upwards_env.
 
 (* 24-34 *)
 Record t : Type :=
-  { uenv : Upwards_env.t;
-    creation_dacc : Downwards_acc.t;
-    lifted_constants : Lifted_constant_state.t;
+  { uenv : UE.t;
+    creation_dacc : DA.t;
+    lifted_constants : LCS.t;
     all_code : Exported_code.t;
     name_occurrences : Name_occurrences.t;
     cost_metrics : Cost_metrics.t;
@@ -78,9 +72,9 @@ Definition print (ppf : Format.formatter) (t : Upwards_acc.t) : M unit :=
     let! tmp1 := papp1 Or_unknown.print Slot_offsets.print in
     Format.fprintf14 ppf
       "@[<hov 1>(@[<hov 1>(uenv@ %a)@]@ @[<hov 1>(lifted_constants@ %a)@]@ @[<hov 1>(name_occurrences@ %a)@]@ @[<hov 1>(cost_metrics@ %a)@]@ @[<hov 1>(slot_offsets@ %a@)@]@ @[<hov 1>(flow_result@ %a)@]%a)@]"
-      Upwards_env.print uenv Lifted_constant_state.print lifted_constants
-      Name_occurrences.print name_occurrences Cost_metrics.print cost_metrics
-      tmp1 slot_offsets Flow_types.Flow_result.print flow_result
+      UE.print uenv LCS.print lifted_constants Name_occurrences.print
+      name_occurrences Cost_metrics.print cost_metrics tmp1 slot_offsets
+      Flow_types.Flow_result.print flow_result
       (if resimplify
        then
          fun (ppf : Format.formatter) (_ : unit) =>
@@ -91,8 +85,8 @@ Definition print (ppf : Format.formatter) (t : Upwards_acc.t) : M unit :=
 
 (* 60-77 *)
 Definition create (flow_result : Flow_types.Flow_result.t)
-    (compute_slot_offsets : bool) (uenv : Upwards_env.t)
-    (dacc : Downwards_acc.t) : M Upwards_acc.t :=
+    (compute_slot_offsets : bool) (uenv : UE.t) (dacc : DA.t)
+    : M Upwards_acc.t :=
   let& slot_offsets :=
     if compute_slot_offsets
     then Or_unknown.Known Slot_offsets.empty
@@ -101,7 +95,7 @@ Definition create (flow_result : Flow_types.Flow_result.t)
   ret
     {| uenv := uenv;
        creation_dacc := dacc;
-       lifted_constants := Lifted_constant_state.empty;
+       lifted_constants := LCS.empty;
        all_code := Exported_code.empty;
        name_occurrences := Name_occurrences.empty;
        (* [used_value_slots] must be kept separate from the normal free names
@@ -123,12 +117,12 @@ Definition create (flow_result : Flow_types.Flow_result.t)
 (* 83 *)
 Definition code_age_relation (t : Upwards_acc.t)
     : M Flambda2_types.Code_age_relation.t :=
-  let! tmp1 := Downwards_acc.typing_env t.(creation_dacc) in
-  Flambda2_types.Typing_env.code_age_relation tmp1.
+  let! tmp1 := DA.typing_env t.(creation_dacc) in
+  TE.code_age_relation tmp1.
 
 (* PORT-GAP(update): 88, [{ t with lifted_constants }]. *)
 Definition update_lifted_constants (t : Upwards_acc.t)
-    (lifted_constants : Lifted_constant_state.t) : Upwards_acc.t :=
+    (lifted_constants : LCS.t) : Upwards_acc.t :=
   {| uenv := t.(uenv);
      creation_dacc := t.(creation_dacc);
      lifted_constants := lifted_constants;
@@ -144,35 +138,31 @@ Extract Inlined Constant update_lifted_constants =>
 
 (* 87-88 *)
 Definition get_and_clear_lifted_constants (t : Upwards_acc.t)
-    : M (Upwards_acc.t * Lifted_constant_state.t) :=
-  ret
-    (update_lifted_constants t Lifted_constant_state.empty,
-     t.(lifted_constants)).
+    : M (Upwards_acc.t * LCS.t) :=
+  ret (update_lifted_constants t LCS.empty, t.(lifted_constants)).
 
 (* 90-91 *)
 Definition add_lifted_constant (t : Upwards_acc.t) (const : Lifted_constant.t)
     : M Upwards_acc.t :=
-  let! tmp1 := Lifted_constant_state.add t.(lifted_constants) const in
+  let! tmp1 := LCS.add t.(lifted_constants) const in
   ret (update_lifted_constants t tmp1).
 
 (* 95 *)
-Definition are_rebuilding_terms (t : Upwards_acc.t)
-    : M Are_rebuilding_terms.t :=
-  let! tmp1 := Downwards_acc.denv t.(creation_dacc) in
-  Downwards_env.are_rebuilding_terms tmp1.
+Definition are_rebuilding_terms (t : Upwards_acc.t) : M ART.t :=
+  let! tmp1 := DA.denv t.(creation_dacc) in
+  DE.are_rebuilding_terms tmp1.
 
 (* 97 *)
-Definition with_lifted_constants (t : Upwards_acc.t)
-    (lifted_constants : Lifted_constant_state.t) : M Upwards_acc.t :=
+Definition with_lifted_constants (t : Upwards_acc.t) (lifted_constants : LCS.t)
+    : M Upwards_acc.t :=
   ret (update_lifted_constants t lifted_constants).
 
 (* 99 *)
 Definition no_lifted_constants (t : Upwards_acc.t) : M bool :=
-  Lifted_constant_state.is_empty t.(lifted_constants).
+  LCS.is_empty t.(lifted_constants).
 
 (* PORT-GAP(update): 101, [{ t with uenv }]. *)
-Definition update_uenv (t : Upwards_acc.t)
-    (uenv : Upwards_env.t) : Upwards_acc.t :=
+Definition update_uenv (t : Upwards_acc.t) (uenv : UE.t) : Upwards_acc.t :=
   {| uenv := uenv;
      creation_dacc := t.(creation_dacc);
      lifted_constants := t.(lifted_constants);
@@ -187,14 +177,13 @@ Extract Inlined Constant update_uenv =>
   "(fun t uenv -> { t with uenv = uenv })".
 
 (* 101 *)
-Definition map_uenv (t : Upwards_acc.t)
-    (f : Upwards_env.t -> M Upwards_env.t) : M Upwards_acc.t :=
+Definition map_uenv (t : Upwards_acc.t) (f : UE.t -> M UE.t)
+    : M Upwards_acc.t :=
   let! tmp1 := f t.(uenv) in
   ret (update_uenv t tmp1).
 
 (* 103 *)
-Definition with_uenv (t : Upwards_acc.t) (uenv : Upwards_env.t)
-    : M Upwards_acc.t :=
+Definition with_uenv (t : Upwards_acc.t) (uenv : UE.t) : M Upwards_acc.t :=
   ret (update_uenv t uenv).
 
 (* PORT-GAP(update): 113, [{ t with all_code }]. *)
@@ -217,13 +206,13 @@ Extract Inlined Constant update_all_code =>
 Definition remember_code_for_cmx (t : Upwards_acc.t)
     (code : Code_id.Map.t Code.t) : M Upwards_acc.t :=
   let! tmp1 := are_rebuilding_terms t in
-  let! tmp2 := Are_rebuilding_terms.do_not_rebuild_terms tmp1 in
+  let! tmp2 := ART.do_not_rebuild_terms tmp1 in
   if tmp2
   then ret t
   else
     let& keep_code :=
       fun (code_id : Code_id.t) =>
-      let! tmp1 := Downwards_acc.code_ids_to_remember t.(creation_dacc) in
+      let! tmp1 := DA.code_ids_to_remember t.(creation_dacc) in
       Code_id.Set_.mem code_id tmp1
     in
     let* all_code := Exported_code.add_code keep_code code t.(all_code) in
@@ -265,12 +254,12 @@ Definition add_free_names (t : Upwards_acc.t) (free_names : Name_occurrences.t)
 
 (* 131 *)
 Definition used_value_slots (t : Upwards_acc.t) : M Name_occurrences.t :=
-  Downwards_acc.used_value_slots t.(creation_dacc).
+  DA.used_value_slots t.(creation_dacc).
 
 (* 133 *)
 Definition shareable_constants (t : Upwards_acc.t)
     : M (Static_const.Map.t Symbol.t) :=
-  Downwards_acc.shareable_constants t.(creation_dacc).
+  DA.shareable_constants t.(creation_dacc).
 
 (* 135-139 *)
 Definition remove_all_occurrences_of_free_names (t : Upwards_acc.t)
@@ -354,13 +343,13 @@ Definition add_cost_metrics_and_with_name_occurrences (t : Upwards_acc.t)
 
 (* 162 *)
 Definition generate_phantom_lets (t : Upwards_acc.t) : M bool :=
-  let! tmp1 := Downwards_acc.denv t.(creation_dacc) in
-  Downwards_env.generate_phantom_lets tmp1.
+  let! tmp1 := DA.denv t.(creation_dacc) in
+  DE.generate_phantom_lets tmp1.
 
 (* 164-165 *)
 Definition is_demoted_exn_handler (t : Upwards_acc.t) (cont : Continuation.t)
     : M bool :=
-  let! tmp1 := Downwards_acc.demoted_exn_handlers t.(creation_dacc) in
+  let! tmp1 := DA.demoted_exn_handlers t.(creation_dacc) in
   Continuation.Set_.mem cont tmp1.
 
 (* PORT-GAP(update): 169, [{ t with slot_offsets }]. *)
@@ -429,4 +418,4 @@ Definition set_resimplify (t : Upwards_acc.t) : M Upwards_acc.t :=
    [creation_dacc] is the projection. *)
 Definition specialization_map (t : Upwards_acc.t)
     : M (Continuation.Map.t (Apply_cont_rewrite_id.Map.t Continuation.t)) :=
-  Downwards_acc.specialization_map t.(creation_dacc).
+  DA.specialization_map t.(creation_dacc).
