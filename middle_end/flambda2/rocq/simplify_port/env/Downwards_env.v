@@ -18,10 +18,10 @@
    commit ecc5c0d968c892b4312065caef0f19ffffa042a9, definition by definition
    under the compiler's names; the numbers in the comments are the lines of
    that file. What is not from that file: the form (the monad, the
-   temporaries [tmpN] and their order, the arguments by place, every field
-   written where the compiler writes [{ t with ... }]) is that of GUIDE.md;
-   the type [attribute_to_forward] for a tuple with a label; the names of
-   the values that the form must name. No proof. *)
+   temporaries [tmpN] and their order, the arguments by place, a setter
+   [update_...] where the compiler writes [{ t with ... }]) is that of
+   GUIDE.md; the type [attribute_to_forward] for a tuple with a label; the
+   names of the values that the form must name. No proof. *)
 
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Alloc_mode Apply_cont_rewrite_id Apply_expr
@@ -352,6 +352,41 @@ Definition print (ppf : Format.formatter) (t : Downwards_env.t) : M unit :=
         tmp9; tmp8; tmp7; tmp5; tmp3; tmp2; tmp1 ]
   end.
 
+(* PORT-GAP(update): 194, 782 and 887-890, [{ t with replay_history }]. *)
+Definition update_replay_history (t : Downwards_env.t)
+    (replay_history : Replay_history.t) : Downwards_env.t :=
+  {| round := t.(round); machine_width := t.(machine_width);
+     typing_env := t.(typing_env); inlined_debuginfo := t.(inlined_debuginfo);
+     disable_inlining := t.(disable_inlining);
+     disable_partial_application_stub_generation :=
+       t.(disable_partial_application_stub_generation);
+     inlined_attribute_to_forward := t.(inlined_attribute_to_forward);
+     inlining_state := t.(inlining_state);
+     propagating_float_consts := t.(propagating_float_consts);
+     at_unit_toplevel := t.(at_unit_toplevel);
+     unit_toplevel_return_continuation :=
+       t.(unit_toplevel_return_continuation);
+     unit_toplevel_exn_continuation := t.(unit_toplevel_exn_continuation);
+     unit_toplevel_alloc_region := t.(unit_toplevel_alloc_region);
+     variables_defined_at_toplevel := t.(variables_defined_at_toplevel);
+     cse := t.(cse); comparison_results := t.(comparison_results);
+     are_rebuilding_terms := t.(are_rebuilding_terms);
+     closure_info := t.(closure_info);
+     get_imported_code := t.(get_imported_code); all_code := t.(all_code);
+     inlining_history_tracker := t.(inlining_history_tracker);
+     loopify_state := t.(loopify_state); replay_history := replay_history;
+     specialization_cost := t.(specialization_cost);
+     join_analysis := t.(join_analysis);
+     defined_variables_by_scope := t.(defined_variables_by_scope);
+     lifted := t.(lifted);
+     cost_of_lifting_continuations_out_of_current_one :=
+       t.(cost_of_lifting_continuations_out_of_current_one);
+     has_seen_a_non_liftable_continuation :=
+       t.(has_seen_a_non_liftable_continuation);
+     is_cold := t.(is_cold) |}.
+Extract Inlined Constant update_replay_history =>
+  "(fun t x__1 -> { t with replay_history = x__1 })".
+
 (* 190-194. In the compiler: [~can_be_lifted t conts]. *)
 Definition define_continuations (can_be_lifted : bool) (t : Downwards_env.t)
     (conts : list Continuation.t) : M Downwards_env.t :=
@@ -359,47 +394,50 @@ Definition define_continuations (can_be_lifted : bool) (t : Downwards_env.t)
     Replay_history.define_continuations can_be_lifted conts
       t.(Downwards_env.replay_history)
   in
-  ret
-    {| round := t.(Downwards_env.round);
-       machine_width := t.(Downwards_env.machine_width);
-       typing_env := t.(Downwards_env.typing_env);
-       inlined_debuginfo := t.(Downwards_env.inlined_debuginfo);
-       disable_inlining := t.(Downwards_env.disable_inlining);
-       disable_partial_application_stub_generation :=
-         t.(Downwards_env.disable_partial_application_stub_generation);
-       inlined_attribute_to_forward :=
-         t.(Downwards_env.inlined_attribute_to_forward);
-       inlining_state := t.(Downwards_env.inlining_state);
-       propagating_float_consts := t.(Downwards_env.propagating_float_consts);
-       at_unit_toplevel := t.(Downwards_env.at_unit_toplevel);
-       unit_toplevel_return_continuation :=
-         t.(Downwards_env.unit_toplevel_return_continuation);
-       unit_toplevel_exn_continuation :=
-         t.(Downwards_env.unit_toplevel_exn_continuation);
-       unit_toplevel_alloc_region :=
-         t.(Downwards_env.unit_toplevel_alloc_region);
-       variables_defined_at_toplevel :=
-         t.(Downwards_env.variables_defined_at_toplevel);
-       cse := t.(Downwards_env.cse);
-       comparison_results := t.(Downwards_env.comparison_results);
-       are_rebuilding_terms := t.(Downwards_env.are_rebuilding_terms);
-       closure_info := t.(Downwards_env.closure_info);
-       get_imported_code := t.(Downwards_env.get_imported_code);
-       all_code := t.(Downwards_env.all_code);
-       inlining_history_tracker := t.(Downwards_env.inlining_history_tracker);
-       loopify_state := t.(Downwards_env.loopify_state);
-       replay_history := replay_history;
-       specialization_cost := t.(Downwards_env.specialization_cost);
-       join_analysis := t.(Downwards_env.join_analysis);
-       defined_variables_by_scope :=
-         t.(Downwards_env.defined_variables_by_scope);
-       lifted := t.(Downwards_env.lifted);
-       cost_of_lifting_continuations_out_of_current_one :=
-         t.(Downwards_env.cost_of_lifting_continuations_out_of_current_one);
-       has_seen_a_non_liftable_continuation :=
-         t.(Downwards_env.has_seen_a_non_liftable_continuation);
-       is_cold := t.(Downwards_env.is_cold)
-    |}.
+  ret (update_replay_history t replay_history).
+
+(* PORT-GAP(update): 227-232, [{ t with typing_env; replay_history;
+   variables_defined_at_toplevel; defined_variables_by_scope }]. *)
+Definition update_typing_env_replay_history_variables_defined_at_toplevel_defined_variables_by_scope
+    (t : Downwards_env.t) (typing_env : Flambda2_types.Typing_env.t)
+    (replay_history : Replay_history.t)
+    (variables_defined_at_toplevel : Variable_.Set_.t)
+    (defined_variables_by_scope : list Lifted_cont_params.t)
+    : Downwards_env.t :=
+  {| round := t.(round); machine_width := t.(machine_width);
+     typing_env := typing_env; inlined_debuginfo := t.(inlined_debuginfo);
+     disable_inlining := t.(disable_inlining);
+     disable_partial_application_stub_generation :=
+       t.(disable_partial_application_stub_generation);
+     inlined_attribute_to_forward := t.(inlined_attribute_to_forward);
+     inlining_state := t.(inlining_state);
+     propagating_float_consts := t.(propagating_float_consts);
+     at_unit_toplevel := t.(at_unit_toplevel);
+     unit_toplevel_return_continuation :=
+       t.(unit_toplevel_return_continuation);
+     unit_toplevel_exn_continuation := t.(unit_toplevel_exn_continuation);
+     unit_toplevel_alloc_region := t.(unit_toplevel_alloc_region);
+     variables_defined_at_toplevel := variables_defined_at_toplevel;
+     cse := t.(cse); comparison_results := t.(comparison_results);
+     are_rebuilding_terms := t.(are_rebuilding_terms);
+     closure_info := t.(closure_info);
+     get_imported_code := t.(get_imported_code); all_code := t.(all_code);
+     inlining_history_tracker := t.(inlining_history_tracker);
+     loopify_state := t.(loopify_state); replay_history := replay_history;
+     specialization_cost := t.(specialization_cost);
+     join_analysis := t.(join_analysis);
+     defined_variables_by_scope := defined_variables_by_scope;
+     lifted := t.(lifted);
+     cost_of_lifting_continuations_out_of_current_one :=
+       t.(cost_of_lifting_continuations_out_of_current_one);
+     has_seen_a_non_liftable_continuation :=
+       t.(has_seen_a_non_liftable_continuation);
+     is_cold := t.(is_cold) |}.
+Extract Inlined Constant update_typing_env_replay_history_variables_defined_at_toplevel_defined_variables_by_scope =>
+  "(fun t x__1 x__2 x__3 x__4 ->
+     { t with typing_env = x__1; replay_history = x__2;
+       variables_defined_at_toplevel = x__3;
+       defined_variables_by_scope = x__4 })".
 
 (* 196-232. In the compiler: [~extra t var kind]. *)
 Definition define_variable0 (extra : bool) (t : Downwards_env.t)
@@ -449,44 +487,9 @@ Definition define_variable0 (extra : bool) (t : Downwards_env.t)
     else ret t.(Downwards_env.variables_defined_at_toplevel)
   in
   ret
-    {| round := t.(Downwards_env.round);
-       machine_width := t.(Downwards_env.machine_width);
-       typing_env := typing_env;
-       inlined_debuginfo := t.(Downwards_env.inlined_debuginfo);
-       disable_inlining := t.(Downwards_env.disable_inlining);
-       disable_partial_application_stub_generation :=
-         t.(Downwards_env.disable_partial_application_stub_generation);
-       inlined_attribute_to_forward :=
-         t.(Downwards_env.inlined_attribute_to_forward);
-       inlining_state := t.(Downwards_env.inlining_state);
-       propagating_float_consts := t.(Downwards_env.propagating_float_consts);
-       at_unit_toplevel := t.(Downwards_env.at_unit_toplevel);
-       unit_toplevel_return_continuation :=
-         t.(Downwards_env.unit_toplevel_return_continuation);
-       unit_toplevel_exn_continuation :=
-         t.(Downwards_env.unit_toplevel_exn_continuation);
-       unit_toplevel_alloc_region :=
-         t.(Downwards_env.unit_toplevel_alloc_region);
-       variables_defined_at_toplevel := variables_defined_at_toplevel;
-       cse := t.(Downwards_env.cse);
-       comparison_results := t.(Downwards_env.comparison_results);
-       are_rebuilding_terms := t.(Downwards_env.are_rebuilding_terms);
-       closure_info := t.(Downwards_env.closure_info);
-       get_imported_code := t.(Downwards_env.get_imported_code);
-       all_code := t.(Downwards_env.all_code);
-       inlining_history_tracker := t.(Downwards_env.inlining_history_tracker);
-       loopify_state := t.(Downwards_env.loopify_state);
-       replay_history := replay_history;
-       specialization_cost := t.(Downwards_env.specialization_cost);
-       join_analysis := t.(Downwards_env.join_analysis);
-       defined_variables_by_scope := defined_variables_by_scope;
-       lifted := t.(Downwards_env.lifted);
-       cost_of_lifting_continuations_out_of_current_one :=
-         t.(Downwards_env.cost_of_lifting_continuations_out_of_current_one);
-       has_seen_a_non_liftable_continuation :=
-         t.(Downwards_env.has_seen_a_non_liftable_continuation);
-       is_cold := t.(Downwards_env.is_cold)
-    |}.
+    (update_typing_env_replay_history_variables_defined_at_toplevel_defined_variables_by_scope
+       t typing_env replay_history variables_defined_at_toplevel
+       defined_variables_by_scope).
 
 (* 234-235 *)
 (* PORT-GAP(loose): the attribute [@inlined hint] is not kept, here and at
@@ -564,50 +567,45 @@ Definition resolver (t : Downwards_env.t) : M resolver_ :=
 Definition get_continuation_scope (t : Downwards_env.t) : M Scope.t :=
   Flambda2_types.Typing_env.current_scope t.(Downwards_env.typing_env).
 
+(* PORT-GAP(update): 307, [{ t with at_unit_toplevel }]. *)
+Definition update_at_unit_toplevel (t : Downwards_env.t)
+    (at_unit_toplevel : bool) : Downwards_env.t :=
+  {| round := t.(round); machine_width := t.(machine_width);
+     typing_env := t.(typing_env); inlined_debuginfo := t.(inlined_debuginfo);
+     disable_inlining := t.(disable_inlining);
+     disable_partial_application_stub_generation :=
+       t.(disable_partial_application_stub_generation);
+     inlined_attribute_to_forward := t.(inlined_attribute_to_forward);
+     inlining_state := t.(inlining_state);
+     propagating_float_consts := t.(propagating_float_consts);
+     at_unit_toplevel := at_unit_toplevel;
+     unit_toplevel_return_continuation :=
+       t.(unit_toplevel_return_continuation);
+     unit_toplevel_exn_continuation := t.(unit_toplevel_exn_continuation);
+     unit_toplevel_alloc_region := t.(unit_toplevel_alloc_region);
+     variables_defined_at_toplevel := t.(variables_defined_at_toplevel);
+     cse := t.(cse); comparison_results := t.(comparison_results);
+     are_rebuilding_terms := t.(are_rebuilding_terms);
+     closure_info := t.(closure_info);
+     get_imported_code := t.(get_imported_code); all_code := t.(all_code);
+     inlining_history_tracker := t.(inlining_history_tracker);
+     loopify_state := t.(loopify_state); replay_history := t.(replay_history);
+     specialization_cost := t.(specialization_cost);
+     join_analysis := t.(join_analysis);
+     defined_variables_by_scope := t.(defined_variables_by_scope);
+     lifted := t.(lifted);
+     cost_of_lifting_continuations_out_of_current_one :=
+       t.(cost_of_lifting_continuations_out_of_current_one);
+     has_seen_a_non_liftable_continuation :=
+       t.(has_seen_a_non_liftable_continuation);
+     is_cold := t.(is_cold) |}.
+Extract Inlined Constant update_at_unit_toplevel =>
+  "(fun t x__1 -> { t with at_unit_toplevel = x__1 })".
+
 (* 307 *)
 Definition set_at_unit_toplevel_state (t : Downwards_env.t)
     (at_unit_toplevel : bool) : M Downwards_env.t :=
-  ret
-    {| round := t.(Downwards_env.round);
-       machine_width := t.(Downwards_env.machine_width);
-       typing_env := t.(Downwards_env.typing_env);
-       inlined_debuginfo := t.(Downwards_env.inlined_debuginfo);
-       disable_inlining := t.(Downwards_env.disable_inlining);
-       disable_partial_application_stub_generation :=
-         t.(Downwards_env.disable_partial_application_stub_generation);
-       inlined_attribute_to_forward :=
-         t.(Downwards_env.inlined_attribute_to_forward);
-       inlining_state := t.(Downwards_env.inlining_state);
-       propagating_float_consts := t.(Downwards_env.propagating_float_consts);
-       at_unit_toplevel := at_unit_toplevel;
-       unit_toplevel_return_continuation :=
-         t.(Downwards_env.unit_toplevel_return_continuation);
-       unit_toplevel_exn_continuation :=
-         t.(Downwards_env.unit_toplevel_exn_continuation);
-       unit_toplevel_alloc_region :=
-         t.(Downwards_env.unit_toplevel_alloc_region);
-       variables_defined_at_toplevel :=
-         t.(Downwards_env.variables_defined_at_toplevel);
-       cse := t.(Downwards_env.cse);
-       comparison_results := t.(Downwards_env.comparison_results);
-       are_rebuilding_terms := t.(Downwards_env.are_rebuilding_terms);
-       closure_info := t.(Downwards_env.closure_info);
-       get_imported_code := t.(Downwards_env.get_imported_code);
-       all_code := t.(Downwards_env.all_code);
-       inlining_history_tracker := t.(Downwards_env.inlining_history_tracker);
-       loopify_state := t.(Downwards_env.loopify_state);
-       replay_history := t.(Downwards_env.replay_history);
-       specialization_cost := t.(Downwards_env.specialization_cost);
-       join_analysis := t.(Downwards_env.join_analysis);
-       defined_variables_by_scope :=
-         t.(Downwards_env.defined_variables_by_scope);
-       lifted := t.(Downwards_env.lifted);
-       cost_of_lifting_continuations_out_of_current_one :=
-         t.(Downwards_env.cost_of_lifting_continuations_out_of_current_one);
-       has_seen_a_non_liftable_continuation :=
-         t.(Downwards_env.has_seen_a_non_liftable_continuation);
-       is_cold := t.(Downwards_env.is_cold)
-    |}.
+  ret (update_at_unit_toplevel t at_unit_toplevel).
 
 (* 309-310 *)
 Definition is_defined_at_toplevel (t : Downwards_env.t) (var : Variable_.t)
@@ -618,101 +616,128 @@ Definition is_defined_at_toplevel (t : Downwards_env.t) (var : Variable_.t)
 Definition get_inlining_state (t : Downwards_env.t) : M Inlining_state.t :=
   ret t.(Downwards_env.inlining_state).
 
+(* PORT-GAP(update): 316 and 663-665, [{ t with inlining_state }]. *)
+Definition update_inlining_state (t : Downwards_env.t)
+    (inlining_state : Inlining_state.t) : Downwards_env.t :=
+  {| round := t.(round); machine_width := t.(machine_width);
+     typing_env := t.(typing_env); inlined_debuginfo := t.(inlined_debuginfo);
+     disable_inlining := t.(disable_inlining);
+     disable_partial_application_stub_generation :=
+       t.(disable_partial_application_stub_generation);
+     inlined_attribute_to_forward := t.(inlined_attribute_to_forward);
+     inlining_state := inlining_state;
+     propagating_float_consts := t.(propagating_float_consts);
+     at_unit_toplevel := t.(at_unit_toplevel);
+     unit_toplevel_return_continuation :=
+       t.(unit_toplevel_return_continuation);
+     unit_toplevel_exn_continuation := t.(unit_toplevel_exn_continuation);
+     unit_toplevel_alloc_region := t.(unit_toplevel_alloc_region);
+     variables_defined_at_toplevel := t.(variables_defined_at_toplevel);
+     cse := t.(cse); comparison_results := t.(comparison_results);
+     are_rebuilding_terms := t.(are_rebuilding_terms);
+     closure_info := t.(closure_info);
+     get_imported_code := t.(get_imported_code); all_code := t.(all_code);
+     inlining_history_tracker := t.(inlining_history_tracker);
+     loopify_state := t.(loopify_state); replay_history := t.(replay_history);
+     specialization_cost := t.(specialization_cost);
+     join_analysis := t.(join_analysis);
+     defined_variables_by_scope := t.(defined_variables_by_scope);
+     lifted := t.(lifted);
+     cost_of_lifting_continuations_out_of_current_one :=
+       t.(cost_of_lifting_continuations_out_of_current_one);
+     has_seen_a_non_liftable_continuation :=
+       t.(has_seen_a_non_liftable_continuation);
+     is_cold := t.(is_cold) |}.
+Extract Inlined Constant update_inlining_state =>
+  "(fun t x__1 -> { t with inlining_state = x__1 })".
+
 (* 316 *)
 Definition set_inlining_state (t : Downwards_env.t)
     (inlining_state : Inlining_state.t) : M Downwards_env.t :=
-  ret
-    {| round := t.(Downwards_env.round);
-       machine_width := t.(Downwards_env.machine_width);
-       typing_env := t.(Downwards_env.typing_env);
-       inlined_debuginfo := t.(Downwards_env.inlined_debuginfo);
-       disable_inlining := t.(Downwards_env.disable_inlining);
-       disable_partial_application_stub_generation :=
-         t.(Downwards_env.disable_partial_application_stub_generation);
-       inlined_attribute_to_forward :=
-         t.(Downwards_env.inlined_attribute_to_forward);
-       inlining_state := inlining_state;
-       propagating_float_consts := t.(Downwards_env.propagating_float_consts);
-       at_unit_toplevel := t.(Downwards_env.at_unit_toplevel);
-       unit_toplevel_return_continuation :=
-         t.(Downwards_env.unit_toplevel_return_continuation);
-       unit_toplevel_exn_continuation :=
-         t.(Downwards_env.unit_toplevel_exn_continuation);
-       unit_toplevel_alloc_region :=
-         t.(Downwards_env.unit_toplevel_alloc_region);
-       variables_defined_at_toplevel :=
-         t.(Downwards_env.variables_defined_at_toplevel);
-       cse := t.(Downwards_env.cse);
-       comparison_results := t.(Downwards_env.comparison_results);
-       are_rebuilding_terms := t.(Downwards_env.are_rebuilding_terms);
-       closure_info := t.(Downwards_env.closure_info);
-       get_imported_code := t.(Downwards_env.get_imported_code);
-       all_code := t.(Downwards_env.all_code);
-       inlining_history_tracker := t.(Downwards_env.inlining_history_tracker);
-       loopify_state := t.(Downwards_env.loopify_state);
-       replay_history := t.(Downwards_env.replay_history);
-       specialization_cost := t.(Downwards_env.specialization_cost);
-       join_analysis := t.(Downwards_env.join_analysis);
-       defined_variables_by_scope :=
-         t.(Downwards_env.defined_variables_by_scope);
-       lifted := t.(Downwards_env.lifted);
-       cost_of_lifting_continuations_out_of_current_one :=
-         t.(Downwards_env.cost_of_lifting_continuations_out_of_current_one);
-       has_seen_a_non_liftable_continuation :=
-         t.(Downwards_env.has_seen_a_non_liftable_continuation);
-       is_cold := t.(Downwards_env.is_cold)
-    |}.
+  ret (update_inlining_state t inlining_state).
 
 (* 320-321 *)
 Definition relative_history (t : Downwards_env.t)
     : M Inlining_history.Relative.t :=
   Inlining_history.Tracker.relative t.(Downwards_env.inlining_history_tracker).
 
+(* PORT-GAP(update): 324, [{ t with inlining_history_tracker }]. *)
+Definition update_inlining_history_tracker (t : Downwards_env.t)
+    (inlining_history_tracker : Inlining_history.Tracker.t)
+    : Downwards_env.t :=
+  {| round := t.(round); machine_width := t.(machine_width);
+     typing_env := t.(typing_env); inlined_debuginfo := t.(inlined_debuginfo);
+     disable_inlining := t.(disable_inlining);
+     disable_partial_application_stub_generation :=
+       t.(disable_partial_application_stub_generation);
+     inlined_attribute_to_forward := t.(inlined_attribute_to_forward);
+     inlining_state := t.(inlining_state);
+     propagating_float_consts := t.(propagating_float_consts);
+     at_unit_toplevel := t.(at_unit_toplevel);
+     unit_toplevel_return_continuation :=
+       t.(unit_toplevel_return_continuation);
+     unit_toplevel_exn_continuation := t.(unit_toplevel_exn_continuation);
+     unit_toplevel_alloc_region := t.(unit_toplevel_alloc_region);
+     variables_defined_at_toplevel := t.(variables_defined_at_toplevel);
+     cse := t.(cse); comparison_results := t.(comparison_results);
+     are_rebuilding_terms := t.(are_rebuilding_terms);
+     closure_info := t.(closure_info);
+     get_imported_code := t.(get_imported_code); all_code := t.(all_code);
+     inlining_history_tracker := inlining_history_tracker;
+     loopify_state := t.(loopify_state); replay_history := t.(replay_history);
+     specialization_cost := t.(specialization_cost);
+     join_analysis := t.(join_analysis);
+     defined_variables_by_scope := t.(defined_variables_by_scope);
+     lifted := t.(lifted);
+     cost_of_lifting_continuations_out_of_current_one :=
+       t.(cost_of_lifting_continuations_out_of_current_one);
+     has_seen_a_non_liftable_continuation :=
+       t.(has_seen_a_non_liftable_continuation);
+     is_cold := t.(is_cold) |}.
+Extract Inlined Constant update_inlining_history_tracker =>
+  "(fun t x__1 -> { t with inlining_history_tracker = x__1 })".
+
 (* 323-324 *)
 Definition set_inlining_history_tracker
     (inlining_history_tracker : Inlining_history.Tracker.t)
     (t : Downwards_env.t) : M Downwards_env.t :=
-  ret
-    {| round := t.(Downwards_env.round);
-       machine_width := t.(Downwards_env.machine_width);
-       typing_env := t.(Downwards_env.typing_env);
-       inlined_debuginfo := t.(Downwards_env.inlined_debuginfo);
-       disable_inlining := t.(Downwards_env.disable_inlining);
-       disable_partial_application_stub_generation :=
-         t.(Downwards_env.disable_partial_application_stub_generation);
-       inlined_attribute_to_forward :=
-         t.(Downwards_env.inlined_attribute_to_forward);
-       inlining_state := t.(Downwards_env.inlining_state);
-       propagating_float_consts := t.(Downwards_env.propagating_float_consts);
-       at_unit_toplevel := t.(Downwards_env.at_unit_toplevel);
-       unit_toplevel_return_continuation :=
-         t.(Downwards_env.unit_toplevel_return_continuation);
-       unit_toplevel_exn_continuation :=
-         t.(Downwards_env.unit_toplevel_exn_continuation);
-       unit_toplevel_alloc_region :=
-         t.(Downwards_env.unit_toplevel_alloc_region);
-       variables_defined_at_toplevel :=
-         t.(Downwards_env.variables_defined_at_toplevel);
-       cse := t.(Downwards_env.cse);
-       comparison_results := t.(Downwards_env.comparison_results);
-       are_rebuilding_terms := t.(Downwards_env.are_rebuilding_terms);
-       closure_info := t.(Downwards_env.closure_info);
-       get_imported_code := t.(Downwards_env.get_imported_code);
-       all_code := t.(Downwards_env.all_code);
-       inlining_history_tracker := inlining_history_tracker;
-       loopify_state := t.(Downwards_env.loopify_state);
-       replay_history := t.(Downwards_env.replay_history);
-       specialization_cost := t.(Downwards_env.specialization_cost);
-       join_analysis := t.(Downwards_env.join_analysis);
-       defined_variables_by_scope :=
-         t.(Downwards_env.defined_variables_by_scope);
-       lifted := t.(Downwards_env.lifted);
-       cost_of_lifting_continuations_out_of_current_one :=
-         t.(Downwards_env.cost_of_lifting_continuations_out_of_current_one);
-       has_seen_a_non_liftable_continuation :=
-         t.(Downwards_env.has_seen_a_non_liftable_continuation);
-       is_cold := t.(Downwards_env.is_cold)
-    |}.
+  ret (update_inlining_history_tracker t inlining_history_tracker).
+
+(* PORT-GAP(update): 327, 330, 409, 424-426, 433, 448, 459, 466, 477, 540, 542
+   and 765-767, [{ t with typing_env }]. *)
+Definition update_typing_env (t : Downwards_env.t)
+    (typing_env : Flambda2_types.Typing_env.t) : Downwards_env.t :=
+  {| round := t.(round); machine_width := t.(machine_width);
+     typing_env := typing_env; inlined_debuginfo := t.(inlined_debuginfo);
+     disable_inlining := t.(disable_inlining);
+     disable_partial_application_stub_generation :=
+       t.(disable_partial_application_stub_generation);
+     inlined_attribute_to_forward := t.(inlined_attribute_to_forward);
+     inlining_state := t.(inlining_state);
+     propagating_float_consts := t.(propagating_float_consts);
+     at_unit_toplevel := t.(at_unit_toplevel);
+     unit_toplevel_return_continuation :=
+       t.(unit_toplevel_return_continuation);
+     unit_toplevel_exn_continuation := t.(unit_toplevel_exn_continuation);
+     unit_toplevel_alloc_region := t.(unit_toplevel_alloc_region);
+     variables_defined_at_toplevel := t.(variables_defined_at_toplevel);
+     cse := t.(cse); comparison_results := t.(comparison_results);
+     are_rebuilding_terms := t.(are_rebuilding_terms);
+     closure_info := t.(closure_info);
+     get_imported_code := t.(get_imported_code); all_code := t.(all_code);
+     inlining_history_tracker := t.(inlining_history_tracker);
+     loopify_state := t.(loopify_state); replay_history := t.(replay_history);
+     specialization_cost := t.(specialization_cost);
+     join_analysis := t.(join_analysis);
+     defined_variables_by_scope := t.(defined_variables_by_scope);
+     lifted := t.(lifted);
+     cost_of_lifting_continuations_out_of_current_one :=
+       t.(cost_of_lifting_continuations_out_of_current_one);
+     has_seen_a_non_liftable_continuation :=
+       t.(has_seen_a_non_liftable_continuation);
+     is_cold := t.(is_cold) |}.
+Extract Inlined Constant update_typing_env =>
+  "(fun t x__1 -> { t with typing_env = x__1 })".
 
 (* 326-327 *)
 Definition increment_continuation_scope (t : Downwards_env.t)
@@ -720,47 +745,7 @@ Definition increment_continuation_scope (t : Downwards_env.t)
   let! tmp1 :=
     Flambda2_types.Typing_env.increment_scope t.(Downwards_env.typing_env)
   in
-  ret
-    {| round := t.(Downwards_env.round);
-       machine_width := t.(Downwards_env.machine_width);
-       typing_env := tmp1;
-       inlined_debuginfo := t.(Downwards_env.inlined_debuginfo);
-       disable_inlining := t.(Downwards_env.disable_inlining);
-       disable_partial_application_stub_generation :=
-         t.(Downwards_env.disable_partial_application_stub_generation);
-       inlined_attribute_to_forward :=
-         t.(Downwards_env.inlined_attribute_to_forward);
-       inlining_state := t.(Downwards_env.inlining_state);
-       propagating_float_consts := t.(Downwards_env.propagating_float_consts);
-       at_unit_toplevel := t.(Downwards_env.at_unit_toplevel);
-       unit_toplevel_return_continuation :=
-         t.(Downwards_env.unit_toplevel_return_continuation);
-       unit_toplevel_exn_continuation :=
-         t.(Downwards_env.unit_toplevel_exn_continuation);
-       unit_toplevel_alloc_region :=
-         t.(Downwards_env.unit_toplevel_alloc_region);
-       variables_defined_at_toplevel :=
-         t.(Downwards_env.variables_defined_at_toplevel);
-       cse := t.(Downwards_env.cse);
-       comparison_results := t.(Downwards_env.comparison_results);
-       are_rebuilding_terms := t.(Downwards_env.are_rebuilding_terms);
-       closure_info := t.(Downwards_env.closure_info);
-       get_imported_code := t.(Downwards_env.get_imported_code);
-       all_code := t.(Downwards_env.all_code);
-       inlining_history_tracker := t.(Downwards_env.inlining_history_tracker);
-       loopify_state := t.(Downwards_env.loopify_state);
-       replay_history := t.(Downwards_env.replay_history);
-       specialization_cost := t.(Downwards_env.specialization_cost);
-       join_analysis := t.(Downwards_env.join_analysis);
-       defined_variables_by_scope :=
-         t.(Downwards_env.defined_variables_by_scope);
-       lifted := t.(Downwards_env.lifted);
-       cost_of_lifting_continuations_out_of_current_one :=
-         t.(Downwards_env.cost_of_lifting_continuations_out_of_current_one);
-       has_seen_a_non_liftable_continuation :=
-         t.(Downwards_env.has_seen_a_non_liftable_continuation);
-       is_cold := t.(Downwards_env.is_cold)
-    |}.
+  ret (update_typing_env t tmp1).
 
 (* 329-330 *)
 Definition bump_current_level_scope (t : Downwards_env.t)
@@ -769,93 +754,55 @@ Definition bump_current_level_scope (t : Downwards_env.t)
     Flambda2_types.Typing_env.bump_current_level_scope
       t.(Downwards_env.typing_env)
   in
-  ret
-    {| round := t.(Downwards_env.round);
-       machine_width := t.(Downwards_env.machine_width);
-       typing_env := tmp1;
-       inlined_debuginfo := t.(Downwards_env.inlined_debuginfo);
-       disable_inlining := t.(Downwards_env.disable_inlining);
-       disable_partial_application_stub_generation :=
-         t.(Downwards_env.disable_partial_application_stub_generation);
-       inlined_attribute_to_forward :=
-         t.(Downwards_env.inlined_attribute_to_forward);
-       inlining_state := t.(Downwards_env.inlining_state);
-       propagating_float_consts := t.(Downwards_env.propagating_float_consts);
-       at_unit_toplevel := t.(Downwards_env.at_unit_toplevel);
-       unit_toplevel_return_continuation :=
-         t.(Downwards_env.unit_toplevel_return_continuation);
-       unit_toplevel_exn_continuation :=
-         t.(Downwards_env.unit_toplevel_exn_continuation);
-       unit_toplevel_alloc_region :=
-         t.(Downwards_env.unit_toplevel_alloc_region);
-       variables_defined_at_toplevel :=
-         t.(Downwards_env.variables_defined_at_toplevel);
-       cse := t.(Downwards_env.cse);
-       comparison_results := t.(Downwards_env.comparison_results);
-       are_rebuilding_terms := t.(Downwards_env.are_rebuilding_terms);
-       closure_info := t.(Downwards_env.closure_info);
-       get_imported_code := t.(Downwards_env.get_imported_code);
-       all_code := t.(Downwards_env.all_code);
-       inlining_history_tracker := t.(Downwards_env.inlining_history_tracker);
-       loopify_state := t.(Downwards_env.loopify_state);
-       replay_history := t.(Downwards_env.replay_history);
-       specialization_cost := t.(Downwards_env.specialization_cost);
-       join_analysis := t.(Downwards_env.join_analysis);
-       defined_variables_by_scope :=
-         t.(Downwards_env.defined_variables_by_scope);
-       lifted := t.(Downwards_env.lifted);
-       cost_of_lifting_continuations_out_of_current_one :=
-         t.(Downwards_env.cost_of_lifting_continuations_out_of_current_one);
-       has_seen_a_non_liftable_continuation :=
-         t.(Downwards_env.has_seen_a_non_liftable_continuation);
-       is_cold := t.(Downwards_env.is_cold)
-    |}.
+  ret (update_typing_env t tmp1).
+
+(* PORT-GAP(update): 333-338, [{ t with disable_inlining;
+   disable_partial_application_stub_generation }]. *)
+Definition update_disable_inlining_disable_partial_application_stub_generation
+    (t : Downwards_env.t) (disable_inlining : Disable_inlining.t)
+    (disable_partial_application_stub_generation : bool) : Downwards_env.t :=
+  {| round := t.(round); machine_width := t.(machine_width);
+     typing_env := t.(typing_env); inlined_debuginfo := t.(inlined_debuginfo);
+     disable_inlining := disable_inlining;
+     disable_partial_application_stub_generation :=
+       disable_partial_application_stub_generation;
+     inlined_attribute_to_forward := t.(inlined_attribute_to_forward);
+     inlining_state := t.(inlining_state);
+     propagating_float_consts := t.(propagating_float_consts);
+     at_unit_toplevel := t.(at_unit_toplevel);
+     unit_toplevel_return_continuation :=
+       t.(unit_toplevel_return_continuation);
+     unit_toplevel_exn_continuation := t.(unit_toplevel_exn_continuation);
+     unit_toplevel_alloc_region := t.(unit_toplevel_alloc_region);
+     variables_defined_at_toplevel := t.(variables_defined_at_toplevel);
+     cse := t.(cse); comparison_results := t.(comparison_results);
+     are_rebuilding_terms := t.(are_rebuilding_terms);
+     closure_info := t.(closure_info);
+     get_imported_code := t.(get_imported_code); all_code := t.(all_code);
+     inlining_history_tracker := t.(inlining_history_tracker);
+     loopify_state := t.(loopify_state); replay_history := t.(replay_history);
+     specialization_cost := t.(specialization_cost);
+     join_analysis := t.(join_analysis);
+     defined_variables_by_scope := t.(defined_variables_by_scope);
+     lifted := t.(lifted);
+     cost_of_lifting_continuations_out_of_current_one :=
+       t.(cost_of_lifting_continuations_out_of_current_one);
+     has_seen_a_non_liftable_continuation :=
+       t.(has_seen_a_non_liftable_continuation);
+     is_cold := t.(is_cold) |}.
+Extract Inlined Constant update_disable_inlining_disable_partial_application_stub_generation =>
+  "(fun t x__1 x__2 ->
+     { t with disable_inlining = x__1;
+       disable_partial_application_stub_generation = x__2 })".
 
 (* 332-338 *)
 Definition enter_stub_function (t : Downwards_env.t) : M Downwards_env.t :=
   let! tmp1 := Flambda_features.simplify_stubs tt in
   ret
-    {| round := t.(Downwards_env.round);
-       machine_width := t.(Downwards_env.machine_width);
-       typing_env := t.(Downwards_env.typing_env);
-       inlined_debuginfo := t.(Downwards_env.inlined_debuginfo);
-       disable_inlining :=
-         Disable_inlining.Disable_inlining Disable_inlining_reason.Stub;
-       disable_partial_application_stub_generation :=
-         tmp1 || t.(Downwards_env.disable_partial_application_stub_generation);
-       inlined_attribute_to_forward :=
-         t.(Downwards_env.inlined_attribute_to_forward);
-       inlining_state := t.(Downwards_env.inlining_state);
-       propagating_float_consts := t.(Downwards_env.propagating_float_consts);
-       at_unit_toplevel := t.(Downwards_env.at_unit_toplevel);
-       unit_toplevel_return_continuation :=
-         t.(Downwards_env.unit_toplevel_return_continuation);
-       unit_toplevel_exn_continuation :=
-         t.(Downwards_env.unit_toplevel_exn_continuation);
-       unit_toplevel_alloc_region :=
-         t.(Downwards_env.unit_toplevel_alloc_region);
-       variables_defined_at_toplevel :=
-         t.(Downwards_env.variables_defined_at_toplevel);
-       cse := t.(Downwards_env.cse);
-       comparison_results := t.(Downwards_env.comparison_results);
-       are_rebuilding_terms := t.(Downwards_env.are_rebuilding_terms);
-       closure_info := t.(Downwards_env.closure_info);
-       get_imported_code := t.(Downwards_env.get_imported_code);
-       all_code := t.(Downwards_env.all_code);
-       inlining_history_tracker := t.(Downwards_env.inlining_history_tracker);
-       loopify_state := t.(Downwards_env.loopify_state);
-       replay_history := t.(Downwards_env.replay_history);
-       specialization_cost := t.(Downwards_env.specialization_cost);
-       join_analysis := t.(Downwards_env.join_analysis);
-       defined_variables_by_scope :=
-         t.(Downwards_env.defined_variables_by_scope);
-       lifted := t.(Downwards_env.lifted);
-       cost_of_lifting_continuations_out_of_current_one :=
-         t.(Downwards_env.cost_of_lifting_continuations_out_of_current_one);
-       has_seen_a_non_liftable_continuation :=
-         t.(Downwards_env.has_seen_a_non_liftable_continuation);
-       is_cold := t.(Downwards_env.is_cold)
-    |}.
+    (update_disable_inlining_disable_partial_application_stub_generation t
+       (Disable_inlining.Disable_inlining Disable_inlining_reason.Stub)
+       (tmp1
+        || t.(Downwards_env.disable_partial_application_stub_generation))).
 
 (* 340-402 *)
 (* PORT-GAP(loose): the record pattern of the parameter is a match. *)
@@ -947,47 +894,7 @@ Definition define_symbol (t : Downwards_env.t) (sym : Symbol.t)
     Flambda2_types.Typing_env.add_definition t.(Downwards_env.typing_env) sym
       kind
   in
-  ret
-    {| round := t.(Downwards_env.round);
-       machine_width := t.(Downwards_env.machine_width);
-       typing_env := typing_env;
-       inlined_debuginfo := t.(Downwards_env.inlined_debuginfo);
-       disable_inlining := t.(Downwards_env.disable_inlining);
-       disable_partial_application_stub_generation :=
-         t.(Downwards_env.disable_partial_application_stub_generation);
-       inlined_attribute_to_forward :=
-         t.(Downwards_env.inlined_attribute_to_forward);
-       inlining_state := t.(Downwards_env.inlining_state);
-       propagating_float_consts := t.(Downwards_env.propagating_float_consts);
-       at_unit_toplevel := t.(Downwards_env.at_unit_toplevel);
-       unit_toplevel_return_continuation :=
-         t.(Downwards_env.unit_toplevel_return_continuation);
-       unit_toplevel_exn_continuation :=
-         t.(Downwards_env.unit_toplevel_exn_continuation);
-       unit_toplevel_alloc_region :=
-         t.(Downwards_env.unit_toplevel_alloc_region);
-       variables_defined_at_toplevel :=
-         t.(Downwards_env.variables_defined_at_toplevel);
-       cse := t.(Downwards_env.cse);
-       comparison_results := t.(Downwards_env.comparison_results);
-       are_rebuilding_terms := t.(Downwards_env.are_rebuilding_terms);
-       closure_info := t.(Downwards_env.closure_info);
-       get_imported_code := t.(Downwards_env.get_imported_code);
-       all_code := t.(Downwards_env.all_code);
-       inlining_history_tracker := t.(Downwards_env.inlining_history_tracker);
-       loopify_state := t.(Downwards_env.loopify_state);
-       replay_history := t.(Downwards_env.replay_history);
-       specialization_cost := t.(Downwards_env.specialization_cost);
-       join_analysis := t.(Downwards_env.join_analysis);
-       defined_variables_by_scope :=
-         t.(Downwards_env.defined_variables_by_scope);
-       lifted := t.(Downwards_env.lifted);
-       cost_of_lifting_continuations_out_of_current_one :=
-         t.(Downwards_env.cost_of_lifting_continuations_out_of_current_one);
-       has_seen_a_non_liftable_continuation :=
-         t.(Downwards_env.has_seen_a_non_liftable_continuation);
-       is_cold := t.(Downwards_env.is_cold)
-    |}.
+  ret (update_typing_env t typing_env).
 
 (* 411-420. [Name.pattern_match name ~var ~symbol]: the arguments are in
    the order of the interface. *)
@@ -1016,47 +923,7 @@ Definition add_variable0 (extra : bool) (t : Downwards_env.t)
     Flambda2_types.Typing_env.add_equation t.(Downwards_env.typing_env) tmp2
       ty
   in
-  ret
-    {| round := t.(Downwards_env.round);
-       machine_width := t.(Downwards_env.machine_width);
-       typing_env := tmp3;
-       inlined_debuginfo := t.(Downwards_env.inlined_debuginfo);
-       disable_inlining := t.(Downwards_env.disable_inlining);
-       disable_partial_application_stub_generation :=
-         t.(Downwards_env.disable_partial_application_stub_generation);
-       inlined_attribute_to_forward :=
-         t.(Downwards_env.inlined_attribute_to_forward);
-       inlining_state := t.(Downwards_env.inlining_state);
-       propagating_float_consts := t.(Downwards_env.propagating_float_consts);
-       at_unit_toplevel := t.(Downwards_env.at_unit_toplevel);
-       unit_toplevel_return_continuation :=
-         t.(Downwards_env.unit_toplevel_return_continuation);
-       unit_toplevel_exn_continuation :=
-         t.(Downwards_env.unit_toplevel_exn_continuation);
-       unit_toplevel_alloc_region :=
-         t.(Downwards_env.unit_toplevel_alloc_region);
-       variables_defined_at_toplevel :=
-         t.(Downwards_env.variables_defined_at_toplevel);
-       cse := t.(Downwards_env.cse);
-       comparison_results := t.(Downwards_env.comparison_results);
-       are_rebuilding_terms := t.(Downwards_env.are_rebuilding_terms);
-       closure_info := t.(Downwards_env.closure_info);
-       get_imported_code := t.(Downwards_env.get_imported_code);
-       all_code := t.(Downwards_env.all_code);
-       inlining_history_tracker := t.(Downwards_env.inlining_history_tracker);
-       loopify_state := t.(Downwards_env.loopify_state);
-       replay_history := t.(Downwards_env.replay_history);
-       specialization_cost := t.(Downwards_env.specialization_cost);
-       join_analysis := t.(Downwards_env.join_analysis);
-       defined_variables_by_scope :=
-         t.(Downwards_env.defined_variables_by_scope);
-       lifted := t.(Downwards_env.lifted);
-       cost_of_lifting_continuations_out_of_current_one :=
-         t.(Downwards_env.cost_of_lifting_continuations_out_of_current_one);
-       has_seen_a_non_liftable_continuation :=
-         t.(Downwards_env.has_seen_a_non_liftable_continuation);
-       is_cold := t.(Downwards_env.is_cold)
-    |}.
+  ret (update_typing_env t tmp3).
 
 (* 428-429 *)
 Definition add_variable (t : Downwards_env.t) (var : Bound_var.t)
@@ -1075,47 +942,7 @@ Definition add_symbol (t : Downwards_env.t) (sym : Symbol.t)
     Flambda2_types.Typing_env.add_equation t.(Downwards_env.typing_env) tmp1
       ty
   in
-  ret
-    {| round := t.(Downwards_env.round);
-       machine_width := t.(Downwards_env.machine_width);
-       typing_env := tmp2;
-       inlined_debuginfo := t.(Downwards_env.inlined_debuginfo);
-       disable_inlining := t.(Downwards_env.disable_inlining);
-       disable_partial_application_stub_generation :=
-         t.(Downwards_env.disable_partial_application_stub_generation);
-       inlined_attribute_to_forward :=
-         t.(Downwards_env.inlined_attribute_to_forward);
-       inlining_state := t.(Downwards_env.inlining_state);
-       propagating_float_consts := t.(Downwards_env.propagating_float_consts);
-       at_unit_toplevel := t.(Downwards_env.at_unit_toplevel);
-       unit_toplevel_return_continuation :=
-         t.(Downwards_env.unit_toplevel_return_continuation);
-       unit_toplevel_exn_continuation :=
-         t.(Downwards_env.unit_toplevel_exn_continuation);
-       unit_toplevel_alloc_region :=
-         t.(Downwards_env.unit_toplevel_alloc_region);
-       variables_defined_at_toplevel :=
-         t.(Downwards_env.variables_defined_at_toplevel);
-       cse := t.(Downwards_env.cse);
-       comparison_results := t.(Downwards_env.comparison_results);
-       are_rebuilding_terms := t.(Downwards_env.are_rebuilding_terms);
-       closure_info := t.(Downwards_env.closure_info);
-       get_imported_code := t.(Downwards_env.get_imported_code);
-       all_code := t.(Downwards_env.all_code);
-       inlining_history_tracker := t.(Downwards_env.inlining_history_tracker);
-       loopify_state := t.(Downwards_env.loopify_state);
-       replay_history := t.(Downwards_env.replay_history);
-       specialization_cost := t.(Downwards_env.specialization_cost);
-       join_analysis := t.(Downwards_env.join_analysis);
-       defined_variables_by_scope :=
-         t.(Downwards_env.defined_variables_by_scope);
-       lifted := t.(Downwards_env.lifted);
-       cost_of_lifting_continuations_out_of_current_one :=
-         t.(Downwards_env.cost_of_lifting_continuations_out_of_current_one);
-       has_seen_a_non_liftable_continuation :=
-         t.(Downwards_env.has_seen_a_non_liftable_continuation);
-       is_cold := t.(Downwards_env.is_cold)
-    |}.
+  ret (update_typing_env t tmp2).
 
 (* 435-444 *)
 (* PORT-GAP(loose): 437 and 444, the attribute [@inline] of the two
@@ -1138,47 +965,7 @@ Definition add_equation_on_variable (t : Downwards_env.t) (var : Variable_.t)
     Flambda2_types.Typing_env.add_equation t.(Downwards_env.typing_env) tmp1
       ty
   in
-  ret
-    {| round := t.(Downwards_env.round);
-       machine_width := t.(Downwards_env.machine_width);
-       typing_env := typing_env;
-       inlined_debuginfo := t.(Downwards_env.inlined_debuginfo);
-       disable_inlining := t.(Downwards_env.disable_inlining);
-       disable_partial_application_stub_generation :=
-         t.(Downwards_env.disable_partial_application_stub_generation);
-       inlined_attribute_to_forward :=
-         t.(Downwards_env.inlined_attribute_to_forward);
-       inlining_state := t.(Downwards_env.inlining_state);
-       propagating_float_consts := t.(Downwards_env.propagating_float_consts);
-       at_unit_toplevel := t.(Downwards_env.at_unit_toplevel);
-       unit_toplevel_return_continuation :=
-         t.(Downwards_env.unit_toplevel_return_continuation);
-       unit_toplevel_exn_continuation :=
-         t.(Downwards_env.unit_toplevel_exn_continuation);
-       unit_toplevel_alloc_region :=
-         t.(Downwards_env.unit_toplevel_alloc_region);
-       variables_defined_at_toplevel :=
-         t.(Downwards_env.variables_defined_at_toplevel);
-       cse := t.(Downwards_env.cse);
-       comparison_results := t.(Downwards_env.comparison_results);
-       are_rebuilding_terms := t.(Downwards_env.are_rebuilding_terms);
-       closure_info := t.(Downwards_env.closure_info);
-       get_imported_code := t.(Downwards_env.get_imported_code);
-       all_code := t.(Downwards_env.all_code);
-       inlining_history_tracker := t.(Downwards_env.inlining_history_tracker);
-       loopify_state := t.(Downwards_env.loopify_state);
-       replay_history := t.(Downwards_env.replay_history);
-       specialization_cost := t.(Downwards_env.specialization_cost);
-       join_analysis := t.(Downwards_env.join_analysis);
-       defined_variables_by_scope :=
-         t.(Downwards_env.defined_variables_by_scope);
-       lifted := t.(Downwards_env.lifted);
-       cost_of_lifting_continuations_out_of_current_one :=
-         t.(Downwards_env.cost_of_lifting_continuations_out_of_current_one);
-       has_seen_a_non_liftable_continuation :=
-         t.(Downwards_env.has_seen_a_non_liftable_continuation);
-       is_cold := t.(Downwards_env.is_cold)
-    |}.
+  ret (update_typing_env t typing_env).
 
 (* 450 *)
 Definition mem_name (t : Downwards_env.t) (name : Name.t) : M bool :=
@@ -1196,47 +983,7 @@ Definition add_equation_on_symbol (t : Downwards_env.t) (sym : Symbol.t)
     let* sym := Name.symbol sym in
     Flambda2_types.Typing_env.add_equation t.(Downwards_env.typing_env) sym ty
   in
-  ret
-    {| round := t.(Downwards_env.round);
-       machine_width := t.(Downwards_env.machine_width);
-       typing_env := typing_env;
-       inlined_debuginfo := t.(Downwards_env.inlined_debuginfo);
-       disable_inlining := t.(Downwards_env.disable_inlining);
-       disable_partial_application_stub_generation :=
-         t.(Downwards_env.disable_partial_application_stub_generation);
-       inlined_attribute_to_forward :=
-         t.(Downwards_env.inlined_attribute_to_forward);
-       inlining_state := t.(Downwards_env.inlining_state);
-       propagating_float_consts := t.(Downwards_env.propagating_float_consts);
-       at_unit_toplevel := t.(Downwards_env.at_unit_toplevel);
-       unit_toplevel_return_continuation :=
-         t.(Downwards_env.unit_toplevel_return_continuation);
-       unit_toplevel_exn_continuation :=
-         t.(Downwards_env.unit_toplevel_exn_continuation);
-       unit_toplevel_alloc_region :=
-         t.(Downwards_env.unit_toplevel_alloc_region);
-       variables_defined_at_toplevel :=
-         t.(Downwards_env.variables_defined_at_toplevel);
-       cse := t.(Downwards_env.cse);
-       comparison_results := t.(Downwards_env.comparison_results);
-       are_rebuilding_terms := t.(Downwards_env.are_rebuilding_terms);
-       closure_info := t.(Downwards_env.closure_info);
-       get_imported_code := t.(Downwards_env.get_imported_code);
-       all_code := t.(Downwards_env.all_code);
-       inlining_history_tracker := t.(Downwards_env.inlining_history_tracker);
-       loopify_state := t.(Downwards_env.loopify_state);
-       replay_history := t.(Downwards_env.replay_history);
-       specialization_cost := t.(Downwards_env.specialization_cost);
-       join_analysis := t.(Downwards_env.join_analysis);
-       defined_variables_by_scope :=
-         t.(Downwards_env.defined_variables_by_scope);
-       lifted := t.(Downwards_env.lifted);
-       cost_of_lifting_continuations_out_of_current_one :=
-         t.(Downwards_env.cost_of_lifting_continuations_out_of_current_one);
-       has_seen_a_non_liftable_continuation :=
-         t.(Downwards_env.has_seen_a_non_liftable_continuation);
-       is_cold := t.(Downwards_env.is_cold)
-    |}.
+  ret (update_typing_env t typing_env).
 
 (* 461 *)
 Definition mem_symbol (t : Downwards_env.t) (sym : Symbol.t) : M bool :=
@@ -1257,47 +1004,7 @@ Definition add_symbol_projection (t : Downwards_env.t) (var : Variable_.t)
     Flambda2_types.Typing_env.add_symbol_projection
       t.(Downwards_env.typing_env) var proj
   in
-  ret
-    {| round := t.(Downwards_env.round);
-       machine_width := t.(Downwards_env.machine_width);
-       typing_env := tmp1;
-       inlined_debuginfo := t.(Downwards_env.inlined_debuginfo);
-       disable_inlining := t.(Downwards_env.disable_inlining);
-       disable_partial_application_stub_generation :=
-         t.(Downwards_env.disable_partial_application_stub_generation);
-       inlined_attribute_to_forward :=
-         t.(Downwards_env.inlined_attribute_to_forward);
-       inlining_state := t.(Downwards_env.inlining_state);
-       propagating_float_consts := t.(Downwards_env.propagating_float_consts);
-       at_unit_toplevel := t.(Downwards_env.at_unit_toplevel);
-       unit_toplevel_return_continuation :=
-         t.(Downwards_env.unit_toplevel_return_continuation);
-       unit_toplevel_exn_continuation :=
-         t.(Downwards_env.unit_toplevel_exn_continuation);
-       unit_toplevel_alloc_region :=
-         t.(Downwards_env.unit_toplevel_alloc_region);
-       variables_defined_at_toplevel :=
-         t.(Downwards_env.variables_defined_at_toplevel);
-       cse := t.(Downwards_env.cse);
-       comparison_results := t.(Downwards_env.comparison_results);
-       are_rebuilding_terms := t.(Downwards_env.are_rebuilding_terms);
-       closure_info := t.(Downwards_env.closure_info);
-       get_imported_code := t.(Downwards_env.get_imported_code);
-       all_code := t.(Downwards_env.all_code);
-       inlining_history_tracker := t.(Downwards_env.inlining_history_tracker);
-       loopify_state := t.(Downwards_env.loopify_state);
-       replay_history := t.(Downwards_env.replay_history);
-       specialization_cost := t.(Downwards_env.specialization_cost);
-       join_analysis := t.(Downwards_env.join_analysis);
-       defined_variables_by_scope :=
-         t.(Downwards_env.defined_variables_by_scope);
-       lifted := t.(Downwards_env.lifted);
-       cost_of_lifting_continuations_out_of_current_one :=
-         t.(Downwards_env.cost_of_lifting_continuations_out_of_current_one);
-       has_seen_a_non_liftable_continuation :=
-         t.(Downwards_env.has_seen_a_non_liftable_continuation);
-       is_cold := t.(Downwards_env.is_cold)
-    |}.
+  ret (update_typing_env t tmp1).
 
 (* 468 *)
 Definition find_symbol_projection (t : Downwards_env.t) (var : Variable_.t)
@@ -1321,47 +1028,7 @@ Definition add_equation_on_name (t : Downwards_env.t) (name : Name.t)
     Flambda2_types.Typing_env.add_equation t.(Downwards_env.typing_env) name
       ty
   in
-  ret
-    {| round := t.(Downwards_env.round);
-       machine_width := t.(Downwards_env.machine_width);
-       typing_env := typing_env;
-       inlined_debuginfo := t.(Downwards_env.inlined_debuginfo);
-       disable_inlining := t.(Downwards_env.disable_inlining);
-       disable_partial_application_stub_generation :=
-         t.(Downwards_env.disable_partial_application_stub_generation);
-       inlined_attribute_to_forward :=
-         t.(Downwards_env.inlined_attribute_to_forward);
-       inlining_state := t.(Downwards_env.inlining_state);
-       propagating_float_consts := t.(Downwards_env.propagating_float_consts);
-       at_unit_toplevel := t.(Downwards_env.at_unit_toplevel);
-       unit_toplevel_return_continuation :=
-         t.(Downwards_env.unit_toplevel_return_continuation);
-       unit_toplevel_exn_continuation :=
-         t.(Downwards_env.unit_toplevel_exn_continuation);
-       unit_toplevel_alloc_region :=
-         t.(Downwards_env.unit_toplevel_alloc_region);
-       variables_defined_at_toplevel :=
-         t.(Downwards_env.variables_defined_at_toplevel);
-       cse := t.(Downwards_env.cse);
-       comparison_results := t.(Downwards_env.comparison_results);
-       are_rebuilding_terms := t.(Downwards_env.are_rebuilding_terms);
-       closure_info := t.(Downwards_env.closure_info);
-       get_imported_code := t.(Downwards_env.get_imported_code);
-       all_code := t.(Downwards_env.all_code);
-       inlining_history_tracker := t.(Downwards_env.inlining_history_tracker);
-       loopify_state := t.(Downwards_env.loopify_state);
-       replay_history := t.(Downwards_env.replay_history);
-       specialization_cost := t.(Downwards_env.specialization_cost);
-       join_analysis := t.(Downwards_env.join_analysis);
-       defined_variables_by_scope :=
-         t.(Downwards_env.defined_variables_by_scope);
-       lifted := t.(Downwards_env.lifted);
-       cost_of_lifting_continuations_out_of_current_one :=
-         t.(Downwards_env.cost_of_lifting_continuations_out_of_current_one);
-       has_seen_a_non_liftable_continuation :=
-         t.(Downwards_env.has_seen_a_non_liftable_continuation);
-       is_cold := t.(Downwards_env.is_cold)
-    |}.
+  ret (update_typing_env t typing_env).
 
 (* 479-486. In the compiler: [~extra t ~params]. *)
 Definition define_parameters (extra : bool) (t : Downwards_env.t)
@@ -1456,6 +1123,41 @@ let add_parameters_with_unknown_types extra ?alloc_modes ?name_mode t params =
   add_parameters_with_unknown_types extra alloc_modes name_mode t params
 OCAML-END*)
 
+(* PORT-GAP(update): 531, [{ t with variables_defined_at_toplevel }]. *)
+Definition update_variables_defined_at_toplevel (t : Downwards_env.t)
+    (variables_defined_at_toplevel : Variable_.Set_.t) : Downwards_env.t :=
+  {| round := t.(round); machine_width := t.(machine_width);
+     typing_env := t.(typing_env); inlined_debuginfo := t.(inlined_debuginfo);
+     disable_inlining := t.(disable_inlining);
+     disable_partial_application_stub_generation :=
+       t.(disable_partial_application_stub_generation);
+     inlined_attribute_to_forward := t.(inlined_attribute_to_forward);
+     inlining_state := t.(inlining_state);
+     propagating_float_consts := t.(propagating_float_consts);
+     at_unit_toplevel := t.(at_unit_toplevel);
+     unit_toplevel_return_continuation :=
+       t.(unit_toplevel_return_continuation);
+     unit_toplevel_exn_continuation := t.(unit_toplevel_exn_continuation);
+     unit_toplevel_alloc_region := t.(unit_toplevel_alloc_region);
+     variables_defined_at_toplevel := variables_defined_at_toplevel;
+     cse := t.(cse); comparison_results := t.(comparison_results);
+     are_rebuilding_terms := t.(are_rebuilding_terms);
+     closure_info := t.(closure_info);
+     get_imported_code := t.(get_imported_code); all_code := t.(all_code);
+     inlining_history_tracker := t.(inlining_history_tracker);
+     loopify_state := t.(loopify_state); replay_history := t.(replay_history);
+     specialization_cost := t.(specialization_cost);
+     join_analysis := t.(join_analysis);
+     defined_variables_by_scope := t.(defined_variables_by_scope);
+     lifted := t.(lifted);
+     cost_of_lifting_continuations_out_of_current_one :=
+       t.(cost_of_lifting_continuations_out_of_current_one);
+     has_seen_a_non_liftable_continuation :=
+       t.(has_seen_a_non_liftable_continuation);
+     is_cold := t.(is_cold) |}.
+Extract Inlined Constant update_variables_defined_at_toplevel =>
+  "(fun t x__1 -> { t with variables_defined_at_toplevel = x__1 })".
+
 (* 526-531 *)
 Definition mark_parameters_as_toplevel (t : Downwards_env.t)
     (params : Bound_parameters.t) : M Downwards_env.t :=
@@ -1463,46 +1165,7 @@ Definition mark_parameters_as_toplevel (t : Downwards_env.t)
     let! tmp1 := Bound_parameters.var_set params in
     Variable_.Set_.union t.(Downwards_env.variables_defined_at_toplevel) tmp1
   in
-  ret
-    {| round := t.(Downwards_env.round);
-       machine_width := t.(Downwards_env.machine_width);
-       typing_env := t.(Downwards_env.typing_env);
-       inlined_debuginfo := t.(Downwards_env.inlined_debuginfo);
-       disable_inlining := t.(Downwards_env.disable_inlining);
-       disable_partial_application_stub_generation :=
-         t.(Downwards_env.disable_partial_application_stub_generation);
-       inlined_attribute_to_forward :=
-         t.(Downwards_env.inlined_attribute_to_forward);
-       inlining_state := t.(Downwards_env.inlining_state);
-       propagating_float_consts := t.(Downwards_env.propagating_float_consts);
-       at_unit_toplevel := t.(Downwards_env.at_unit_toplevel);
-       unit_toplevel_return_continuation :=
-         t.(Downwards_env.unit_toplevel_return_continuation);
-       unit_toplevel_exn_continuation :=
-         t.(Downwards_env.unit_toplevel_exn_continuation);
-       unit_toplevel_alloc_region :=
-         t.(Downwards_env.unit_toplevel_alloc_region);
-       variables_defined_at_toplevel := variables_defined_at_toplevel;
-       cse := t.(Downwards_env.cse);
-       comparison_results := t.(Downwards_env.comparison_results);
-       are_rebuilding_terms := t.(Downwards_env.are_rebuilding_terms);
-       closure_info := t.(Downwards_env.closure_info);
-       get_imported_code := t.(Downwards_env.get_imported_code);
-       all_code := t.(Downwards_env.all_code);
-       inlining_history_tracker := t.(Downwards_env.inlining_history_tracker);
-       loopify_state := t.(Downwards_env.loopify_state);
-       replay_history := t.(Downwards_env.replay_history);
-       specialization_cost := t.(Downwards_env.specialization_cost);
-       join_analysis := t.(Downwards_env.join_analysis);
-       defined_variables_by_scope :=
-         t.(Downwards_env.defined_variables_by_scope);
-       lifted := t.(Downwards_env.lifted);
-       cost_of_lifting_continuations_out_of_current_one :=
-         t.(Downwards_env.cost_of_lifting_continuations_out_of_current_one);
-       has_seen_a_non_liftable_continuation :=
-         t.(Downwards_env.has_seen_a_non_liftable_continuation);
-       is_cold := t.(Downwards_env.is_cold)
-    |}.
+  ret (update_variables_defined_at_toplevel t variables_defined_at_toplevel).
 
 (* 533-540 *)
 Definition extend_typing_environment (t : Downwards_env.t)
@@ -1516,92 +1179,12 @@ Definition extend_typing_environment (t : Downwards_env.t)
     Flambda2_types.Typing_env.add_env_extension_with_extra_variables
       t.(Downwards_env.typing_env) env_extension
   in
-  ret
-    {| round := t.(Downwards_env.round);
-       machine_width := t.(Downwards_env.machine_width);
-       typing_env := typing_env;
-       inlined_debuginfo := t.(Downwards_env.inlined_debuginfo);
-       disable_inlining := t.(Downwards_env.disable_inlining);
-       disable_partial_application_stub_generation :=
-         t.(Downwards_env.disable_partial_application_stub_generation);
-       inlined_attribute_to_forward :=
-         t.(Downwards_env.inlined_attribute_to_forward);
-       inlining_state := t.(Downwards_env.inlining_state);
-       propagating_float_consts := t.(Downwards_env.propagating_float_consts);
-       at_unit_toplevel := t.(Downwards_env.at_unit_toplevel);
-       unit_toplevel_return_continuation :=
-         t.(Downwards_env.unit_toplevel_return_continuation);
-       unit_toplevel_exn_continuation :=
-         t.(Downwards_env.unit_toplevel_exn_continuation);
-       unit_toplevel_alloc_region :=
-         t.(Downwards_env.unit_toplevel_alloc_region);
-       variables_defined_at_toplevel :=
-         t.(Downwards_env.variables_defined_at_toplevel);
-       cse := t.(Downwards_env.cse);
-       comparison_results := t.(Downwards_env.comparison_results);
-       are_rebuilding_terms := t.(Downwards_env.are_rebuilding_terms);
-       closure_info := t.(Downwards_env.closure_info);
-       get_imported_code := t.(Downwards_env.get_imported_code);
-       all_code := t.(Downwards_env.all_code);
-       inlining_history_tracker := t.(Downwards_env.inlining_history_tracker);
-       loopify_state := t.(Downwards_env.loopify_state);
-       replay_history := t.(Downwards_env.replay_history);
-       specialization_cost := t.(Downwards_env.specialization_cost);
-       join_analysis := t.(Downwards_env.join_analysis);
-       defined_variables_by_scope :=
-         t.(Downwards_env.defined_variables_by_scope);
-       lifted := t.(Downwards_env.lifted);
-       cost_of_lifting_continuations_out_of_current_one :=
-         t.(Downwards_env.cost_of_lifting_continuations_out_of_current_one);
-       has_seen_a_non_liftable_continuation :=
-         t.(Downwards_env.has_seen_a_non_liftable_continuation);
-       is_cold := t.(Downwards_env.is_cold)
-    |}.
+  ret (update_typing_env t typing_env).
 
 (* 542 *)
 Definition with_typing_env (t : Downwards_env.t)
     (typing_env : Flambda2_types.Typing_env.t) : M Downwards_env.t :=
-  ret
-    {| round := t.(Downwards_env.round);
-       machine_width := t.(Downwards_env.machine_width);
-       typing_env := typing_env;
-       inlined_debuginfo := t.(Downwards_env.inlined_debuginfo);
-       disable_inlining := t.(Downwards_env.disable_inlining);
-       disable_partial_application_stub_generation :=
-         t.(Downwards_env.disable_partial_application_stub_generation);
-       inlined_attribute_to_forward :=
-         t.(Downwards_env.inlined_attribute_to_forward);
-       inlining_state := t.(Downwards_env.inlining_state);
-       propagating_float_consts := t.(Downwards_env.propagating_float_consts);
-       at_unit_toplevel := t.(Downwards_env.at_unit_toplevel);
-       unit_toplevel_return_continuation :=
-         t.(Downwards_env.unit_toplevel_return_continuation);
-       unit_toplevel_exn_continuation :=
-         t.(Downwards_env.unit_toplevel_exn_continuation);
-       unit_toplevel_alloc_region :=
-         t.(Downwards_env.unit_toplevel_alloc_region);
-       variables_defined_at_toplevel :=
-         t.(Downwards_env.variables_defined_at_toplevel);
-       cse := t.(Downwards_env.cse);
-       comparison_results := t.(Downwards_env.comparison_results);
-       are_rebuilding_terms := t.(Downwards_env.are_rebuilding_terms);
-       closure_info := t.(Downwards_env.closure_info);
-       get_imported_code := t.(Downwards_env.get_imported_code);
-       all_code := t.(Downwards_env.all_code);
-       inlining_history_tracker := t.(Downwards_env.inlining_history_tracker);
-       loopify_state := t.(Downwards_env.loopify_state);
-       replay_history := t.(Downwards_env.replay_history);
-       specialization_cost := t.(Downwards_env.specialization_cost);
-       join_analysis := t.(Downwards_env.join_analysis);
-       defined_variables_by_scope :=
-         t.(Downwards_env.defined_variables_by_scope);
-       lifted := t.(Downwards_env.lifted);
-       cost_of_lifting_continuations_out_of_current_one :=
-         t.(Downwards_env.cost_of_lifting_continuations_out_of_current_one);
-       has_seen_a_non_liftable_continuation :=
-         t.(Downwards_env.has_seen_a_non_liftable_continuation);
-       is_cold := t.(Downwards_env.is_cold)
-    |}.
+  ret (update_typing_env t typing_env).
 
 (* 544. In the compiler: [t ~f]. *)
 Definition map_typing_env (t : Downwards_env.t)
@@ -1685,6 +1268,42 @@ Definition find_code_exn (t : Downwards_env.t) (id : Code_id.t)
     Exported_code.find_exn tmp1 id
   end.
 
+(* PORT-GAP(update): 604, [{ t with typing_env; all_code }]. *)
+Definition update_typing_env_all_code (t : Downwards_env.t)
+    (typing_env : Flambda2_types.Typing_env.t)
+    (all_code : Code_id.Map.t Code.t) : Downwards_env.t :=
+  {| round := t.(round); machine_width := t.(machine_width);
+     typing_env := typing_env; inlined_debuginfo := t.(inlined_debuginfo);
+     disable_inlining := t.(disable_inlining);
+     disable_partial_application_stub_generation :=
+       t.(disable_partial_application_stub_generation);
+     inlined_attribute_to_forward := t.(inlined_attribute_to_forward);
+     inlining_state := t.(inlining_state);
+     propagating_float_consts := t.(propagating_float_consts);
+     at_unit_toplevel := t.(at_unit_toplevel);
+     unit_toplevel_return_continuation :=
+       t.(unit_toplevel_return_continuation);
+     unit_toplevel_exn_continuation := t.(unit_toplevel_exn_continuation);
+     unit_toplevel_alloc_region := t.(unit_toplevel_alloc_region);
+     variables_defined_at_toplevel := t.(variables_defined_at_toplevel);
+     cse := t.(cse); comparison_results := t.(comparison_results);
+     are_rebuilding_terms := t.(are_rebuilding_terms);
+     closure_info := t.(closure_info);
+     get_imported_code := t.(get_imported_code); all_code := all_code;
+     inlining_history_tracker := t.(inlining_history_tracker);
+     loopify_state := t.(loopify_state); replay_history := t.(replay_history);
+     specialization_cost := t.(specialization_cost);
+     join_analysis := t.(join_analysis);
+     defined_variables_by_scope := t.(defined_variables_by_scope);
+     lifted := t.(lifted);
+     cost_of_lifting_continuations_out_of_current_one :=
+       t.(cost_of_lifting_continuations_out_of_current_one);
+     has_seen_a_non_liftable_continuation :=
+       t.(has_seen_a_non_liftable_continuation);
+     is_cold := t.(is_cold) |}.
+Extract Inlined Constant update_typing_env_all_code =>
+  "(fun t x__1 x__2 -> { t with typing_env = x__1; all_code = x__2 })".
+
 (* 590-604. In the compiler: [t ~code_id ~code]. *)
 Definition define_code (t : Downwards_env.t) (code_id : Code_id.t)
     (code : Code.t) : M Downwards_env.t :=
@@ -1708,47 +1327,44 @@ Definition define_code (t : Downwards_env.t) (code_id : Code_id.t)
       t.(Downwards_env.typing_env) code_id tmp1
   in
   let* all_code := Code_id.Map.add code_id code t.(Downwards_env.all_code) in
-  ret
-    {| round := t.(Downwards_env.round);
-       machine_width := t.(Downwards_env.machine_width);
-       typing_env := typing_env;
-       inlined_debuginfo := t.(Downwards_env.inlined_debuginfo);
-       disable_inlining := t.(Downwards_env.disable_inlining);
-       disable_partial_application_stub_generation :=
-         t.(Downwards_env.disable_partial_application_stub_generation);
-       inlined_attribute_to_forward :=
-         t.(Downwards_env.inlined_attribute_to_forward);
-       inlining_state := t.(Downwards_env.inlining_state);
-       propagating_float_consts := t.(Downwards_env.propagating_float_consts);
-       at_unit_toplevel := t.(Downwards_env.at_unit_toplevel);
-       unit_toplevel_return_continuation :=
-         t.(Downwards_env.unit_toplevel_return_continuation);
-       unit_toplevel_exn_continuation :=
-         t.(Downwards_env.unit_toplevel_exn_continuation);
-       unit_toplevel_alloc_region :=
-         t.(Downwards_env.unit_toplevel_alloc_region);
-       variables_defined_at_toplevel :=
-         t.(Downwards_env.variables_defined_at_toplevel);
-       cse := t.(Downwards_env.cse);
-       comparison_results := t.(Downwards_env.comparison_results);
-       are_rebuilding_terms := t.(Downwards_env.are_rebuilding_terms);
-       closure_info := t.(Downwards_env.closure_info);
-       get_imported_code := t.(Downwards_env.get_imported_code);
-       all_code := all_code;
-       inlining_history_tracker := t.(Downwards_env.inlining_history_tracker);
-       loopify_state := t.(Downwards_env.loopify_state);
-       replay_history := t.(Downwards_env.replay_history);
-       specialization_cost := t.(Downwards_env.specialization_cost);
-       join_analysis := t.(Downwards_env.join_analysis);
-       defined_variables_by_scope :=
-         t.(Downwards_env.defined_variables_by_scope);
-       lifted := t.(Downwards_env.lifted);
-       cost_of_lifting_continuations_out_of_current_one :=
-         t.(Downwards_env.cost_of_lifting_continuations_out_of_current_one);
-       has_seen_a_non_liftable_continuation :=
-         t.(Downwards_env.has_seen_a_non_liftable_continuation);
-       is_cold := t.(Downwards_env.is_cold)
-    |}.
+  ret (update_typing_env_all_code t typing_env all_code).
+
+(* PORT-GAP(update): 626, [{ t with cse; comparison_results }]. *)
+Definition update_cse_comparison_results (t : Downwards_env.t)
+    (cse : Common_subexpression_elimination.t)
+    (comparison_results : Variable_.Map.t Comparison_result.t)
+    : Downwards_env.t :=
+  {| round := t.(round); machine_width := t.(machine_width);
+     typing_env := t.(typing_env); inlined_debuginfo := t.(inlined_debuginfo);
+     disable_inlining := t.(disable_inlining);
+     disable_partial_application_stub_generation :=
+       t.(disable_partial_application_stub_generation);
+     inlined_attribute_to_forward := t.(inlined_attribute_to_forward);
+     inlining_state := t.(inlining_state);
+     propagating_float_consts := t.(propagating_float_consts);
+     at_unit_toplevel := t.(at_unit_toplevel);
+     unit_toplevel_return_continuation :=
+       t.(unit_toplevel_return_continuation);
+     unit_toplevel_exn_continuation := t.(unit_toplevel_exn_continuation);
+     unit_toplevel_alloc_region := t.(unit_toplevel_alloc_region);
+     variables_defined_at_toplevel := t.(variables_defined_at_toplevel);
+     cse := cse; comparison_results := comparison_results;
+     are_rebuilding_terms := t.(are_rebuilding_terms);
+     closure_info := t.(closure_info);
+     get_imported_code := t.(get_imported_code); all_code := t.(all_code);
+     inlining_history_tracker := t.(inlining_history_tracker);
+     loopify_state := t.(loopify_state); replay_history := t.(replay_history);
+     specialization_cost := t.(specialization_cost);
+     join_analysis := t.(join_analysis);
+     defined_variables_by_scope := t.(defined_variables_by_scope);
+     lifted := t.(lifted);
+     cost_of_lifting_continuations_out_of_current_one :=
+       t.(cost_of_lifting_continuations_out_of_current_one);
+     has_seen_a_non_liftable_continuation :=
+       t.(has_seen_a_non_liftable_continuation);
+     is_cold := t.(is_cold) |}.
+Extract Inlined Constant update_cse_comparison_results =>
+  "(fun t x__1 x__2 -> { t with cse = x__1; comparison_results = x__2 })".
 
 (* 610-626. In the compiler: [t prim ~bound_to ~name_mode]. *)
 (* PORT-GAP(loose): 618-621, the two matched values are calls: each is
@@ -1777,49 +1393,7 @@ Definition add_cse (t : Downwards_env.t)
         Variable_.Map.add var comp t.(Downwards_env.comparison_results)
       end
     in
-    ret
-      {| round := t.(Downwards_env.round);
-         machine_width := t.(Downwards_env.machine_width);
-         typing_env := t.(Downwards_env.typing_env);
-         inlined_debuginfo := t.(Downwards_env.inlined_debuginfo);
-         disable_inlining := t.(Downwards_env.disable_inlining);
-         disable_partial_application_stub_generation :=
-           t.(Downwards_env.disable_partial_application_stub_generation);
-         inlined_attribute_to_forward :=
-           t.(Downwards_env.inlined_attribute_to_forward);
-         inlining_state := t.(Downwards_env.inlining_state);
-         propagating_float_consts :=
-           t.(Downwards_env.propagating_float_consts);
-         at_unit_toplevel := t.(Downwards_env.at_unit_toplevel);
-         unit_toplevel_return_continuation :=
-           t.(Downwards_env.unit_toplevel_return_continuation);
-         unit_toplevel_exn_continuation :=
-           t.(Downwards_env.unit_toplevel_exn_continuation);
-         unit_toplevel_alloc_region :=
-           t.(Downwards_env.unit_toplevel_alloc_region);
-         variables_defined_at_toplevel :=
-           t.(Downwards_env.variables_defined_at_toplevel);
-         cse := cse;
-         comparison_results := comparison_results;
-         are_rebuilding_terms := t.(Downwards_env.are_rebuilding_terms);
-         closure_info := t.(Downwards_env.closure_info);
-         get_imported_code := t.(Downwards_env.get_imported_code);
-         all_code := t.(Downwards_env.all_code);
-         inlining_history_tracker :=
-           t.(Downwards_env.inlining_history_tracker);
-         loopify_state := t.(Downwards_env.loopify_state);
-         replay_history := t.(Downwards_env.replay_history);
-         specialization_cost := t.(Downwards_env.specialization_cost);
-         join_analysis := t.(Downwards_env.join_analysis);
-         defined_variables_by_scope :=
-           t.(Downwards_env.defined_variables_by_scope);
-         lifted := t.(Downwards_env.lifted);
-         cost_of_lifting_continuations_out_of_current_one :=
-           t.(Downwards_env.cost_of_lifting_continuations_out_of_current_one);
-         has_seen_a_non_liftable_continuation :=
-           t.(Downwards_env.has_seen_a_non_liftable_continuation);
-         is_cold := t.(Downwards_env.is_cold)
-      |}.
+    ret (update_cse_comparison_results t cse comparison_results).
 
 (* 628 *)
 Definition find_cse (t : Downwards_env.t)
@@ -1831,50 +1405,83 @@ Definition find_comparison_result (t : Downwards_env.t) (var : Variable_.t)
     : M (option Comparison_result.t) :=
   Variable_.Map.find_opt var t.(Downwards_env.comparison_results).
 
+(* PORT-GAP(update): 633, [{ t with cse }]. *)
+Definition update_cse (t : Downwards_env.t)
+    (cse : Common_subexpression_elimination.t) : Downwards_env.t :=
+  {| round := t.(round); machine_width := t.(machine_width);
+     typing_env := t.(typing_env); inlined_debuginfo := t.(inlined_debuginfo);
+     disable_inlining := t.(disable_inlining);
+     disable_partial_application_stub_generation :=
+       t.(disable_partial_application_stub_generation);
+     inlined_attribute_to_forward := t.(inlined_attribute_to_forward);
+     inlining_state := t.(inlining_state);
+     propagating_float_consts := t.(propagating_float_consts);
+     at_unit_toplevel := t.(at_unit_toplevel);
+     unit_toplevel_return_continuation :=
+       t.(unit_toplevel_return_continuation);
+     unit_toplevel_exn_continuation := t.(unit_toplevel_exn_continuation);
+     unit_toplevel_alloc_region := t.(unit_toplevel_alloc_region);
+     variables_defined_at_toplevel := t.(variables_defined_at_toplevel);
+     cse := cse; comparison_results := t.(comparison_results);
+     are_rebuilding_terms := t.(are_rebuilding_terms);
+     closure_info := t.(closure_info);
+     get_imported_code := t.(get_imported_code); all_code := t.(all_code);
+     inlining_history_tracker := t.(inlining_history_tracker);
+     loopify_state := t.(loopify_state); replay_history := t.(replay_history);
+     specialization_cost := t.(specialization_cost);
+     join_analysis := t.(join_analysis);
+     defined_variables_by_scope := t.(defined_variables_by_scope);
+     lifted := t.(lifted);
+     cost_of_lifting_continuations_out_of_current_one :=
+       t.(cost_of_lifting_continuations_out_of_current_one);
+     has_seen_a_non_liftable_continuation :=
+       t.(has_seen_a_non_liftable_continuation);
+     is_cold := t.(is_cold) |}.
+Extract Inlined Constant update_cse =>
+  "(fun t x__1 -> { t with cse = x__1 })".
+
 (* 633 *)
 Definition with_cse (t : Downwards_env.t)
     (cse : Common_subexpression_elimination.t) : M Downwards_env.t :=
-  ret
-    {| round := t.(Downwards_env.round);
-       machine_width := t.(Downwards_env.machine_width);
-       typing_env := t.(Downwards_env.typing_env);
-       inlined_debuginfo := t.(Downwards_env.inlined_debuginfo);
-       disable_inlining := t.(Downwards_env.disable_inlining);
-       disable_partial_application_stub_generation :=
-         t.(Downwards_env.disable_partial_application_stub_generation);
-       inlined_attribute_to_forward :=
-         t.(Downwards_env.inlined_attribute_to_forward);
-       inlining_state := t.(Downwards_env.inlining_state);
-       propagating_float_consts := t.(Downwards_env.propagating_float_consts);
-       at_unit_toplevel := t.(Downwards_env.at_unit_toplevel);
-       unit_toplevel_return_continuation :=
-         t.(Downwards_env.unit_toplevel_return_continuation);
-       unit_toplevel_exn_continuation :=
-         t.(Downwards_env.unit_toplevel_exn_continuation);
-       unit_toplevel_alloc_region :=
-         t.(Downwards_env.unit_toplevel_alloc_region);
-       variables_defined_at_toplevel :=
-         t.(Downwards_env.variables_defined_at_toplevel);
-       cse := cse;
-       comparison_results := t.(Downwards_env.comparison_results);
-       are_rebuilding_terms := t.(Downwards_env.are_rebuilding_terms);
-       closure_info := t.(Downwards_env.closure_info);
-       get_imported_code := t.(Downwards_env.get_imported_code);
-       all_code := t.(Downwards_env.all_code);
-       inlining_history_tracker := t.(Downwards_env.inlining_history_tracker);
-       loopify_state := t.(Downwards_env.loopify_state);
-       replay_history := t.(Downwards_env.replay_history);
-       specialization_cost := t.(Downwards_env.specialization_cost);
-       join_analysis := t.(Downwards_env.join_analysis);
-       defined_variables_by_scope :=
-         t.(Downwards_env.defined_variables_by_scope);
-       lifted := t.(Downwards_env.lifted);
-       cost_of_lifting_continuations_out_of_current_one :=
-         t.(Downwards_env.cost_of_lifting_continuations_out_of_current_one);
-       has_seen_a_non_liftable_continuation :=
-         t.(Downwards_env.has_seen_a_non_liftable_continuation);
-       is_cold := t.(Downwards_env.is_cold)
-    |}.
+  ret (update_cse t cse).
+
+(* PORT-GAP(update): 636-639, [{ t with are_rebuilding_terms;
+   disable_inlining }]. *)
+Definition update_are_rebuilding_terms_disable_inlining (t : Downwards_env.t)
+    (are_rebuilding_terms : Are_rebuilding_terms.t)
+    (disable_inlining : Disable_inlining.t) : Downwards_env.t :=
+  {| round := t.(round); machine_width := t.(machine_width);
+     typing_env := t.(typing_env); inlined_debuginfo := t.(inlined_debuginfo);
+     disable_inlining := disable_inlining;
+     disable_partial_application_stub_generation :=
+       t.(disable_partial_application_stub_generation);
+     inlined_attribute_to_forward := t.(inlined_attribute_to_forward);
+     inlining_state := t.(inlining_state);
+     propagating_float_consts := t.(propagating_float_consts);
+     at_unit_toplevel := t.(at_unit_toplevel);
+     unit_toplevel_return_continuation :=
+       t.(unit_toplevel_return_continuation);
+     unit_toplevel_exn_continuation := t.(unit_toplevel_exn_continuation);
+     unit_toplevel_alloc_region := t.(unit_toplevel_alloc_region);
+     variables_defined_at_toplevel := t.(variables_defined_at_toplevel);
+     cse := t.(cse); comparison_results := t.(comparison_results);
+     are_rebuilding_terms := are_rebuilding_terms;
+     closure_info := t.(closure_info);
+     get_imported_code := t.(get_imported_code); all_code := t.(all_code);
+     inlining_history_tracker := t.(inlining_history_tracker);
+     loopify_state := t.(loopify_state); replay_history := t.(replay_history);
+     specialization_cost := t.(specialization_cost);
+     join_analysis := t.(join_analysis);
+     defined_variables_by_scope := t.(defined_variables_by_scope);
+     lifted := t.(lifted);
+     cost_of_lifting_continuations_out_of_current_one :=
+       t.(cost_of_lifting_continuations_out_of_current_one);
+     has_seen_a_non_liftable_continuation :=
+       t.(has_seen_a_non_liftable_continuation);
+     is_cold := t.(is_cold) |}.
+Extract Inlined Constant update_are_rebuilding_terms_disable_inlining =>
+  "(fun t x__1 x__2 ->
+     { t with are_rebuilding_terms = x__1; disable_inlining = x__2 })".
 
 (* 635-639 *)
 Definition set_do_not_rebuild_terms_and_disable_inlining
@@ -1882,136 +1489,123 @@ Definition set_do_not_rebuild_terms_and_disable_inlining
     (disable_inlining_reason : Disable_inlining_reason.t)
     : M Downwards_env.t :=
   ret
-    {| round := t.(Downwards_env.round);
-       machine_width := t.(Downwards_env.machine_width);
-       typing_env := t.(Downwards_env.typing_env);
-       inlined_debuginfo := t.(Downwards_env.inlined_debuginfo);
-       disable_inlining :=
-         Disable_inlining.Disable_inlining disable_inlining_reason;
-       disable_partial_application_stub_generation :=
-         t.(Downwards_env.disable_partial_application_stub_generation);
-       inlined_attribute_to_forward :=
-         t.(Downwards_env.inlined_attribute_to_forward);
-       inlining_state := t.(Downwards_env.inlining_state);
-       propagating_float_consts := t.(Downwards_env.propagating_float_consts);
-       at_unit_toplevel := t.(Downwards_env.at_unit_toplevel);
-       unit_toplevel_return_continuation :=
-         t.(Downwards_env.unit_toplevel_return_continuation);
-       unit_toplevel_exn_continuation :=
-         t.(Downwards_env.unit_toplevel_exn_continuation);
-       unit_toplevel_alloc_region :=
-         t.(Downwards_env.unit_toplevel_alloc_region);
-       variables_defined_at_toplevel :=
-         t.(Downwards_env.variables_defined_at_toplevel);
-       cse := t.(Downwards_env.cse);
-       comparison_results := t.(Downwards_env.comparison_results);
-       are_rebuilding_terms := Are_rebuilding_terms.are_not_rebuilding;
-       closure_info := t.(Downwards_env.closure_info);
-       get_imported_code := t.(Downwards_env.get_imported_code);
-       all_code := t.(Downwards_env.all_code);
-       inlining_history_tracker := t.(Downwards_env.inlining_history_tracker);
-       loopify_state := t.(Downwards_env.loopify_state);
-       replay_history := t.(Downwards_env.replay_history);
-       specialization_cost := t.(Downwards_env.specialization_cost);
-       join_analysis := t.(Downwards_env.join_analysis);
-       defined_variables_by_scope :=
-         t.(Downwards_env.defined_variables_by_scope);
-       lifted := t.(Downwards_env.lifted);
-       cost_of_lifting_continuations_out_of_current_one :=
-         t.(Downwards_env.cost_of_lifting_continuations_out_of_current_one);
-       has_seen_a_non_liftable_continuation :=
-         t.(Downwards_env.has_seen_a_non_liftable_continuation);
-       is_cold := t.(Downwards_env.is_cold)
-    |}.
+    (update_are_rebuilding_terms_disable_inlining t
+       Are_rebuilding_terms.are_not_rebuilding
+       (Disable_inlining.Disable_inlining disable_inlining_reason)).
+
+(* PORT-GAP(update): 642, [{ t with disable_inlining }]. *)
+Definition update_disable_inlining (t : Downwards_env.t)
+    (disable_inlining : Disable_inlining.t) : Downwards_env.t :=
+  {| round := t.(round); machine_width := t.(machine_width);
+     typing_env := t.(typing_env); inlined_debuginfo := t.(inlined_debuginfo);
+     disable_inlining := disable_inlining;
+     disable_partial_application_stub_generation :=
+       t.(disable_partial_application_stub_generation);
+     inlined_attribute_to_forward := t.(inlined_attribute_to_forward);
+     inlining_state := t.(inlining_state);
+     propagating_float_consts := t.(propagating_float_consts);
+     at_unit_toplevel := t.(at_unit_toplevel);
+     unit_toplevel_return_continuation :=
+       t.(unit_toplevel_return_continuation);
+     unit_toplevel_exn_continuation := t.(unit_toplevel_exn_continuation);
+     unit_toplevel_alloc_region := t.(unit_toplevel_alloc_region);
+     variables_defined_at_toplevel := t.(variables_defined_at_toplevel);
+     cse := t.(cse); comparison_results := t.(comparison_results);
+     are_rebuilding_terms := t.(are_rebuilding_terms);
+     closure_info := t.(closure_info);
+     get_imported_code := t.(get_imported_code); all_code := t.(all_code);
+     inlining_history_tracker := t.(inlining_history_tracker);
+     loopify_state := t.(loopify_state); replay_history := t.(replay_history);
+     specialization_cost := t.(specialization_cost);
+     join_analysis := t.(join_analysis);
+     defined_variables_by_scope := t.(defined_variables_by_scope);
+     lifted := t.(lifted);
+     cost_of_lifting_continuations_out_of_current_one :=
+       t.(cost_of_lifting_continuations_out_of_current_one);
+     has_seen_a_non_liftable_continuation :=
+       t.(has_seen_a_non_liftable_continuation);
+     is_cold := t.(is_cold) |}.
+Extract Inlined Constant update_disable_inlining =>
+  "(fun t x__1 -> { t with disable_inlining = x__1 })".
 
 (* 641-642 *)
 Definition set_disable_inlining (t : Downwards_env.t)
     (reason : Disable_inlining_reason.t) : M Downwards_env.t :=
-  ret
-    {| round := t.(Downwards_env.round);
-       machine_width := t.(Downwards_env.machine_width);
-       typing_env := t.(Downwards_env.typing_env);
-       inlined_debuginfo := t.(Downwards_env.inlined_debuginfo);
-       disable_inlining := Disable_inlining.Disable_inlining reason;
-       disable_partial_application_stub_generation :=
-         t.(Downwards_env.disable_partial_application_stub_generation);
-       inlined_attribute_to_forward :=
-         t.(Downwards_env.inlined_attribute_to_forward);
-       inlining_state := t.(Downwards_env.inlining_state);
-       propagating_float_consts := t.(Downwards_env.propagating_float_consts);
-       at_unit_toplevel := t.(Downwards_env.at_unit_toplevel);
-       unit_toplevel_return_continuation :=
-         t.(Downwards_env.unit_toplevel_return_continuation);
-       unit_toplevel_exn_continuation :=
-         t.(Downwards_env.unit_toplevel_exn_continuation);
-       unit_toplevel_alloc_region :=
-         t.(Downwards_env.unit_toplevel_alloc_region);
-       variables_defined_at_toplevel :=
-         t.(Downwards_env.variables_defined_at_toplevel);
-       cse := t.(Downwards_env.cse);
-       comparison_results := t.(Downwards_env.comparison_results);
-       are_rebuilding_terms := t.(Downwards_env.are_rebuilding_terms);
-       closure_info := t.(Downwards_env.closure_info);
-       get_imported_code := t.(Downwards_env.get_imported_code);
-       all_code := t.(Downwards_env.all_code);
-       inlining_history_tracker := t.(Downwards_env.inlining_history_tracker);
-       loopify_state := t.(Downwards_env.loopify_state);
-       replay_history := t.(Downwards_env.replay_history);
-       specialization_cost := t.(Downwards_env.specialization_cost);
-       join_analysis := t.(Downwards_env.join_analysis);
-       defined_variables_by_scope :=
-         t.(Downwards_env.defined_variables_by_scope);
-       lifted := t.(Downwards_env.lifted);
-       cost_of_lifting_continuations_out_of_current_one :=
-         t.(Downwards_env.cost_of_lifting_continuations_out_of_current_one);
-       has_seen_a_non_liftable_continuation :=
-         t.(Downwards_env.has_seen_a_non_liftable_continuation);
-       is_cold := t.(Downwards_env.is_cold)
-    |}.
+  ret (update_disable_inlining t (Disable_inlining.Disable_inlining reason)).
+
+(* PORT-GAP(update): 645, [{ t with are_rebuilding_terms }]. *)
+Definition update_are_rebuilding_terms (t : Downwards_env.t)
+    (are_rebuilding_terms : Are_rebuilding_terms.t) : Downwards_env.t :=
+  {| round := t.(round); machine_width := t.(machine_width);
+     typing_env := t.(typing_env); inlined_debuginfo := t.(inlined_debuginfo);
+     disable_inlining := t.(disable_inlining);
+     disable_partial_application_stub_generation :=
+       t.(disable_partial_application_stub_generation);
+     inlined_attribute_to_forward := t.(inlined_attribute_to_forward);
+     inlining_state := t.(inlining_state);
+     propagating_float_consts := t.(propagating_float_consts);
+     at_unit_toplevel := t.(at_unit_toplevel);
+     unit_toplevel_return_continuation :=
+       t.(unit_toplevel_return_continuation);
+     unit_toplevel_exn_continuation := t.(unit_toplevel_exn_continuation);
+     unit_toplevel_alloc_region := t.(unit_toplevel_alloc_region);
+     variables_defined_at_toplevel := t.(variables_defined_at_toplevel);
+     cse := t.(cse); comparison_results := t.(comparison_results);
+     are_rebuilding_terms := are_rebuilding_terms;
+     closure_info := t.(closure_info);
+     get_imported_code := t.(get_imported_code); all_code := t.(all_code);
+     inlining_history_tracker := t.(inlining_history_tracker);
+     loopify_state := t.(loopify_state); replay_history := t.(replay_history);
+     specialization_cost := t.(specialization_cost);
+     join_analysis := t.(join_analysis);
+     defined_variables_by_scope := t.(defined_variables_by_scope);
+     lifted := t.(lifted);
+     cost_of_lifting_continuations_out_of_current_one :=
+       t.(cost_of_lifting_continuations_out_of_current_one);
+     has_seen_a_non_liftable_continuation :=
+       t.(has_seen_a_non_liftable_continuation);
+     is_cold := t.(is_cold) |}.
+Extract Inlined Constant update_are_rebuilding_terms =>
+  "(fun t x__1 -> { t with are_rebuilding_terms = x__1 })".
 
 (* 644-645 *)
 Definition set_rebuild_terms (t : Downwards_env.t) : M Downwards_env.t :=
-  ret
-    {| round := t.(Downwards_env.round);
-       machine_width := t.(Downwards_env.machine_width);
-       typing_env := t.(Downwards_env.typing_env);
-       inlined_debuginfo := t.(Downwards_env.inlined_debuginfo);
-       disable_inlining := t.(Downwards_env.disable_inlining);
-       disable_partial_application_stub_generation :=
-         t.(Downwards_env.disable_partial_application_stub_generation);
-       inlined_attribute_to_forward :=
-         t.(Downwards_env.inlined_attribute_to_forward);
-       inlining_state := t.(Downwards_env.inlining_state);
-       propagating_float_consts := t.(Downwards_env.propagating_float_consts);
-       at_unit_toplevel := t.(Downwards_env.at_unit_toplevel);
-       unit_toplevel_return_continuation :=
-         t.(Downwards_env.unit_toplevel_return_continuation);
-       unit_toplevel_exn_continuation :=
-         t.(Downwards_env.unit_toplevel_exn_continuation);
-       unit_toplevel_alloc_region :=
-         t.(Downwards_env.unit_toplevel_alloc_region);
-       variables_defined_at_toplevel :=
-         t.(Downwards_env.variables_defined_at_toplevel);
-       cse := t.(Downwards_env.cse);
-       comparison_results := t.(Downwards_env.comparison_results);
-       are_rebuilding_terms := Are_rebuilding_terms.are_rebuilding;
-       closure_info := t.(Downwards_env.closure_info);
-       get_imported_code := t.(Downwards_env.get_imported_code);
-       all_code := t.(Downwards_env.all_code);
-       inlining_history_tracker := t.(Downwards_env.inlining_history_tracker);
-       loopify_state := t.(Downwards_env.loopify_state);
-       replay_history := t.(Downwards_env.replay_history);
-       specialization_cost := t.(Downwards_env.specialization_cost);
-       join_analysis := t.(Downwards_env.join_analysis);
-       defined_variables_by_scope :=
-         t.(Downwards_env.defined_variables_by_scope);
-       lifted := t.(Downwards_env.lifted);
-       cost_of_lifting_continuations_out_of_current_one :=
-         t.(Downwards_env.cost_of_lifting_continuations_out_of_current_one);
-       has_seen_a_non_liftable_continuation :=
-         t.(Downwards_env.has_seen_a_non_liftable_continuation);
-       is_cold := t.(Downwards_env.is_cold)
-    |}.
+  ret (update_are_rebuilding_terms t Are_rebuilding_terms.are_rebuilding).
+
+(* PORT-GAP(update): 651-655, [{ t with closure_info }]. *)
+Definition update_closure_info (t : Downwards_env.t)
+    (closure_info : Closure_info.t) : Downwards_env.t :=
+  {| round := t.(round); machine_width := t.(machine_width);
+     typing_env := t.(typing_env); inlined_debuginfo := t.(inlined_debuginfo);
+     disable_inlining := t.(disable_inlining);
+     disable_partial_application_stub_generation :=
+       t.(disable_partial_application_stub_generation);
+     inlined_attribute_to_forward := t.(inlined_attribute_to_forward);
+     inlining_state := t.(inlining_state);
+     propagating_float_consts := t.(propagating_float_consts);
+     at_unit_toplevel := t.(at_unit_toplevel);
+     unit_toplevel_return_continuation :=
+       t.(unit_toplevel_return_continuation);
+     unit_toplevel_exn_continuation := t.(unit_toplevel_exn_continuation);
+     unit_toplevel_alloc_region := t.(unit_toplevel_alloc_region);
+     variables_defined_at_toplevel := t.(variables_defined_at_toplevel);
+     cse := t.(cse); comparison_results := t.(comparison_results);
+     are_rebuilding_terms := t.(are_rebuilding_terms);
+     closure_info := closure_info; get_imported_code := t.(get_imported_code);
+     all_code := t.(all_code);
+     inlining_history_tracker := t.(inlining_history_tracker);
+     loopify_state := t.(loopify_state); replay_history := t.(replay_history);
+     specialization_cost := t.(specialization_cost);
+     join_analysis := t.(join_analysis);
+     defined_variables_by_scope := t.(defined_variables_by_scope);
+     lifted := t.(lifted);
+     cost_of_lifting_continuations_out_of_current_one :=
+       t.(cost_of_lifting_continuations_out_of_current_one);
+     has_seen_a_non_liftable_continuation :=
+       t.(has_seen_a_non_liftable_continuation);
+     is_cold := t.(is_cold) |}.
+Extract Inlined Constant update_closure_info =>
+  "(fun t x__1 -> { t with closure_info = x__1 })".
 
 (* 649-655. In the compiler: [code_id ~return_continuation
    ~exn_continuation ~my_closure ~my_alloc_region t]. *)
@@ -2023,47 +1617,7 @@ Definition enter_closure (code_id : Code_id.t)
     Closure_info.in_a_closure code_id return_continuation exn_continuation
       my_closure my_alloc_region
   in
-  ret
-    {| round := t.(Downwards_env.round);
-       machine_width := t.(Downwards_env.machine_width);
-       typing_env := t.(Downwards_env.typing_env);
-       inlined_debuginfo := t.(Downwards_env.inlined_debuginfo);
-       disable_inlining := t.(Downwards_env.disable_inlining);
-       disable_partial_application_stub_generation :=
-         t.(Downwards_env.disable_partial_application_stub_generation);
-       inlined_attribute_to_forward :=
-         t.(Downwards_env.inlined_attribute_to_forward);
-       inlining_state := t.(Downwards_env.inlining_state);
-       propagating_float_consts := t.(Downwards_env.propagating_float_consts);
-       at_unit_toplevel := t.(Downwards_env.at_unit_toplevel);
-       unit_toplevel_return_continuation :=
-         t.(Downwards_env.unit_toplevel_return_continuation);
-       unit_toplevel_exn_continuation :=
-         t.(Downwards_env.unit_toplevel_exn_continuation);
-       unit_toplevel_alloc_region :=
-         t.(Downwards_env.unit_toplevel_alloc_region);
-       variables_defined_at_toplevel :=
-         t.(Downwards_env.variables_defined_at_toplevel);
-       cse := t.(Downwards_env.cse);
-       comparison_results := t.(Downwards_env.comparison_results);
-       are_rebuilding_terms := t.(Downwards_env.are_rebuilding_terms);
-       closure_info := tmp1;
-       get_imported_code := t.(Downwards_env.get_imported_code);
-       all_code := t.(Downwards_env.all_code);
-       inlining_history_tracker := t.(Downwards_env.inlining_history_tracker);
-       loopify_state := t.(Downwards_env.loopify_state);
-       replay_history := t.(Downwards_env.replay_history);
-       specialization_cost := t.(Downwards_env.specialization_cost);
-       join_analysis := t.(Downwards_env.join_analysis);
-       defined_variables_by_scope :=
-         t.(Downwards_env.defined_variables_by_scope);
-       lifted := t.(Downwards_env.lifted);
-       cost_of_lifting_continuations_out_of_current_one :=
-         t.(Downwards_env.cost_of_lifting_continuations_out_of_current_one);
-       has_seen_a_non_liftable_continuation :=
-         t.(Downwards_env.has_seen_a_non_liftable_continuation);
-       is_cold := t.(Downwards_env.is_cold)
-    |}.
+  ret (update_closure_info t tmp1).
 
 (* 659-660 *)
 (* PORT-GAP(loose): the parameter of the compiler is the pattern [{
@@ -2078,92 +1632,47 @@ Definition set_inlining_arguments (arguments : Inlining_arguments.t)
   let! tmp1 :=
     Inlining_state.with_arguments arguments t.(Downwards_env.inlining_state)
   in
-  ret
-    {| round := t.(Downwards_env.round);
-       machine_width := t.(Downwards_env.machine_width);
-       typing_env := t.(Downwards_env.typing_env);
-       inlined_debuginfo := t.(Downwards_env.inlined_debuginfo);
-       disable_inlining := t.(Downwards_env.disable_inlining);
-       disable_partial_application_stub_generation :=
-         t.(Downwards_env.disable_partial_application_stub_generation);
-       inlined_attribute_to_forward :=
-         t.(Downwards_env.inlined_attribute_to_forward);
-       inlining_state := tmp1;
-       propagating_float_consts := t.(Downwards_env.propagating_float_consts);
-       at_unit_toplevel := t.(Downwards_env.at_unit_toplevel);
-       unit_toplevel_return_continuation :=
-         t.(Downwards_env.unit_toplevel_return_continuation);
-       unit_toplevel_exn_continuation :=
-         t.(Downwards_env.unit_toplevel_exn_continuation);
-       unit_toplevel_alloc_region :=
-         t.(Downwards_env.unit_toplevel_alloc_region);
-       variables_defined_at_toplevel :=
-         t.(Downwards_env.variables_defined_at_toplevel);
-       cse := t.(Downwards_env.cse);
-       comparison_results := t.(Downwards_env.comparison_results);
-       are_rebuilding_terms := t.(Downwards_env.are_rebuilding_terms);
-       closure_info := t.(Downwards_env.closure_info);
-       get_imported_code := t.(Downwards_env.get_imported_code);
-       all_code := t.(Downwards_env.all_code);
-       inlining_history_tracker := t.(Downwards_env.inlining_history_tracker);
-       loopify_state := t.(Downwards_env.loopify_state);
-       replay_history := t.(Downwards_env.replay_history);
-       specialization_cost := t.(Downwards_env.specialization_cost);
-       join_analysis := t.(Downwards_env.join_analysis);
-       defined_variables_by_scope :=
-         t.(Downwards_env.defined_variables_by_scope);
-       lifted := t.(Downwards_env.lifted);
-       cost_of_lifting_continuations_out_of_current_one :=
-         t.(Downwards_env.cost_of_lifting_continuations_out_of_current_one);
-       has_seen_a_non_liftable_continuation :=
-         t.(Downwards_env.has_seen_a_non_liftable_continuation);
-       is_cold := t.(Downwards_env.is_cold)
-    |}.
+  ret (update_inlining_state t tmp1).
+
+(* PORT-GAP(update): 671, [{ t with inlined_debuginfo }]. *)
+Definition update_inlined_debuginfo (t : Downwards_env.t)
+    (inlined_debuginfo : Inlined_debuginfo.t) : Downwards_env.t :=
+  {| round := t.(round); machine_width := t.(machine_width);
+     typing_env := t.(typing_env); inlined_debuginfo := inlined_debuginfo;
+     disable_inlining := t.(disable_inlining);
+     disable_partial_application_stub_generation :=
+       t.(disable_partial_application_stub_generation);
+     inlined_attribute_to_forward := t.(inlined_attribute_to_forward);
+     inlining_state := t.(inlining_state);
+     propagating_float_consts := t.(propagating_float_consts);
+     at_unit_toplevel := t.(at_unit_toplevel);
+     unit_toplevel_return_continuation :=
+       t.(unit_toplevel_return_continuation);
+     unit_toplevel_exn_continuation := t.(unit_toplevel_exn_continuation);
+     unit_toplevel_alloc_region := t.(unit_toplevel_alloc_region);
+     variables_defined_at_toplevel := t.(variables_defined_at_toplevel);
+     cse := t.(cse); comparison_results := t.(comparison_results);
+     are_rebuilding_terms := t.(are_rebuilding_terms);
+     closure_info := t.(closure_info);
+     get_imported_code := t.(get_imported_code); all_code := t.(all_code);
+     inlining_history_tracker := t.(inlining_history_tracker);
+     loopify_state := t.(loopify_state); replay_history := t.(replay_history);
+     specialization_cost := t.(specialization_cost);
+     join_analysis := t.(join_analysis);
+     defined_variables_by_scope := t.(defined_variables_by_scope);
+     lifted := t.(lifted);
+     cost_of_lifting_continuations_out_of_current_one :=
+       t.(cost_of_lifting_continuations_out_of_current_one);
+     has_seen_a_non_liftable_continuation :=
+       t.(has_seen_a_non_liftable_continuation);
+     is_cold := t.(is_cold) |}.
+Extract Inlined Constant update_inlined_debuginfo =>
+  "(fun t x__1 -> { t with inlined_debuginfo = x__1 })".
 
 (* 670-671. In the compiler: [t ~from]. *)
 Definition set_inlined_debuginfo (t from : Downwards_env.t)
     : M Downwards_env.t :=
-  ret
-    {| round := t.(Downwards_env.round);
-       machine_width := t.(Downwards_env.machine_width);
-       typing_env := t.(Downwards_env.typing_env);
-       inlined_debuginfo := from.(Downwards_env.inlined_debuginfo);
-       disable_inlining := t.(Downwards_env.disable_inlining);
-       disable_partial_application_stub_generation :=
-         t.(Downwards_env.disable_partial_application_stub_generation);
-       inlined_attribute_to_forward :=
-         t.(Downwards_env.inlined_attribute_to_forward);
-       inlining_state := t.(Downwards_env.inlining_state);
-       propagating_float_consts := t.(Downwards_env.propagating_float_consts);
-       at_unit_toplevel := t.(Downwards_env.at_unit_toplevel);
-       unit_toplevel_return_continuation :=
-         t.(Downwards_env.unit_toplevel_return_continuation);
-       unit_toplevel_exn_continuation :=
-         t.(Downwards_env.unit_toplevel_exn_continuation);
-       unit_toplevel_alloc_region :=
-         t.(Downwards_env.unit_toplevel_alloc_region);
-       variables_defined_at_toplevel :=
-         t.(Downwards_env.variables_defined_at_toplevel);
-       cse := t.(Downwards_env.cse);
-       comparison_results := t.(Downwards_env.comparison_results);
-       are_rebuilding_terms := t.(Downwards_env.are_rebuilding_terms);
-       closure_info := t.(Downwards_env.closure_info);
-       get_imported_code := t.(Downwards_env.get_imported_code);
-       all_code := t.(Downwards_env.all_code);
-       inlining_history_tracker := t.(Downwards_env.inlining_history_tracker);
-       loopify_state := t.(Downwards_env.loopify_state);
-       replay_history := t.(Downwards_env.replay_history);
-       specialization_cost := t.(Downwards_env.specialization_cost);
-       join_analysis := t.(Downwards_env.join_analysis);
-       defined_variables_by_scope :=
-         t.(Downwards_env.defined_variables_by_scope);
-       lifted := t.(Downwards_env.lifted);
-       cost_of_lifting_continuations_out_of_current_one :=
-         t.(Downwards_env.cost_of_lifting_continuations_out_of_current_one);
-       has_seen_a_non_liftable_continuation :=
-         t.(Downwards_env.has_seen_a_non_liftable_continuation);
-       is_cold := t.(Downwards_env.is_cold)
-    |}.
+  ret (update_inlined_debuginfo t from.(Downwards_env.inlined_debuginfo)).
 
 (* 673-685. In the compiler: [t ~from_apply_expr ~inlined_attribute]. *)
 (* PORT-GAP(loose): 683-685, the name [inlined] that the pattern gives to
@@ -2189,6 +1698,46 @@ Definition inlined_attribute_to_forward_through_inlined_apply
     ret (Some (Attribute_to_forward inlined from_apply_expr))
   end.
 
+(* PORT-GAP(update): 693-697, [{ t with inlined_attribute_to_forward;
+   inlined_debuginfo }]. *)
+Definition update_inlined_attribute_to_forward_inlined_debuginfo
+    (t : Downwards_env.t)
+    (inlined_attribute_to_forward : option attribute_to_forward)
+    (inlined_debuginfo : Inlined_debuginfo.t) : Downwards_env.t :=
+  {| round := t.(round); machine_width := t.(machine_width);
+     typing_env := t.(typing_env); inlined_debuginfo := inlined_debuginfo;
+     disable_inlining := t.(disable_inlining);
+     disable_partial_application_stub_generation :=
+       t.(disable_partial_application_stub_generation);
+     inlined_attribute_to_forward := inlined_attribute_to_forward;
+     inlining_state := t.(inlining_state);
+     propagating_float_consts := t.(propagating_float_consts);
+     at_unit_toplevel := t.(at_unit_toplevel);
+     unit_toplevel_return_continuation :=
+       t.(unit_toplevel_return_continuation);
+     unit_toplevel_exn_continuation := t.(unit_toplevel_exn_continuation);
+     unit_toplevel_alloc_region := t.(unit_toplevel_alloc_region);
+     variables_defined_at_toplevel := t.(variables_defined_at_toplevel);
+     cse := t.(cse); comparison_results := t.(comparison_results);
+     are_rebuilding_terms := t.(are_rebuilding_terms);
+     closure_info := t.(closure_info);
+     get_imported_code := t.(get_imported_code); all_code := t.(all_code);
+     inlining_history_tracker := t.(inlining_history_tracker);
+     loopify_state := t.(loopify_state); replay_history := t.(replay_history);
+     specialization_cost := t.(specialization_cost);
+     join_analysis := t.(join_analysis);
+     defined_variables_by_scope := t.(defined_variables_by_scope);
+     lifted := t.(lifted);
+     cost_of_lifting_continuations_out_of_current_one :=
+       t.(cost_of_lifting_continuations_out_of_current_one);
+     has_seen_a_non_liftable_continuation :=
+       t.(has_seen_a_non_liftable_continuation);
+     is_cold := t.(is_cold) |}.
+Extract Inlined Constant update_inlined_attribute_to_forward_inlined_debuginfo =>
+  "(fun t x__1 x__2 ->
+     { t with inlined_attribute_to_forward = x__1;
+       inlined_debuginfo = x__2 })".
+
 (* 687-697. In the compiler: [t ~from_apply_expr ~inlined_attribute]. *)
 Definition merge_inlined_debuginfo_and_forward_inlined_attribute
     (t : Downwards_env.t) (from_apply_expr : Inlined_debuginfo.t)
@@ -2202,50 +1751,56 @@ Definition merge_inlined_debuginfo_and_forward_inlined_attribute
       from_apply_expr
   in
   ret
-    {| round := t.(Downwards_env.round);
-       machine_width := t.(Downwards_env.machine_width);
-       typing_env := t.(Downwards_env.typing_env);
-       inlined_debuginfo := tmp1;
-       disable_inlining := t.(Downwards_env.disable_inlining);
-       disable_partial_application_stub_generation :=
-         t.(Downwards_env.disable_partial_application_stub_generation);
-       inlined_attribute_to_forward := inlined_attribute_to_forward;
-       inlining_state := t.(Downwards_env.inlining_state);
-       propagating_float_consts := t.(Downwards_env.propagating_float_consts);
-       at_unit_toplevel := t.(Downwards_env.at_unit_toplevel);
-       unit_toplevel_return_continuation :=
-         t.(Downwards_env.unit_toplevel_return_continuation);
-       unit_toplevel_exn_continuation :=
-         t.(Downwards_env.unit_toplevel_exn_continuation);
-       unit_toplevel_alloc_region :=
-         t.(Downwards_env.unit_toplevel_alloc_region);
-       variables_defined_at_toplevel :=
-         t.(Downwards_env.variables_defined_at_toplevel);
-       cse := t.(Downwards_env.cse);
-       comparison_results := t.(Downwards_env.comparison_results);
-       are_rebuilding_terms := t.(Downwards_env.are_rebuilding_terms);
-       closure_info := t.(Downwards_env.closure_info);
-       get_imported_code := t.(Downwards_env.get_imported_code);
-       all_code := t.(Downwards_env.all_code);
-       inlining_history_tracker := t.(Downwards_env.inlining_history_tracker);
-       loopify_state := t.(Downwards_env.loopify_state);
-       replay_history := t.(Downwards_env.replay_history);
-       specialization_cost := t.(Downwards_env.specialization_cost);
-       join_analysis := t.(Downwards_env.join_analysis);
-       defined_variables_by_scope :=
-         t.(Downwards_env.defined_variables_by_scope);
-       lifted := t.(Downwards_env.lifted);
-       cost_of_lifting_continuations_out_of_current_one :=
-         t.(Downwards_env.cost_of_lifting_continuations_out_of_current_one);
-       has_seen_a_non_liftable_continuation :=
-         t.(Downwards_env.has_seen_a_non_liftable_continuation);
-       is_cold := t.(Downwards_env.is_cold)
-    |}.
+    (update_inlined_attribute_to_forward_inlined_debuginfo t
+       inlined_attribute_to_forward tmp1).
 
 (* 699-700 *)
 Definition add_inlined_debuginfo (t : Downwards_env.t) (dbg : Debuginfo.t)
     : M Debuginfo.t :=
   Inlined_debuginfo.rewrite t.(Downwards_env.inlined_debuginfo) dbg.
+
+(* PORT-GAP(update): 741-751, [{ t with inlined_debuginfo;
+   inlined_attribute_to_forward; inlining_state;
+   inlining_history_tracker }]. *)
+Definition update_inlined_debuginfo_inlined_attribute_to_forward_inlining_state_inlining_history_tracker
+    (t : Downwards_env.t) (inlined_debuginfo : Inlined_debuginfo.t)
+    (inlined_attribute_to_forward : option attribute_to_forward)
+    (inlining_state : Inlining_state.t)
+    (inlining_history_tracker : Inlining_history.Tracker.t)
+    : Downwards_env.t :=
+  {| round := t.(round); machine_width := t.(machine_width);
+     typing_env := t.(typing_env); inlined_debuginfo := inlined_debuginfo;
+     disable_inlining := t.(disable_inlining);
+     disable_partial_application_stub_generation :=
+       t.(disable_partial_application_stub_generation);
+     inlined_attribute_to_forward := inlined_attribute_to_forward;
+     inlining_state := inlining_state;
+     propagating_float_consts := t.(propagating_float_consts);
+     at_unit_toplevel := t.(at_unit_toplevel);
+     unit_toplevel_return_continuation :=
+       t.(unit_toplevel_return_continuation);
+     unit_toplevel_exn_continuation := t.(unit_toplevel_exn_continuation);
+     unit_toplevel_alloc_region := t.(unit_toplevel_alloc_region);
+     variables_defined_at_toplevel := t.(variables_defined_at_toplevel);
+     cse := t.(cse); comparison_results := t.(comparison_results);
+     are_rebuilding_terms := t.(are_rebuilding_terms);
+     closure_info := t.(closure_info);
+     get_imported_code := t.(get_imported_code); all_code := t.(all_code);
+     inlining_history_tracker := inlining_history_tracker;
+     loopify_state := t.(loopify_state); replay_history := t.(replay_history);
+     specialization_cost := t.(specialization_cost);
+     join_analysis := t.(join_analysis);
+     defined_variables_by_scope := t.(defined_variables_by_scope);
+     lifted := t.(lifted);
+     cost_of_lifting_continuations_out_of_current_one :=
+       t.(cost_of_lifting_continuations_out_of_current_one);
+     has_seen_a_non_liftable_continuation :=
+       t.(has_seen_a_non_liftable_continuation);
+     is_cold := t.(is_cold) |}.
+Extract Inlined Constant update_inlined_debuginfo_inlined_attribute_to_forward_inlining_state_inlining_history_tracker =>
+  "(fun t x__1 x__2 x__3 x__4 ->
+     { t with inlined_debuginfo = x__1; inlined_attribute_to_forward = x__2;
+       inlining_state = x__3; inlining_history_tracker = x__4 })".
 
 (* 702-751. In the compiler: [~called_code ~apply ~was_inline_always t]. *)
 Definition enter_inlined_apply (called_code : Code.t) (apply : Apply.t)
@@ -2306,45 +1861,8 @@ Definition enter_inlined_apply (called_code : Code.t) (apply : Apply.t)
       t.(Downwards_env.inlining_history_tracker)
   in
   ret
-    {| round := t.(Downwards_env.round);
-       machine_width := t.(Downwards_env.machine_width);
-       typing_env := t.(Downwards_env.typing_env);
-       inlined_debuginfo := inlined_debuginfo;
-       disable_inlining := t.(Downwards_env.disable_inlining);
-       disable_partial_application_stub_generation :=
-         t.(Downwards_env.disable_partial_application_stub_generation);
-       inlined_attribute_to_forward := inlined_attribute_to_forward;
-       inlining_state := inlining_state;
-       propagating_float_consts := t.(Downwards_env.propagating_float_consts);
-       at_unit_toplevel := t.(Downwards_env.at_unit_toplevel);
-       unit_toplevel_return_continuation :=
-         t.(Downwards_env.unit_toplevel_return_continuation);
-       unit_toplevel_exn_continuation :=
-         t.(Downwards_env.unit_toplevel_exn_continuation);
-       unit_toplevel_alloc_region :=
-         t.(Downwards_env.unit_toplevel_alloc_region);
-       variables_defined_at_toplevel :=
-         t.(Downwards_env.variables_defined_at_toplevel);
-       cse := t.(Downwards_env.cse);
-       comparison_results := t.(Downwards_env.comparison_results);
-       are_rebuilding_terms := t.(Downwards_env.are_rebuilding_terms);
-       closure_info := t.(Downwards_env.closure_info);
-       get_imported_code := t.(Downwards_env.get_imported_code);
-       all_code := t.(Downwards_env.all_code);
-       inlining_history_tracker := tmp4;
-       loopify_state := t.(Downwards_env.loopify_state);
-       replay_history := t.(Downwards_env.replay_history);
-       specialization_cost := t.(Downwards_env.specialization_cost);
-       join_analysis := t.(Downwards_env.join_analysis);
-       defined_variables_by_scope :=
-         t.(Downwards_env.defined_variables_by_scope);
-       lifted := t.(Downwards_env.lifted);
-       cost_of_lifting_continuations_out_of_current_one :=
-         t.(Downwards_env.cost_of_lifting_continuations_out_of_current_one);
-       has_seen_a_non_liftable_continuation :=
-         t.(Downwards_env.has_seen_a_non_liftable_continuation);
-       is_cold := t.(Downwards_env.is_cold)
-    |}.
+    (update_inlined_debuginfo_inlined_attribute_to_forward_inlining_state_inlining_history_tracker
+       t inlined_debuginfo inlined_attribute_to_forward inlining_state tmp4).
 
 (* 753-758 *)
 Definition generate_phantom_lets (t : Downwards_env.t) : M bool :=
@@ -2357,50 +1875,45 @@ Definition generate_phantom_lets (t : Downwards_env.t) : M bool :=
        (Are_rebuilding_terms.do_rebuild_terms
           t.(Downwards_env.are_rebuilding_terms))).
 
+(* PORT-GAP(update): 762, [{ t with loopify_state }]. *)
+Definition update_loopify_state (t : Downwards_env.t)
+    (loopify_state : Loopify_state.t) : Downwards_env.t :=
+  {| round := t.(round); machine_width := t.(machine_width);
+     typing_env := t.(typing_env); inlined_debuginfo := t.(inlined_debuginfo);
+     disable_inlining := t.(disable_inlining);
+     disable_partial_application_stub_generation :=
+       t.(disable_partial_application_stub_generation);
+     inlined_attribute_to_forward := t.(inlined_attribute_to_forward);
+     inlining_state := t.(inlining_state);
+     propagating_float_consts := t.(propagating_float_consts);
+     at_unit_toplevel := t.(at_unit_toplevel);
+     unit_toplevel_return_continuation :=
+       t.(unit_toplevel_return_continuation);
+     unit_toplevel_exn_continuation := t.(unit_toplevel_exn_continuation);
+     unit_toplevel_alloc_region := t.(unit_toplevel_alloc_region);
+     variables_defined_at_toplevel := t.(variables_defined_at_toplevel);
+     cse := t.(cse); comparison_results := t.(comparison_results);
+     are_rebuilding_terms := t.(are_rebuilding_terms);
+     closure_info := t.(closure_info);
+     get_imported_code := t.(get_imported_code); all_code := t.(all_code);
+     inlining_history_tracker := t.(inlining_history_tracker);
+     loopify_state := loopify_state; replay_history := t.(replay_history);
+     specialization_cost := t.(specialization_cost);
+     join_analysis := t.(join_analysis);
+     defined_variables_by_scope := t.(defined_variables_by_scope);
+     lifted := t.(lifted);
+     cost_of_lifting_continuations_out_of_current_one :=
+       t.(cost_of_lifting_continuations_out_of_current_one);
+     has_seen_a_non_liftable_continuation :=
+       t.(has_seen_a_non_liftable_continuation);
+     is_cold := t.(is_cold) |}.
+Extract Inlined Constant update_loopify_state =>
+  "(fun t x__1 -> { t with loopify_state = x__1 })".
+
 (* 762 *)
 Definition set_loopify_state (loopify_state : Loopify_state.t)
     (t : Downwards_env.t) : M Downwards_env.t :=
-  ret
-    {| round := t.(Downwards_env.round);
-       machine_width := t.(Downwards_env.machine_width);
-       typing_env := t.(Downwards_env.typing_env);
-       inlined_debuginfo := t.(Downwards_env.inlined_debuginfo);
-       disable_inlining := t.(Downwards_env.disable_inlining);
-       disable_partial_application_stub_generation :=
-         t.(Downwards_env.disable_partial_application_stub_generation);
-       inlined_attribute_to_forward :=
-         t.(Downwards_env.inlined_attribute_to_forward);
-       inlining_state := t.(Downwards_env.inlining_state);
-       propagating_float_consts := t.(Downwards_env.propagating_float_consts);
-       at_unit_toplevel := t.(Downwards_env.at_unit_toplevel);
-       unit_toplevel_return_continuation :=
-         t.(Downwards_env.unit_toplevel_return_continuation);
-       unit_toplevel_exn_continuation :=
-         t.(Downwards_env.unit_toplevel_exn_continuation);
-       unit_toplevel_alloc_region :=
-         t.(Downwards_env.unit_toplevel_alloc_region);
-       variables_defined_at_toplevel :=
-         t.(Downwards_env.variables_defined_at_toplevel);
-       cse := t.(Downwards_env.cse);
-       comparison_results := t.(Downwards_env.comparison_results);
-       are_rebuilding_terms := t.(Downwards_env.are_rebuilding_terms);
-       closure_info := t.(Downwards_env.closure_info);
-       get_imported_code := t.(Downwards_env.get_imported_code);
-       all_code := t.(Downwards_env.all_code);
-       inlining_history_tracker := t.(Downwards_env.inlining_history_tracker);
-       loopify_state := loopify_state;
-       replay_history := t.(Downwards_env.replay_history);
-       specialization_cost := t.(Downwards_env.specialization_cost);
-       join_analysis := t.(Downwards_env.join_analysis);
-       defined_variables_by_scope :=
-         t.(Downwards_env.defined_variables_by_scope);
-       lifted := t.(Downwards_env.lifted);
-       cost_of_lifting_continuations_out_of_current_one :=
-         t.(Downwards_env.cost_of_lifting_continuations_out_of_current_one);
-       has_seen_a_non_liftable_continuation :=
-         t.(Downwards_env.has_seen_a_non_liftable_continuation);
-       is_cold := t.(Downwards_env.is_cold)
-    |}.
+  ret (update_loopify_state t loopify_state).
 
 (* 764-767 *)
 Definition with_code_age_relation
@@ -2410,94 +1923,51 @@ Definition with_code_age_relation
     Flambda2_types.Typing_env.with_code_age_relation
       t.(Downwards_env.typing_env) code_age_relation
   in
-  ret
-    {| round := t.(Downwards_env.round);
-       machine_width := t.(Downwards_env.machine_width);
-       typing_env := tmp1;
-       inlined_debuginfo := t.(Downwards_env.inlined_debuginfo);
-       disable_inlining := t.(Downwards_env.disable_inlining);
-       disable_partial_application_stub_generation :=
-         t.(Downwards_env.disable_partial_application_stub_generation);
-       inlined_attribute_to_forward :=
-         t.(Downwards_env.inlined_attribute_to_forward);
-       inlining_state := t.(Downwards_env.inlining_state);
-       propagating_float_consts := t.(Downwards_env.propagating_float_consts);
-       at_unit_toplevel := t.(Downwards_env.at_unit_toplevel);
-       unit_toplevel_return_continuation :=
-         t.(Downwards_env.unit_toplevel_return_continuation);
-       unit_toplevel_exn_continuation :=
-         t.(Downwards_env.unit_toplevel_exn_continuation);
-       unit_toplevel_alloc_region :=
-         t.(Downwards_env.unit_toplevel_alloc_region);
-       variables_defined_at_toplevel :=
-         t.(Downwards_env.variables_defined_at_toplevel);
-       cse := t.(Downwards_env.cse);
-       comparison_results := t.(Downwards_env.comparison_results);
-       are_rebuilding_terms := t.(Downwards_env.are_rebuilding_terms);
-       closure_info := t.(Downwards_env.closure_info);
-       get_imported_code := t.(Downwards_env.get_imported_code);
-       all_code := t.(Downwards_env.all_code);
-       inlining_history_tracker := t.(Downwards_env.inlining_history_tracker);
-       loopify_state := t.(Downwards_env.loopify_state);
-       replay_history := t.(Downwards_env.replay_history);
-       specialization_cost := t.(Downwards_env.specialization_cost);
-       join_analysis := t.(Downwards_env.join_analysis);
-       defined_variables_by_scope :=
-         t.(Downwards_env.defined_variables_by_scope);
-       lifted := t.(Downwards_env.lifted);
-       cost_of_lifting_continuations_out_of_current_one :=
-         t.(Downwards_env.cost_of_lifting_continuations_out_of_current_one);
-       has_seen_a_non_liftable_continuation :=
-         t.(Downwards_env.has_seen_a_non_liftable_continuation);
-       is_cold := t.(Downwards_env.is_cold)
-    |}.
+  ret (update_typing_env t tmp1).
+
+(* PORT-GAP(update): 769, [{ t with join_analysis }]. *)
+Definition update_join_analysis (t : Downwards_env.t)
+    (join_analysis :
+      option (Flambda2_types.Join_analysis.t Apply_cont_rewrite_id.t))
+    : Downwards_env.t :=
+  {| round := t.(round); machine_width := t.(machine_width);
+     typing_env := t.(typing_env); inlined_debuginfo := t.(inlined_debuginfo);
+     disable_inlining := t.(disable_inlining);
+     disable_partial_application_stub_generation :=
+       t.(disable_partial_application_stub_generation);
+     inlined_attribute_to_forward := t.(inlined_attribute_to_forward);
+     inlining_state := t.(inlining_state);
+     propagating_float_consts := t.(propagating_float_consts);
+     at_unit_toplevel := t.(at_unit_toplevel);
+     unit_toplevel_return_continuation :=
+       t.(unit_toplevel_return_continuation);
+     unit_toplevel_exn_continuation := t.(unit_toplevel_exn_continuation);
+     unit_toplevel_alloc_region := t.(unit_toplevel_alloc_region);
+     variables_defined_at_toplevel := t.(variables_defined_at_toplevel);
+     cse := t.(cse); comparison_results := t.(comparison_results);
+     are_rebuilding_terms := t.(are_rebuilding_terms);
+     closure_info := t.(closure_info);
+     get_imported_code := t.(get_imported_code); all_code := t.(all_code);
+     inlining_history_tracker := t.(inlining_history_tracker);
+     loopify_state := t.(loopify_state); replay_history := t.(replay_history);
+     specialization_cost := t.(specialization_cost);
+     join_analysis := join_analysis;
+     defined_variables_by_scope := t.(defined_variables_by_scope);
+     lifted := t.(lifted);
+     cost_of_lifting_continuations_out_of_current_one :=
+       t.(cost_of_lifting_continuations_out_of_current_one);
+     has_seen_a_non_liftable_continuation :=
+       t.(has_seen_a_non_liftable_continuation);
+     is_cold := t.(is_cold) |}.
+Extract Inlined Constant update_join_analysis =>
+  "(fun t x__1 -> { t with join_analysis = x__1 })".
 
 (* 769 *)
 Definition with_join_analysis
     (join_analysis :
       option (Flambda2_types.Join_analysis.t Apply_cont_rewrite_id.t))
     (t : Downwards_env.t) : M Downwards_env.t :=
-  ret
-    {| round := t.(Downwards_env.round);
-       machine_width := t.(Downwards_env.machine_width);
-       typing_env := t.(Downwards_env.typing_env);
-       inlined_debuginfo := t.(Downwards_env.inlined_debuginfo);
-       disable_inlining := t.(Downwards_env.disable_inlining);
-       disable_partial_application_stub_generation :=
-         t.(Downwards_env.disable_partial_application_stub_generation);
-       inlined_attribute_to_forward :=
-         t.(Downwards_env.inlined_attribute_to_forward);
-       inlining_state := t.(Downwards_env.inlining_state);
-       propagating_float_consts := t.(Downwards_env.propagating_float_consts);
-       at_unit_toplevel := t.(Downwards_env.at_unit_toplevel);
-       unit_toplevel_return_continuation :=
-         t.(Downwards_env.unit_toplevel_return_continuation);
-       unit_toplevel_exn_continuation :=
-         t.(Downwards_env.unit_toplevel_exn_continuation);
-       unit_toplevel_alloc_region :=
-         t.(Downwards_env.unit_toplevel_alloc_region);
-       variables_defined_at_toplevel :=
-         t.(Downwards_env.variables_defined_at_toplevel);
-       cse := t.(Downwards_env.cse);
-       comparison_results := t.(Downwards_env.comparison_results);
-       are_rebuilding_terms := t.(Downwards_env.are_rebuilding_terms);
-       closure_info := t.(Downwards_env.closure_info);
-       get_imported_code := t.(Downwards_env.get_imported_code);
-       all_code := t.(Downwards_env.all_code);
-       inlining_history_tracker := t.(Downwards_env.inlining_history_tracker);
-       loopify_state := t.(Downwards_env.loopify_state);
-       replay_history := t.(Downwards_env.replay_history);
-       specialization_cost := t.(Downwards_env.specialization_cost);
-       join_analysis := join_analysis;
-       defined_variables_by_scope :=
-         t.(Downwards_env.defined_variables_by_scope);
-       lifted := t.(Downwards_env.lifted);
-       cost_of_lifting_continuations_out_of_current_one :=
-         t.(Downwards_env.cost_of_lifting_continuations_out_of_current_one);
-       has_seen_a_non_liftable_continuation :=
-         t.(Downwards_env.has_seen_a_non_liftable_continuation);
-       is_cold := t.(Downwards_env.is_cold)
-    |}.
+  ret (update_join_analysis t join_analysis).
 
 (* 773-782 *)
 Definition with_replay_history (replay : option (Replay_history.t * bool))
@@ -2509,47 +1979,52 @@ Definition with_replay_history (replay : option (Replay_history.t * bool))
       Replay_history.replay always_inline previous_history
     end
   in
-  ret
-    {| round := t.(Downwards_env.round);
-       machine_width := t.(Downwards_env.machine_width);
-       typing_env := t.(Downwards_env.typing_env);
-       inlined_debuginfo := t.(Downwards_env.inlined_debuginfo);
-       disable_inlining := t.(Downwards_env.disable_inlining);
-       disable_partial_application_stub_generation :=
-         t.(Downwards_env.disable_partial_application_stub_generation);
-       inlined_attribute_to_forward :=
-         t.(Downwards_env.inlined_attribute_to_forward);
-       inlining_state := t.(Downwards_env.inlining_state);
-       propagating_float_consts := t.(Downwards_env.propagating_float_consts);
-       at_unit_toplevel := t.(Downwards_env.at_unit_toplevel);
-       unit_toplevel_return_continuation :=
-         t.(Downwards_env.unit_toplevel_return_continuation);
-       unit_toplevel_exn_continuation :=
-         t.(Downwards_env.unit_toplevel_exn_continuation);
-       unit_toplevel_alloc_region :=
-         t.(Downwards_env.unit_toplevel_alloc_region);
-       variables_defined_at_toplevel :=
-         t.(Downwards_env.variables_defined_at_toplevel);
-       cse := t.(Downwards_env.cse);
-       comparison_results := t.(Downwards_env.comparison_results);
-       are_rebuilding_terms := t.(Downwards_env.are_rebuilding_terms);
-       closure_info := t.(Downwards_env.closure_info);
-       get_imported_code := t.(Downwards_env.get_imported_code);
-       all_code := t.(Downwards_env.all_code);
-       inlining_history_tracker := t.(Downwards_env.inlining_history_tracker);
-       loopify_state := t.(Downwards_env.loopify_state);
-       replay_history := replay_history;
-       specialization_cost := t.(Downwards_env.specialization_cost);
-       join_analysis := t.(Downwards_env.join_analysis);
-       defined_variables_by_scope :=
-         t.(Downwards_env.defined_variables_by_scope);
-       lifted := t.(Downwards_env.lifted);
-       cost_of_lifting_continuations_out_of_current_one :=
-         t.(Downwards_env.cost_of_lifting_continuations_out_of_current_one);
-       has_seen_a_non_liftable_continuation :=
-         t.(Downwards_env.has_seen_a_non_liftable_continuation);
-       is_cold := t.(Downwards_env.is_cold)
-    |}.
+  ret (update_replay_history t replay_history).
+
+(* PORT-GAP(update): 790-801, [{ t with lifted; defined_variables_by_scope;
+   cost_of_lifting_continuations_out_of_current_one;
+   has_seen_a_non_liftable_continuation; specialization_cost }]. *)
+Definition update_lifted_defined_variables_by_scope_cost_of_lifting_continuations_out_of_current_one_has_seen_a_non_liftable_continuation_specialization_cost
+    (t : Downwards_env.t) (lifted : Variable_.Set_.t)
+    (defined_variables_by_scope : list Lifted_cont_params.t)
+    (cost_of_lifting_continuations_out_of_current_one : int)
+    (has_seen_a_non_liftable_continuation : bool)
+    (specialization_cost : Specialization_cost.t) : Downwards_env.t :=
+  {| round := t.(round); machine_width := t.(machine_width);
+     typing_env := t.(typing_env); inlined_debuginfo := t.(inlined_debuginfo);
+     disable_inlining := t.(disable_inlining);
+     disable_partial_application_stub_generation :=
+       t.(disable_partial_application_stub_generation);
+     inlined_attribute_to_forward := t.(inlined_attribute_to_forward);
+     inlining_state := t.(inlining_state);
+     propagating_float_consts := t.(propagating_float_consts);
+     at_unit_toplevel := t.(at_unit_toplevel);
+     unit_toplevel_return_continuation :=
+       t.(unit_toplevel_return_continuation);
+     unit_toplevel_exn_continuation := t.(unit_toplevel_exn_continuation);
+     unit_toplevel_alloc_region := t.(unit_toplevel_alloc_region);
+     variables_defined_at_toplevel := t.(variables_defined_at_toplevel);
+     cse := t.(cse); comparison_results := t.(comparison_results);
+     are_rebuilding_terms := t.(are_rebuilding_terms);
+     closure_info := t.(closure_info);
+     get_imported_code := t.(get_imported_code); all_code := t.(all_code);
+     inlining_history_tracker := t.(inlining_history_tracker);
+     loopify_state := t.(loopify_state); replay_history := t.(replay_history);
+     specialization_cost := specialization_cost;
+     join_analysis := t.(join_analysis);
+     defined_variables_by_scope := defined_variables_by_scope;
+     lifted := lifted;
+     cost_of_lifting_continuations_out_of_current_one :=
+       cost_of_lifting_continuations_out_of_current_one;
+     has_seen_a_non_liftable_continuation :=
+       has_seen_a_non_liftable_continuation;
+     is_cold := t.(is_cold) |}.
+Extract Inlined Constant update_lifted_defined_variables_by_scope_cost_of_lifting_continuations_out_of_current_one_has_seen_a_non_liftable_continuation_specialization_cost =>
+  "(fun t x__1 x__2 x__3 x__4 x__5 ->
+     { t with lifted = x__1; defined_variables_by_scope = x__2;
+       cost_of_lifting_continuations_out_of_current_one = x__3;
+       has_seen_a_non_liftable_continuation = x__4;
+       specialization_cost = x__5 })".
 
 (* 784-801. [Lifted_cont_params.fold ~init ~f lifted_params]: the arguments
    are in the order of the interface. *)
@@ -2564,49 +2039,15 @@ Definition enter_continuation_handler (lifted_params : Lifted_cont_params.t)
   in
   let! tmp1 := Specialization_cost.can_specialize tt in
   ret
-    {| round := t.(Downwards_env.round);
-       machine_width := t.(Downwards_env.machine_width);
-       typing_env := t.(Downwards_env.typing_env);
-       inlined_debuginfo := t.(Downwards_env.inlined_debuginfo);
-       disable_inlining := t.(Downwards_env.disable_inlining);
-       disable_partial_application_stub_generation :=
-         t.(Downwards_env.disable_partial_application_stub_generation);
-       inlined_attribute_to_forward :=
-         t.(Downwards_env.inlined_attribute_to_forward);
-       inlining_state := t.(Downwards_env.inlining_state);
-       propagating_float_consts := t.(Downwards_env.propagating_float_consts);
-       at_unit_toplevel := t.(Downwards_env.at_unit_toplevel);
-       unit_toplevel_return_continuation :=
-         t.(Downwards_env.unit_toplevel_return_continuation);
-       unit_toplevel_exn_continuation :=
-         t.(Downwards_env.unit_toplevel_exn_continuation);
-       unit_toplevel_alloc_region :=
-         t.(Downwards_env.unit_toplevel_alloc_region);
-       variables_defined_at_toplevel :=
-         t.(Downwards_env.variables_defined_at_toplevel);
-       cse := t.(Downwards_env.cse);
-       comparison_results := t.(Downwards_env.comparison_results);
-       are_rebuilding_terms := t.(Downwards_env.are_rebuilding_terms);
-       closure_info := t.(Downwards_env.closure_info);
-       get_imported_code := t.(Downwards_env.get_imported_code);
-       all_code := t.(Downwards_env.all_code);
-       inlining_history_tracker := t.(Downwards_env.inlining_history_tracker);
-       loopify_state := t.(Downwards_env.loopify_state);
-       replay_history := t.(Downwards_env.replay_history);
-       specialization_cost := tmp1;
-       join_analysis := t.(Downwards_env.join_analysis);
-       defined_variables_by_scope :=
-         lifted_params :: t.(Downwards_env.defined_variables_by_scope);
-       lifted := lifted;
-       cost_of_lifting_continuations_out_of_current_one := 0;
+    (update_lifted_defined_variables_by_scope_cost_of_lifting_continuations_out_of_current_one_has_seen_a_non_liftable_continuation_specialization_cost
+       t lifted
+       (lifted_params :: t.(Downwards_env.defined_variables_by_scope)) 0
        (* we only do shallow lifting : thus the question of whether a continuation
           k' can be lifted out of the handler of a continuation k, does not depend
           on whether k has been lifted or not (or was liftable or not). Therefore
           we reset the `has_seen_a_non_liftable_continuation` when we enter a new
           continuation handler *)
-       has_seen_a_non_liftable_continuation := false;
-       is_cold := t.(Downwards_env.is_cold)
-    |}.
+       false tmp1).
 
 (* 803-851. [LCS.fold lifted ~init ~f]: the arguments are in the order of
    the interface. *)
@@ -2694,6 +2135,45 @@ Definition variables_defined_in_current_continuation (t : Downwards_env.t)
   | res :: _ => ret res
   end.
 
+(* PORT-GAP(update): 865-868, [{ t with
+   cost_of_lifting_continuations_out_of_current_one }]. *)
+Definition update_cost_of_lifting_continuations_out_of_current_one
+    (t : Downwards_env.t)
+    (cost_of_lifting_continuations_out_of_current_one : int)
+    : Downwards_env.t :=
+  {| round := t.(round); machine_width := t.(machine_width);
+     typing_env := t.(typing_env); inlined_debuginfo := t.(inlined_debuginfo);
+     disable_inlining := t.(disable_inlining);
+     disable_partial_application_stub_generation :=
+       t.(disable_partial_application_stub_generation);
+     inlined_attribute_to_forward := t.(inlined_attribute_to_forward);
+     inlining_state := t.(inlining_state);
+     propagating_float_consts := t.(propagating_float_consts);
+     at_unit_toplevel := t.(at_unit_toplevel);
+     unit_toplevel_return_continuation :=
+       t.(unit_toplevel_return_continuation);
+     unit_toplevel_exn_continuation := t.(unit_toplevel_exn_continuation);
+     unit_toplevel_alloc_region := t.(unit_toplevel_alloc_region);
+     variables_defined_at_toplevel := t.(variables_defined_at_toplevel);
+     cse := t.(cse); comparison_results := t.(comparison_results);
+     are_rebuilding_terms := t.(are_rebuilding_terms);
+     closure_info := t.(closure_info);
+     get_imported_code := t.(get_imported_code); all_code := t.(all_code);
+     inlining_history_tracker := t.(inlining_history_tracker);
+     loopify_state := t.(loopify_state); replay_history := t.(replay_history);
+     specialization_cost := t.(specialization_cost);
+     join_analysis := t.(join_analysis);
+     defined_variables_by_scope := t.(defined_variables_by_scope);
+     lifted := t.(lifted);
+     cost_of_lifting_continuations_out_of_current_one :=
+       cost_of_lifting_continuations_out_of_current_one;
+     has_seen_a_non_liftable_continuation :=
+       t.(has_seen_a_non_liftable_continuation);
+     is_cold := t.(is_cold) |}.
+Extract Inlined Constant update_cost_of_lifting_continuations_out_of_current_one =>
+  "(fun t x__1 ->
+     { t with cost_of_lifting_continuations_out_of_current_one = x__1 })".
+
 (* 861-868 *)
 Definition add_lifting_cost (cost : int) (t : Downwards_env.t)
     : M Downwards_env.t :=
@@ -2701,48 +2181,45 @@ Definition add_lifting_cost (cost : int) (t : Downwards_env.t)
   then fatal_errorf0 "Negative cost of lifting continuation"
   else
     ret
-      {| round := t.(Downwards_env.round);
-         machine_width := t.(Downwards_env.machine_width);
-         typing_env := t.(Downwards_env.typing_env);
-         inlined_debuginfo := t.(Downwards_env.inlined_debuginfo);
-         disable_inlining := t.(Downwards_env.disable_inlining);
-         disable_partial_application_stub_generation :=
-           t.(Downwards_env.disable_partial_application_stub_generation);
-         inlined_attribute_to_forward :=
-           t.(Downwards_env.inlined_attribute_to_forward);
-         inlining_state := t.(Downwards_env.inlining_state);
-         propagating_float_consts :=
-           t.(Downwards_env.propagating_float_consts);
-         at_unit_toplevel := t.(Downwards_env.at_unit_toplevel);
-         unit_toplevel_return_continuation :=
-           t.(Downwards_env.unit_toplevel_return_continuation);
-         unit_toplevel_exn_continuation :=
-           t.(Downwards_env.unit_toplevel_exn_continuation);
-         unit_toplevel_alloc_region :=
-           t.(Downwards_env.unit_toplevel_alloc_region);
-         variables_defined_at_toplevel :=
-           t.(Downwards_env.variables_defined_at_toplevel);
-         cse := t.(Downwards_env.cse);
-         comparison_results := t.(Downwards_env.comparison_results);
-         are_rebuilding_terms := t.(Downwards_env.are_rebuilding_terms);
-         closure_info := t.(Downwards_env.closure_info);
-         get_imported_code := t.(Downwards_env.get_imported_code);
-         all_code := t.(Downwards_env.all_code);
-         inlining_history_tracker :=
-           t.(Downwards_env.inlining_history_tracker);
-         loopify_state := t.(Downwards_env.loopify_state);
-         replay_history := t.(Downwards_env.replay_history);
-         specialization_cost := t.(Downwards_env.specialization_cost);
-         join_analysis := t.(Downwards_env.join_analysis);
-         defined_variables_by_scope :=
-           t.(Downwards_env.defined_variables_by_scope);
-         lifted := t.(Downwards_env.lifted);
-         cost_of_lifting_continuations_out_of_current_one :=
-           t.(Downwards_env.cost_of_lifting_continuations_out_of_current_one) + cost;
-         has_seen_a_non_liftable_continuation :=
-           t.(Downwards_env.has_seen_a_non_liftable_continuation);
-         is_cold := t.(Downwards_env.is_cold)
-      |}.
+      (update_cost_of_lifting_continuations_out_of_current_one t
+         (t.(Downwards_env.cost_of_lifting_continuations_out_of_current_one)
+          + cost)).
+
+(* PORT-GAP(update): 876, [{ t with
+   has_seen_a_non_liftable_continuation }]. *)
+Definition update_has_seen_a_non_liftable_continuation (t : Downwards_env.t)
+    (has_seen_a_non_liftable_continuation : bool) : Downwards_env.t :=
+  {| round := t.(round); machine_width := t.(machine_width);
+     typing_env := t.(typing_env); inlined_debuginfo := t.(inlined_debuginfo);
+     disable_inlining := t.(disable_inlining);
+     disable_partial_application_stub_generation :=
+       t.(disable_partial_application_stub_generation);
+     inlined_attribute_to_forward := t.(inlined_attribute_to_forward);
+     inlining_state := t.(inlining_state);
+     propagating_float_consts := t.(propagating_float_consts);
+     at_unit_toplevel := t.(at_unit_toplevel);
+     unit_toplevel_return_continuation :=
+       t.(unit_toplevel_return_continuation);
+     unit_toplevel_exn_continuation := t.(unit_toplevel_exn_continuation);
+     unit_toplevel_alloc_region := t.(unit_toplevel_alloc_region);
+     variables_defined_at_toplevel := t.(variables_defined_at_toplevel);
+     cse := t.(cse); comparison_results := t.(comparison_results);
+     are_rebuilding_terms := t.(are_rebuilding_terms);
+     closure_info := t.(closure_info);
+     get_imported_code := t.(get_imported_code); all_code := t.(all_code);
+     inlining_history_tracker := t.(inlining_history_tracker);
+     loopify_state := t.(loopify_state); replay_history := t.(replay_history);
+     specialization_cost := t.(specialization_cost);
+     join_analysis := t.(join_analysis);
+     defined_variables_by_scope := t.(defined_variables_by_scope);
+     lifted := t.(lifted);
+     cost_of_lifting_continuations_out_of_current_one :=
+       t.(cost_of_lifting_continuations_out_of_current_one);
+     has_seen_a_non_liftable_continuation :=
+       has_seen_a_non_liftable_continuation;
+     is_cold := t.(is_cold) |}.
+Extract Inlined Constant update_has_seen_a_non_liftable_continuation =>
+  "(fun t x__1 -> { t with has_seen_a_non_liftable_continuation = x__1 })".
 
 (* 873-876 *)
 Definition set_has_seen_a_non_liftable_continuation (t : Downwards_env.t)
@@ -2750,97 +2227,49 @@ Definition set_has_seen_a_non_liftable_continuation (t : Downwards_env.t)
   if t.(Downwards_env.has_seen_a_non_liftable_continuation)
   then ret t
   else
-    ret
-      {| round := t.(Downwards_env.round);
-         machine_width := t.(Downwards_env.machine_width);
-         typing_env := t.(Downwards_env.typing_env);
-         inlined_debuginfo := t.(Downwards_env.inlined_debuginfo);
-         disable_inlining := t.(Downwards_env.disable_inlining);
-         disable_partial_application_stub_generation :=
-           t.(Downwards_env.disable_partial_application_stub_generation);
-         inlined_attribute_to_forward :=
-           t.(Downwards_env.inlined_attribute_to_forward);
-         inlining_state := t.(Downwards_env.inlining_state);
-         propagating_float_consts :=
-           t.(Downwards_env.propagating_float_consts);
-         at_unit_toplevel := t.(Downwards_env.at_unit_toplevel);
-         unit_toplevel_return_continuation :=
-           t.(Downwards_env.unit_toplevel_return_continuation);
-         unit_toplevel_exn_continuation :=
-           t.(Downwards_env.unit_toplevel_exn_continuation);
-         unit_toplevel_alloc_region :=
-           t.(Downwards_env.unit_toplevel_alloc_region);
-         variables_defined_at_toplevel :=
-           t.(Downwards_env.variables_defined_at_toplevel);
-         cse := t.(Downwards_env.cse);
-         comparison_results := t.(Downwards_env.comparison_results);
-         are_rebuilding_terms := t.(Downwards_env.are_rebuilding_terms);
-         closure_info := t.(Downwards_env.closure_info);
-         get_imported_code := t.(Downwards_env.get_imported_code);
-         all_code := t.(Downwards_env.all_code);
-         inlining_history_tracker :=
-           t.(Downwards_env.inlining_history_tracker);
-         loopify_state := t.(Downwards_env.loopify_state);
-         replay_history := t.(Downwards_env.replay_history);
-         specialization_cost := t.(Downwards_env.specialization_cost);
-         join_analysis := t.(Downwards_env.join_analysis);
-         defined_variables_by_scope :=
-           t.(Downwards_env.defined_variables_by_scope);
-         lifted := t.(Downwards_env.lifted);
-         cost_of_lifting_continuations_out_of_current_one :=
-           t.(Downwards_env.cost_of_lifting_continuations_out_of_current_one);
-         has_seen_a_non_liftable_continuation := true;
-         is_cold := t.(Downwards_env.is_cold)
-      |}.
+    ret (update_has_seen_a_non_liftable_continuation t true).
+
+(* PORT-GAP(update): 880, [{ t with is_cold }]. *)
+Definition update_is_cold (t : Downwards_env.t) (is_cold : bool)
+    : Downwards_env.t :=
+  {| round := t.(round); machine_width := t.(machine_width);
+     typing_env := t.(typing_env); inlined_debuginfo := t.(inlined_debuginfo);
+     disable_inlining := t.(disable_inlining);
+     disable_partial_application_stub_generation :=
+       t.(disable_partial_application_stub_generation);
+     inlined_attribute_to_forward := t.(inlined_attribute_to_forward);
+     inlining_state := t.(inlining_state);
+     propagating_float_consts := t.(propagating_float_consts);
+     at_unit_toplevel := t.(at_unit_toplevel);
+     unit_toplevel_return_continuation :=
+       t.(unit_toplevel_return_continuation);
+     unit_toplevel_exn_continuation := t.(unit_toplevel_exn_continuation);
+     unit_toplevel_alloc_region := t.(unit_toplevel_alloc_region);
+     variables_defined_at_toplevel := t.(variables_defined_at_toplevel);
+     cse := t.(cse); comparison_results := t.(comparison_results);
+     are_rebuilding_terms := t.(are_rebuilding_terms);
+     closure_info := t.(closure_info);
+     get_imported_code := t.(get_imported_code); all_code := t.(all_code);
+     inlining_history_tracker := t.(inlining_history_tracker);
+     loopify_state := t.(loopify_state); replay_history := t.(replay_history);
+     specialization_cost := t.(specialization_cost);
+     join_analysis := t.(join_analysis);
+     defined_variables_by_scope := t.(defined_variables_by_scope);
+     lifted := t.(lifted);
+     cost_of_lifting_continuations_out_of_current_one :=
+       t.(cost_of_lifting_continuations_out_of_current_one);
+     has_seen_a_non_liftable_continuation :=
+       t.(has_seen_a_non_liftable_continuation);
+     is_cold := is_cold |}.
+Extract Inlined Constant update_is_cold =>
+  "(fun t x__1 -> { t with is_cold = x__1 })".
 
 (* 880 *)
 Definition mark_as_cold (t : Downwards_env.t) : M Downwards_env.t :=
   if t.(Downwards_env.is_cold)
   then ret t
   else
-    ret
-      {| round := t.(Downwards_env.round);
-         machine_width := t.(Downwards_env.machine_width);
-         typing_env := t.(Downwards_env.typing_env);
-         inlined_debuginfo := t.(Downwards_env.inlined_debuginfo);
-         disable_inlining := t.(Downwards_env.disable_inlining);
-         disable_partial_application_stub_generation :=
-           t.(Downwards_env.disable_partial_application_stub_generation);
-         inlined_attribute_to_forward :=
-           t.(Downwards_env.inlined_attribute_to_forward);
-         inlining_state := t.(Downwards_env.inlining_state);
-         propagating_float_consts :=
-           t.(Downwards_env.propagating_float_consts);
-         at_unit_toplevel := t.(Downwards_env.at_unit_toplevel);
-         unit_toplevel_return_continuation :=
-           t.(Downwards_env.unit_toplevel_return_continuation);
-         unit_toplevel_exn_continuation :=
-           t.(Downwards_env.unit_toplevel_exn_continuation);
-         unit_toplevel_alloc_region :=
-           t.(Downwards_env.unit_toplevel_alloc_region);
-         variables_defined_at_toplevel :=
-           t.(Downwards_env.variables_defined_at_toplevel);
-         cse := t.(Downwards_env.cse);
-         comparison_results := t.(Downwards_env.comparison_results);
-         are_rebuilding_terms := t.(Downwards_env.are_rebuilding_terms);
-         closure_info := t.(Downwards_env.closure_info);
-         get_imported_code := t.(Downwards_env.get_imported_code);
-         all_code := t.(Downwards_env.all_code);
-         inlining_history_tracker :=
-           t.(Downwards_env.inlining_history_tracker);
-         loopify_state := t.(Downwards_env.loopify_state);
-         replay_history := t.(Downwards_env.replay_history);
-         specialization_cost := t.(Downwards_env.specialization_cost);
-         join_analysis := t.(Downwards_env.join_analysis);
-         defined_variables_by_scope :=
-           t.(Downwards_env.defined_variables_by_scope);
-         lifted := t.(Downwards_env.lifted);
-         cost_of_lifting_continuations_out_of_current_one :=
-           t.(Downwards_env.cost_of_lifting_continuations_out_of_current_one);
-         has_seen_a_non_liftable_continuation :=
-           t.(Downwards_env.has_seen_a_non_liftable_continuation);
-         is_cold := true
-      |}.
+    ret (update_is_cold t true).
 
 (* 882 *)
 Definition must_inline (t : Downwards_env.t) : M bool :=
@@ -2854,94 +2283,49 @@ Definition record_inlining_decision (apply : Apply_expr.t)
     Replay_history.record_inlining_decision apply decision
       t.(Downwards_env.replay_history)
   in
-  ret
-    {| round := t.(Downwards_env.round);
-       machine_width := t.(Downwards_env.machine_width);
-       typing_env := t.(Downwards_env.typing_env);
-       inlined_debuginfo := t.(Downwards_env.inlined_debuginfo);
-       disable_inlining := t.(Downwards_env.disable_inlining);
-       disable_partial_application_stub_generation :=
-         t.(Downwards_env.disable_partial_application_stub_generation);
-       inlined_attribute_to_forward :=
-         t.(Downwards_env.inlined_attribute_to_forward);
-       inlining_state := t.(Downwards_env.inlining_state);
-       propagating_float_consts := t.(Downwards_env.propagating_float_consts);
-       at_unit_toplevel := t.(Downwards_env.at_unit_toplevel);
-       unit_toplevel_return_continuation :=
-         t.(Downwards_env.unit_toplevel_return_continuation);
-       unit_toplevel_exn_continuation :=
-         t.(Downwards_env.unit_toplevel_exn_continuation);
-       unit_toplevel_alloc_region :=
-         t.(Downwards_env.unit_toplevel_alloc_region);
-       variables_defined_at_toplevel :=
-         t.(Downwards_env.variables_defined_at_toplevel);
-       cse := t.(Downwards_env.cse);
-       comparison_results := t.(Downwards_env.comparison_results);
-       are_rebuilding_terms := t.(Downwards_env.are_rebuilding_terms);
-       closure_info := t.(Downwards_env.closure_info);
-       get_imported_code := t.(Downwards_env.get_imported_code);
-       all_code := t.(Downwards_env.all_code);
-       inlining_history_tracker := t.(Downwards_env.inlining_history_tracker);
-       loopify_state := t.(Downwards_env.loopify_state);
-       replay_history := tmp1;
-       specialization_cost := t.(Downwards_env.specialization_cost);
-       join_analysis := t.(Downwards_env.join_analysis);
-       defined_variables_by_scope :=
-         t.(Downwards_env.defined_variables_by_scope);
-       lifted := t.(Downwards_env.lifted);
-       cost_of_lifting_continuations_out_of_current_one :=
-         t.(Downwards_env.cost_of_lifting_continuations_out_of_current_one);
-       has_seen_a_non_liftable_continuation :=
-         t.(Downwards_env.has_seen_a_non_liftable_continuation);
-       is_cold := t.(Downwards_env.is_cold)
-    |}.
+  ret (update_replay_history t tmp1).
+
+(* PORT-GAP(update): 894, [{ t with specialization_cost }]. *)
+Definition update_specialization_cost (t : Downwards_env.t)
+    (specialization_cost : Specialization_cost.t) : Downwards_env.t :=
+  {| round := t.(round); machine_width := t.(machine_width);
+     typing_env := t.(typing_env); inlined_debuginfo := t.(inlined_debuginfo);
+     disable_inlining := t.(disable_inlining);
+     disable_partial_application_stub_generation :=
+       t.(disable_partial_application_stub_generation);
+     inlined_attribute_to_forward := t.(inlined_attribute_to_forward);
+     inlining_state := t.(inlining_state);
+     propagating_float_consts := t.(propagating_float_consts);
+     at_unit_toplevel := t.(at_unit_toplevel);
+     unit_toplevel_return_continuation :=
+       t.(unit_toplevel_return_continuation);
+     unit_toplevel_exn_continuation := t.(unit_toplevel_exn_continuation);
+     unit_toplevel_alloc_region := t.(unit_toplevel_alloc_region);
+     variables_defined_at_toplevel := t.(variables_defined_at_toplevel);
+     cse := t.(cse); comparison_results := t.(comparison_results);
+     are_rebuilding_terms := t.(are_rebuilding_terms);
+     closure_info := t.(closure_info);
+     get_imported_code := t.(get_imported_code); all_code := t.(all_code);
+     inlining_history_tracker := t.(inlining_history_tracker);
+     loopify_state := t.(loopify_state); replay_history := t.(replay_history);
+     specialization_cost := specialization_cost;
+     join_analysis := t.(join_analysis);
+     defined_variables_by_scope := t.(defined_variables_by_scope);
+     lifted := t.(lifted);
+     cost_of_lifting_continuations_out_of_current_one :=
+       t.(cost_of_lifting_continuations_out_of_current_one);
+     has_seen_a_non_liftable_continuation :=
+       t.(has_seen_a_non_liftable_continuation);
+     is_cold := t.(is_cold) |}.
+Extract Inlined Constant update_specialization_cost =>
+  "(fun t x__1 -> { t with specialization_cost = x__1 })".
 
 (* 892-894. In the compiler: [~f t]. *)
 Definition map_specialization_cost
     (f : Specialization_cost.t -> M Specialization_cost.t)
     (t : Downwards_env.t) : M Downwards_env.t :=
   let* specialization_cost := f t.(Downwards_env.specialization_cost) in
-  ret
-    {| round := t.(Downwards_env.round);
-       machine_width := t.(Downwards_env.machine_width);
-       typing_env := t.(Downwards_env.typing_env);
-       inlined_debuginfo := t.(Downwards_env.inlined_debuginfo);
-       disable_inlining := t.(Downwards_env.disable_inlining);
-       disable_partial_application_stub_generation :=
-         t.(Downwards_env.disable_partial_application_stub_generation);
-       inlined_attribute_to_forward :=
-         t.(Downwards_env.inlined_attribute_to_forward);
-       inlining_state := t.(Downwards_env.inlining_state);
-       propagating_float_consts := t.(Downwards_env.propagating_float_consts);
-       at_unit_toplevel := t.(Downwards_env.at_unit_toplevel);
-       unit_toplevel_return_continuation :=
-         t.(Downwards_env.unit_toplevel_return_continuation);
-       unit_toplevel_exn_continuation :=
-         t.(Downwards_env.unit_toplevel_exn_continuation);
-       unit_toplevel_alloc_region :=
-         t.(Downwards_env.unit_toplevel_alloc_region);
-       variables_defined_at_toplevel :=
-         t.(Downwards_env.variables_defined_at_toplevel);
-       cse := t.(Downwards_env.cse);
-       comparison_results := t.(Downwards_env.comparison_results);
-       are_rebuilding_terms := t.(Downwards_env.are_rebuilding_terms);
-       closure_info := t.(Downwards_env.closure_info);
-       get_imported_code := t.(Downwards_env.get_imported_code);
-       all_code := t.(Downwards_env.all_code);
-       inlining_history_tracker := t.(Downwards_env.inlining_history_tracker);
-       loopify_state := t.(Downwards_env.loopify_state);
-       replay_history := t.(Downwards_env.replay_history);
-       specialization_cost := specialization_cost;
-       join_analysis := t.(Downwards_env.join_analysis);
-       defined_variables_by_scope :=
-         t.(Downwards_env.defined_variables_by_scope);
-       lifted := t.(Downwards_env.lifted);
-       cost_of_lifting_continuations_out_of_current_one :=
-         t.(Downwards_env.cost_of_lifting_continuations_out_of_current_one);
-       has_seen_a_non_liftable_continuation :=
-         t.(Downwards_env.has_seen_a_non_liftable_continuation);
-       is_cold := t.(Downwards_env.is_cold)
-    |}.
+  ret (update_specialization_cost t specialization_cost).
 
 (* 898-945. In the compiler: [~denv_for_join ~denv]. *)
 Definition denv_for_lifted_continuation (denv_for_join denv : Downwards_env.t)
