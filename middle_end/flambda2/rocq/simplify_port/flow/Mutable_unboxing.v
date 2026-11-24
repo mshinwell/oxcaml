@@ -22,9 +22,9 @@ From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Apply_cont_rewrite_id Array Bound_parameter
   Continuation Continuation_extra_params_and_args Control_flow_graph
   Dominator_graph Flambda_debug_uid Flambda_features Flambda_kind
-  Flambda_primitive Flow_types Format Mutability Name Name_occurrences
-  Named_rewrite Named_rewrite_id Numeric_types Or_null Printf Simple Stdlib_
-  Tag Target_system Value_slot Variable_.
+  Flambda_primitive Flow_types Format List Mutability Name
+  Name_occurrences Named_rewrite Named_rewrite_id Numeric_types Or_null Printf
+  Simple Stdlib_ Tag Target_system Value_slot Variable_.
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 
@@ -33,34 +33,6 @@ Module T := Flow_types.
 
 (* 16 *)
 Module EPA := Continuation_extra_params_and_args.
-
-(* PORT-GAP(decl): the functions of [List] that the file uses. In the
-   extracted file Rocq writes [open Simple] (the file names the type
-   [Simple.Map.t] with an argument), and the declarations of [Simple] have
-   a module [List], which hides the standard library's: the realisations
-   "List.x" of decl/List.v would not be found. The same declarations,
-   realised by their full names. *)
-Module Stdlib_List.
-  Parameter fold_left :
-    forall {Acc A : Type}, (Acc -> A -> M Acc) -> Acc -> list A -> M Acc.
-  Extract Inlined Constant fold_left => "Stdlib.List.fold_left".
-  Parameter map : forall {A B : Type}, (A -> M B) -> list A -> M (list B).
-  Extract Inlined Constant map => "Stdlib.List.map".
-  Parameter mapi :
-    forall {A B : Type}, (int -> A -> M B) -> list A -> M (list B).
-  Extract Inlined Constant mapi => "Stdlib.List.mapi".
-  Parameter rev : forall {A : Type}, list A -> M (list A).
-  Extract Inlined Constant rev => "Stdlib.List.rev".
-  Parameter rev_append : forall {A : Type}, list A -> list A -> M (list A).
-  Extract Inlined Constant rev_append => "Stdlib.List.rev_append".
-  Parameter map2 :
-    forall {A B C : Type}, (A -> B -> M C) -> list A -> list B -> M (list C).
-  Extract Inlined Constant map2 => "Stdlib.List.map2".
-  Parameter fold_left2 :
-    forall {Acc A B : Type},
-    (Acc -> A -> B -> M Acc) -> Acc -> list A -> list B -> M Acc.
-  Extract Inlined Constant fold_left2 => "Stdlib.List.fold_left2".
-End Stdlib_List.
 
 (* Types *)
 
@@ -244,7 +216,7 @@ Definition escaping_by_use_for_one_continuation (required_names : Name.Set_.t)
   (* 153-163: the second argument of the function is the pattern
      [T.Mutable_let_prim.{ prim; bound_var; _ }]. *)
   let* escaping :=
-    Stdlib_List.fold_left
+    List.fold_left
       (fun escaping pat =>
         let* '{| T.Mutable_let_prim.prim := prim;
                  T.Mutable_let_prim.bound_var := bound_var
@@ -333,7 +305,7 @@ Definition blocks_to_unbox (escaping : Simple.Set_.t) (source_info : T.Acc.t)
     (fun _cont (elt : T.Continuation_info.t) map =>
       (* 215: the second argument of the function is the pattern
          [T.Mutable_let_prim.{ bound_var = var; prim; _ }]. *)
-      Stdlib_List.fold_left
+      List.fold_left
         (fun map pat =>
           let* '{| T.Mutable_let_prim.bound_var := var;
                    T.Mutable_let_prim.prim := prim
@@ -373,7 +345,7 @@ Definition blocks_to_unbox (escaping : Simple.Set_.t) (source_info : T.Acc.t)
                     |}
                 | Flambda_primitive.Block_kind.Naked_floats =>
                   let! tmp1 :=
-                    Stdlib_List.map
+                    List.map
                       (fun _ => ret Flambda_kind.With_subkind.naked_float)
                       fields
                   in
@@ -388,7 +360,7 @@ Definition blocks_to_unbox (escaping : Simple.Set_.t) (source_info : T.Acc.t)
                       Flambda_kind.Mixed_block_shape.field_kinds shape
                     in
                     let! tmp2 := Array.to_list tmp1 in
-                    Stdlib_List.map Flambda_kind.With_subkind.anything tmp2
+                    List.map Flambda_kind.With_subkind.anything tmp2
                   in
                   let! tmp1 := Tag.Scannable.to_tag tag in
                   ret
@@ -437,7 +409,7 @@ Definition continuations_using_blocks
       (* 275: the second argument of the function is the pattern
          [T.Mutable_let_prim.{ prim; _ }]. *)
       let* used :=
-        Stdlib_List.fold_left
+        List.fold_left
           (fun used_block pat =>
             let* '{| T.Mutable_let_prim.prim := prim |} := ret pat in
             let! tmp1 := prims_using_block blocks_to_unbox dom prim in
@@ -464,7 +436,7 @@ Definition continuations_defining_blocks
       (* 292: the second argument of the function is the pattern
          [T.Mutable_let_prim.{ bound_var = var; _ }]. *)
       let* defined :=
-        Stdlib_List.fold_left
+        List.fold_left
           (fun defined_blocks pat =>
             let* '{| T.Mutable_let_prim.bound_var := var |} := ret pat in
             let! tmp1 := Simple.var var in
@@ -531,7 +503,7 @@ Definition continuations_with_live_block
 Definition list_to_int_map {A : Type} (l : list A)
     : M (Numeric_types.Int.Map.t A) :=
   let* '(_, map) :=
-    Stdlib_List.fold_left
+    List.fold_left
       (fun pat elt =>
         let* '(i, fields) := ret pat in
         let* fields := Numeric_types.Int.Map.add i elt fields in
@@ -545,7 +517,7 @@ Definition list_to_int_map {A : Type} (l : list A)
 Definition int_map_to_list {A : Type} (m : Numeric_types.Int.Map.t A)
     : M (list A) :=
   let! tmp1 := Numeric_types.Int.Map.bindings m in
-  Stdlib_List.map Stdlib_.snd tmp1.
+  List.map Stdlib_.snd tmp1.
 
 (* 355-573 *)
 Module Fold_prims.
@@ -791,7 +763,7 @@ Module Fold_prims.
             Simple.Map.find block_needed blocks_to_unbox
           in
           let* block_params :=
-            Stdlib_List.mapi
+            List.mapi
               (fun i kind =>
                 let* name :=
                   Simple.pattern_match' block_needed
@@ -816,7 +788,7 @@ Module Fold_prims.
           let* env :=
             let* fields :=
               let! tmp1 :=
-                Stdlib_List.map
+                List.map
                   (fun bp =>
                     let! tmp2 := Bound_parameter.var bp in
                     Simple.var tmp2)
@@ -832,7 +804,7 @@ Module Fold_prims.
                  Fold_prims.rewrites := env.(Fold_prims.rewrites)
               |}
           in
-          let! tmp1 := Stdlib_List.rev_append block_params params in
+          let! tmp1 := List.rev_append block_params params in
           ret (env, tmp1))
         blocks_needed
         ({| Fold_prims.bindings := Simple.Map.empty;
@@ -840,7 +812,7 @@ Module Fold_prims.
          |},
          [])
     in
-    let! tmp1 := Stdlib_List.rev params in
+    let! tmp1 := List.rev params in
     ret (env, tmp1).
 
   (* 515-523 *)
@@ -878,10 +850,10 @@ Module Fold_prims.
              original_prim = _ }]. *)
           let* env :=
             let! tmp1 :=
-              Stdlib_List.rev
+              List.rev
                 elt.(Flow_types.Continuation_info.mutable_let_prims_rev)
             in
-            Stdlib_List.fold_left
+            List.fold_left
               (fun env pat =>
                 let* '{| T.Mutable_let_prim.named_rewrite_id :=
                            named_rewrite_id;
@@ -1047,7 +1019,7 @@ Definition add_to_extra_params_and_args (result : Mutable_unboxing.t)
                     match tmp1 with
                     | Or_null.Null => ret []
                     | Or_null.This (extra_params, _) =>
-                      Stdlib_List.map
+                      List.map
                         (fun _ => ret Apply_cont_rewrite_id.Map.empty)
                         extra_params
                     end
@@ -1060,7 +1032,7 @@ Definition add_to_extra_params_and_args (result : Mutable_unboxing.t)
                          (previous_extra_args :
                            list (Apply_cont_rewrite_id.Map.t EPA.Extra_arg.t)) =>
                       let* args := int_map_to_list args in
-                      Stdlib_List.map2
+                      List.map2
                         (fun arg previous_extra_args =>
                           Apply_cont_rewrite_id.Map.add rewrite_id
                             (EPA.Extra_arg.Already_in_scope arg)
@@ -1096,7 +1068,7 @@ Definition add_to_extra_params_and_args (result : Mutable_unboxing.t)
                ~invalids]: the arguments are in the order of the
                interface. *)
             let* epa_for_cont :=
-              Stdlib_List.fold_left2
+              List.fold_left2
                 (fun epa_for_cont extra_param extra_args =>
                   EPA.add epa_for_cont Apply_cont_rewrite_id.Set_.empty
                     extra_param extra_args)

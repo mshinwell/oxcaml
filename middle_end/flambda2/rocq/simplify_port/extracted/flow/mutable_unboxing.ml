@@ -22,8 +22,6 @@ open Port_monad
 module T = Flow_types
 module EPA = Continuation_extra_params_and_args
 
-module Stdlib_List = struct end
-
 type block_to_unbox =
   { tag : Tag.t;
     mut : Mutability.t;
@@ -213,7 +211,7 @@ let escaping_by_use_for_one_continuation required_names0 dom elt =
       elt.Flow_types.Continuation_info.value_slots escaping2
   in
   let escaping4 =
-    Stdlib.List.fold_left
+    List.fold_left
       (fun escaping4 pat ->
         let { T.Mutable_let_prim.bound_var = bound_var0;
               T.Mutable_let_prim.prim = prim0;
@@ -291,7 +289,7 @@ let escaping dom dom_graph source_info return_continuation exn_continuation
 let blocks_to_unbox escaping0 source_info required_names0 =
   Continuation.Map.fold
     (fun _ elt map0 ->
-      Stdlib.List.fold_left
+      List.fold_left
         (fun map1 pat ->
           let { T.Mutable_let_prim.bound_var = var;
                 T.Mutable_let_prim.prim = prim0;
@@ -334,13 +332,13 @@ let blocks_to_unbox escaping0 source_info required_names0 =
                     { tag = Tag.double_array_tag;
                       mut = mut0;
                       fields_kinds =
-                        Stdlib.List.map
+                        List.map
                           (fun _ -> Flambda_kind.With_subkind.naked_float)
                           fields
                     }
                   | Flambda_primitive.Block_kind.Mixed (tag0, shape) ->
                     let fields_kinds0 =
-                      Stdlib.List.map Flambda_kind.With_subkind.anything
+                      List.map Flambda_kind.With_subkind.anything
                         (Array.to_list
                            (Flambda_kind.Mixed_block_shape.field_kinds shape))
                     in
@@ -419,7 +417,7 @@ let continuations_using_blocks blocks_to_unbox0 dom source_info =
   Continuation.Map.mapi
     (fun _cont elt ->
       let used =
-        Stdlib.List.fold_left
+        List.fold_left
           (fun used_block pat ->
             let { T.Mutable_let_prim.bound_var = _;
                   T.Mutable_let_prim.prim = prim0;
@@ -450,7 +448,7 @@ let continuations_defining_blocks blocks_to_unbox0 source_info =
   Continuation.Map.mapi
     (fun _cont elt ->
       let defined0 =
-        Stdlib.List.fold_left
+        List.fold_left
           (fun defined_blocks pat ->
             let { T.Mutable_let_prim.bound_var = var;
                   T.Mutable_let_prim.prim = _;
@@ -519,7 +517,7 @@ let continuations_with_live_block blocks_to_unbox0 dom source_info
 
 let list_to_int_map l =
   let _, map0 =
-    Stdlib.List.fold_left
+    List.fold_left
       (fun pat elt ->
         let i, fields = pat in
         let fields0 = Numeric_types.Int.Map.add i elt fields in
@@ -531,7 +529,7 @@ let list_to_int_map l =
 
 (** val int_map_to_list : 'a1 Numeric_types.Int.Map.t -> 'a1 list coq_M **)
 
-let int_map_to_list m = Stdlib.List.map snd (Numeric_types.Int.Map.bindings m)
+let int_map_to_list m = List.map snd (Numeric_types.Int.Map.bindings m)
 
 module Fold_prims = struct
   type env =
@@ -719,7 +717,7 @@ module Fold_prims = struct
             Simple.Map.find block_needed blocks_to_unbox0
           in
           let block_params =
-            Stdlib.List.mapi
+            List.mapi
               (fun i kind ->
                 let name =
                   Simple.pattern_match' block_needed
@@ -745,7 +743,7 @@ module Fold_prims = struct
           let env1 =
             let fields =
               list_to_int_map
-                (Stdlib.List.map
+                (List.map
                    (fun bp -> Simple.var (Bound_parameter.var bp))
                    block_params)
             in
@@ -753,11 +751,11 @@ module Fold_prims = struct
               rewrites = env0.rewrites
             }
           in
-          env1, Stdlib.List.rev_append block_params params0)
+          env1, List.rev_append block_params params0)
         blocks_needed
         ({ bindings = Simple.Map.empty; rewrites = rewrites0 }, [])
     in
-    env0, Stdlib.List.rev params0
+    env0, List.rev params0
 
   (** val append_int_map : 'a1 Numeric_types.Int.Map.t -> 'a1
       Numeric_types.Int.Map.t -> 'a1 Numeric_types.Int.Map.t coq_M **)
@@ -790,7 +788,7 @@ module Fold_prims = struct
             init_env blocks_to_unbox0 blocks_needed !rewrites0
           in
           let env1 =
-            Stdlib.List.fold_left
+            List.fold_left
               (fun env1 pat ->
                 let { T.Mutable_let_prim.bound_var = bound_var0;
                       T.Mutable_let_prim.prim = prim0;
@@ -802,8 +800,7 @@ module Fold_prims = struct
                 apply_prim machine_width dom blocks_to_unbox0 env1
                   named_rewrite_id0 bound_var0 prim0)
               env0
-              (Stdlib.List.rev
-                 elt.Flow_types.Continuation_info.mutable_let_prims_rev)
+              (List.rev elt.Flow_types.Continuation_info.mutable_let_prims_rev)
           in
           let () = rewrites0 := env1.rewrites in
           let blocks_params_to_add =
@@ -934,7 +931,7 @@ let add_to_extra_params_and_args result =
                     | Or_null.Null -> []
                     | Or_null.This p ->
                       let extra_params0, _ = p in
-                      Stdlib.List.map
+                      List.map
                         (fun _ -> Apply_cont_rewrite_id.Map.empty)
                         extra_params0)
                 in
@@ -942,7 +939,7 @@ let add_to_extra_params_and_args result =
                   Apply_cont_rewrite_id.Map.fold
                     (fun rewrite_id args previous_extra_args1 ->
                       let args0 = int_map_to_list args in
-                      Stdlib.List.map2
+                      List.map2
                         (fun arg previous_extra_args2 ->
                           Apply_cont_rewrite_id.Map.add rewrite_id
                             (Continuation_extra_params_and_args.Extra_arg
@@ -976,7 +973,7 @@ let add_to_extra_params_and_args result =
               | None -> Continuation_extra_params_and_args.empty
             in
             let epa_for_cont1 =
-              Stdlib.List.fold_left2
+              List.fold_left2
                 (fun epa_for_cont1 extra_param extra_args1 ->
                   Continuation_extra_params_and_args.add epa_for_cont1
                     Apply_cont_rewrite_id.Set.empty extra_param extra_args1)
