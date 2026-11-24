@@ -211,112 +211,25 @@ let create denv0 slot_offsets0 continuation_uses_env0 =
 (** val with_flow_acc : Flow.Acc.t -> t -> t coq_M **)
 
 let with_flow_acc flow_acc0 t0 =
-  { denv = t0.denv;
-    continuation_uses_env = t0.continuation_uses_env;
-    shareable_constants = t0.shareable_constants;
-    used_value_slots = t0.used_value_slots;
-    lifted_constants = t0.lifted_constants;
-    flow_acc = flow_acc0;
-    demoted_exn_handlers = t0.demoted_exn_handlers;
-    code_ids_to_remember = t0.code_ids_to_remember;
-    code_ids_to_never_delete = t0.code_ids_to_never_delete;
-    code_ids_never_simplified = t0.code_ids_never_simplified;
-    slot_offsets = t0.slot_offsets;
-    debuginfo_rewrites = t0.debuginfo_rewrites;
-    are_lifting_conts = t0.are_lifting_conts;
-    lifted_continuations = t0.lifted_continuations;
-    continuation_lifting_budget = t0.continuation_lifting_budget;
-    continuations_to_specialize = t0.continuations_to_specialize;
-    specialization_map = t0.specialization_map
-  }
+  (fun t x__1 -> { t with flow_acc = x__1 }) t0 flow_acc0
 
 (** val map_flow_acc : t -> (Flow.Acc.t -> Flow.Acc.t coq_M) -> t coq_M **)
 
 let map_flow_acc t0 f =
-  { denv = t0.denv;
-    continuation_uses_env = t0.continuation_uses_env;
-    shareable_constants = t0.shareable_constants;
-    used_value_slots = t0.used_value_slots;
-    lifted_constants = t0.lifted_constants;
-    flow_acc = f t0.flow_acc;
-    demoted_exn_handlers = t0.demoted_exn_handlers;
-    code_ids_to_remember = t0.code_ids_to_remember;
-    code_ids_to_never_delete = t0.code_ids_to_never_delete;
-    code_ids_never_simplified = t0.code_ids_never_simplified;
-    slot_offsets = t0.slot_offsets;
-    debuginfo_rewrites = t0.debuginfo_rewrites;
-    are_lifting_conts = t0.are_lifting_conts;
-    lifted_continuations = t0.lifted_continuations;
-    continuation_lifting_budget = t0.continuation_lifting_budget;
-    continuations_to_specialize = t0.continuations_to_specialize;
-    specialization_map = t0.specialization_map
-  }
+  (fun t x__1 -> { t with flow_acc = x__1 }) t0 (f t0.flow_acc)
 
 (** val map_denv : t -> (Downwards_env.t -> Downwards_env.t coq_M) -> t coq_M **)
 
-let map_denv t0 f =
-  { denv = f t0.denv;
-    continuation_uses_env = t0.continuation_uses_env;
-    shareable_constants = t0.shareable_constants;
-    used_value_slots = t0.used_value_slots;
-    lifted_constants = t0.lifted_constants;
-    flow_acc = t0.flow_acc;
-    demoted_exn_handlers = t0.demoted_exn_handlers;
-    code_ids_to_remember = t0.code_ids_to_remember;
-    code_ids_to_never_delete = t0.code_ids_to_never_delete;
-    code_ids_never_simplified = t0.code_ids_never_simplified;
-    slot_offsets = t0.slot_offsets;
-    debuginfo_rewrites = t0.debuginfo_rewrites;
-    are_lifting_conts = t0.are_lifting_conts;
-    lifted_continuations = t0.lifted_continuations;
-    continuation_lifting_budget = t0.continuation_lifting_budget;
-    continuations_to_specialize = t0.continuations_to_specialize;
-    specialization_map = t0.specialization_map
-  }
+let map_denv t0 f = (fun t x__1 -> { t with denv = x__1 }) t0 (f t0.denv)
 
 (** val with_denv : t -> Downwards_env.t -> t coq_M **)
 
-let with_denv t0 denv0 =
-  { denv = denv0;
-    continuation_uses_env = t0.continuation_uses_env;
-    shareable_constants = t0.shareable_constants;
-    used_value_slots = t0.used_value_slots;
-    lifted_constants = t0.lifted_constants;
-    flow_acc = t0.flow_acc;
-    demoted_exn_handlers = t0.demoted_exn_handlers;
-    code_ids_to_remember = t0.code_ids_to_remember;
-    code_ids_to_never_delete = t0.code_ids_to_never_delete;
-    code_ids_never_simplified = t0.code_ids_never_simplified;
-    slot_offsets = t0.slot_offsets;
-    debuginfo_rewrites = t0.debuginfo_rewrites;
-    are_lifting_conts = t0.are_lifting_conts;
-    lifted_continuations = t0.lifted_continuations;
-    continuation_lifting_budget = t0.continuation_lifting_budget;
-    continuations_to_specialize = t0.continuations_to_specialize;
-    specialization_map = t0.specialization_map
-  }
+let with_denv = fun t x__1 -> { t with denv = x__1 }
 
 (** val with_continuation_uses_env : t -> Continuation_uses_env.t -> t coq_M **)
 
-let with_continuation_uses_env t0 cont_uses_env =
-  { denv = t0.denv;
-    continuation_uses_env = cont_uses_env;
-    shareable_constants = t0.shareable_constants;
-    used_value_slots = t0.used_value_slots;
-    lifted_constants = t0.lifted_constants;
-    flow_acc = t0.flow_acc;
-    demoted_exn_handlers = t0.demoted_exn_handlers;
-    code_ids_to_remember = t0.code_ids_to_remember;
-    code_ids_to_never_delete = t0.code_ids_to_never_delete;
-    code_ids_never_simplified = t0.code_ids_never_simplified;
-    slot_offsets = t0.slot_offsets;
-    debuginfo_rewrites = t0.debuginfo_rewrites;
-    are_lifting_conts = t0.are_lifting_conts;
-    lifted_continuations = t0.lifted_continuations;
-    continuation_lifting_budget = t0.continuation_lifting_budget;
-    continuations_to_specialize = t0.continuations_to_specialize;
-    specialization_map = t0.specialization_map
-  }
+let with_continuation_uses_env =
+ fun t x__1 -> { t with continuation_uses_env = x__1 }
 
 (** val record_continuation : t -> Continuation.t -> [ `Unarized ]
     Flambda_arity.t -> t coq_M **)
@@ -407,24 +320,8 @@ let add_to_lifted_constant_accumulator also_add_to_env t0 constants =
         None t0.denv constants
     else t0.denv
   in
-  { denv = denv0;
-    continuation_uses_env = t0.continuation_uses_env;
-    shareable_constants = t0.shareable_constants;
-    used_value_slots = t0.used_value_slots;
-    lifted_constants = lifted_constants0;
-    flow_acc = t0.flow_acc;
-    demoted_exn_handlers = t0.demoted_exn_handlers;
-    code_ids_to_remember = t0.code_ids_to_remember;
-    code_ids_to_never_delete = t0.code_ids_to_never_delete;
-    code_ids_never_simplified = t0.code_ids_never_simplified;
-    slot_offsets = t0.slot_offsets;
-    debuginfo_rewrites = t0.debuginfo_rewrites;
-    are_lifting_conts = t0.are_lifting_conts;
-    lifted_continuations = t0.lifted_continuations;
-    continuation_lifting_budget = t0.continuation_lifting_budget;
-    continuations_to_specialize = t0.continuations_to_specialize;
-    specialization_map = t0.specialization_map
-  }
+  (fun t x__1 x__2 -> { t with lifted_constants = x__1; denv = x__2 })
+    t0 lifted_constants0 denv0
 
 (** val get_lifted_constants : t -> Lifted_constant_state.t coq_M **)
 
@@ -433,24 +330,8 @@ let get_lifted_constants t0 = t0.lifted_constants
 (** val clear_lifted_constants : t -> t coq_M **)
 
 let clear_lifted_constants t0 =
-  { denv = t0.denv;
-    continuation_uses_env = t0.continuation_uses_env;
-    shareable_constants = t0.shareable_constants;
-    used_value_slots = t0.used_value_slots;
-    lifted_constants = Lifted_constant_state.empty;
-    flow_acc = t0.flow_acc;
-    demoted_exn_handlers = t0.demoted_exn_handlers;
-    code_ids_to_remember = t0.code_ids_to_remember;
-    code_ids_to_never_delete = t0.code_ids_to_never_delete;
-    code_ids_never_simplified = t0.code_ids_never_simplified;
-    slot_offsets = t0.slot_offsets;
-    debuginfo_rewrites = t0.debuginfo_rewrites;
-    are_lifting_conts = t0.are_lifting_conts;
-    lifted_continuations = t0.lifted_continuations;
-    continuation_lifting_budget = t0.continuation_lifting_budget;
-    continuations_to_specialize = t0.continuations_to_specialize;
-    specialization_map = t0.specialization_map
-  }
+  (fun t x__1 -> { t with lifted_constants = x__1 })
+    t0 Lifted_constant_state.empty
 
 (** val no_lifted_constants : t -> bool coq_M **)
 
@@ -466,25 +347,7 @@ let get_and_clear_lifted_constants t0 =
 
 (** val set_lifted_constants : t -> Lifted_constant_state.t -> t coq_M **)
 
-let set_lifted_constants t0 consts =
-  { denv = t0.denv;
-    continuation_uses_env = t0.continuation_uses_env;
-    shareable_constants = t0.shareable_constants;
-    used_value_slots = t0.used_value_slots;
-    lifted_constants = consts;
-    flow_acc = t0.flow_acc;
-    demoted_exn_handlers = t0.demoted_exn_handlers;
-    code_ids_to_remember = t0.code_ids_to_remember;
-    code_ids_to_never_delete = t0.code_ids_to_never_delete;
-    code_ids_never_simplified = t0.code_ids_never_simplified;
-    slot_offsets = t0.slot_offsets;
-    debuginfo_rewrites = t0.debuginfo_rewrites;
-    are_lifting_conts = t0.are_lifting_conts;
-    lifted_continuations = t0.lifted_continuations;
-    continuation_lifting_budget = t0.continuation_lifting_budget;
-    continuations_to_specialize = t0.continuations_to_specialize;
-    specialization_map = t0.specialization_map
-  }
+let set_lifted_constants = fun t x__1 -> { t with lifted_constants = x__1 }
 
 (** val find_shareable_constant : t -> Static_const.t -> Symbol.t option coq_M **)
 
@@ -498,71 +361,22 @@ let consider_constant_for_sharing t0 symbol static_const =
   if not (Static_const.can_share static_const)
   then t0
   else
-    { denv = t0.denv;
-      continuation_uses_env = t0.continuation_uses_env;
-      shareable_constants =
-        Static_const.Map.add static_const symbol t0.shareable_constants;
-      used_value_slots = t0.used_value_slots;
-      lifted_constants = t0.lifted_constants;
-      flow_acc = t0.flow_acc;
-      demoted_exn_handlers = t0.demoted_exn_handlers;
-      code_ids_to_remember = t0.code_ids_to_remember;
-      code_ids_to_never_delete = t0.code_ids_to_never_delete;
-      code_ids_never_simplified = t0.code_ids_never_simplified;
-      slot_offsets = t0.slot_offsets;
-      debuginfo_rewrites = t0.debuginfo_rewrites;
-      are_lifting_conts = t0.are_lifting_conts;
-      lifted_continuations = t0.lifted_continuations;
-      continuation_lifting_budget = t0.continuation_lifting_budget;
-      continuations_to_specialize = t0.continuations_to_specialize;
-      specialization_map = t0.specialization_map
-    }
+    (fun t x__1 -> { t with shareable_constants = x__1 })
+      t0
+      (Static_const.Map.add static_const symbol t0.shareable_constants)
 
 (** val with_shareable_constants : t -> Symbol.t Static_const.Map.t -> t coq_M **)
 
-let with_shareable_constants t0 shareable_constants0 =
-  { denv = t0.denv;
-    continuation_uses_env = t0.continuation_uses_env;
-    shareable_constants = shareable_constants0;
-    used_value_slots = t0.used_value_slots;
-    lifted_constants = t0.lifted_constants;
-    flow_acc = t0.flow_acc;
-    demoted_exn_handlers = t0.demoted_exn_handlers;
-    code_ids_to_remember = t0.code_ids_to_remember;
-    code_ids_to_never_delete = t0.code_ids_to_never_delete;
-    code_ids_never_simplified = t0.code_ids_never_simplified;
-    slot_offsets = t0.slot_offsets;
-    debuginfo_rewrites = t0.debuginfo_rewrites;
-    are_lifting_conts = t0.are_lifting_conts;
-    lifted_continuations = t0.lifted_continuations;
-    continuation_lifting_budget = t0.continuation_lifting_budget;
-    continuations_to_specialize = t0.continuations_to_specialize;
-    specialization_map = t0.specialization_map
-  }
+let with_shareable_constants =
+ fun t x__1 -> { t with shareable_constants = x__1 }
 
 (** val add_use_of_value_slot : t -> Value_slot.t -> t coq_M **)
 
 let add_use_of_value_slot t0 value_slot =
-  { denv = t0.denv;
-    continuation_uses_env = t0.continuation_uses_env;
-    shareable_constants = t0.shareable_constants;
-    used_value_slots =
-      Name_occurrences.add_value_slot_in_projection t0.used_value_slots
-        value_slot Name_mode.normal;
-    lifted_constants = t0.lifted_constants;
-    flow_acc = t0.flow_acc;
-    demoted_exn_handlers = t0.demoted_exn_handlers;
-    code_ids_to_remember = t0.code_ids_to_remember;
-    code_ids_to_never_delete = t0.code_ids_to_never_delete;
-    code_ids_never_simplified = t0.code_ids_never_simplified;
-    slot_offsets = t0.slot_offsets;
-    debuginfo_rewrites = t0.debuginfo_rewrites;
-    are_lifting_conts = t0.are_lifting_conts;
-    lifted_continuations = t0.lifted_continuations;
-    continuation_lifting_budget = t0.continuation_lifting_budget;
-    continuations_to_specialize = t0.continuations_to_specialize;
-    specialization_map = t0.specialization_map
-  }
+  (fun t x__1 -> { t with used_value_slots = x__1 })
+    t0
+    (Name_occurrences.add_value_slot_in_projection t0.used_value_slots
+       value_slot Name_mode.normal)
 
 (** val all_continuations_used : t -> Continuation.Set.t coq_M **)
 
@@ -571,25 +385,7 @@ let all_continuations_used t0 =
 
 (** val with_used_value_slots : t -> Name_occurrences.t -> t coq_M **)
 
-let with_used_value_slots t0 used_value_slots0 =
-  { denv = t0.denv;
-    continuation_uses_env = t0.continuation_uses_env;
-    shareable_constants = t0.shareable_constants;
-    used_value_slots = used_value_slots0;
-    lifted_constants = t0.lifted_constants;
-    flow_acc = t0.flow_acc;
-    demoted_exn_handlers = t0.demoted_exn_handlers;
-    code_ids_to_remember = t0.code_ids_to_remember;
-    code_ids_to_never_delete = t0.code_ids_to_never_delete;
-    code_ids_never_simplified = t0.code_ids_never_simplified;
-    slot_offsets = t0.slot_offsets;
-    debuginfo_rewrites = t0.debuginfo_rewrites;
-    are_lifting_conts = t0.are_lifting_conts;
-    lifted_continuations = t0.lifted_continuations;
-    continuation_lifting_budget = t0.continuation_lifting_budget;
-    continuations_to_specialize = t0.continuations_to_specialize;
-    specialization_map = t0.specialization_map
-  }
+let with_used_value_slots = fun t x__1 -> { t with used_value_slots = x__1 }
 
 (** val add_code_ids_to_remember : t -> Code_id.Set.t -> t coq_M **)
 
@@ -597,136 +393,38 @@ let add_code_ids_to_remember t0 code_ids =
   if Downwards_env.at_unit_toplevel t0.denv
   then t0
   else
-    { denv = t0.denv;
-      continuation_uses_env = t0.continuation_uses_env;
-      shareable_constants = t0.shareable_constants;
-      used_value_slots = t0.used_value_slots;
-      lifted_constants = t0.lifted_constants;
-      flow_acc = t0.flow_acc;
-      demoted_exn_handlers = t0.demoted_exn_handlers;
-      code_ids_to_remember = Code_id.Set.union code_ids t0.code_ids_to_remember;
-      code_ids_to_never_delete = t0.code_ids_to_never_delete;
-      code_ids_never_simplified = t0.code_ids_never_simplified;
-      slot_offsets = t0.slot_offsets;
-      debuginfo_rewrites = t0.debuginfo_rewrites;
-      are_lifting_conts = t0.are_lifting_conts;
-      lifted_continuations = t0.lifted_continuations;
-      continuation_lifting_budget = t0.continuation_lifting_budget;
-      continuations_to_specialize = t0.continuations_to_specialize;
-      specialization_map = t0.specialization_map
-    }
+    (fun t x__1 -> { t with code_ids_to_remember = x__1 })
+      t0
+      (Code_id.Set.union code_ids t0.code_ids_to_remember)
 
 (** val with_code_ids_to_remember : t -> Code_id.Set.t -> t coq_M **)
 
-let with_code_ids_to_remember t0 code_ids_to_remember0 =
-  { denv = t0.denv;
-    continuation_uses_env = t0.continuation_uses_env;
-    shareable_constants = t0.shareable_constants;
-    used_value_slots = t0.used_value_slots;
-    lifted_constants = t0.lifted_constants;
-    flow_acc = t0.flow_acc;
-    demoted_exn_handlers = t0.demoted_exn_handlers;
-    code_ids_to_remember = code_ids_to_remember0;
-    code_ids_to_never_delete = t0.code_ids_to_never_delete;
-    code_ids_never_simplified = t0.code_ids_never_simplified;
-    slot_offsets = t0.slot_offsets;
-    debuginfo_rewrites = t0.debuginfo_rewrites;
-    are_lifting_conts = t0.are_lifting_conts;
-    lifted_continuations = t0.lifted_continuations;
-    continuation_lifting_budget = t0.continuation_lifting_budget;
-    continuations_to_specialize = t0.continuations_to_specialize;
-    specialization_map = t0.specialization_map
-  }
+let with_code_ids_to_remember =
+ fun t x__1 -> { t with code_ids_to_remember = x__1 }
 
 (** val add_code_ids_to_never_delete : t -> Code_id.Set.t -> t coq_M **)
 
 let add_code_ids_to_never_delete t0 code_ids =
-  { denv = t0.denv;
-    continuation_uses_env = t0.continuation_uses_env;
-    shareable_constants = t0.shareable_constants;
-    used_value_slots = t0.used_value_slots;
-    lifted_constants = t0.lifted_constants;
-    flow_acc = t0.flow_acc;
-    demoted_exn_handlers = t0.demoted_exn_handlers;
-    code_ids_to_remember = t0.code_ids_to_remember;
-    code_ids_to_never_delete =
-      Code_id.Set.union code_ids t0.code_ids_to_never_delete;
-    code_ids_never_simplified = t0.code_ids_never_simplified;
-    slot_offsets = t0.slot_offsets;
-    debuginfo_rewrites = t0.debuginfo_rewrites;
-    are_lifting_conts = t0.are_lifting_conts;
-    lifted_continuations = t0.lifted_continuations;
-    continuation_lifting_budget = t0.continuation_lifting_budget;
-    continuations_to_specialize = t0.continuations_to_specialize;
-    specialization_map = t0.specialization_map
-  }
+  (fun t x__1 -> { t with code_ids_to_never_delete = x__1 })
+    t0
+    (Code_id.Set.union code_ids t0.code_ids_to_never_delete)
 
 (** val with_code_ids_to_never_delete : t -> Code_id.Set.t -> t coq_M **)
 
-let with_code_ids_to_never_delete t0 code_ids_to_never_delete0 =
-  { denv = t0.denv;
-    continuation_uses_env = t0.continuation_uses_env;
-    shareable_constants = t0.shareable_constants;
-    used_value_slots = t0.used_value_slots;
-    lifted_constants = t0.lifted_constants;
-    flow_acc = t0.flow_acc;
-    demoted_exn_handlers = t0.demoted_exn_handlers;
-    code_ids_to_remember = t0.code_ids_to_remember;
-    code_ids_to_never_delete = code_ids_to_never_delete0;
-    code_ids_never_simplified = t0.code_ids_never_simplified;
-    slot_offsets = t0.slot_offsets;
-    debuginfo_rewrites = t0.debuginfo_rewrites;
-    are_lifting_conts = t0.are_lifting_conts;
-    lifted_continuations = t0.lifted_continuations;
-    continuation_lifting_budget = t0.continuation_lifting_budget;
-    continuations_to_specialize = t0.continuations_to_specialize;
-    specialization_map = t0.specialization_map
-  }
+let with_code_ids_to_never_delete =
+ fun t x__1 -> { t with code_ids_to_never_delete = x__1 }
 
 (** val add_code_ids_never_simplified : t -> Code_id.Set.t -> t coq_M **)
 
 let add_code_ids_never_simplified t0 old_code_ids =
-  { denv = t0.denv;
-    continuation_uses_env = t0.continuation_uses_env;
-    shareable_constants = t0.shareable_constants;
-    used_value_slots = t0.used_value_slots;
-    lifted_constants = t0.lifted_constants;
-    flow_acc = t0.flow_acc;
-    demoted_exn_handlers = t0.demoted_exn_handlers;
-    code_ids_to_remember = t0.code_ids_to_remember;
-    code_ids_to_never_delete = t0.code_ids_to_never_delete;
-    code_ids_never_simplified =
-      Code_id.Set.union old_code_ids t0.code_ids_never_simplified;
-    slot_offsets = t0.slot_offsets;
-    debuginfo_rewrites = t0.debuginfo_rewrites;
-    are_lifting_conts = t0.are_lifting_conts;
-    lifted_continuations = t0.lifted_continuations;
-    continuation_lifting_budget = t0.continuation_lifting_budget;
-    continuations_to_specialize = t0.continuations_to_specialize;
-    specialization_map = t0.specialization_map
-  }
+  (fun t x__1 -> { t with code_ids_never_simplified = x__1 })
+    t0
+    (Code_id.Set.union old_code_ids t0.code_ids_never_simplified)
 
 (** val with_code_ids_never_simplified : t -> Code_id.Set.t -> t coq_M **)
 
-let with_code_ids_never_simplified t0 code_ids_never_simplified0 =
-  { denv = t0.denv;
-    continuation_uses_env = t0.continuation_uses_env;
-    shareable_constants = t0.shareable_constants;
-    used_value_slots = t0.used_value_slots;
-    lifted_constants = t0.lifted_constants;
-    flow_acc = t0.flow_acc;
-    demoted_exn_handlers = t0.demoted_exn_handlers;
-    code_ids_to_remember = t0.code_ids_to_remember;
-    code_ids_to_never_delete = t0.code_ids_to_never_delete;
-    code_ids_never_simplified = code_ids_never_simplified0;
-    slot_offsets = t0.slot_offsets;
-    debuginfo_rewrites = t0.debuginfo_rewrites;
-    are_lifting_conts = t0.are_lifting_conts;
-    lifted_continuations = t0.lifted_continuations;
-    continuation_lifting_budget = t0.continuation_lifting_budget;
-    continuations_to_specialize = t0.continuations_to_specialize;
-    specialization_map = t0.specialization_map
-  }
+let with_code_ids_never_simplified =
+ fun t x__1 -> { t with code_ids_never_simplified = x__1 }
 
 (** val are_rebuilding_terms : t -> Are_rebuilding_terms.t coq_M **)
 
@@ -735,46 +433,13 @@ let are_rebuilding_terms t0 = Downwards_env.are_rebuilding_terms t0.denv
 (** val demote_exn_handler : t -> Continuation.t -> t coq_M **)
 
 let demote_exn_handler t0 cont =
-  { denv = t0.denv;
-    continuation_uses_env = t0.continuation_uses_env;
-    shareable_constants = t0.shareable_constants;
-    used_value_slots = t0.used_value_slots;
-    lifted_constants = t0.lifted_constants;
-    flow_acc = t0.flow_acc;
-    demoted_exn_handlers = Continuation.Set.add cont t0.demoted_exn_handlers;
-    code_ids_to_remember = t0.code_ids_to_remember;
-    code_ids_to_never_delete = t0.code_ids_to_never_delete;
-    code_ids_never_simplified = t0.code_ids_never_simplified;
-    slot_offsets = t0.slot_offsets;
-    debuginfo_rewrites = t0.debuginfo_rewrites;
-    are_lifting_conts = t0.are_lifting_conts;
-    lifted_continuations = t0.lifted_continuations;
-    continuation_lifting_budget = t0.continuation_lifting_budget;
-    continuations_to_specialize = t0.continuations_to_specialize;
-    specialization_map = t0.specialization_map
-  }
+  (fun t x__1 -> { t with demoted_exn_handlers = x__1 })
+    t0
+    (Continuation.Set.add cont t0.demoted_exn_handlers)
 
 (** val with_slot_offsets : t -> Slot_offsets.t Code_id.Map.t -> t coq_M **)
 
-let with_slot_offsets t0 slot_offsets0 =
-  { denv = t0.denv;
-    continuation_uses_env = t0.continuation_uses_env;
-    shareable_constants = t0.shareable_constants;
-    used_value_slots = t0.used_value_slots;
-    lifted_constants = t0.lifted_constants;
-    flow_acc = t0.flow_acc;
-    demoted_exn_handlers = t0.demoted_exn_handlers;
-    code_ids_to_remember = t0.code_ids_to_remember;
-    code_ids_to_never_delete = t0.code_ids_to_never_delete;
-    code_ids_never_simplified = t0.code_ids_never_simplified;
-    slot_offsets = slot_offsets0;
-    debuginfo_rewrites = t0.debuginfo_rewrites;
-    are_lifting_conts = t0.are_lifting_conts;
-    lifted_continuations = t0.lifted_continuations;
-    continuation_lifting_budget = t0.continuation_lifting_budget;
-    continuations_to_specialize = t0.continuations_to_specialize;
-    specialization_map = t0.specialization_map
-  }
+let with_slot_offsets = fun t x__1 -> { t with slot_offsets = x__1 }
 
 (** val find_debuginfo_rewrite : t -> Simple.t -> Debuginfo.t option coq_M **)
 
@@ -789,93 +454,28 @@ let merge_debuginfo_rewrite t0 bound_to dbg =
     | Some earlier_dbg -> Debuginfo.merge earlier_dbg dbg
     | None -> dbg
   in
-  { denv = t0.denv;
-    continuation_uses_env = t0.continuation_uses_env;
-    shareable_constants = t0.shareable_constants;
-    used_value_slots = t0.used_value_slots;
-    lifted_constants = t0.lifted_constants;
-    flow_acc = t0.flow_acc;
-    demoted_exn_handlers = t0.demoted_exn_handlers;
-    code_ids_to_remember = t0.code_ids_to_remember;
-    code_ids_to_never_delete = t0.code_ids_to_never_delete;
-    code_ids_never_simplified = t0.code_ids_never_simplified;
-    slot_offsets = t0.slot_offsets;
-    debuginfo_rewrites = Simple.Map.add bound_to dbg0 t0.debuginfo_rewrites;
-    are_lifting_conts = t0.are_lifting_conts;
-    lifted_continuations = t0.lifted_continuations;
-    continuation_lifting_budget = t0.continuation_lifting_budget;
-    continuations_to_specialize = t0.continuations_to_specialize;
-    specialization_map = t0.specialization_map
-  }
+  (fun t x__1 -> { t with debuginfo_rewrites = x__1 })
+    t0
+    (Simple.Map.add bound_to dbg0 t0.debuginfo_rewrites)
 
 (** val with_are_lifting_conts : t -> Are_lifting_conts.t -> t coq_M **)
 
-let with_are_lifting_conts t0 are_lifting_conts0 =
-  { denv = t0.denv;
-    continuation_uses_env = t0.continuation_uses_env;
-    shareable_constants = t0.shareable_constants;
-    used_value_slots = t0.used_value_slots;
-    lifted_constants = t0.lifted_constants;
-    flow_acc = t0.flow_acc;
-    demoted_exn_handlers = t0.demoted_exn_handlers;
-    code_ids_to_remember = t0.code_ids_to_remember;
-    code_ids_to_never_delete = t0.code_ids_to_never_delete;
-    code_ids_never_simplified = t0.code_ids_never_simplified;
-    slot_offsets = t0.slot_offsets;
-    debuginfo_rewrites = t0.debuginfo_rewrites;
-    are_lifting_conts = are_lifting_conts0;
-    lifted_continuations = t0.lifted_continuations;
-    continuation_lifting_budget = t0.continuation_lifting_budget;
-    continuations_to_specialize = t0.continuations_to_specialize;
-    specialization_map = t0.specialization_map
-  }
+let with_are_lifting_conts = fun t x__1 -> { t with are_lifting_conts = x__1 }
 
 (** val get_and_clear_lifted_continuations : t -> (t * (Downwards_env.t *
     Original_handlers.t) list) coq_M **)
 
 let get_and_clear_lifted_continuations t0 =
-  ( { denv = t0.denv;
-      continuation_uses_env = t0.continuation_uses_env;
-      shareable_constants = t0.shareable_constants;
-      used_value_slots = t0.used_value_slots;
-      lifted_constants = t0.lifted_constants;
-      flow_acc = t0.flow_acc;
-      demoted_exn_handlers = t0.demoted_exn_handlers;
-      code_ids_to_remember = t0.code_ids_to_remember;
-      code_ids_to_never_delete = t0.code_ids_to_never_delete;
-      code_ids_never_simplified = t0.code_ids_never_simplified;
-      slot_offsets = t0.slot_offsets;
-      debuginfo_rewrites = t0.debuginfo_rewrites;
-      are_lifting_conts = t0.are_lifting_conts;
-      lifted_continuations = [];
-      continuation_lifting_budget = t0.continuation_lifting_budget;
-      continuations_to_specialize = t0.continuations_to_specialize;
-      specialization_map = t0.specialization_map
-    },
+  ( (fun t x__1 -> { t with lifted_continuations = x__1 }) t0 [],
     t0.lifted_continuations )
 
 (** val add_lifted_continuation : Downwards_env.t -> Original_handlers.t -> t ->
     t coq_M **)
 
 let add_lifted_continuation denv0 original_handlers t0 =
-  { denv = t0.denv;
-    continuation_uses_env = t0.continuation_uses_env;
-    shareable_constants = t0.shareable_constants;
-    used_value_slots = t0.used_value_slots;
-    lifted_constants = t0.lifted_constants;
-    flow_acc = t0.flow_acc;
-    demoted_exn_handlers = t0.demoted_exn_handlers;
-    code_ids_to_remember = t0.code_ids_to_remember;
-    code_ids_to_never_delete = t0.code_ids_to_never_delete;
-    code_ids_never_simplified = t0.code_ids_never_simplified;
-    slot_offsets = t0.slot_offsets;
-    debuginfo_rewrites = t0.debuginfo_rewrites;
-    are_lifting_conts = t0.are_lifting_conts;
-    lifted_continuations = (denv0, original_handlers) :: t0.lifted_continuations;
-    continuation_lifting_budget = t0.continuation_lifting_budget;
-    continuations_to_specialize = t0.continuations_to_specialize;
-    specialization_map = t0.specialization_map
-  }
+  (fun t x__1 -> { t with lifted_continuations = x__1 })
+    t0
+    ((denv0, original_handlers) :: t0.lifted_continuations)
 
 (** val get_continuation_lifting_budget : t -> int coq_M **)
 
@@ -885,25 +485,8 @@ let get_continuation_lifting_budget t0 =
 
 (** val with_continuation_lifting_budget : t -> int -> t coq_M **)
 
-let with_continuation_lifting_budget t0 budget =
-  { denv = t0.denv;
-    continuation_uses_env = t0.continuation_uses_env;
-    shareable_constants = t0.shareable_constants;
-    used_value_slots = t0.used_value_slots;
-    lifted_constants = t0.lifted_constants;
-    flow_acc = t0.flow_acc;
-    demoted_exn_handlers = t0.demoted_exn_handlers;
-    code_ids_to_remember = t0.code_ids_to_remember;
-    code_ids_to_never_delete = t0.code_ids_to_never_delete;
-    code_ids_never_simplified = t0.code_ids_never_simplified;
-    slot_offsets = t0.slot_offsets;
-    debuginfo_rewrites = t0.debuginfo_rewrites;
-    are_lifting_conts = t0.are_lifting_conts;
-    lifted_continuations = t0.lifted_continuations;
-    continuation_lifting_budget = budget;
-    continuations_to_specialize = t0.continuations_to_specialize;
-    specialization_map = t0.specialization_map
-  }
+let with_continuation_lifting_budget =
+ fun t x__1 -> { t with continuation_lifting_budget = x__1 }
 
 (** val reset_continuation_lifting_budget : t -> t coq_M **)
 
@@ -934,25 +517,9 @@ let prepare_for_speculative_inlining dacc =
 (** val add_continuation_to_specialize : t -> Continuation.t -> t coq_M **)
 
 let add_continuation_to_specialize t0 cont =
-  { denv = t0.denv;
-    continuation_uses_env = t0.continuation_uses_env;
-    shareable_constants = t0.shareable_constants;
-    used_value_slots = t0.used_value_slots;
-    lifted_constants = t0.lifted_constants;
-    flow_acc = t0.flow_acc;
-    demoted_exn_handlers = t0.demoted_exn_handlers;
-    code_ids_to_remember = t0.code_ids_to_remember;
-    code_ids_to_never_delete = t0.code_ids_to_never_delete;
-    code_ids_never_simplified = t0.code_ids_never_simplified;
-    slot_offsets = t0.slot_offsets;
-    debuginfo_rewrites = t0.debuginfo_rewrites;
-    are_lifting_conts = t0.are_lifting_conts;
-    lifted_continuations = t0.lifted_continuations;
-    continuation_lifting_budget = t0.continuation_lifting_budget;
-    continuations_to_specialize =
-      Continuation.Set.add cont t0.continuations_to_specialize;
-    specialization_map = t0.specialization_map
-  }
+  (fun t x__1 -> { t with continuations_to_specialize = x__1 })
+    t0
+    (Continuation.Set.add cont t0.continuations_to_specialize)
 
 (** val add_specialization : t -> Apply_cont_rewrite_id.t -> Continuation.t ->
     Continuation.t -> t coq_M **)
@@ -961,24 +528,7 @@ let add_specialization t0 id old specialized =
   let specialization_map0 =
     Continuation_callsite_map.add old id specialized t0.specialization_map
   in
-  { denv = t0.denv;
-    continuation_uses_env = t0.continuation_uses_env;
-    shareable_constants = t0.shareable_constants;
-    used_value_slots = t0.used_value_slots;
-    lifted_constants = t0.lifted_constants;
-    flow_acc = t0.flow_acc;
-    demoted_exn_handlers = t0.demoted_exn_handlers;
-    code_ids_to_remember = t0.code_ids_to_remember;
-    code_ids_to_never_delete = t0.code_ids_to_never_delete;
-    code_ids_never_simplified = t0.code_ids_never_simplified;
-    slot_offsets = t0.slot_offsets;
-    debuginfo_rewrites = t0.debuginfo_rewrites;
-    are_lifting_conts = t0.are_lifting_conts;
-    lifted_continuations = t0.lifted_continuations;
-    continuation_lifting_budget = t0.continuation_lifting_budget;
-    continuations_to_specialize = t0.continuations_to_specialize;
-    specialization_map = specialization_map0
-  }
+  (fun t x__1 -> { t with specialization_map = x__1 }) t0 specialization_map0
 
 let add_to_lifted_constant_accumulator ?also_add_to_env t constants =
   add_to_lifted_constant_accumulator also_add_to_env t constants

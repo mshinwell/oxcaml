@@ -18,8 +18,8 @@
    commit ecc5c0d968c892b4312065caef0f19ffffa042a9, definition by definition
    under the compiler's names; the numbers in the comments are the lines of
    that file. What is not from that file: the form (the monad, the
-   temporaries [tmpN] and their order, the arguments by place, every field
-   written where the compiler writes [{ t with ... }]) is that of GUIDE.md.
+   temporaries [tmpN] and their order, the arguments by place, a setter
+   [update_f] where the compiler writes [{ t with f }]) is that of GUIDE.md.
    No proof. *)
 
 From SimplifyPort Require Import Port_monad.
@@ -170,119 +170,106 @@ Definition create (denv : Downwards_env.t)
    (342). Where the compiler calls one of them ([denv t]), the Rocq text
    reads the field. *)
 
+(* PORT-GAP(update): 118, [{ t with flow_acc }]. *)
+Definition update_flow_acc (t : Downwards_acc.t)
+    (flow_acc : Flow.Acc.t) : Downwards_acc.t :=
+  {| denv := t.(denv);
+     continuation_uses_env := t.(continuation_uses_env);
+     shareable_constants := t.(shareable_constants);
+     used_value_slots := t.(used_value_slots);
+     lifted_constants := t.(lifted_constants);
+     flow_acc := flow_acc;
+     demoted_exn_handlers := t.(demoted_exn_handlers);
+     code_ids_to_remember := t.(code_ids_to_remember);
+     code_ids_to_never_delete := t.(code_ids_to_never_delete);
+     code_ids_never_simplified := t.(code_ids_never_simplified);
+     slot_offsets := t.(slot_offsets);
+     debuginfo_rewrites := t.(debuginfo_rewrites);
+     are_lifting_conts := t.(are_lifting_conts);
+     lifted_continuations := t.(lifted_continuations);
+     continuation_lifting_budget := t.(continuation_lifting_budget);
+     continuations_to_specialize := t.(continuations_to_specialize);
+     specialization_map := t.(specialization_map)
+  |}.
+Extract Inlined Constant update_flow_acc =>
+  "(fun t x__1 -> { t with flow_acc = x__1 })".
+
 (* 118 *)
 (* PORT-GAP(loose): the attribute [@inline always] is not kept, here and at
    [map_flow_acc], [map_denv] and [with_denv]. *)
 Definition with_flow_acc (flow_acc : Flow.Acc.t) (t : Downwards_acc.t)
     : M Downwards_acc.t :=
-  ret {| denv := t.(Downwards_acc.denv);
-         continuation_uses_env := t.(Downwards_acc.continuation_uses_env);
-         shareable_constants := t.(Downwards_acc.shareable_constants);
-         used_value_slots := t.(Downwards_acc.used_value_slots);
-         lifted_constants := t.(Downwards_acc.lifted_constants);
-         flow_acc := flow_acc;
-         demoted_exn_handlers := t.(Downwards_acc.demoted_exn_handlers);
-         code_ids_to_remember := t.(Downwards_acc.code_ids_to_remember);
-         code_ids_to_never_delete := t.(Downwards_acc.code_ids_to_never_delete);
-         code_ids_never_simplified := t.(Downwards_acc.code_ids_never_simplified);
-         slot_offsets := t.(Downwards_acc.slot_offsets);
-         debuginfo_rewrites := t.(Downwards_acc.debuginfo_rewrites);
-         are_lifting_conts := t.(Downwards_acc.are_lifting_conts);
-         lifted_continuations := t.(Downwards_acc.lifted_continuations);
-         continuation_lifting_budget := t.(Downwards_acc.continuation_lifting_budget);
-         continuations_to_specialize := t.(Downwards_acc.continuations_to_specialize);
-         specialization_map := t.(Downwards_acc.specialization_map)
-      |}.
+  ret (update_flow_acc t flow_acc).
 
 (* 120 *)
 Definition map_flow_acc (t : Downwards_acc.t)
     (f : Flow.Acc.t -> M Flow.Acc.t) : M Downwards_acc.t :=
   let! tmp1 := f t.(flow_acc) in
-  ret {| denv := t.(Downwards_acc.denv);
-         continuation_uses_env := t.(Downwards_acc.continuation_uses_env);
-         shareable_constants := t.(Downwards_acc.shareable_constants);
-         used_value_slots := t.(Downwards_acc.used_value_slots);
-         lifted_constants := t.(Downwards_acc.lifted_constants);
-         flow_acc := tmp1;
-         demoted_exn_handlers := t.(Downwards_acc.demoted_exn_handlers);
-         code_ids_to_remember := t.(Downwards_acc.code_ids_to_remember);
-         code_ids_to_never_delete := t.(Downwards_acc.code_ids_to_never_delete);
-         code_ids_never_simplified := t.(Downwards_acc.code_ids_never_simplified);
-         slot_offsets := t.(Downwards_acc.slot_offsets);
-         debuginfo_rewrites := t.(Downwards_acc.debuginfo_rewrites);
-         are_lifting_conts := t.(Downwards_acc.are_lifting_conts);
-         lifted_continuations := t.(Downwards_acc.lifted_continuations);
-         continuation_lifting_budget := t.(Downwards_acc.continuation_lifting_budget);
-         continuations_to_specialize := t.(Downwards_acc.continuations_to_specialize);
-         specialization_map := t.(Downwards_acc.specialization_map)
-      |}.
+  ret (update_flow_acc t tmp1).
+
+(* PORT-GAP(update): 122, [{ t with denv }]. *)
+Definition update_denv (t : Downwards_acc.t)
+    (denv : Downwards_env.t) : Downwards_acc.t :=
+  {| denv := denv;
+     continuation_uses_env := t.(continuation_uses_env);
+     shareable_constants := t.(shareable_constants);
+     used_value_slots := t.(used_value_slots);
+     lifted_constants := t.(lifted_constants);
+     flow_acc := t.(flow_acc);
+     demoted_exn_handlers := t.(demoted_exn_handlers);
+     code_ids_to_remember := t.(code_ids_to_remember);
+     code_ids_to_never_delete := t.(code_ids_to_never_delete);
+     code_ids_never_simplified := t.(code_ids_never_simplified);
+     slot_offsets := t.(slot_offsets);
+     debuginfo_rewrites := t.(debuginfo_rewrites);
+     are_lifting_conts := t.(are_lifting_conts);
+     lifted_continuations := t.(lifted_continuations);
+     continuation_lifting_budget := t.(continuation_lifting_budget);
+     continuations_to_specialize := t.(continuations_to_specialize);
+     specialization_map := t.(specialization_map)
+  |}.
+Extract Inlined Constant update_denv =>
+  "(fun t x__1 -> { t with denv = x__1 })".
 
 (* 122 *)
 Definition map_denv (t : Downwards_acc.t)
     (f : Downwards_env.t -> M Downwards_env.t) : M Downwards_acc.t :=
   let! tmp1 := f t.(denv) in
-  ret {| denv := tmp1;
-         continuation_uses_env := t.(Downwards_acc.continuation_uses_env);
-         shareable_constants := t.(Downwards_acc.shareable_constants);
-         used_value_slots := t.(Downwards_acc.used_value_slots);
-         lifted_constants := t.(Downwards_acc.lifted_constants);
-         flow_acc := t.(Downwards_acc.flow_acc);
-         demoted_exn_handlers := t.(Downwards_acc.demoted_exn_handlers);
-         code_ids_to_remember := t.(Downwards_acc.code_ids_to_remember);
-         code_ids_to_never_delete := t.(Downwards_acc.code_ids_to_never_delete);
-         code_ids_never_simplified := t.(Downwards_acc.code_ids_never_simplified);
-         slot_offsets := t.(Downwards_acc.slot_offsets);
-         debuginfo_rewrites := t.(Downwards_acc.debuginfo_rewrites);
-         are_lifting_conts := t.(Downwards_acc.are_lifting_conts);
-         lifted_continuations := t.(Downwards_acc.lifted_continuations);
-         continuation_lifting_budget := t.(Downwards_acc.continuation_lifting_budget);
-         continuations_to_specialize := t.(Downwards_acc.continuations_to_specialize);
-         specialization_map := t.(Downwards_acc.specialization_map)
-      |}.
+  ret (update_denv t tmp1).
 
 (* 124 *)
 Definition with_denv (t : Downwards_acc.t) (denv : Downwards_env.t)
     : M Downwards_acc.t :=
-  ret {| denv := denv;
-         continuation_uses_env := t.(Downwards_acc.continuation_uses_env);
-         shareable_constants := t.(Downwards_acc.shareable_constants);
-         used_value_slots := t.(Downwards_acc.used_value_slots);
-         lifted_constants := t.(Downwards_acc.lifted_constants);
-         flow_acc := t.(Downwards_acc.flow_acc);
-         demoted_exn_handlers := t.(Downwards_acc.demoted_exn_handlers);
-         code_ids_to_remember := t.(Downwards_acc.code_ids_to_remember);
-         code_ids_to_never_delete := t.(Downwards_acc.code_ids_to_never_delete);
-         code_ids_never_simplified := t.(Downwards_acc.code_ids_never_simplified);
-         slot_offsets := t.(Downwards_acc.slot_offsets);
-         debuginfo_rewrites := t.(Downwards_acc.debuginfo_rewrites);
-         are_lifting_conts := t.(Downwards_acc.are_lifting_conts);
-         lifted_continuations := t.(Downwards_acc.lifted_continuations);
-         continuation_lifting_budget := t.(Downwards_acc.continuation_lifting_budget);
-         continuations_to_specialize := t.(Downwards_acc.continuations_to_specialize);
-         specialization_map := t.(Downwards_acc.specialization_map)
-      |}.
+  ret (update_denv t denv).
+
+(* PORT-GAP(update): 127, [{ t with continuation_uses_env }]. *)
+Definition update_continuation_uses_env (t : Downwards_acc.t)
+    (continuation_uses_env : Continuation_uses_env.t) : Downwards_acc.t :=
+  {| denv := t.(denv);
+     continuation_uses_env := continuation_uses_env;
+     shareable_constants := t.(shareable_constants);
+     used_value_slots := t.(used_value_slots);
+     lifted_constants := t.(lifted_constants);
+     flow_acc := t.(flow_acc);
+     demoted_exn_handlers := t.(demoted_exn_handlers);
+     code_ids_to_remember := t.(code_ids_to_remember);
+     code_ids_to_never_delete := t.(code_ids_to_never_delete);
+     code_ids_never_simplified := t.(code_ids_never_simplified);
+     slot_offsets := t.(slot_offsets);
+     debuginfo_rewrites := t.(debuginfo_rewrites);
+     are_lifting_conts := t.(are_lifting_conts);
+     lifted_continuations := t.(lifted_continuations);
+     continuation_lifting_budget := t.(continuation_lifting_budget);
+     continuations_to_specialize := t.(continuations_to_specialize);
+     specialization_map := t.(specialization_map)
+  |}.
+Extract Inlined Constant update_continuation_uses_env =>
+  "(fun t x__1 -> { t with continuation_uses_env = x__1 })".
 
 (* 126-127 *)
 Definition with_continuation_uses_env (t : Downwards_acc.t)
     (cont_uses_env : Continuation_uses_env.t) : M Downwards_acc.t :=
-  ret {| denv := t.(Downwards_acc.denv);
-         continuation_uses_env := cont_uses_env;
-         shareable_constants := t.(Downwards_acc.shareable_constants);
-         used_value_slots := t.(Downwards_acc.used_value_slots);
-         lifted_constants := t.(Downwards_acc.lifted_constants);
-         flow_acc := t.(Downwards_acc.flow_acc);
-         demoted_exn_handlers := t.(Downwards_acc.demoted_exn_handlers);
-         code_ids_to_remember := t.(Downwards_acc.code_ids_to_remember);
-         code_ids_to_never_delete := t.(Downwards_acc.code_ids_to_never_delete);
-         code_ids_never_simplified := t.(Downwards_acc.code_ids_never_simplified);
-         slot_offsets := t.(Downwards_acc.slot_offsets);
-         debuginfo_rewrites := t.(Downwards_acc.debuginfo_rewrites);
-         are_lifting_conts := t.(Downwards_acc.are_lifting_conts);
-         lifted_continuations := t.(Downwards_acc.lifted_continuations);
-         continuation_lifting_budget := t.(Downwards_acc.continuation_lifting_budget);
-         continuations_to_specialize := t.(Downwards_acc.continuations_to_specialize);
-         specialization_map := t.(Downwards_acc.specialization_map)
-      |}.
+  ret (update_continuation_uses_env t cont_uses_env).
 
 (* 129-133 *)
 Definition record_continuation (t : Downwards_acc.t) (cont : Continuation.t)
@@ -352,6 +339,31 @@ Definition get_typing_env_no_more_than_one_use (t : Downwards_acc.t)
   Continuation_uses_env.get_typing_env_no_more_than_one_use
     t.(continuation_uses_env) k.
 
+(* PORT-GAP(update): 178, [{ t with lifted_constants; denv }]. *)
+Definition update_lifted_constants_denv (t : Downwards_acc.t)
+    (lifted_constants : Lifted_constant_state.t)
+    (denv : Downwards_env.t) : Downwards_acc.t :=
+  {| denv := denv;
+     continuation_uses_env := t.(continuation_uses_env);
+     shareable_constants := t.(shareable_constants);
+     used_value_slots := t.(used_value_slots);
+     lifted_constants := lifted_constants;
+     flow_acc := t.(flow_acc);
+     demoted_exn_handlers := t.(demoted_exn_handlers);
+     code_ids_to_remember := t.(code_ids_to_remember);
+     code_ids_to_never_delete := t.(code_ids_to_never_delete);
+     code_ids_never_simplified := t.(code_ids_never_simplified);
+     slot_offsets := t.(slot_offsets);
+     debuginfo_rewrites := t.(debuginfo_rewrites);
+     are_lifting_conts := t.(are_lifting_conts);
+     lifted_continuations := t.(lifted_continuations);
+     continuation_lifting_budget := t.(continuation_lifting_budget);
+     continuations_to_specialize := t.(continuations_to_specialize);
+     specialization_map := t.(specialization_map)
+  |}.
+Extract Inlined Constant update_lifted_constants_denv =>
+  "(fun t x__1 x__2 -> { t with lifted_constants = x__1; denv = x__2 })".
+
 (* 168-178. The optional argument [?also_add_to_env] is by place; the
    wrapper at the end of the extracted file gives it its label. *)
 Definition add_to_lifted_constant_accumulator (also_add_to_env : option unit)
@@ -370,50 +382,40 @@ Definition add_to_lifted_constant_accumulator (also_add_to_env : option unit)
         constants
     else ret t.(Downwards_acc.denv)
   in
-  ret {| denv := denv;
-         continuation_uses_env := t.(Downwards_acc.continuation_uses_env);
-         shareable_constants := t.(Downwards_acc.shareable_constants);
-         used_value_slots := t.(Downwards_acc.used_value_slots);
-         lifted_constants := lifted_constants;
-         flow_acc := t.(Downwards_acc.flow_acc);
-         demoted_exn_handlers := t.(Downwards_acc.demoted_exn_handlers);
-         code_ids_to_remember := t.(Downwards_acc.code_ids_to_remember);
-         code_ids_to_never_delete := t.(Downwards_acc.code_ids_to_never_delete);
-         code_ids_never_simplified := t.(Downwards_acc.code_ids_never_simplified);
-         slot_offsets := t.(Downwards_acc.slot_offsets);
-         debuginfo_rewrites := t.(Downwards_acc.debuginfo_rewrites);
-         are_lifting_conts := t.(Downwards_acc.are_lifting_conts);
-         lifted_continuations := t.(Downwards_acc.lifted_continuations);
-         continuation_lifting_budget := t.(Downwards_acc.continuation_lifting_budget);
-         continuations_to_specialize := t.(Downwards_acc.continuations_to_specialize);
-         specialization_map := t.(Downwards_acc.specialization_map)
-      |}.
+  ret (update_lifted_constants_denv t lifted_constants denv).
 
 (* 180 *)
 Definition get_lifted_constants (t : Downwards_acc.t)
     : M Lifted_constant_state.t :=
   ret t.(lifted_constants).
 
+(* PORT-GAP(update): 182, [{ t with lifted_constants }]. *)
+Definition update_lifted_constants (t : Downwards_acc.t)
+    (lifted_constants : Lifted_constant_state.t) : Downwards_acc.t :=
+  {| denv := t.(denv);
+     continuation_uses_env := t.(continuation_uses_env);
+     shareable_constants := t.(shareable_constants);
+     used_value_slots := t.(used_value_slots);
+     lifted_constants := lifted_constants;
+     flow_acc := t.(flow_acc);
+     demoted_exn_handlers := t.(demoted_exn_handlers);
+     code_ids_to_remember := t.(code_ids_to_remember);
+     code_ids_to_never_delete := t.(code_ids_to_never_delete);
+     code_ids_never_simplified := t.(code_ids_never_simplified);
+     slot_offsets := t.(slot_offsets);
+     debuginfo_rewrites := t.(debuginfo_rewrites);
+     are_lifting_conts := t.(are_lifting_conts);
+     lifted_continuations := t.(lifted_continuations);
+     continuation_lifting_budget := t.(continuation_lifting_budget);
+     continuations_to_specialize := t.(continuations_to_specialize);
+     specialization_map := t.(specialization_map)
+  |}.
+Extract Inlined Constant update_lifted_constants =>
+  "(fun t x__1 -> { t with lifted_constants = x__1 })".
+
 (* 182 *)
 Definition clear_lifted_constants (t : Downwards_acc.t) : M Downwards_acc.t :=
-  ret {| denv := t.(Downwards_acc.denv);
-         continuation_uses_env := t.(Downwards_acc.continuation_uses_env);
-         shareable_constants := t.(Downwards_acc.shareable_constants);
-         used_value_slots := t.(Downwards_acc.used_value_slots);
-         lifted_constants := Lifted_constant_state.empty;
-         flow_acc := t.(Downwards_acc.flow_acc);
-         demoted_exn_handlers := t.(Downwards_acc.demoted_exn_handlers);
-         code_ids_to_remember := t.(Downwards_acc.code_ids_to_remember);
-         code_ids_to_never_delete := t.(Downwards_acc.code_ids_to_never_delete);
-         code_ids_never_simplified := t.(Downwards_acc.code_ids_never_simplified);
-         slot_offsets := t.(Downwards_acc.slot_offsets);
-         debuginfo_rewrites := t.(Downwards_acc.debuginfo_rewrites);
-         are_lifting_conts := t.(Downwards_acc.are_lifting_conts);
-         lifted_continuations := t.(Downwards_acc.lifted_continuations);
-         continuation_lifting_budget := t.(Downwards_acc.continuation_lifting_budget);
-         continuations_to_specialize := t.(Downwards_acc.continuations_to_specialize);
-         specialization_map := t.(Downwards_acc.specialization_map)
-      |}.
+  ret (update_lifted_constants t Lifted_constant_state.empty).
 
 (* 184 *)
 Definition no_lifted_constants (t : Downwards_acc.t) : M bool :=
@@ -429,29 +431,36 @@ Definition get_and_clear_lifted_constants (t : Downwards_acc.t)
 (* 191 *)
 Definition set_lifted_constants (t : Downwards_acc.t)
     (consts : Lifted_constant_state.t) : M Downwards_acc.t :=
-  ret {| denv := t.(Downwards_acc.denv);
-         continuation_uses_env := t.(Downwards_acc.continuation_uses_env);
-         shareable_constants := t.(Downwards_acc.shareable_constants);
-         used_value_slots := t.(Downwards_acc.used_value_slots);
-         lifted_constants := consts;
-         flow_acc := t.(Downwards_acc.flow_acc);
-         demoted_exn_handlers := t.(Downwards_acc.demoted_exn_handlers);
-         code_ids_to_remember := t.(Downwards_acc.code_ids_to_remember);
-         code_ids_to_never_delete := t.(Downwards_acc.code_ids_to_never_delete);
-         code_ids_never_simplified := t.(Downwards_acc.code_ids_never_simplified);
-         slot_offsets := t.(Downwards_acc.slot_offsets);
-         debuginfo_rewrites := t.(Downwards_acc.debuginfo_rewrites);
-         are_lifting_conts := t.(Downwards_acc.are_lifting_conts);
-         lifted_continuations := t.(Downwards_acc.lifted_continuations);
-         continuation_lifting_budget := t.(Downwards_acc.continuation_lifting_budget);
-         continuations_to_specialize := t.(Downwards_acc.continuations_to_specialize);
-         specialization_map := t.(Downwards_acc.specialization_map)
-      |}.
+  ret (update_lifted_constants t consts).
 
 (* 193-194 *)
 Definition find_shareable_constant (t : Downwards_acc.t)
     (static_const : Static_const.t) : M (option Symbol.t) :=
   Static_const.Map.find_opt static_const t.(shareable_constants).
+
+(* PORT-GAP(update): 200, [{ t with shareable_constants }]. *)
+Definition update_shareable_constants (t : Downwards_acc.t)
+    (shareable_constants : Static_const.Map.t Symbol.t) : Downwards_acc.t :=
+  {| denv := t.(denv);
+     continuation_uses_env := t.(continuation_uses_env);
+     shareable_constants := shareable_constants;
+     used_value_slots := t.(used_value_slots);
+     lifted_constants := t.(lifted_constants);
+     flow_acc := t.(flow_acc);
+     demoted_exn_handlers := t.(demoted_exn_handlers);
+     code_ids_to_remember := t.(code_ids_to_remember);
+     code_ids_to_never_delete := t.(code_ids_to_never_delete);
+     code_ids_never_simplified := t.(code_ids_never_simplified);
+     slot_offsets := t.(slot_offsets);
+     debuginfo_rewrites := t.(debuginfo_rewrites);
+     are_lifting_conts := t.(are_lifting_conts);
+     lifted_continuations := t.(lifted_continuations);
+     continuation_lifting_budget := t.(continuation_lifting_budget);
+     continuations_to_specialize := t.(continuations_to_specialize);
+     specialization_map := t.(specialization_map)
+  |}.
+Extract Inlined Constant update_shareable_constants =>
+  "(fun t x__1 -> { t with shareable_constants = x__1 })".
 
 (* 196-203 *)
 Definition consider_constant_for_sharing (t : Downwards_acc.t)
@@ -464,46 +473,36 @@ Definition consider_constant_for_sharing (t : Downwards_acc.t)
     let! tmp2 :=
       Static_const.Map.add static_const symbol t.(shareable_constants)
     in
-    ret {| denv := t.(Downwards_acc.denv);
-           continuation_uses_env := t.(Downwards_acc.continuation_uses_env);
-           shareable_constants := tmp2;
-           used_value_slots := t.(Downwards_acc.used_value_slots);
-           lifted_constants := t.(Downwards_acc.lifted_constants);
-           flow_acc := t.(Downwards_acc.flow_acc);
-           demoted_exn_handlers := t.(Downwards_acc.demoted_exn_handlers);
-           code_ids_to_remember := t.(Downwards_acc.code_ids_to_remember);
-           code_ids_to_never_delete := t.(Downwards_acc.code_ids_to_never_delete);
-           code_ids_never_simplified := t.(Downwards_acc.code_ids_never_simplified);
-           slot_offsets := t.(Downwards_acc.slot_offsets);
-           debuginfo_rewrites := t.(Downwards_acc.debuginfo_rewrites);
-           are_lifting_conts := t.(Downwards_acc.are_lifting_conts);
-           lifted_continuations := t.(Downwards_acc.lifted_continuations);
-           continuation_lifting_budget := t.(Downwards_acc.continuation_lifting_budget);
-           continuations_to_specialize := t.(Downwards_acc.continuations_to_specialize);
-           specialization_map := t.(Downwards_acc.specialization_map)
-        |}.
+    ret (update_shareable_constants t tmp2).
 
 (* 205-206 *)
 Definition with_shareable_constants (t : Downwards_acc.t)
     (shareable_constants : Static_const.Map.t Symbol.t) : M Downwards_acc.t :=
-  ret {| denv := t.(Downwards_acc.denv);
-         continuation_uses_env := t.(Downwards_acc.continuation_uses_env);
-         shareable_constants := shareable_constants;
-         used_value_slots := t.(Downwards_acc.used_value_slots);
-         lifted_constants := t.(Downwards_acc.lifted_constants);
-         flow_acc := t.(Downwards_acc.flow_acc);
-         demoted_exn_handlers := t.(Downwards_acc.demoted_exn_handlers);
-         code_ids_to_remember := t.(Downwards_acc.code_ids_to_remember);
-         code_ids_to_never_delete := t.(Downwards_acc.code_ids_to_never_delete);
-         code_ids_never_simplified := t.(Downwards_acc.code_ids_never_simplified);
-         slot_offsets := t.(Downwards_acc.slot_offsets);
-         debuginfo_rewrites := t.(Downwards_acc.debuginfo_rewrites);
-         are_lifting_conts := t.(Downwards_acc.are_lifting_conts);
-         lifted_continuations := t.(Downwards_acc.lifted_continuations);
-         continuation_lifting_budget := t.(Downwards_acc.continuation_lifting_budget);
-         continuations_to_specialize := t.(Downwards_acc.continuations_to_specialize);
-         specialization_map := t.(Downwards_acc.specialization_map)
-      |}.
+  ret (update_shareable_constants t shareable_constants).
+
+(* PORT-GAP(update): 211, [{ t with used_value_slots }]. *)
+Definition update_used_value_slots (t : Downwards_acc.t)
+    (used_value_slots : Name_occurrences.t) : Downwards_acc.t :=
+  {| denv := t.(denv);
+     continuation_uses_env := t.(continuation_uses_env);
+     shareable_constants := t.(shareable_constants);
+     used_value_slots := used_value_slots;
+     lifted_constants := t.(lifted_constants);
+     flow_acc := t.(flow_acc);
+     demoted_exn_handlers := t.(demoted_exn_handlers);
+     code_ids_to_remember := t.(code_ids_to_remember);
+     code_ids_to_never_delete := t.(code_ids_to_never_delete);
+     code_ids_never_simplified := t.(code_ids_never_simplified);
+     slot_offsets := t.(slot_offsets);
+     debuginfo_rewrites := t.(debuginfo_rewrites);
+     are_lifting_conts := t.(are_lifting_conts);
+     lifted_continuations := t.(lifted_continuations);
+     continuation_lifting_budget := t.(continuation_lifting_budget);
+     continuations_to_specialize := t.(continuations_to_specialize);
+     specialization_map := t.(specialization_map)
+  |}.
+Extract Inlined Constant update_used_value_slots =>
+  "(fun t x__1 -> { t with used_value_slots = x__1 })".
 
 (* 210-215 *)
 Definition add_use_of_value_slot (t : Downwards_acc.t)
@@ -512,24 +511,7 @@ Definition add_use_of_value_slot (t : Downwards_acc.t)
     Name_occurrences.add_value_slot_in_projection t.(used_value_slots)
       value_slot Name_mode.normal
   in
-  ret {| denv := t.(Downwards_acc.denv);
-         continuation_uses_env := t.(Downwards_acc.continuation_uses_env);
-         shareable_constants := t.(Downwards_acc.shareable_constants);
-         used_value_slots := tmp1;
-         lifted_constants := t.(Downwards_acc.lifted_constants);
-         flow_acc := t.(Downwards_acc.flow_acc);
-         demoted_exn_handlers := t.(Downwards_acc.demoted_exn_handlers);
-         code_ids_to_remember := t.(Downwards_acc.code_ids_to_remember);
-         code_ids_to_never_delete := t.(Downwards_acc.code_ids_to_never_delete);
-         code_ids_never_simplified := t.(Downwards_acc.code_ids_never_simplified);
-         slot_offsets := t.(Downwards_acc.slot_offsets);
-         debuginfo_rewrites := t.(Downwards_acc.debuginfo_rewrites);
-         are_lifting_conts := t.(Downwards_acc.are_lifting_conts);
-         lifted_continuations := t.(Downwards_acc.lifted_continuations);
-         continuation_lifting_budget := t.(Downwards_acc.continuation_lifting_budget);
-         continuations_to_specialize := t.(Downwards_acc.continuations_to_specialize);
-         specialization_map := t.(Downwards_acc.specialization_map)
-      |}.
+  ret (update_used_value_slots t tmp1).
 
 (* 219-220 *)
 Definition all_continuations_used (t : Downwards_acc.t)
@@ -539,24 +521,31 @@ Definition all_continuations_used (t : Downwards_acc.t)
 (* 222 *)
 Definition with_used_value_slots (t : Downwards_acc.t)
     (used_value_slots : Name_occurrences.t) : M Downwards_acc.t :=
-  ret {| denv := t.(Downwards_acc.denv);
-         continuation_uses_env := t.(Downwards_acc.continuation_uses_env);
-         shareable_constants := t.(Downwards_acc.shareable_constants);
-         used_value_slots := used_value_slots;
-         lifted_constants := t.(Downwards_acc.lifted_constants);
-         flow_acc := t.(Downwards_acc.flow_acc);
-         demoted_exn_handlers := t.(Downwards_acc.demoted_exn_handlers);
-         code_ids_to_remember := t.(Downwards_acc.code_ids_to_remember);
-         code_ids_to_never_delete := t.(Downwards_acc.code_ids_to_never_delete);
-         code_ids_never_simplified := t.(Downwards_acc.code_ids_never_simplified);
-         slot_offsets := t.(Downwards_acc.slot_offsets);
-         debuginfo_rewrites := t.(Downwards_acc.debuginfo_rewrites);
-         are_lifting_conts := t.(Downwards_acc.are_lifting_conts);
-         lifted_continuations := t.(Downwards_acc.lifted_continuations);
-         continuation_lifting_budget := t.(Downwards_acc.continuation_lifting_budget);
-         continuations_to_specialize := t.(Downwards_acc.continuations_to_specialize);
-         specialization_map := t.(Downwards_acc.specialization_map)
-      |}.
+  ret (update_used_value_slots t used_value_slots).
+
+(* PORT-GAP(update): 228, [{ t with code_ids_to_remember }]. *)
+Definition update_code_ids_to_remember (t : Downwards_acc.t)
+    (code_ids_to_remember : Code_id.Set_.t) : Downwards_acc.t :=
+  {| denv := t.(denv);
+     continuation_uses_env := t.(continuation_uses_env);
+     shareable_constants := t.(shareable_constants);
+     used_value_slots := t.(used_value_slots);
+     lifted_constants := t.(lifted_constants);
+     flow_acc := t.(flow_acc);
+     demoted_exn_handlers := t.(demoted_exn_handlers);
+     code_ids_to_remember := code_ids_to_remember;
+     code_ids_to_never_delete := t.(code_ids_to_never_delete);
+     code_ids_never_simplified := t.(code_ids_never_simplified);
+     slot_offsets := t.(slot_offsets);
+     debuginfo_rewrites := t.(debuginfo_rewrites);
+     are_lifting_conts := t.(are_lifting_conts);
+     lifted_continuations := t.(lifted_continuations);
+     continuation_lifting_budget := t.(continuation_lifting_budget);
+     continuations_to_specialize := t.(continuations_to_specialize);
+     specialization_map := t.(specialization_map)
+  |}.
+Extract Inlined Constant update_code_ids_to_remember =>
+  "(fun t x__1 -> { t with code_ids_to_remember = x__1 })".
 
 (* 224-230 *)
 Definition add_code_ids_to_remember (t : Downwards_acc.t)
@@ -566,91 +555,71 @@ Definition add_code_ids_to_remember (t : Downwards_acc.t)
   then ret t
   else
     let! tmp2 := Code_id.Set_.union code_ids t.(code_ids_to_remember) in
-    ret {| denv := t.(Downwards_acc.denv);
-           continuation_uses_env := t.(Downwards_acc.continuation_uses_env);
-           shareable_constants := t.(Downwards_acc.shareable_constants);
-           used_value_slots := t.(Downwards_acc.used_value_slots);
-           lifted_constants := t.(Downwards_acc.lifted_constants);
-           flow_acc := t.(Downwards_acc.flow_acc);
-           demoted_exn_handlers := t.(Downwards_acc.demoted_exn_handlers);
-           code_ids_to_remember := tmp2;
-           code_ids_to_never_delete := t.(Downwards_acc.code_ids_to_never_delete);
-           code_ids_never_simplified := t.(Downwards_acc.code_ids_never_simplified);
-           slot_offsets := t.(Downwards_acc.slot_offsets);
-           debuginfo_rewrites := t.(Downwards_acc.debuginfo_rewrites);
-           are_lifting_conts := t.(Downwards_acc.are_lifting_conts);
-           lifted_continuations := t.(Downwards_acc.lifted_continuations);
-           continuation_lifting_budget := t.(Downwards_acc.continuation_lifting_budget);
-           continuations_to_specialize := t.(Downwards_acc.continuations_to_specialize);
-           specialization_map := t.(Downwards_acc.specialization_map)
-        |}.
+    ret (update_code_ids_to_remember t tmp2).
 
 (* 234-235 *)
 Definition with_code_ids_to_remember (t : Downwards_acc.t)
     (code_ids_to_remember : Code_id.Set_.t) : M Downwards_acc.t :=
-  ret {| denv := t.(Downwards_acc.denv);
-         continuation_uses_env := t.(Downwards_acc.continuation_uses_env);
-         shareable_constants := t.(Downwards_acc.shareable_constants);
-         used_value_slots := t.(Downwards_acc.used_value_slots);
-         lifted_constants := t.(Downwards_acc.lifted_constants);
-         flow_acc := t.(Downwards_acc.flow_acc);
-         demoted_exn_handlers := t.(Downwards_acc.demoted_exn_handlers);
-         code_ids_to_remember := code_ids_to_remember;
-         code_ids_to_never_delete := t.(Downwards_acc.code_ids_to_never_delete);
-         code_ids_never_simplified := t.(Downwards_acc.code_ids_never_simplified);
-         slot_offsets := t.(Downwards_acc.slot_offsets);
-         debuginfo_rewrites := t.(Downwards_acc.debuginfo_rewrites);
-         are_lifting_conts := t.(Downwards_acc.are_lifting_conts);
-         lifted_continuations := t.(Downwards_acc.lifted_continuations);
-         continuation_lifting_budget := t.(Downwards_acc.continuation_lifting_budget);
-         continuations_to_specialize := t.(Downwards_acc.continuations_to_specialize);
-         specialization_map := t.(Downwards_acc.specialization_map)
-      |}.
+  ret (update_code_ids_to_remember t code_ids_to_remember).
+
+(* PORT-GAP(update): 238, [{ t with code_ids_to_never_delete }]. *)
+Definition update_code_ids_to_never_delete (t : Downwards_acc.t)
+    (code_ids_to_never_delete : Code_id.Set_.t) : Downwards_acc.t :=
+  {| denv := t.(denv);
+     continuation_uses_env := t.(continuation_uses_env);
+     shareable_constants := t.(shareable_constants);
+     used_value_slots := t.(used_value_slots);
+     lifted_constants := t.(lifted_constants);
+     flow_acc := t.(flow_acc);
+     demoted_exn_handlers := t.(demoted_exn_handlers);
+     code_ids_to_remember := t.(code_ids_to_remember);
+     code_ids_to_never_delete := code_ids_to_never_delete;
+     code_ids_never_simplified := t.(code_ids_never_simplified);
+     slot_offsets := t.(slot_offsets);
+     debuginfo_rewrites := t.(debuginfo_rewrites);
+     are_lifting_conts := t.(are_lifting_conts);
+     lifted_continuations := t.(lifted_continuations);
+     continuation_lifting_budget := t.(continuation_lifting_budget);
+     continuations_to_specialize := t.(continuations_to_specialize);
+     specialization_map := t.(specialization_map)
+  |}.
+Extract Inlined Constant update_code_ids_to_never_delete =>
+  "(fun t x__1 -> { t with code_ids_to_never_delete = x__1 })".
 
 (* 237-241 *)
 Definition add_code_ids_to_never_delete (t : Downwards_acc.t)
     (code_ids : Code_id.Set_.t) : M Downwards_acc.t :=
   let! tmp1 := Code_id.Set_.union code_ids t.(code_ids_to_never_delete) in
-  ret {| denv := t.(Downwards_acc.denv);
-         continuation_uses_env := t.(Downwards_acc.continuation_uses_env);
-         shareable_constants := t.(Downwards_acc.shareable_constants);
-         used_value_slots := t.(Downwards_acc.used_value_slots);
-         lifted_constants := t.(Downwards_acc.lifted_constants);
-         flow_acc := t.(Downwards_acc.flow_acc);
-         demoted_exn_handlers := t.(Downwards_acc.demoted_exn_handlers);
-         code_ids_to_remember := t.(Downwards_acc.code_ids_to_remember);
-         code_ids_to_never_delete := tmp1;
-         code_ids_never_simplified := t.(Downwards_acc.code_ids_never_simplified);
-         slot_offsets := t.(Downwards_acc.slot_offsets);
-         debuginfo_rewrites := t.(Downwards_acc.debuginfo_rewrites);
-         are_lifting_conts := t.(Downwards_acc.are_lifting_conts);
-         lifted_continuations := t.(Downwards_acc.lifted_continuations);
-         continuation_lifting_budget := t.(Downwards_acc.continuation_lifting_budget);
-         continuations_to_specialize := t.(Downwards_acc.continuations_to_specialize);
-         specialization_map := t.(Downwards_acc.specialization_map)
-      |}.
+  ret (update_code_ids_to_never_delete t tmp1).
 
 (* 245-246 *)
 Definition with_code_ids_to_never_delete (t : Downwards_acc.t)
     (code_ids_to_never_delete : Code_id.Set_.t) : M Downwards_acc.t :=
-  ret {| denv := t.(Downwards_acc.denv);
-         continuation_uses_env := t.(Downwards_acc.continuation_uses_env);
-         shareable_constants := t.(Downwards_acc.shareable_constants);
-         used_value_slots := t.(Downwards_acc.used_value_slots);
-         lifted_constants := t.(Downwards_acc.lifted_constants);
-         flow_acc := t.(Downwards_acc.flow_acc);
-         demoted_exn_handlers := t.(Downwards_acc.demoted_exn_handlers);
-         code_ids_to_remember := t.(Downwards_acc.code_ids_to_remember);
-         code_ids_to_never_delete := code_ids_to_never_delete;
-         code_ids_never_simplified := t.(Downwards_acc.code_ids_never_simplified);
-         slot_offsets := t.(Downwards_acc.slot_offsets);
-         debuginfo_rewrites := t.(Downwards_acc.debuginfo_rewrites);
-         are_lifting_conts := t.(Downwards_acc.are_lifting_conts);
-         lifted_continuations := t.(Downwards_acc.lifted_continuations);
-         continuation_lifting_budget := t.(Downwards_acc.continuation_lifting_budget);
-         continuations_to_specialize := t.(Downwards_acc.continuations_to_specialize);
-         specialization_map := t.(Downwards_acc.specialization_map)
-      |}.
+  ret (update_code_ids_to_never_delete t code_ids_to_never_delete).
+
+(* PORT-GAP(update): 249, [{ t with code_ids_never_simplified }]. *)
+Definition update_code_ids_never_simplified (t : Downwards_acc.t)
+    (code_ids_never_simplified : Code_id.Set_.t) : Downwards_acc.t :=
+  {| denv := t.(denv);
+     continuation_uses_env := t.(continuation_uses_env);
+     shareable_constants := t.(shareable_constants);
+     used_value_slots := t.(used_value_slots);
+     lifted_constants := t.(lifted_constants);
+     flow_acc := t.(flow_acc);
+     demoted_exn_handlers := t.(demoted_exn_handlers);
+     code_ids_to_remember := t.(code_ids_to_remember);
+     code_ids_to_never_delete := t.(code_ids_to_never_delete);
+     code_ids_never_simplified := code_ids_never_simplified;
+     slot_offsets := t.(slot_offsets);
+     debuginfo_rewrites := t.(debuginfo_rewrites);
+     are_lifting_conts := t.(are_lifting_conts);
+     lifted_continuations := t.(lifted_continuations);
+     continuation_lifting_budget := t.(continuation_lifting_budget);
+     continuations_to_specialize := t.(continuations_to_specialize);
+     specialization_map := t.(specialization_map)
+  |}.
+Extract Inlined Constant update_code_ids_never_simplified =>
+  "(fun t x__1 -> { t with code_ids_never_simplified = x__1 })".
 
 (* 248-252 *)
 Definition add_code_ids_never_simplified (t : Downwards_acc.t)
@@ -658,101 +627,105 @@ Definition add_code_ids_never_simplified (t : Downwards_acc.t)
   let! tmp1 :=
     Code_id.Set_.union old_code_ids t.(code_ids_never_simplified)
   in
-  ret {| denv := t.(Downwards_acc.denv);
-         continuation_uses_env := t.(Downwards_acc.continuation_uses_env);
-         shareable_constants := t.(Downwards_acc.shareable_constants);
-         used_value_slots := t.(Downwards_acc.used_value_slots);
-         lifted_constants := t.(Downwards_acc.lifted_constants);
-         flow_acc := t.(Downwards_acc.flow_acc);
-         demoted_exn_handlers := t.(Downwards_acc.demoted_exn_handlers);
-         code_ids_to_remember := t.(Downwards_acc.code_ids_to_remember);
-         code_ids_to_never_delete := t.(Downwards_acc.code_ids_to_never_delete);
-         code_ids_never_simplified := tmp1;
-         slot_offsets := t.(Downwards_acc.slot_offsets);
-         debuginfo_rewrites := t.(Downwards_acc.debuginfo_rewrites);
-         are_lifting_conts := t.(Downwards_acc.are_lifting_conts);
-         lifted_continuations := t.(Downwards_acc.lifted_continuations);
-         continuation_lifting_budget := t.(Downwards_acc.continuation_lifting_budget);
-         continuations_to_specialize := t.(Downwards_acc.continuations_to_specialize);
-         specialization_map := t.(Downwards_acc.specialization_map)
-      |}.
+  ret (update_code_ids_never_simplified t tmp1).
 
 (* 256-257 *)
 Definition with_code_ids_never_simplified (t : Downwards_acc.t)
     (code_ids_never_simplified : Code_id.Set_.t) : M Downwards_acc.t :=
-  ret {| denv := t.(Downwards_acc.denv);
-         continuation_uses_env := t.(Downwards_acc.continuation_uses_env);
-         shareable_constants := t.(Downwards_acc.shareable_constants);
-         used_value_slots := t.(Downwards_acc.used_value_slots);
-         lifted_constants := t.(Downwards_acc.lifted_constants);
-         flow_acc := t.(Downwards_acc.flow_acc);
-         demoted_exn_handlers := t.(Downwards_acc.demoted_exn_handlers);
-         code_ids_to_remember := t.(Downwards_acc.code_ids_to_remember);
-         code_ids_to_never_delete := t.(Downwards_acc.code_ids_to_never_delete);
-         code_ids_never_simplified := code_ids_never_simplified;
-         slot_offsets := t.(Downwards_acc.slot_offsets);
-         debuginfo_rewrites := t.(Downwards_acc.debuginfo_rewrites);
-         are_lifting_conts := t.(Downwards_acc.are_lifting_conts);
-         lifted_continuations := t.(Downwards_acc.lifted_continuations);
-         continuation_lifting_budget := t.(Downwards_acc.continuation_lifting_budget);
-         continuations_to_specialize := t.(Downwards_acc.continuations_to_specialize);
-         specialization_map := t.(Downwards_acc.specialization_map)
-      |}.
+  ret (update_code_ids_never_simplified t code_ids_never_simplified).
 
 (* 259 *)
 Definition are_rebuilding_terms (t : Downwards_acc.t)
     : M Are_rebuilding_terms.t :=
   Downwards_env.are_rebuilding_terms t.(denv).
 
+(* PORT-GAP(update): 262, [{ t with demoted_exn_handlers }]. *)
+Definition update_demoted_exn_handlers (t : Downwards_acc.t)
+    (demoted_exn_handlers : Continuation.Set_.t) : Downwards_acc.t :=
+  {| denv := t.(denv);
+     continuation_uses_env := t.(continuation_uses_env);
+     shareable_constants := t.(shareable_constants);
+     used_value_slots := t.(used_value_slots);
+     lifted_constants := t.(lifted_constants);
+     flow_acc := t.(flow_acc);
+     demoted_exn_handlers := demoted_exn_handlers;
+     code_ids_to_remember := t.(code_ids_to_remember);
+     code_ids_to_never_delete := t.(code_ids_to_never_delete);
+     code_ids_never_simplified := t.(code_ids_never_simplified);
+     slot_offsets := t.(slot_offsets);
+     debuginfo_rewrites := t.(debuginfo_rewrites);
+     are_lifting_conts := t.(are_lifting_conts);
+     lifted_continuations := t.(lifted_continuations);
+     continuation_lifting_budget := t.(continuation_lifting_budget);
+     continuations_to_specialize := t.(continuations_to_specialize);
+     specialization_map := t.(specialization_map)
+  |}.
+Extract Inlined Constant update_demoted_exn_handlers =>
+  "(fun t x__1 -> { t with demoted_exn_handlers = x__1 })".
+
 (* 261-264 *)
 Definition demote_exn_handler (t : Downwards_acc.t) (cont : Continuation.t)
     : M Downwards_acc.t :=
   let! tmp1 := Continuation.Set_.add cont t.(demoted_exn_handlers) in
-  ret {| denv := t.(Downwards_acc.denv);
-         continuation_uses_env := t.(Downwards_acc.continuation_uses_env);
-         shareable_constants := t.(Downwards_acc.shareable_constants);
-         used_value_slots := t.(Downwards_acc.used_value_slots);
-         lifted_constants := t.(Downwards_acc.lifted_constants);
-         flow_acc := t.(Downwards_acc.flow_acc);
-         demoted_exn_handlers := tmp1;
-         code_ids_to_remember := t.(Downwards_acc.code_ids_to_remember);
-         code_ids_to_never_delete := t.(Downwards_acc.code_ids_to_never_delete);
-         code_ids_never_simplified := t.(Downwards_acc.code_ids_never_simplified);
-         slot_offsets := t.(Downwards_acc.slot_offsets);
-         debuginfo_rewrites := t.(Downwards_acc.debuginfo_rewrites);
-         are_lifting_conts := t.(Downwards_acc.are_lifting_conts);
-         lifted_continuations := t.(Downwards_acc.lifted_continuations);
-         continuation_lifting_budget := t.(Downwards_acc.continuation_lifting_budget);
-         continuations_to_specialize := t.(Downwards_acc.continuations_to_specialize);
-         specialization_map := t.(Downwards_acc.specialization_map)
-      |}.
+  ret (update_demoted_exn_handlers t tmp1).
+
+(* PORT-GAP(update): 270, [{ t with slot_offsets }]. *)
+Definition update_slot_offsets (t : Downwards_acc.t)
+    (slot_offsets : Code_id.Map.t Slot_offsets.t) : Downwards_acc.t :=
+  {| denv := t.(denv);
+     continuation_uses_env := t.(continuation_uses_env);
+     shareable_constants := t.(shareable_constants);
+     used_value_slots := t.(used_value_slots);
+     lifted_constants := t.(lifted_constants);
+     flow_acc := t.(flow_acc);
+     demoted_exn_handlers := t.(demoted_exn_handlers);
+     code_ids_to_remember := t.(code_ids_to_remember);
+     code_ids_to_never_delete := t.(code_ids_to_never_delete);
+     code_ids_never_simplified := t.(code_ids_never_simplified);
+     slot_offsets := slot_offsets;
+     debuginfo_rewrites := t.(debuginfo_rewrites);
+     are_lifting_conts := t.(are_lifting_conts);
+     lifted_continuations := t.(lifted_continuations);
+     continuation_lifting_budget := t.(continuation_lifting_budget);
+     continuations_to_specialize := t.(continuations_to_specialize);
+     specialization_map := t.(specialization_map)
+  |}.
+Extract Inlined Constant update_slot_offsets =>
+  "(fun t x__1 -> { t with slot_offsets = x__1 })".
 
 (* 270 *)
 Definition with_slot_offsets (t : Downwards_acc.t)
     (slot_offsets : Code_id.Map.t Slot_offsets.t) : M Downwards_acc.t :=
-  ret {| denv := t.(Downwards_acc.denv);
-         continuation_uses_env := t.(Downwards_acc.continuation_uses_env);
-         shareable_constants := t.(Downwards_acc.shareable_constants);
-         used_value_slots := t.(Downwards_acc.used_value_slots);
-         lifted_constants := t.(Downwards_acc.lifted_constants);
-         flow_acc := t.(Downwards_acc.flow_acc);
-         demoted_exn_handlers := t.(Downwards_acc.demoted_exn_handlers);
-         code_ids_to_remember := t.(Downwards_acc.code_ids_to_remember);
-         code_ids_to_never_delete := t.(Downwards_acc.code_ids_to_never_delete);
-         code_ids_never_simplified := t.(Downwards_acc.code_ids_never_simplified);
-         slot_offsets := slot_offsets;
-         debuginfo_rewrites := t.(Downwards_acc.debuginfo_rewrites);
-         are_lifting_conts := t.(Downwards_acc.are_lifting_conts);
-         lifted_continuations := t.(Downwards_acc.lifted_continuations);
-         continuation_lifting_budget := t.(Downwards_acc.continuation_lifting_budget);
-         continuations_to_specialize := t.(Downwards_acc.continuations_to_specialize);
-         specialization_map := t.(Downwards_acc.specialization_map)
-      |}.
+  ret (update_slot_offsets t slot_offsets).
 
 (* 272-273 *)
 Definition find_debuginfo_rewrite (t : Downwards_acc.t) (bound_to : Simple.t)
     : M (option Debuginfo.t) :=
   Simple.Map.find_opt bound_to t.(debuginfo_rewrites).
+
+(* PORT-GAP(update): 281, [{ t with debuginfo_rewrites }]. *)
+Definition update_debuginfo_rewrites (t : Downwards_acc.t)
+    (debuginfo_rewrites : Simple.Map.t Debuginfo.t) : Downwards_acc.t :=
+  {| denv := t.(denv);
+     continuation_uses_env := t.(continuation_uses_env);
+     shareable_constants := t.(shareable_constants);
+     used_value_slots := t.(used_value_slots);
+     lifted_constants := t.(lifted_constants);
+     flow_acc := t.(flow_acc);
+     demoted_exn_handlers := t.(demoted_exn_handlers);
+     code_ids_to_remember := t.(code_ids_to_remember);
+     code_ids_to_never_delete := t.(code_ids_to_never_delete);
+     code_ids_never_simplified := t.(code_ids_never_simplified);
+     slot_offsets := t.(slot_offsets);
+     debuginfo_rewrites := debuginfo_rewrites;
+     are_lifting_conts := t.(are_lifting_conts);
+     lifted_continuations := t.(lifted_continuations);
+     continuation_lifting_budget := t.(continuation_lifting_budget);
+     continuations_to_specialize := t.(continuations_to_specialize);
+     specialization_map := t.(specialization_map)
+  |}.
+Extract Inlined Constant update_debuginfo_rewrites =>
+  "(fun t x__1 -> { t with debuginfo_rewrites = x__1 })".
 
 (* 275-284. [Debuginfo.merge ~into:earlier_dbg dbg]: the arguments are in
    the order of the interface. *)
@@ -767,92 +740,74 @@ Definition merge_debuginfo_rewrite (t : Downwards_acc.t) (bound_to : Simple.t)
   in
   (* 283: [Simple.Map.add], or replace *)
   let! tmp1 := Simple.Map.add bound_to dbg t.(debuginfo_rewrites) in
-  ret {| denv := t.(Downwards_acc.denv);
-         continuation_uses_env := t.(Downwards_acc.continuation_uses_env);
-         shareable_constants := t.(Downwards_acc.shareable_constants);
-         used_value_slots := t.(Downwards_acc.used_value_slots);
-         lifted_constants := t.(Downwards_acc.lifted_constants);
-         flow_acc := t.(Downwards_acc.flow_acc);
-         demoted_exn_handlers := t.(Downwards_acc.demoted_exn_handlers);
-         code_ids_to_remember := t.(Downwards_acc.code_ids_to_remember);
-         code_ids_to_never_delete := t.(Downwards_acc.code_ids_to_never_delete);
-         code_ids_never_simplified := t.(Downwards_acc.code_ids_never_simplified);
-         slot_offsets := t.(Downwards_acc.slot_offsets);
-         debuginfo_rewrites := tmp1;
-         are_lifting_conts := t.(Downwards_acc.are_lifting_conts);
-         lifted_continuations := t.(Downwards_acc.lifted_continuations);
-         continuation_lifting_budget := t.(Downwards_acc.continuation_lifting_budget);
-         continuations_to_specialize := t.(Downwards_acc.continuations_to_specialize);
-         specialization_map := t.(Downwards_acc.specialization_map)
-      |}.
+  ret (update_debuginfo_rewrites t tmp1).
+
+(* PORT-GAP(update): 288, [{ t with are_lifting_conts }]. *)
+Definition update_are_lifting_conts (t : Downwards_acc.t)
+    (are_lifting_conts : Are_lifting_conts.t) : Downwards_acc.t :=
+  {| denv := t.(denv);
+     continuation_uses_env := t.(continuation_uses_env);
+     shareable_constants := t.(shareable_constants);
+     used_value_slots := t.(used_value_slots);
+     lifted_constants := t.(lifted_constants);
+     flow_acc := t.(flow_acc);
+     demoted_exn_handlers := t.(demoted_exn_handlers);
+     code_ids_to_remember := t.(code_ids_to_remember);
+     code_ids_to_never_delete := t.(code_ids_to_never_delete);
+     code_ids_never_simplified := t.(code_ids_never_simplified);
+     slot_offsets := t.(slot_offsets);
+     debuginfo_rewrites := t.(debuginfo_rewrites);
+     are_lifting_conts := are_lifting_conts;
+     lifted_continuations := t.(lifted_continuations);
+     continuation_lifting_budget := t.(continuation_lifting_budget);
+     continuations_to_specialize := t.(continuations_to_specialize);
+     specialization_map := t.(specialization_map)
+  |}.
+Extract Inlined Constant update_are_lifting_conts =>
+  "(fun t x__1 -> { t with are_lifting_conts = x__1 })".
 
 (* 288 *)
 Definition with_are_lifting_conts (t : Downwards_acc.t)
     (are_lifting_conts : Are_lifting_conts.t) : M Downwards_acc.t :=
-  ret {| denv := t.(Downwards_acc.denv);
-         continuation_uses_env := t.(Downwards_acc.continuation_uses_env);
-         shareable_constants := t.(Downwards_acc.shareable_constants);
-         used_value_slots := t.(Downwards_acc.used_value_slots);
-         lifted_constants := t.(Downwards_acc.lifted_constants);
-         flow_acc := t.(Downwards_acc.flow_acc);
-         demoted_exn_handlers := t.(Downwards_acc.demoted_exn_handlers);
-         code_ids_to_remember := t.(Downwards_acc.code_ids_to_remember);
-         code_ids_to_never_delete := t.(Downwards_acc.code_ids_to_never_delete);
-         code_ids_never_simplified := t.(Downwards_acc.code_ids_never_simplified);
-         slot_offsets := t.(Downwards_acc.slot_offsets);
-         debuginfo_rewrites := t.(Downwards_acc.debuginfo_rewrites);
-         are_lifting_conts := are_lifting_conts;
-         lifted_continuations := t.(Downwards_acc.lifted_continuations);
-         continuation_lifting_budget := t.(Downwards_acc.continuation_lifting_budget);
-         continuations_to_specialize := t.(Downwards_acc.continuations_to_specialize);
-         specialization_map := t.(Downwards_acc.specialization_map)
-      |}.
+  ret (update_are_lifting_conts t are_lifting_conts).
+
+(* PORT-GAP(update): 291, [{ t with lifted_continuations }]. *)
+Definition update_lifted_continuations (t : Downwards_acc.t)
+    (lifted_continuations : list (Downwards_env.t * Original_handlers.t))
+    : Downwards_acc.t :=
+  {| denv := t.(denv);
+     continuation_uses_env := t.(continuation_uses_env);
+     shareable_constants := t.(shareable_constants);
+     used_value_slots := t.(used_value_slots);
+     lifted_constants := t.(lifted_constants);
+     flow_acc := t.(flow_acc);
+     demoted_exn_handlers := t.(demoted_exn_handlers);
+     code_ids_to_remember := t.(code_ids_to_remember);
+     code_ids_to_never_delete := t.(code_ids_to_never_delete);
+     code_ids_never_simplified := t.(code_ids_never_simplified);
+     slot_offsets := t.(slot_offsets);
+     debuginfo_rewrites := t.(debuginfo_rewrites);
+     are_lifting_conts := t.(are_lifting_conts);
+     lifted_continuations := lifted_continuations;
+     continuation_lifting_budget := t.(continuation_lifting_budget);
+     continuations_to_specialize := t.(continuations_to_specialize);
+     specialization_map := t.(specialization_map)
+  |}.
+Extract Inlined Constant update_lifted_continuations =>
+  "(fun t x__1 -> { t with lifted_continuations = x__1 })".
 
 (* 290-291 *)
 Definition get_and_clear_lifted_continuations (t : Downwards_acc.t)
     : M (Downwards_acc.t * list (Downwards_env.t * Original_handlers.t)) :=
-  ret ({| denv := t.(Downwards_acc.denv);
-          continuation_uses_env := t.(Downwards_acc.continuation_uses_env);
-          shareable_constants := t.(Downwards_acc.shareable_constants);
-          used_value_slots := t.(Downwards_acc.used_value_slots);
-          lifted_constants := t.(Downwards_acc.lifted_constants);
-          flow_acc := t.(Downwards_acc.flow_acc);
-          demoted_exn_handlers := t.(Downwards_acc.demoted_exn_handlers);
-          code_ids_to_remember := t.(Downwards_acc.code_ids_to_remember);
-          code_ids_to_never_delete := t.(Downwards_acc.code_ids_to_never_delete);
-          code_ids_never_simplified := t.(Downwards_acc.code_ids_never_simplified);
-          slot_offsets := t.(Downwards_acc.slot_offsets);
-          debuginfo_rewrites := t.(Downwards_acc.debuginfo_rewrites);
-          are_lifting_conts := t.(Downwards_acc.are_lifting_conts);
-          lifted_continuations := [];
-          continuation_lifting_budget := t.(Downwards_acc.continuation_lifting_budget);
-          continuations_to_specialize := t.(Downwards_acc.continuations_to_specialize);
-          specialization_map := t.(Downwards_acc.specialization_map)
-       |}, t.(lifted_continuations)).
+  ret (update_lifted_continuations t [], t.(lifted_continuations)).
 
 (* 293-296 *)
 Definition add_lifted_continuation (denv : Downwards_env.t)
     (original_handlers : Original_handlers.t) (t : Downwards_acc.t)
     : M Downwards_acc.t :=
   ret
-    {| denv := t.(Downwards_acc.denv);
-       continuation_uses_env := t.(Downwards_acc.continuation_uses_env);
-       shareable_constants := t.(Downwards_acc.shareable_constants);
-       used_value_slots := t.(Downwards_acc.used_value_slots);
-       lifted_constants := t.(Downwards_acc.lifted_constants);
-       flow_acc := t.(Downwards_acc.flow_acc);
-       demoted_exn_handlers := t.(Downwards_acc.demoted_exn_handlers);
-       code_ids_to_remember := t.(Downwards_acc.code_ids_to_remember);
-       code_ids_to_never_delete := t.(Downwards_acc.code_ids_to_never_delete);
-       code_ids_never_simplified := t.(Downwards_acc.code_ids_never_simplified);
-       slot_offsets := t.(Downwards_acc.slot_offsets);
-       debuginfo_rewrites := t.(Downwards_acc.debuginfo_rewrites);
-       are_lifting_conts := t.(Downwards_acc.are_lifting_conts);
-       lifted_continuations := (denv, original_handlers) :: t.(lifted_continuations);
-       continuation_lifting_budget := t.(Downwards_acc.continuation_lifting_budget);
-       continuations_to_specialize := t.(Downwards_acc.continuations_to_specialize);
-       specialization_map := t.(Downwards_acc.specialization_map)
-    |}.
+    (update_lifted_continuations t
+       ((denv, original_handlers) :: t.(lifted_continuations))).
 
 (* Invariant: budget < 0 means no limit on cont lifting *)
 (* 299-301 *)
@@ -860,27 +815,34 @@ Definition get_continuation_lifting_budget (t : Downwards_acc.t) : M int :=
   let& budget := t.(continuation_lifting_budget) in
   if budget <? 0 then ret Stdlib_.max_int else ret budget.
 
+(* PORT-GAP(update): 304, [{ t with continuation_lifting_budget }]. *)
+Definition update_continuation_lifting_budget (t : Downwards_acc.t)
+    (continuation_lifting_budget : int) : Downwards_acc.t :=
+  {| denv := t.(denv);
+     continuation_uses_env := t.(continuation_uses_env);
+     shareable_constants := t.(shareable_constants);
+     used_value_slots := t.(used_value_slots);
+     lifted_constants := t.(lifted_constants);
+     flow_acc := t.(flow_acc);
+     demoted_exn_handlers := t.(demoted_exn_handlers);
+     code_ids_to_remember := t.(code_ids_to_remember);
+     code_ids_to_never_delete := t.(code_ids_to_never_delete);
+     code_ids_never_simplified := t.(code_ids_never_simplified);
+     slot_offsets := t.(slot_offsets);
+     debuginfo_rewrites := t.(debuginfo_rewrites);
+     are_lifting_conts := t.(are_lifting_conts);
+     lifted_continuations := t.(lifted_continuations);
+     continuation_lifting_budget := continuation_lifting_budget;
+     continuations_to_specialize := t.(continuations_to_specialize);
+     specialization_map := t.(specialization_map)
+  |}.
+Extract Inlined Constant update_continuation_lifting_budget =>
+  "(fun t x__1 -> { t with continuation_lifting_budget = x__1 })".
+
 (* 303-304 *)
 Definition with_continuation_lifting_budget (t : Downwards_acc.t)
     (budget : int) : M Downwards_acc.t :=
-  ret {| denv := t.(Downwards_acc.denv);
-         continuation_uses_env := t.(Downwards_acc.continuation_uses_env);
-         shareable_constants := t.(Downwards_acc.shareable_constants);
-         used_value_slots := t.(Downwards_acc.used_value_slots);
-         lifted_constants := t.(Downwards_acc.lifted_constants);
-         flow_acc := t.(Downwards_acc.flow_acc);
-         demoted_exn_handlers := t.(Downwards_acc.demoted_exn_handlers);
-         code_ids_to_remember := t.(Downwards_acc.code_ids_to_remember);
-         code_ids_to_never_delete := t.(Downwards_acc.code_ids_to_never_delete);
-         code_ids_never_simplified := t.(Downwards_acc.code_ids_never_simplified);
-         slot_offsets := t.(Downwards_acc.slot_offsets);
-         debuginfo_rewrites := t.(Downwards_acc.debuginfo_rewrites);
-         are_lifting_conts := t.(Downwards_acc.are_lifting_conts);
-         lifted_continuations := t.(Downwards_acc.lifted_continuations);
-         continuation_lifting_budget := budget;
-         continuations_to_specialize := t.(Downwards_acc.continuations_to_specialize);
-         specialization_map := t.(Downwards_acc.specialization_map)
-      |}.
+  ret (update_continuation_lifting_budget t budget).
 
 (* 306-308 *)
 Definition reset_continuation_lifting_budget (t : Downwards_acc.t)
@@ -911,28 +873,60 @@ Definition prepare_for_speculative_inlining (dacc : Downwards_acc.t)
   in
   with_are_lifting_conts dacc tmp1.
 
+(* PORT-GAP(update): 331, [{ t with continuations_to_specialize }]. *)
+Definition update_continuations_to_specialize (t : Downwards_acc.t)
+    (continuations_to_specialize : Continuation.Set_.t) : Downwards_acc.t :=
+  {| denv := t.(denv);
+     continuation_uses_env := t.(continuation_uses_env);
+     shareable_constants := t.(shareable_constants);
+     used_value_slots := t.(used_value_slots);
+     lifted_constants := t.(lifted_constants);
+     flow_acc := t.(flow_acc);
+     demoted_exn_handlers := t.(demoted_exn_handlers);
+     code_ids_to_remember := t.(code_ids_to_remember);
+     code_ids_to_never_delete := t.(code_ids_to_never_delete);
+     code_ids_never_simplified := t.(code_ids_never_simplified);
+     slot_offsets := t.(slot_offsets);
+     debuginfo_rewrites := t.(debuginfo_rewrites);
+     are_lifting_conts := t.(are_lifting_conts);
+     lifted_continuations := t.(lifted_continuations);
+     continuation_lifting_budget := t.(continuation_lifting_budget);
+     continuations_to_specialize := continuations_to_specialize;
+     specialization_map := t.(specialization_map)
+  |}.
+Extract Inlined Constant update_continuations_to_specialize =>
+  "(fun t x__1 -> { t with continuations_to_specialize = x__1 })".
+
 (* 330-334 *)
 Definition add_continuation_to_specialize (t : Downwards_acc.t)
     (cont : Continuation.t) : M Downwards_acc.t :=
   let! tmp1 := Continuation.Set_.add cont t.(continuations_to_specialize) in
-  ret {| denv := t.(Downwards_acc.denv);
-         continuation_uses_env := t.(Downwards_acc.continuation_uses_env);
-         shareable_constants := t.(Downwards_acc.shareable_constants);
-         used_value_slots := t.(Downwards_acc.used_value_slots);
-         lifted_constants := t.(Downwards_acc.lifted_constants);
-         flow_acc := t.(Downwards_acc.flow_acc);
-         demoted_exn_handlers := t.(Downwards_acc.demoted_exn_handlers);
-         code_ids_to_remember := t.(Downwards_acc.code_ids_to_remember);
-         code_ids_to_never_delete := t.(Downwards_acc.code_ids_to_never_delete);
-         code_ids_never_simplified := t.(Downwards_acc.code_ids_never_simplified);
-         slot_offsets := t.(Downwards_acc.slot_offsets);
-         debuginfo_rewrites := t.(Downwards_acc.debuginfo_rewrites);
-         are_lifting_conts := t.(Downwards_acc.are_lifting_conts);
-         lifted_continuations := t.(Downwards_acc.lifted_continuations);
-         continuation_lifting_budget := t.(Downwards_acc.continuation_lifting_budget);
-         continuations_to_specialize := tmp1;
-         specialization_map := t.(Downwards_acc.specialization_map)
-      |}.
+  ret (update_continuations_to_specialize t tmp1).
+
+(* PORT-GAP(update): 340, [{ t with specialization_map }]. *)
+Definition update_specialization_map (t : Downwards_acc.t)
+    (specialization_map : Continuation_callsite_map.t Continuation.t)
+    : Downwards_acc.t :=
+  {| denv := t.(denv);
+     continuation_uses_env := t.(continuation_uses_env);
+     shareable_constants := t.(shareable_constants);
+     used_value_slots := t.(used_value_slots);
+     lifted_constants := t.(lifted_constants);
+     flow_acc := t.(flow_acc);
+     demoted_exn_handlers := t.(demoted_exn_handlers);
+     code_ids_to_remember := t.(code_ids_to_remember);
+     code_ids_to_never_delete := t.(code_ids_to_never_delete);
+     code_ids_never_simplified := t.(code_ids_never_simplified);
+     slot_offsets := t.(slot_offsets);
+     debuginfo_rewrites := t.(debuginfo_rewrites);
+     are_lifting_conts := t.(are_lifting_conts);
+     lifted_continuations := t.(lifted_continuations);
+     continuation_lifting_budget := t.(continuation_lifting_budget);
+     continuations_to_specialize := t.(continuations_to_specialize);
+     specialization_map := specialization_map
+  |}.
+Extract Inlined Constant update_specialization_map =>
+  "(fun t x__1 -> { t with specialization_map = x__1 })".
 
 (* 336-340 *)
 Definition add_specialization (t : Downwards_acc.t)
@@ -941,24 +935,7 @@ Definition add_specialization (t : Downwards_acc.t)
   let* specialization_map :=
     Continuation_callsite_map.add old id specialized t.(specialization_map)
   in
-  ret {| denv := t.(Downwards_acc.denv);
-         continuation_uses_env := t.(Downwards_acc.continuation_uses_env);
-         shareable_constants := t.(Downwards_acc.shareable_constants);
-         used_value_slots := t.(Downwards_acc.used_value_slots);
-         lifted_constants := t.(Downwards_acc.lifted_constants);
-         flow_acc := t.(Downwards_acc.flow_acc);
-         demoted_exn_handlers := t.(Downwards_acc.demoted_exn_handlers);
-         code_ids_to_remember := t.(Downwards_acc.code_ids_to_remember);
-         code_ids_to_never_delete := t.(Downwards_acc.code_ids_to_never_delete);
-         code_ids_never_simplified := t.(Downwards_acc.code_ids_never_simplified);
-         slot_offsets := t.(Downwards_acc.slot_offsets);
-         debuginfo_rewrites := t.(Downwards_acc.debuginfo_rewrites);
-         are_lifting_conts := t.(Downwards_acc.are_lifting_conts);
-         lifted_continuations := t.(Downwards_acc.lifted_continuations);
-         continuation_lifting_budget := t.(Downwards_acc.continuation_lifting_budget);
-         continuations_to_specialize := t.(Downwards_acc.continuations_to_specialize);
-         specialization_map := specialization_map
-      |}.
+  ret (update_specialization_map t specialization_map).
 
 (* PORT-GAP(verbatim): the wrapper that gives the optional argument of
    [add_to_lifted_constant_accumulator] (168) its label. *)
