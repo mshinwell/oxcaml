@@ -13,8 +13,9 @@ files beside the donors first. Points marked HUMAN are the human's to judge.
 
 ## 1. The file
 
-- First the donor's header, copied whole, then one comment: the donor's path,
-  the commit that it follows, what the file does not follow. Then
+- First the donor's header, copied whole (by a copy, not typed), then one
+  comment: the donor's path, the commit that it follows, what the file does
+  not follow. Then
   `From SimplifyPort Require Import Port_monad.` (the kit),
   `From SimplifyPort.decl Require Import Simplify_import.` (the compiler's
   short module names: `DA`, `UA`, `T`, ...) and `From SimplifyPort.decl
@@ -22,8 +23,9 @@ files beside the donors first. Points marked HUMAN are the human's to judge.
   never of the file's own module.
 - The compiler's definitions in the compiler's ORDER, each under its NAME,
   with its arguments' names; before each, a comment with the donor's lines
-  (`(* 19-29 *)`). The donor's comments that say WHY stay at their places
-  (one that begins `CR` may be left out).
+  (`(* 19-29 *)`). The donor's COMMENTS stay at their places, in the
+  donor's words (one that begins `CR` may be left out): `make comments`
+  lists the ones that are missing and the headers that differ.
 - Arguments are BY PLACE: no labels, in the order of the `.mli` (of the
   definition, if the function is not exported); the check compiles with
   `-nolabels`. HUMAN: the extracted definitions have no labels.
@@ -63,10 +65,10 @@ a `tmpN` again before it is used, and give no other variable that name. The
 scrutinee of a `match` or `if` that is a call is a `let!` before it; BUT in
 a match on several values (`match a, f x with`) the call is a `let*`: as a
 `let!` Rocq moves it into the cases of `a` and DROPS it in a case that does
-not look at it. A value at the end is `ret v`. Never: a call as an argument; Rocq's own `let x := f a in`; a
-`Definition x : M T` without arguments; a computation in a pair, a list or a
-record, or passed as an argument (but `or_else`, `and_then`). `a |> f b` is
-`f b a`.
+not look at it. A value at the end is `ret v`. Never: a call as an
+argument; Rocq's own `let x := f a in`; a `Definition x : M T` without
+arguments; a computation in a pair, a list or a record, or passed as an
+argument (but `or_else`, `and_then`). `a |> f b` is `f b a`.
 
 THE ORDER IS A FACT, by the human's word: "evaluation order in an oxcaml
 compiler should always be right-to-left. Any occurrence otherwise in the
@@ -138,12 +140,17 @@ fuel was enough, and that it holds of the OCAML code is NOT established now
   their full names; a match on a variant that has an inline record is
   printed as the application of one function for each constructor (section
   7), and a case `_` as one function for each constructor that is left.
-- A RECORD of `decl/` has the compiler's fields: `{| S.simples := a;
-  S.simple_tys := b |}` in terms and patterns; all the fields for `{ r with
-  f = v }`. A field is read with the module's OWN name,
-  `r.(Simplify_simple.simples)`: through a short name (`r.(S.simples)`) Rocq
-  prints the call `S.simples r`, which OCaml refuses. A mutable field is set
-  by `M.set_f r v`.
+- A RECORD of `decl/` has the compiler's fields: `{| Simplify_simple.simples
+  := a; Simplify_simple.simple_tys := b |}` in terms and patterns; all the
+  fields for `{ r with f = v }`. Write a field with the module's OWN name,
+  not a short name of Simplify_import: `r.(S.simples)` is printed as the
+  call `S.simples r`, which OCaml refuses. And a record that is TAKEN APART
+  must have its TYPE by the module's own name where the value comes from
+  (the binder `(x : Simplified_expr.simplified_apply_)`, the call
+  `Simplify_simple.simplify_simples`): Rocq prints the fields of the
+  pattern under the name by which the type was written, and through a
+  short name that is `Simplify_import.SE.apply`. A mutable field is set by
+  `M.set_f r v`.
 - What `decl/` marks `PORT-GAP(type)` (a GADT, a few records): its makers
   `mk_C` and its eliminator `match_T`, as `decl/` says.
 - A type that the file itself DEFINES: a Rocq `Inductive` or `Record` with
@@ -185,6 +192,15 @@ fuel was enough, and that it holds of the OCAML code is NOT established now
   that takes two pairs apart: name them and write `let* '(a, b) := ret pat
   in`. A `\n` in a format string is a real line break in the Rocq string.
 
+- FORMS THAT PORTED FILES USE; read the file. A record with a mutable
+  field (the type abstract, a maker, a getter and a setter in `M`):
+  `Rebuilt_static_const.v`. Several types of one file with the same
+  constructors (`Invalid`, `Invalid_`, `Invalid__`, each told its OCaml
+  name): `Expr_builder.v`. A functor of the file: a Rocq `Module` with a
+  `Section` whose variables are the functor's members
+  (`Simplify_unary_primitive.v`), or a function of those members
+  (`flow/Data_flow_graph.v`). Polymorphic variants: `env/Downwards_env.v`.
+
 ## 5. Gaps: never hidden
 
 A comment that BEGINS `(* PORT-GAP(kind): words *)`, at the place. The kinds:
@@ -220,8 +236,8 @@ compiler's, the cause is in section 7.
 
 WHERE THE EXTRACTED TEXT IS NOT THE COMPILER'S (directives alone cannot):
 no labels; `let () = e in` for `e;`; a variable that is bound again gets a
-number (`dacc0`, `dacc1`), also one with the name of a field or type of an
-opened module; the short names of Simplify_import are written out
+number (`dacc0`, `dacc1`), also one with the name of a field of a record
+that the file defines; the short names of Simplify_import are written out
 (`Downwards_acc.denv`); the cases of a match are in the order of the type;
 `a :: []` for `[a]`; an optional argument is the applied text `(fun x__1
 x__2 -> F.f ?l:x__1 x__2) None a`; a match on a variant with an inline
@@ -230,15 +246,14 @@ f__1 f__2 x__0 -> match x__0 with ...) (fun a -> ...) (fun b -> ...) x`);
 in EVERY match the body of a case with several patterns, or of `_`, is
 written once for each constructor that it stands for (a `_` over a type of
 30 constructors is 30 cases); a record that the file defines brings one
-function for each field (`let name i = i.name`); Rocq's `open` lines come
-AFTER the verbatim head, so a name of the head that an opened module also
-has is hidden from the rest of the file (do not write a bare `t` in a
-string of `Extract Inductive`);
+function for each field (`let name i = i.name`);
 `try`, `match .. with exception`, `while` are calls of `Port_monad`
 (`runtime/port_monad.ml`), `lazy e` is `Lazy.from_fun`; a local function is
 `let f = fun x -> ...`; each definition has a comment `(** val f : ... **)`
-with its Rocq type, and the file begins with `open` lines for the modules
-of `decl/` whose records it uses.
+with its Rocq type. The only `open` that Rocq writes is `open Port_monad`:
+each file of `decl/` ends with an empty module of its own name, and Rocq
+then opens no declared unit and prints each declared name in full (so no
+name of the file or of OCaml's library can be hidden by such a line).
 
 KNOWN PROBLEMS OF THE EXTRACTION (the human has put them off; none is
 checked by a tool, but the first in part). In the identity build `M A` is `A`, and

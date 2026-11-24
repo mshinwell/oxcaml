@@ -81,7 +81,7 @@ ID_V := $(B)/id/Port_monad.v $(addprefix $(B)/id/,$(SRC))
 EXTRACTED := $(foreach p,$(PORTED),$(call extracted,$(p)))
 CHECKED := $(foreach p,$(PORTED),$(call checked,$(p)))
 
-.PHONY: all real id extract check table list clean
+.PHONY: all real id extract check table comments list clean
 all: real id extract check table
 
 real: $(REAL_V:.v=.vo)
@@ -180,6 +180,11 @@ $(B)/check/port_monad.cmi: runtime/port_monad.ml tools/check.sh
 table: PROGRESS.md
 PROGRESS.md: real id $(EXTRACTED) $(CHECKED) tools/progress.sh
 	tools/progress.sh $(SIMPLIFY) $(B) > $@
+
+# What each ported file carries over as text from the file that it follows:
+# the leading notice and the comments (tools/comments.py; not part of all).
+comments:
+	$(PYTHON) tools/comments.py $(SIMPLIFY)
 
 clean:
 	rm -rf $(B)
