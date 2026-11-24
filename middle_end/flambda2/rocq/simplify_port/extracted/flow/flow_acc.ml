@@ -63,7 +63,7 @@ let add_extra_params_and_args cont extra0 t0 =
         | None -> Some extra0)
       t0.Flow_types.Acc.extra
   in
-  (fun t x__1 -> { t with T.Acc.extra = x__1 }) t0 extra1
+  (fun t extra -> { t with T.Acc.extra }) t0 extra1
 
 (** val enter_continuation : Continuation.t -> bool -> bool ->
     Bound_parameters.t -> t -> t coq_M **)
@@ -99,7 +99,7 @@ let enter_continuation continuation0 recursive0 is_exn_handler0 params0 t0 =
       T.Continuation_info.apply_cont_args = Continuation.Map.empty
     }
   in
-  (fun t x__1 -> { t with T.Acc.stack = x__1 })
+  (fun t stack -> { t with T.Acc.stack })
     t0
     (cont_info0 :: t0.Flow_types.Acc.stack)
 
@@ -107,7 +107,7 @@ let enter_continuation continuation0 recursive0 is_exn_handler0 params0 t0 =
 
 let init_toplevel dummy_toplevel_cont0 params0 =
   enter_continuation dummy_toplevel_cont0 false false params0
-    ((fun t x__1 -> { t with T.Acc.dummy_toplevel_cont = x__1 })
+    ((fun t dummy_toplevel_cont -> { t with T.Acc.dummy_toplevel_cont })
        (empty ()) dummy_toplevel_cont0)
 
 (** val exit_continuation : Continuation.t -> t -> t coq_M **)
@@ -134,16 +134,14 @@ let exit_continuation cont t0 =
     in
     let () = assert (Continuation.equal cont continuation0) in
     let map0 = Continuation.Map.add cont elt t0.Flow_types.Acc.map in
-    (fun t x__1 x__2 -> { t with T.Acc.stack = x__1; map = x__2 })
-      t0 stack0 map0
+    (fun t stack map -> { t with T.Acc.stack; map }) t0 stack0 map0
 
 (** val update_top_of_stack : t -> (cont_info -> cont_info coq_M) -> t coq_M **)
 
 let update_top_of_stack t0 f =
   match t0.Flow_types.Acc.stack with
   | [] -> Misc.fatal_errorf "Empty stack of variable uses"
-  | elt :: stack0 ->
-    (fun t x__1 -> { t with T.Acc.stack = x__1 }) t0 (f elt :: stack0)
+  | elt :: stack0 -> (fun t stack -> { t with T.Acc.stack }) t0 (f elt :: stack0)
 
 (** val record_defined_var : Variable.t -> t -> t coq_M **)
 
@@ -152,7 +150,7 @@ let record_defined_var var t0 =
       let defined0 =
         Variable.Set.add var elt.Flow_types.Continuation_info.defined
       in
-      (fun t x__1 -> { t with T.Continuation_info.defined = x__1 }) elt defined0)
+      (fun t defined -> { t with T.Continuation_info.defined }) elt defined0)
 
 (** val record_var_binding : Variable.t -> Name_occurrences.t -> bool -> t -> t
     coq_M **)
@@ -181,12 +179,8 @@ let record_var_binding var name_occurrences generate_phantom_lets t0 =
       let defined0 =
         Variable.Set.add var elt.Flow_types.Continuation_info.defined
       in
-      (fun t x__1 x__2 x__3 ->
-        { t with
-          T.Continuation_info.bindings = x__1;
-          used_in_handler = x__2;
-          defined = x__3
-        })
+      (fun t bindings used_in_handler defined ->
+        { t with T.Continuation_info.bindings; used_in_handler; defined })
         elt bindings0 used_in_handler0 defined0)
 
 (** val record_var_alias : Variable.t -> Simple.t -> t -> t coq_M **)
@@ -207,8 +201,8 @@ let record_var_alias var definition t0 =
       let defined0 =
         Variable.Set.add var elt.Flow_types.Continuation_info.defined
       in
-      (fun t x__1 x__2 ->
-        { t with T.Continuation_info.direct_aliases = x__1; defined = x__2 })
+      (fun t direct_aliases defined ->
+        { t with T.Continuation_info.direct_aliases; defined })
         elt direct_aliases0 defined0)
 
 (** val record_ref_named : Named_rewrite_id.t -> Variable.t ->
@@ -227,8 +221,8 @@ let record_ref_named named_rewrite_id0 bound_to original_prim0 prim0 t0 =
         mutable_let_prim
         :: cont_info0.Flow_types.Continuation_info.mutable_let_prims_rev
       in
-      (fun t x__1 ->
-        { t with T.Continuation_info.mutable_let_prims_rev = x__1 })
+      (fun t mutable_let_prims_rev ->
+        { t with T.Continuation_info.mutable_let_prims_rev })
         cont_info0 mutable_let_prims_rev0)
 
 (** val record_symbol_projection_aux : Variable.t -> Name_occurrences.t ->
@@ -251,7 +245,7 @@ let record_symbol_projection_aux var name_occurrences elt =
         | None -> Some name_occurrences)
       elt.Flow_types.Continuation_info.bindings
   in
-  (fun t x__1 -> { t with T.Continuation_info.bindings = x__1 }) elt bindings0
+  (fun t bindings -> { t with T.Continuation_info.bindings }) elt bindings0
 
 (** val record_symbol_projection : Variable.t -> Name_occurrences.t -> t -> t
     coq_M **)
@@ -273,7 +267,7 @@ let record_symbol_binding_aux symbol name_occurrences elt =
         | None -> Some name_occurrences)
       elt.Flow_types.Continuation_info.bindings
   in
-  (fun t x__1 -> { t with T.Continuation_info.bindings = x__1 }) elt bindings0
+  (fun t bindings -> { t with T.Continuation_info.bindings }) elt bindings0
 
 (** val record_symbol_binding : Symbol.t -> Name_occurrences.t -> t -> t coq_M **)
 
@@ -294,7 +288,7 @@ let record_code_id_binding_aux code_id name_occurrences elt =
         | None -> Some name_occurrences)
       elt.Flow_types.Continuation_info.code_ids
   in
-  (fun t x__1 -> { t with T.Continuation_info.code_ids = x__1 }) elt code_ids0
+  (fun t code_ids -> { t with T.Continuation_info.code_ids }) elt code_ids0
 
 (** val record_code_id_binding : Code_id.t -> Name_occurrences.t -> t -> t coq_M
     **)
@@ -321,7 +315,7 @@ let record_value_slot_aux src value_slot dst elt =
         | None -> Some (Name.Map.singleton src dst))
       elt.Flow_types.Continuation_info.value_slots
   in
-  (fun t x__1 -> { t with T.Continuation_info.value_slots = x__1 })
+  (fun t value_slots -> { t with T.Continuation_info.value_slots })
     elt value_slots0
 
 (** val record_value_slot : Name.t -> Value_slot.t -> Name_occurrences.t -> t ->
@@ -338,7 +332,7 @@ let add_used_in_current_handler name_occurrences t0 =
         Name_occurrences.union elt.Flow_types.Continuation_info.used_in_handler
           name_occurrences
       in
-      (fun t x__1 -> { t with T.Continuation_info.used_in_handler = x__1 })
+      (fun t used_in_handler -> { t with T.Continuation_info.used_in_handler })
         elt used_in_handler0)
 
 (** val add_apply_conts : (Apply_cont_rewrite_id.t * Continuation.t) option ->
@@ -402,7 +396,7 @@ let add_apply_conts result_cont exn_cont result_arity t0 =
             [] apply_cont_args0
         | None -> apply_cont_args0
       in
-      (fun t x__1 -> { t with T.Continuation_info.apply_cont_args = x__1 })
+      (fun t apply_cont_args -> { t with T.Continuation_info.apply_cont_args })
         elt apply_cont_args1)
 
 (** val add_apply_cont_args : Apply_cont_rewrite_id.t -> Continuation.t ->
@@ -442,7 +436,7 @@ let add_apply_cont_args rewrite_id cont arg_name_simples t0 =
             Some rewrite_map0)
           elt.Flow_types.Continuation_info.apply_cont_args
       in
-      (fun t x__1 -> { t with T.Continuation_info.apply_cont_args = x__1 })
+      (fun t apply_cont_args -> { t with T.Continuation_info.apply_cont_args })
         elt apply_cont_args0)
 
 (** val get_block_and_constant_field : Simple.t -> Target_ocaml_int.t ->
@@ -1083,7 +1077,7 @@ let normalize_lifted_constants_aux lifted_constants0 elt =
 (** val record_lifted_constants : Lifted_constant_state.t -> t -> t coq_M **)
 
 let record_lifted_constants lifted_constants0 t0 =
-  (fun t x__1 -> { t with T.Acc.lifted_constants = x__1 })
+  (fun t lifted_constants -> { t with T.Acc.lifted_constants })
     t0
     (Lifted_constant_state.union lifted_constants0
        t0.Flow_types.Acc.lifted_constants)
@@ -1179,7 +1173,8 @@ let normalize_acc specialization_map t0 =
               else Some rewrite_ids0)
             apply_cont_args0
         in
-        (fun t x__1 -> { t with T.Continuation_info.apply_cont_args = x__1 })
+        (fun t apply_cont_args ->
+          { t with T.Continuation_info.apply_cont_args })
           elt apply_cont_args1)
       t0.Flow_types.Acc.map
   in
@@ -1229,8 +1224,7 @@ let normalize_acc specialization_map t0 =
             elt.Flow_types.Continuation_info.apply_cont_args
             elt.Flow_types.Continuation_info.defined
         in
-        (fun t x__1 -> { t with T.Continuation_info.defined = x__1 })
-          elt defined0)
+        (fun t defined -> { t with T.Continuation_info.defined }) elt defined0)
       map0
   in
   let map2 =
@@ -1242,8 +1236,7 @@ let normalize_acc specialization_map t0 =
             Bound_parameters.append elt.Flow_types.Continuation_info.params
               (Continuation_extra_params_and_args.extra_params epa)
           in
-          (fun t x__1 -> { t with T.Continuation_info.params = x__1 })
-            elt params0
+          (fun t params -> { t with T.Continuation_info.params }) elt params0
         in
         Continuation.Map.add cont elt0 map2)
       t0.Flow_types.Acc.extra map1
@@ -1261,5 +1254,5 @@ let normalize_acc specialization_map t0 =
             "Data_flow: missing continuation info for top-level expression")
       map2
   in
-  (fun t x__1 x__2 -> { t with T.Acc.map = x__1; extra = x__2 })
+  (fun t map extra -> { t with T.Acc.map; extra })
     t0 map3 Continuation.Map.empty

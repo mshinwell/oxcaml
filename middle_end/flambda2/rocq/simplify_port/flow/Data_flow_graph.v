@@ -318,7 +318,7 @@ Definition update_name_to_code_id (t : Data_flow_graph.t)
      Data_flow_graph.is_toplevel := t.(Data_flow_graph.is_toplevel)
   |}.
 Extract Inlined Constant update_name_to_code_id =>
-  "(fun t x__1 -> { t with name_to_code_id = x__1 })".
+  "(fun t name_to_code_id -> { t with name_to_code_id = name_to_code_id })".
 
 (* Some auxiliary functions *)
 (* 192-202. The compiler's last parameter is the pattern
@@ -357,7 +357,7 @@ Definition update_name_to_name (t : Data_flow_graph.t)
      Data_flow_graph.is_toplevel := t.(Data_flow_graph.is_toplevel)
   |}.
 Extract Inlined Constant update_name_to_name =>
-  "(fun t x__1 -> { t with name_to_name = x__1 })".
+  "(fun t name_to_name -> { t with name_to_name = name_to_name })".
 
 (* 204-212. The compiler's last parameter is the pattern
    [({ name_to_name; _ } as t)]. *)
@@ -395,7 +395,7 @@ Definition update_code_id_to_name (t : Data_flow_graph.t)
      Data_flow_graph.is_toplevel := t.(Data_flow_graph.is_toplevel)
   |}.
 Extract Inlined Constant update_code_id_to_name =>
-  "(fun t x__1 -> { t with code_id_to_name = x__1 })".
+  "(fun t code_id_to_name -> { t with code_id_to_name = code_id_to_name })".
 
 (* 214-222. The compiler's last parameter is the pattern
    [({ code_id_to_name; _ } as t)]. *)
@@ -432,7 +432,8 @@ Definition update_code_id_to_code_id (t : Data_flow_graph.t)
      Data_flow_graph.is_toplevel := t.(Data_flow_graph.is_toplevel)
   |}.
 Extract Inlined Constant update_code_id_to_code_id =>
-  "(fun t x__1 -> { t with code_id_to_code_id = x__1 })".
+  "(fun t code_id_to_code_id -> { t with code_id_to_code_id =
+   code_id_to_code_id })".
 
 (* 224-234. The compiler's last parameter is the pattern
    [({ code_id_to_code_id; _ } as t)]. *)
@@ -474,7 +475,9 @@ Definition update_unconditionally_used_code_id_unconditionally_used
   |}.
 Extract Inlined Constant
     update_unconditionally_used_code_id_unconditionally_used =>
-  "(fun t x__1 x__2 -> { t with unconditionally_used = x__1; code_id_unconditionally_used = x__2 })".
+  "(fun t unconditionally_used code_id_unconditionally_used -> { t with
+   unconditionally_used = unconditionally_used; code_id_unconditionally_used =
+   code_id_unconditionally_used })".
 
 (* 236-248. The compiler's last parameter is the pattern
    [({ unconditionally_used; code_id_unconditionally_used; _ } as t)]. *)

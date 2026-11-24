@@ -68,7 +68,7 @@ let add_node_aux t0 simple =
         match res with Some _ -> res | None -> Some Simple.Set.empty)
       t0.graph
   in
-  (fun t x__1 -> { t with graph = x__1 }) t0 graph0
+  (fun t graph -> { t with graph }) t0 graph0
 
 (** val add_node : t -> Simple.t -> t coq_M **)
 
@@ -84,7 +84,7 @@ let add_root var t0 =
   if not (Name.Set.mem (Name.var var) t0.required_names)
   then t0
   else
-    (fun t x__1 -> { t with dominator_roots = x__1 })
+    (fun t dominator_roots -> { t with dominator_roots })
       t0
       (Simple.Set.add (Simple.var var) t0.dominator_roots)
 
@@ -102,7 +102,7 @@ let add_edge src dst t0 =
           | None -> Some (Simple.Set.singleton dst))
         t0.graph
     in
-    (fun t x__1 -> { t with graph = x__1 }) t0 graph0
+    (fun t graph -> { t with graph }) t0 graph0
 
 (** val add_continuation_info : T.Continuation_info.t Continuation.Map.t ->
     Continuation.t -> T.Continuation_info.t -> t -> Continuation.t ->
@@ -117,7 +117,7 @@ let add_continuation_info map0 _ elt t0 return_continuation exn_continuation =
         let params_kind0 =
           Variable.Map.add var (Bound_parameter.kind bp) t2.params_kind
         in
-        (fun t x__1 -> { t with params_kind = x__1 }) t2 params_kind0)
+        (fun t params_kind -> { t with params_kind }) t2 params_kind0)
       t0
       (Bound_parameters.to_list elt.Flow_types.Continuation_info.params)
   in
@@ -183,7 +183,7 @@ let create required_names0 return_continuation exn_continuation map0 =
               match res with Some _ -> res | None -> Some Simple.Set.empty)
             t2.graph
         in
-        (fun t x__1 -> { t with graph = x__1 }) t2 graph0)
+        (fun t graph -> { t with graph }) t2 graph0)
       all_simples t1
   in
   t2

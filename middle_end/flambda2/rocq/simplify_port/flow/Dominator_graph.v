@@ -72,7 +72,7 @@ Definition update_graph (t : Dominator_graph.t) (graph : G.directed_graph)
      Dominator_graph.dominator_roots := t.(Dominator_graph.dominator_roots)
   |}.
 Extract Inlined Constant update_graph =>
-  "(fun t x__1 -> { t with graph = x__1 })".
+  "(fun t graph -> { t with graph = graph })".
 
 (* 37-43 *)
 Definition add_node_aux (t : Dominator_graph.t) (simple : Simple.t)
@@ -108,7 +108,7 @@ Definition update_dominator_roots (t : Dominator_graph.t)
      Dominator_graph.dominator_roots := dominator_roots
   |}.
 Extract Inlined Constant update_dominator_roots =>
-  "(fun t x__1 -> { t with dominator_roots = x__1 })".
+  "(fun t dominator_roots -> { t with dominator_roots = dominator_roots })".
 
 (* 53-59 *)
 Definition add_root (var : Variable_.t) (t : Dominator_graph.t)
@@ -160,7 +160,7 @@ Definition update_params_kind (t : Dominator_graph.t)
      Dominator_graph.dominator_roots := t.(Dominator_graph.dominator_roots)
   |}.
 Extract Inlined Constant update_params_kind =>
-  "(fun t x__1 -> { t with params_kind = x__1 })".
+  "(fun t params_kind -> { t with params_kind = params_kind })".
 
 (* 78-131 *)
 Definition add_continuation_info

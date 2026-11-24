@@ -28,10 +28,10 @@ compiler's own definitions; alone: no interface).
 | `env/upwards_env.ml` | 211 | 21 | 21 | loose:2 type:1 papp:1 update:5 | yes | strict |
 | `expr_builder.ml` | 800 | 25 | 25 | loose:8 type:4 | yes | strict |
 | `flow/control_flow_graph.ml` | 476 | 9 | 9 | type:1 verbatim:3 decl:1 papp:1 | yes | strict |
-| `flow/data_flow_graph.ml` | 451 | 11 | 11 | loose:5 papp:2 | yes | strict |
-| `flow/dominator_graph.ml` | 359 | 14 | 14 | verbatim:1 decl:1 | yes | strict |
+| `flow/data_flow_graph.ml` | 451 | 11 | 11 | loose:5 papp:2 update:5 | yes | strict |
+| `flow/dominator_graph.ml` | 359 | 14 | 14 | verbatim:1 decl:1 update:3 | yes | strict |
 | `flow/flow.ml` | 16 | 0 | 0 | none | yes | strict |
-| `flow/flow_acc.ml` | 638 | 32 | 32 | loose:3 | yes | strict |
+| `flow/flow_acc.ml` | 638 | 32 | 32 | loose:2 update:16 | yes | strict |
 | `flow/flow_analysis.ml` | 211 | 7 | 4 | verbatim:1 init:3 papp:2 | yes | strict |
 | `flow/flow_types.ml` | 363 | 0 | 0 | loose:8 type:2 papp:7 | yes | strict |
 | `flow/mutable_unboxing.ml` | 716 | 21 | 21 | loose:1 papp:1 record-order:2 | yes | strict |
@@ -87,13 +87,13 @@ compiler's own definitions; alone: no interface).
 | `unboxing/unboxers.ml` | 260 | 0 | 0 | loose:1 init:10 record-order:1 | yes | strict |
 | `unboxing/unboxing_epa.ml` | 553 | 15 | 15 | loose:1 type:2 verbatim:1 | yes | strict |
 | `unboxing/unboxing_types.ml` | 185 | 6 | 6 | type:1 verbatim:2 papp:4 update:1 | yes | strict |
-| **total: 78 files of 78** | 26900 | 930 | 926 | 486 marks | 78 | 78 |
+| **total: 78 files of 78** | 26900 | 930 | 926 | 509 marks | 78 | 78 |
 
 Gaps by kind, all files:
 
 - unported: 0
 - partial: 0
-- loose: 197
+- loose: 196
 - type: 62
 - verbatim: 47
 - init: 22
@@ -101,4 +101,4 @@ Gaps by kind, all files:
 - decl: 5
 - papp: 83
 - record-order: 23
-- update: 47
+- update: 71

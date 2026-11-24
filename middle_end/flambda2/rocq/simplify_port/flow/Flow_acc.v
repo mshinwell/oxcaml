@@ -81,7 +81,7 @@ Definition update_extra (t : T.Acc.t)
      T.Acc.dummy_toplevel_cont := t.(Flow_types.Acc.dummy_toplevel_cont)
   |}.
 Extract Inlined Constant update_extra =>
-  "(fun t x__1 -> { t with T.Acc.extra = x__1 })".
+  "(fun t extra -> { t with T.Acc.extra = extra })".
 
 (* 46-54 *)
 Definition add_extra_params_and_args (cont : Continuation.t)
@@ -108,7 +108,7 @@ Definition update_stack (t : T.Acc.t) (stack : list T.Continuation_info.t)
      T.Acc.dummy_toplevel_cont := t.(Flow_types.Acc.dummy_toplevel_cont)
   |}.
 Extract Inlined Constant update_stack =>
-  "(fun t x__1 -> { t with T.Acc.stack = x__1 })".
+  "(fun t stack -> { t with T.Acc.stack = stack })".
 
 (* 56-86 *)
 Definition enter_continuation (continuation : Continuation.t)
@@ -160,7 +160,8 @@ Definition update_dummy_toplevel_cont (t : T.Acc.t)
      T.Acc.dummy_toplevel_cont := dummy_toplevel_cont
   |}.
 Extract Inlined Constant update_dummy_toplevel_cont =>
-  "(fun t x__1 -> { t with T.Acc.dummy_toplevel_cont = x__1 })".
+  "(fun t dummy_toplevel_cont -> { t with T.Acc.dummy_toplevel_cont =
+   dummy_toplevel_cont })".
 
 (* 88-91 *)
 Definition init_toplevel (dummy_toplevel_cont : Continuation.t)
@@ -179,7 +180,7 @@ Definition update_stack_map (t : T.Acc.t) (stack : list T.Continuation_info.t)
      T.Acc.dummy_toplevel_cont := t.(Flow_types.Acc.dummy_toplevel_cont)
   |}.
 Extract Inlined Constant update_stack_map =>
-  "(fun t x__1 x__2 -> { t with T.Acc.stack = x__1; map = x__2 })".
+  "(fun t stack map -> { t with T.Acc.stack = stack; map = map })".
 
 (* 93-99 *)
 Definition exit_continuation (cont : Continuation.t) (t : Flow_acc.t)
@@ -232,7 +233,7 @@ Definition update_defined (t : T.Continuation_info.t)
        t.(Flow_types.Continuation_info.apply_cont_args)
   |}.
 Extract Inlined Constant update_defined =>
-  "(fun t x__1 -> { t with T.Continuation_info.defined = x__1 })".
+  "(fun t defined -> { t with T.Continuation_info.defined = defined })".
 
 (* 106-109 *)
 Definition record_defined_var (var : Variable_.t) (t : Flow_acc.t)
@@ -271,7 +272,9 @@ Definition update_bindings_used_in_handler_defined (t : T.Continuation_info.t)
        t.(Flow_types.Continuation_info.apply_cont_args)
   |}.
 Extract Inlined Constant update_bindings_used_in_handler_defined =>
-  "(fun t x__1 x__2 x__3 -> { t with T.Continuation_info.bindings = x__1; used_in_handler = x__2; defined = x__3 })".
+  "(fun t bindings used_in_handler defined -> { t with
+   T.Continuation_info.bindings = bindings; used_in_handler = used_in_handler;
+   defined = defined })".
 
 (* 111-131 *)
 Definition record_var_binding (var : Variable_.t)
@@ -333,7 +336,8 @@ Definition update_direct_aliases_defined (t : T.Continuation_info.t)
        t.(Flow_types.Continuation_info.apply_cont_args)
   |}.
 Extract Inlined Constant update_direct_aliases_defined =>
-  "(fun t x__1 x__2 -> { t with T.Continuation_info.direct_aliases = x__1; defined = x__2 })".
+  "(fun t direct_aliases defined -> { t with
+   T.Continuation_info.direct_aliases = direct_aliases; defined = defined })".
 
 (* 133-146 *)
 Definition record_var_alias (var : Variable_.t) (definition : Simple.t)
@@ -382,7 +386,8 @@ Definition update_mutable_let_prims_rev (t : T.Continuation_info.t)
        t.(Flow_types.Continuation_info.apply_cont_args)
   |}.
 Extract Inlined Constant update_mutable_let_prims_rev =>
-  "(fun t x__1 -> { t with T.Continuation_info.mutable_let_prims_rev = x__1 })".
+  "(fun t mutable_let_prims_rev -> { t with
+   T.Continuation_info.mutable_let_prims_rev = mutable_let_prims_rev })".
 
 (* 148-156. In the compiler: [named_rewrite_id ~bound_to ~original_prim ~prim
    t]. *)
@@ -430,7 +435,7 @@ Definition update_bindings (t : T.Continuation_info.t)
        t.(Flow_types.Continuation_info.apply_cont_args)
   |}.
 Extract Inlined Constant update_bindings =>
-  "(fun t x__1 -> { t with T.Continuation_info.bindings = x__1 })".
+  "(fun t bindings -> { t with T.Continuation_info.bindings = bindings })".
 
 (* 158-174 *)
 Definition record_symbol_projection_aux (var : Variable_.t)
@@ -512,7 +517,7 @@ Definition update_code_ids (t : T.Continuation_info.t)
        t.(Flow_types.Continuation_info.apply_cont_args)
   |}.
 Extract Inlined Constant update_code_ids =>
-  "(fun t x__1 -> { t with T.Continuation_info.code_ids = x__1 })".
+  "(fun t code_ids -> { t with T.Continuation_info.code_ids = code_ids })".
 
 (* 194-204 *)
 Definition record_code_id_binding_aux (code_id : Code_id.t)
@@ -562,7 +567,8 @@ Definition update_value_slots (t : T.Continuation_info.t)
        t.(Flow_types.Continuation_info.apply_cont_args)
   |}.
 Extract Inlined Constant update_value_slots =>
-  "(fun t x__1 -> { t with T.Continuation_info.value_slots = x__1 })".
+  "(fun t value_slots -> { t with T.Continuation_info.value_slots =
+   value_slots })".
 
 (* 210-224 *)
 Definition record_value_slot_aux (src : Name.t) (value_slot : Value_slot.t)
@@ -623,7 +629,8 @@ Definition update_used_in_handler (t : T.Continuation_info.t)
        t.(Flow_types.Continuation_info.apply_cont_args)
   |}.
 Extract Inlined Constant update_used_in_handler =>
-  "(fun t x__1 -> { t with T.Continuation_info.used_in_handler = x__1 })".
+  "(fun t used_in_handler -> { t with T.Continuation_info.used_in_handler =
+   used_in_handler })".
 
 (* 229-234 *)
 Definition add_used_in_current_handler (name_occurrences : Name_occurrences.t)
@@ -663,7 +670,8 @@ Definition update_apply_cont_args (t : T.Continuation_info.t)
      T.Continuation_info.apply_cont_args := apply_cont_args
   |}.
 Extract Inlined Constant update_apply_cont_args =>
-  "(fun t x__1 -> { t with T.Continuation_info.apply_cont_args = x__1 })".
+  "(fun t apply_cont_args -> { t with T.Continuation_info.apply_cont_args =
+   apply_cont_args })".
 
 (* 236-293 *)
 Definition add_apply_conts
@@ -1012,7 +1020,8 @@ Definition update_lifted_constants (t : T.Acc.t)
      T.Acc.dummy_toplevel_cont := t.(Flow_types.Acc.dummy_toplevel_cont)
   |}.
 Extract Inlined Constant update_lifted_constants =>
-  "(fun t x__1 -> { t with T.Acc.lifted_constants = x__1 })".
+  "(fun t lifted_constants -> { t with T.Acc.lifted_constants =
+   lifted_constants })".
 
 (* 488-492 *)
 Definition record_lifted_constants (lifted_constants : Lifted_constant_state.t)
@@ -1098,7 +1107,7 @@ Definition update_params (t : T.Continuation_info.t)
        t.(Flow_types.Continuation_info.apply_cont_args)
   |}.
 Extract Inlined Constant update_params =>
-  "(fun t x__1 -> { t with T.Continuation_info.params = x__1 })".
+  "(fun t params -> { t with T.Continuation_info.params = params })".
 
 (* PORT-GAP(update): 638, [{ t with map; extra }]. *)
 Definition update_map_extra (t : T.Acc.t)
@@ -1112,7 +1121,7 @@ Definition update_map_extra (t : T.Acc.t)
      T.Acc.dummy_toplevel_cont := t.(Flow_types.Acc.dummy_toplevel_cont)
   |}.
 Extract Inlined Constant update_map_extra =>
-  "(fun t x__1 x__2 -> { t with T.Acc.map = x__1; extra = x__2 })".
+  "(fun t map extra -> { t with T.Acc.map = map; extra = extra })".
 
 (* 527-638 *)
 Definition normalize_acc
