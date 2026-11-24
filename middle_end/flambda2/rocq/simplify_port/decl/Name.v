@@ -65,6 +65,9 @@ Module Set_.
   Parameter disjoint : t -> t -> M bool.
   Extract Inlined Constant disjoint => "Name.Set.disjoint".
   (* int_ids.mli:178  include Container_types.S_plus_iterator with type t := t *)
+  Parameter diff : t -> t -> M t.
+  Extract Inlined Constant diff => "Name.Set.diff".
+  (* int_ids.mli:178  include Container_types.S_plus_iterator with type t := t *)
   Parameter iter : (elt -> M unit) -> t -> M unit.
   Extract Inlined Constant iter => "Name.Set.iter".
   (* int_ids.mli:178  include Container_types.S_plus_iterator with type t := t *)
@@ -94,6 +97,9 @@ Module Map.
   (* int_ids.mli:178  include Container_types.S_plus_iterator with type t := t *)
   Parameter fold : forall {A B : Type}, (key -> A -> B -> M B) -> t A -> B -> M B.
   Extract Inlined Constant fold => "Name.Map.fold".
+  (* int_ids.mli:178  include Container_types.S_plus_iterator with type t := t *)
+  Parameter find : forall {A : Type}, key -> t A -> M A.
+  Extract Inlined Constant find => "Name.Map.find".
   (* int_ids.mli:178  include Container_types.S_plus_iterator with type t := t *)
   Parameter print : forall {A : Type}, (Format.formatter -> A -> M unit) -> Format.formatter -> t A -> M unit.
   Extract Inlined Constant print => "Name.Map.print".

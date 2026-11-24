@@ -3,6 +3,12 @@
 ( lsl )	Stdlib_.lsl	value	2	stdlib/stdlib.mli
 ( lsr )	Stdlib_.lsr	value	2	stdlib/stdlib.mli
 ( mod )	Stdlib_.mod_	value	2	stdlib/stdlib.mli
+(Apply_cont_expr.t * annotations:Branch_annotations.t * Apply_cont_rewrite_id.t * [ `Unarized ] Flambda_arity.t * Flambda2_types.Typing_env.t)	Simplified_expr.Arms_tuple	constructor	5	a tuple with labels
+(Apply_cont_expr.t * annotations:Branch_annotations.t * Apply_cont_rewrite_id.t * [ `Unarized ] Flambda_arity.t * Flambda2_types.Typing_env.t)	Simplified_expr.arms_tuple	type	0	a tuple with labels
+(Inlined_attribute.t * forwarded_from:Inlined_debuginfo.t)	Downwards_env.Forwarded_from_tuple	constructor	2	a tuple with labels
+(Inlined_attribute.t * forwarded_from:Inlined_debuginfo.t)	Downwards_env.forwarded_from_tuple	type	0	a tuple with labels
+(Rebuilt_expr.t * is_exn_handler:bool * free_names_without_params:Name_occurrences.t)	Upwards_env.Handler_tuple	constructor	3	a tuple with labels
+(Rebuilt_expr.t * is_exn_handler:bool * free_names_without_params:Name_occurrences.t)	Upwards_env.handler_tuple	type	0	a tuple with labels
 (fun x__1 -> Flambda_arity.Component_for_creation.Singleton x__1)	Flambda_arity.Component_for_creation.mk_Singleton	maker	1	flambda_arity.mli:36
 (fun x__1 -> Flambda_arity.Component_for_creation.Unboxed_product x__1)	Flambda_arity.Component_for_creation.mk_Unboxed_product	maker	1	flambda_arity.mli:36
 (fun x__1 x__2 x__3 -> { Unboxing_types.epa = x__1; decision = x__2; kind = x__3 })	Unboxing_types.mk_field_decision	maker	3	unboxing_types.mli:66
@@ -2489,6 +2495,7 @@ Mutable_unboxing.make_result	Mutable_unboxing.make_result	value	1	mutable_unboxi
 Mutable_unboxing.pp_node	Mutable_unboxing.pp_node	value	3	mutable_unboxing.mli:30
 Mutable_unboxing.t	Mutable_unboxing.t	type	0	mutable_unboxing.mli:15
 Name.Map.empty	Name.Map.empty	value	0	int_ids.mli:178
+Name.Map.find	Name.Map.find	value	2	int_ids.mli:178
 Name.Map.fold	Name.Map.fold	value	3	int_ids.mli:178
 Name.Map.key	Name.Map.key	type	0	int_ids.mli:178
 Name.Map.print	Name.Map.print	value	3	int_ids.mli:178
@@ -2496,6 +2503,7 @@ Name.Map.singleton	Name.Map.singleton	value	2	int_ids.mli:178
 Name.Map.t	Name.Map.t	type	1	int_ids.mli:178
 Name.Map.update	Name.Map.update	value	3	int_ids.mli:178
 Name.Set.add	Name.Set_.add	value	2	int_ids.mli:178
+Name.Set.diff	Name.Set_.diff	value	2	int_ids.mli:178
 Name.Set.disjoint	Name.Set_.disjoint	value	2	int_ids.mli:178
 Name.Set.elt	Name.Set_.elt	type	0	int_ids.mli:178
 Name.Set.empty	Name.Set_.empty	value	0	int_ids.mli:178
@@ -5786,28 +5794,72 @@ Number_adjuncts.For_tagged_immediates.term_unboxed	Number_adjuncts.For_tagged_im
 Number_adjuncts.For_tagged_immediates.these_unboxed	Number_adjuncts.For_tagged_immediates.these_unboxed	value	1	number_adjuncts.mli:122
 Number_adjuncts.For_tagged_immediates.this_unboxed	Number_adjuncts.For_tagged_immediates.this_unboxed	value	1	number_adjuncts.mli:122
 Number_adjuncts.For_tagged_immediates.unboxed_prover	Number_adjuncts.For_tagged_immediates.unboxed_prover	value	2	number_adjuncts.mli:122
+Numeric_types.Float32_by_bit_pattern.IEEE_semantics.abs	Numeric_types.Float32_by_bit_pattern.IEEE_semantics.abs	value	1	numeric_types.mli:122
 Numeric_types.Float32_by_bit_pattern.IEEE_semantics.add	Numeric_types.Float32_by_bit_pattern.IEEE_semantics.add	value	2	numeric_types.mli:110
+Numeric_types.Float32_by_bit_pattern.IEEE_semantics.compare	Numeric_types.Float32_by_bit_pattern.IEEE_semantics.compare	value	2	numeric_types.mli:124
 Numeric_types.Float32_by_bit_pattern.IEEE_semantics.div	Numeric_types.Float32_by_bit_pattern.IEEE_semantics.div	value	2	numeric_types.mli:116
+Numeric_types.Float32_by_bit_pattern.IEEE_semantics.equal	Numeric_types.Float32_by_bit_pattern.IEEE_semantics.equal	value	2	numeric_types.mli:126
 Numeric_types.Float32_by_bit_pattern.IEEE_semantics.mod_	Numeric_types.Float32_by_bit_pattern.IEEE_semantics.mod_	value	2	numeric_types.mli:118
 Numeric_types.Float32_by_bit_pattern.IEEE_semantics.mul	Numeric_types.Float32_by_bit_pattern.IEEE_semantics.mul	value	2	numeric_types.mli:114
+Numeric_types.Float32_by_bit_pattern.IEEE_semantics.neg	Numeric_types.Float32_by_bit_pattern.IEEE_semantics.neg	value	1	numeric_types.mli:120
 Numeric_types.Float32_by_bit_pattern.IEEE_semantics.sub	Numeric_types.Float32_by_bit_pattern.IEEE_semantics.sub	value	2	numeric_types.mli:112
 Numeric_types.Float32_by_bit_pattern.IEEE_semantics.t	Numeric_types.Float32_by_bit_pattern.IEEE_semantics.t	type	0	numeric_types.mli:167
+Numeric_types.Float32_by_bit_pattern.Pair.Set.elt	Numeric_types.Float32_by_bit_pattern.Pair.Set_.elt	type	0	container_types_intf.ml:303
+Numeric_types.Float32_by_bit_pattern.Pair.Set.fold	Numeric_types.Float32_by_bit_pattern.Pair.Set_.fold	value	3	container_types_intf.ml:86
+Numeric_types.Float32_by_bit_pattern.Pair.Set.t	Numeric_types.Float32_by_bit_pattern.Pair.Set_.t	type	0	container_types_intf.ml:38
+Numeric_types.Float32_by_bit_pattern.Pair.t	Numeric_types.Float32_by_bit_pattern.Pair.t	type	0	numeric_types.mli:169
+Numeric_types.Float32_by_bit_pattern.Set.add	Numeric_types.Float32_by_bit_pattern.Set_.add	value	2	container_types_intf.ml:46
+Numeric_types.Float32_by_bit_pattern.Set.cardinal	Numeric_types.Float32_by_bit_pattern.Set_.cardinal	value	1	container_types_intf.ml:98
+Numeric_types.Float32_by_bit_pattern.Set.elt	Numeric_types.Float32_by_bit_pattern.Set_.elt	type	0	container_types_intf.ml:303
+Numeric_types.Float32_by_bit_pattern.Set.empty	Numeric_types.Float32_by_bit_pattern.Set_.empty	value	0	container_types_intf.ml:40
+Numeric_types.Float32_by_bit_pattern.Set.fold	Numeric_types.Float32_by_bit_pattern.Set_.fold	value	3	container_types_intf.ml:86
+Numeric_types.Float32_by_bit_pattern.Set.get_singleton	Numeric_types.Float32_by_bit_pattern.Set_.get_singleton	value	1	container_types_intf.ml:128
+Numeric_types.Float32_by_bit_pattern.Set.is_empty	Numeric_types.Float32_by_bit_pattern.Set_.is_empty	value	1	container_types_intf.ml:42
+Numeric_types.Float32_by_bit_pattern.Set.map	Numeric_types.Float32_by_bit_pattern.Set_.map	value	2	container_types_intf.ml:84
+Numeric_types.Float32_by_bit_pattern.Set.of_list	Numeric_types.Float32_by_bit_pattern.Set_.of_list	value	1	container_types_intf.ml:118
 Numeric_types.Float32_by_bit_pattern.Set.t	Numeric_types.Float32_by_bit_pattern.Set_.t	type	0	container_types_intf.ml:38
+Numeric_types.Float32_by_bit_pattern.T.t	Numeric_types.Float32_by_bit_pattern.T.t	type	0	container_types_intf.ml:299
+Numeric_types.Float32_by_bit_pattern.compare	Numeric_types.Float32_by_bit_pattern.compare	value	2	container_types_intf.ml:301
 Numeric_types.Float32_by_bit_pattern.create	Numeric_types.Float32_by_bit_pattern.create	value	1	numeric_types.mli:145
+Numeric_types.Float32_by_bit_pattern.cross_product	Numeric_types.Float32_by_bit_pattern.cross_product	value	2	numeric_types.mli:171
+Numeric_types.Float32_by_bit_pattern.equal	Numeric_types.Float32_by_bit_pattern.equal	value	2	container_types_intf.ml:301
+Numeric_types.Float32_by_bit_pattern.is_any_nan	Numeric_types.Float32_by_bit_pattern.is_any_nan	value	1	numeric_types.mli:165
 Numeric_types.Float32_by_bit_pattern.minus_one	Numeric_types.Float32_by_bit_pattern.minus_one	value	0	numeric_types.mli:161
 Numeric_types.Float32_by_bit_pattern.of_int64	Numeric_types.Float32_by_bit_pattern.of_int64	value	1	numeric_types.mli:151
 Numeric_types.Float32_by_bit_pattern.one	Numeric_types.Float32_by_bit_pattern.one	value	0	numeric_types.mli:157
 Numeric_types.Float32_by_bit_pattern.t	Numeric_types.Float32_by_bit_pattern.t	type	0	container_types_intf.ml:297
 Numeric_types.Float32_by_bit_pattern.zero	Numeric_types.Float32_by_bit_pattern.zero	value	0	numeric_types.mli:159
+Numeric_types.Float_by_bit_pattern.IEEE_semantics.abs	Numeric_types.Float_by_bit_pattern.IEEE_semantics.abs	value	1	numeric_types.mli:122
 Numeric_types.Float_by_bit_pattern.IEEE_semantics.add	Numeric_types.Float_by_bit_pattern.IEEE_semantics.add	value	2	numeric_types.mli:110
+Numeric_types.Float_by_bit_pattern.IEEE_semantics.compare	Numeric_types.Float_by_bit_pattern.IEEE_semantics.compare	value	2	numeric_types.mli:124
 Numeric_types.Float_by_bit_pattern.IEEE_semantics.div	Numeric_types.Float_by_bit_pattern.IEEE_semantics.div	value	2	numeric_types.mli:116
+Numeric_types.Float_by_bit_pattern.IEEE_semantics.equal	Numeric_types.Float_by_bit_pattern.IEEE_semantics.equal	value	2	numeric_types.mli:126
 Numeric_types.Float_by_bit_pattern.IEEE_semantics.mod_	Numeric_types.Float_by_bit_pattern.IEEE_semantics.mod_	value	2	numeric_types.mli:118
 Numeric_types.Float_by_bit_pattern.IEEE_semantics.mul	Numeric_types.Float_by_bit_pattern.IEEE_semantics.mul	value	2	numeric_types.mli:114
+Numeric_types.Float_by_bit_pattern.IEEE_semantics.neg	Numeric_types.Float_by_bit_pattern.IEEE_semantics.neg	value	1	numeric_types.mli:120
 Numeric_types.Float_by_bit_pattern.IEEE_semantics.sub	Numeric_types.Float_by_bit_pattern.IEEE_semantics.sub	value	2	numeric_types.mli:112
 Numeric_types.Float_by_bit_pattern.IEEE_semantics.t	Numeric_types.Float_by_bit_pattern.IEEE_semantics.t	type	0	numeric_types.mli:167
+Numeric_types.Float_by_bit_pattern.Pair.Set.elt	Numeric_types.Float_by_bit_pattern.Pair.Set_.elt	type	0	container_types_intf.ml:303
+Numeric_types.Float_by_bit_pattern.Pair.Set.fold	Numeric_types.Float_by_bit_pattern.Pair.Set_.fold	value	3	container_types_intf.ml:86
+Numeric_types.Float_by_bit_pattern.Pair.Set.t	Numeric_types.Float_by_bit_pattern.Pair.Set_.t	type	0	container_types_intf.ml:38
+Numeric_types.Float_by_bit_pattern.Pair.t	Numeric_types.Float_by_bit_pattern.Pair.t	type	0	numeric_types.mli:169
+Numeric_types.Float_by_bit_pattern.Set.add	Numeric_types.Float_by_bit_pattern.Set_.add	value	2	container_types_intf.ml:46
+Numeric_types.Float_by_bit_pattern.Set.cardinal	Numeric_types.Float_by_bit_pattern.Set_.cardinal	value	1	container_types_intf.ml:98
+Numeric_types.Float_by_bit_pattern.Set.elt	Numeric_types.Float_by_bit_pattern.Set_.elt	type	0	container_types_intf.ml:303
+Numeric_types.Float_by_bit_pattern.Set.empty	Numeric_types.Float_by_bit_pattern.Set_.empty	value	0	container_types_intf.ml:40
+Numeric_types.Float_by_bit_pattern.Set.fold	Numeric_types.Float_by_bit_pattern.Set_.fold	value	3	container_types_intf.ml:86
+Numeric_types.Float_by_bit_pattern.Set.get_singleton	Numeric_types.Float_by_bit_pattern.Set_.get_singleton	value	1	container_types_intf.ml:128
+Numeric_types.Float_by_bit_pattern.Set.is_empty	Numeric_types.Float_by_bit_pattern.Set_.is_empty	value	1	container_types_intf.ml:42
+Numeric_types.Float_by_bit_pattern.Set.map	Numeric_types.Float_by_bit_pattern.Set_.map	value	2	container_types_intf.ml:84
+Numeric_types.Float_by_bit_pattern.Set.of_list	Numeric_types.Float_by_bit_pattern.Set_.of_list	value	1	container_types_intf.ml:118
 Numeric_types.Float_by_bit_pattern.Set.t	Numeric_types.Float_by_bit_pattern.Set_.t	type	0	container_types_intf.ml:38
+Numeric_types.Float_by_bit_pattern.T.t	Numeric_types.Float_by_bit_pattern.T.t	type	0	container_types_intf.ml:299
 Numeric_types.Float_by_bit_pattern.bits	Numeric_types.Float_by_bit_pattern.bits	type	0	numeric_types.mli:174
+Numeric_types.Float_by_bit_pattern.compare	Numeric_types.Float_by_bit_pattern.compare	value	2	container_types_intf.ml:301
 Numeric_types.Float_by_bit_pattern.create	Numeric_types.Float_by_bit_pattern.create	value	1	numeric_types.mli:145
+Numeric_types.Float_by_bit_pattern.cross_product	Numeric_types.Float_by_bit_pattern.cross_product	value	2	numeric_types.mli:171
+Numeric_types.Float_by_bit_pattern.equal	Numeric_types.Float_by_bit_pattern.equal	value	2	container_types_intf.ml:301
+Numeric_types.Float_by_bit_pattern.is_any_nan	Numeric_types.Float_by_bit_pattern.is_any_nan	value	1	numeric_types.mli:165
 Numeric_types.Float_by_bit_pattern.minus_one	Numeric_types.Float_by_bit_pattern.minus_one	value	0	numeric_types.mli:161
 Numeric_types.Float_by_bit_pattern.of_bits	Numeric_types.Float_by_bit_pattern.of_bits	value	1	numeric_types.mli:147
 Numeric_types.Float_by_bit_pattern.one	Numeric_types.Float_by_bit_pattern.one	value	0	numeric_types.mli:157
@@ -5830,12 +5882,18 @@ Numeric_types.Int.Map.of_list	Numeric_types.Int.Map.of_list	value	1	container_ty
 Numeric_types.Int.Map.print	Numeric_types.Int.Map.print	value	3	container_types_intf.ml:259
 Numeric_types.Int.Map.t	Numeric_types.Int.Map.t	type	1	container_types_intf.ml:136
 Numeric_types.Int.t	Numeric_types.Int.t	type	0	numeric_types.mli:23
+Numeric_types.Int16.Set.add	Numeric_types.Int16.Set_.add	value	2	numeric_types.mli:76
+Numeric_types.Int16.Set.elt	Numeric_types.Int16.Set_.elt	type	0	numeric_types.mli:76
+Numeric_types.Int16.Set.empty	Numeric_types.Int16.Set_.empty	value	0	numeric_types.mli:76
 Numeric_types.Int16.Set.t	Numeric_types.Int16.Set_.t	type	0	numeric_types.mli:76
 Numeric_types.Int16.of_float	Numeric_types.Int16.of_float	value	1	numeric_types.mli:74
 Numeric_types.Int16.of_int	Numeric_types.Int16.of_int	value	1	numeric_types.mli:62
 Numeric_types.Int16.one	Numeric_types.Int16.one	value	0	numeric_types.mli:60
 Numeric_types.Int16.t	Numeric_types.Int16.t	type	0	numeric_types.mli:56
 Numeric_types.Int16.zero	Numeric_types.Int16.zero	value	0	numeric_types.mli:58
+Numeric_types.Int32.Set.add	Numeric_types.Int32.Set_.add	value	2	numeric_types.mli:84
+Numeric_types.Int32.Set.elt	Numeric_types.Int32.Set_.elt	type	0	numeric_types.mli:84
+Numeric_types.Int32.Set.empty	Numeric_types.Int32.Set_.empty	value	0	numeric_types.mli:84
 Numeric_types.Int32.Set.t	Numeric_types.Int32.Set_.t	type	0	numeric_types.mli:84
 Numeric_types.Int32.minus_one	Numeric_types.Int32.minus_one	value	0	stdlib/int32.mli
 Numeric_types.Int32.of_float	Numeric_types.Int32.of_float	value	1	stdlib/int32.mli
@@ -5845,6 +5903,10 @@ Numeric_types.Int32.t	Numeric_types.Int32.t	type	0	stdlib/int32.mli
 Numeric_types.Int32.to_float	Numeric_types.Int32.to_float	value	1	stdlib/int32.mli
 Numeric_types.Int32.to_int	Numeric_types.Int32.to_int	value	1	stdlib/int32.mli
 Numeric_types.Int32.zero	Numeric_types.Int32.zero	value	0	stdlib/int32.mli
+Numeric_types.Int64.Set.add	Numeric_types.Int64.Set_.add	value	2	numeric_types.mli:98
+Numeric_types.Int64.Set.elt	Numeric_types.Int64.Set_.elt	type	0	numeric_types.mli:98
+Numeric_types.Int64.Set.empty	Numeric_types.Int64.Set_.empty	value	0	numeric_types.mli:98
+Numeric_types.Int64.Set.fold	Numeric_types.Int64.Set_.fold	value	3	numeric_types.mli:98
 Numeric_types.Int64.Set.t	Numeric_types.Int64.Set_.t	type	0	numeric_types.mli:98
 Numeric_types.Int64.add	Numeric_types.Int64.add	value	2	stdlib/int64.mli
 Numeric_types.Int64.minus_one	Numeric_types.Int64.minus_one	value	0	stdlib/int64.mli
@@ -5859,6 +5921,9 @@ Numeric_types.Int64.to_float	Numeric_types.Int64.to_float	value	1	stdlib/int64.m
 Numeric_types.Int64.to_int	Numeric_types.Int64.to_int	value	1	stdlib/int64.mli
 Numeric_types.Int64.to_int32	Numeric_types.Int64.to_int32	value	1	stdlib/int64.mli
 Numeric_types.Int64.zero	Numeric_types.Int64.zero	value	0	stdlib/int64.mli
+Numeric_types.Int8.Set.add	Numeric_types.Int8.Set_.add	value	2	numeric_types.mli:52
+Numeric_types.Int8.Set.elt	Numeric_types.Int8.Set_.elt	type	0	numeric_types.mli:52
+Numeric_types.Int8.Set.empty	Numeric_types.Int8.Set_.empty	value	0	numeric_types.mli:52
 Numeric_types.Int8.Set.t	Numeric_types.Int8.Set_.t	type	0	numeric_types.mli:52
 Numeric_types.Int8.of_float	Numeric_types.Int8.of_float	value	1	numeric_types.mli:50
 Numeric_types.Int8.of_int	Numeric_types.Int8.of_int	value	1	numeric_types.mli:38
@@ -6596,12 +6661,14 @@ Target_ocaml_int.Map.singleton	Target_ocaml_int.Map.singleton	value	2	target_oca
 Target_ocaml_int.Map.subset_domain	Target_ocaml_int.Map.subset_domain	value	2	target_ocaml_int.mli:23
 Target_ocaml_int.Map.t	Target_ocaml_int.Map.t	type	1	target_ocaml_int.mli:23
 Target_ocaml_int.Set.add	Target_ocaml_int.Set_.add	value	2	target_ocaml_int.mli:23
+Target_ocaml_int.Set.cardinal	Target_ocaml_int.Set_.cardinal	value	1	target_ocaml_int.mli:23
 Target_ocaml_int.Set.elt	Target_ocaml_int.Set_.elt	type	0	target_ocaml_int.mli:23
 Target_ocaml_int.Set.empty	Target_ocaml_int.Set_.empty	value	0	target_ocaml_int.mli:23
 Target_ocaml_int.Set.filter_map	Target_ocaml_int.Set_.filter_map	value	2	target_ocaml_int.mli:23
 Target_ocaml_int.Set.fold	Target_ocaml_int.Set_.fold	value	3	target_ocaml_int.mli:23
 Target_ocaml_int.Set.get_singleton	Target_ocaml_int.Set_.get_singleton	value	1	target_ocaml_int.mli:23
 Target_ocaml_int.Set.is_empty	Target_ocaml_int.Set_.is_empty	value	1	target_ocaml_int.mli:23
+Target_ocaml_int.Set.of_list	Target_ocaml_int.Set_.of_list	value	1	target_ocaml_int.mli:23
 Target_ocaml_int.Set.singleton	Target_ocaml_int.Set_.singleton	value	1	target_ocaml_int.mli:23
 Target_ocaml_int.Set.t	Target_ocaml_int.Set_.t	type	0	target_ocaml_int.mli:23
 Target_ocaml_int.T.t	Target_ocaml_int.T.t	type	0	target_ocaml_int.mli:23
@@ -6610,6 +6677,7 @@ Target_ocaml_int.all_bools	Target_ocaml_int.all_bools	value	1	target_ocaml_int.m
 Target_ocaml_int.bool	Target_ocaml_int.bool_	value	2	target_ocaml_int.mli:52
 Target_ocaml_int.bool_false	Target_ocaml_int.bool_false	value	1	target_ocaml_int.mli:56
 Target_ocaml_int.bool_true	Target_ocaml_int.bool_true	value	1	target_ocaml_int.mli:54
+Target_ocaml_int.compare	Target_ocaml_int.compare	value	2	target_ocaml_int.mli:23
 Target_ocaml_int.div	Target_ocaml_int.div	value	2	target_ocaml_int.mli:151
 Target_ocaml_int.equal	Target_ocaml_int.equal	value	2	target_ocaml_int.mli:23
 Target_ocaml_int.get_least_significant_16_bits_then_byte_swap	Target_ocaml_int.get_least_significant_16_bits_then_byte_swap	value	1	target_ocaml_int.mli:137
@@ -6643,6 +6711,9 @@ Target_system.Machine_width.equal	Target_system.Machine_width.equal	value	2	targ
 Target_system.Machine_width.print	Target_system.Machine_width.print	value	2	target_system.mli:54
 Target_system.Machine_width.t	Target_system.Machine_width.t	type	0	target_system.mli:49
 Target_system.is_32_bit	Target_system.is_32_bit	value	1	target_system.mli:17
+Targetint_32_64.Set.add	Targetint_32_64.Set_.add	value	2	targetint_32_64.mli:217
+Targetint_32_64.Set.elt	Targetint_32_64.Set_.elt	type	0	targetint_32_64.mli:217
+Targetint_32_64.Set.empty	Targetint_32_64.Set_.empty	value	0	targetint_32_64.mli:217
 Targetint_32_64.Set.t	Targetint_32_64.Set_.t	type	0	targetint_32_64.mli:217
 Targetint_32_64.of_float	Targetint_32_64.of_float	value	2	targetint_32_64.mli:159
 Targetint_32_64.of_int	Targetint_32_64.of_int	value	2	targetint_32_64.mli:140

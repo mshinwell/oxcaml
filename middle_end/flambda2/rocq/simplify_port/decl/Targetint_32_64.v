@@ -54,8 +54,17 @@ Parameter to_int64 : t -> M Stdlib_.int64.
 Extract Inlined Constant to_int64 => "Targetint_32_64.to_int64".
 Module Set_.
   (* targetint_32_64.mli:217  include Container_types.S with type t := t *)
+  Definition elt : Type := Targetint_32_64.t.
+  Extract Inlined Constant elt => "Targetint_32_64.Set.elt".
+  (* targetint_32_64.mli:217  include Container_types.S with type t := t *)
   Parameter t : Type.
   Extract Inlined Constant t => "Targetint_32_64.Set.t".
+  (* targetint_32_64.mli:217  include Container_types.S with type t := t *)
+  Parameter empty : t.
+  Extract Inlined Constant empty => "Targetint_32_64.Set.empty".
+  (* targetint_32_64.mli:217  include Container_types.S with type t := t *)
+  Parameter add : elt -> t -> M t.
+  Extract Inlined Constant add => "Targetint_32_64.Set.add".
 End Set_.
 
 (* Not in the interface: an empty module with the name of this file. With

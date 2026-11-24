@@ -35,8 +35,12 @@ Extract Inlined Constant machine_width => "Upwards_env.machine_width".
 (* upwards_env.mli:29  val print : Format.formatter -> t -> unit *)
 Parameter print : Format.formatter -> t -> M unit.
 Extract Inlined Constant print => "Upwards_env.print".
+(* The tuple with labels (Rebuilt_expr.t * is_exn_handler:bool * free_names_without_params:Name_occurrences.t) that the interface writes: Rocq has no label in a tuple. [Handler_tuple] makes one, and a [match] takes it apart. *)
+Inductive handler_tuple : Type :=
+| Handler_tuple : Rebuilt_expr.t -> bool -> Name_occurrences.t -> handler_tuple.
+Extract Inductive handler_tuple => "(Rebuilt_expr.t * is_exn_handler:bool * free_names_without_params:Name_occurrences.t)" [ "(fun (x__1, x__2, x__3) -> (x__1, ~is_exn_handler:x__2, ~free_names_without_params:x__3))" ] "(fun f__1 x__0 -> let (x__1, ~is_exn_handler:x__2, ~free_names_without_params:x__3) = x__0 in f__1 x__1 x__2 x__3)".
 (* upwards_env.mli:31  val add_non_inlinable_continuation : Are_rebuilding_terms.t -> t -> Continuation.t -> is_cold:bool -> params:Bound_parameters.t -> handler: (Rebuilt_expr.t * is_exn_handler:bool * free_names_without_params:Name_occurrences.t) Or_unknown.t -> t *)
-Parameter add_non_inlinable_continuation : Are_rebuilding_terms.t -> t -> Continuation.t -> bool -> Bound_parameters.t -> Or_unknown.t (tuple3 Rebuilt_expr.t bool Name_occurrences.t) -> M t.
+Parameter add_non_inlinable_continuation : Are_rebuilding_terms.t -> t -> Continuation.t -> bool -> Bound_parameters.t -> Or_unknown.t handler_tuple -> M t.
 Extract Inlined Constant add_non_inlinable_continuation => "Upwards_env.add_non_inlinable_continuation".
 (* upwards_env.mli:44  val add_invalid_continuation : t -> Continuation.t -> [`Unarized] Flambda_arity.t -> t *)
 Parameter add_invalid_continuation : t -> Continuation.t -> Flambda_arity.t_Unarized -> M t.

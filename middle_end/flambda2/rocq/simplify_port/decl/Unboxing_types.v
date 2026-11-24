@@ -47,7 +47,7 @@ Module Extra_param_and_args.
   Extract Inlined Constant print => "Unboxing_types.Extra_param_and_args.print".
 End Extra_param_and_args.
 (* unboxing_types.mli:66  and field_decision = { epa : Extra_param_and_args.t; decision : decision; kind : Flambda_kind.With_subkind.t } *)
-(* PORT-GAP(type): it is a record that is recursive with other types: abstract, with a maker for each constructor and one eliminator. *)
+(* PORT-GAP(type): it is a record that is recursive with other types: abstract, with one maker and one eliminator. *)
 Parameter field_decision : Type.
 Extract Inlined Constant field_decision => "Unboxing_types.field_decision".
 (* unboxing_types.mli:46  type unboxing_decision = | Unique_tag_and_size of { tag : Tag.t; shape : Flambda_kind.Block_shape.t; fields : field_decision list } | Variant of { tag : Extra_param_and_args.t; const_ctors : const_ctors_decision; fields_by_tag : (Flambda_kind.Block_shape.t * field_decision list) Tag.Scannable.Map.t } | Closure_single_entry of { function_slot : Function_slot.t; vars_within_closure : field_decisi... *)

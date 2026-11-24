@@ -21,7 +21,7 @@
    change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
-From SimplifyPort.decl Require Format Or_null Stdlib_.
+From SimplifyPort.decl Require Format Int32 Int64 Or_null Stdlib_.
 
 Module Int.
   (* numeric_types.mli:23  include Container_types.S_plus_stdlib with type t = int *)
@@ -93,8 +93,17 @@ Module Int8.
   Extract Inlined Constant of_float => "Numeric_types.Int8.of_float".
   Module Set_.
     (* numeric_types.mli:52  include Container_types.S with type t := t *)
+    Definition elt : Type := Numeric_types.Int8.t.
+    Extract Inlined Constant elt => "Numeric_types.Int8.Set.elt".
+    (* numeric_types.mli:52  include Container_types.S with type t := t *)
     Parameter t : Type.
     Extract Inlined Constant t => "Numeric_types.Int8.Set.t".
+    (* numeric_types.mli:52  include Container_types.S with type t := t *)
+    Parameter empty : t.
+    Extract Inlined Constant empty => "Numeric_types.Int8.Set.empty".
+    (* numeric_types.mli:52  include Container_types.S with type t := t *)
+    Parameter add : elt -> t -> M t.
+    Extract Inlined Constant add => "Numeric_types.Int8.Set.add".
   End Set_.
 End Int8.
 Module Int16.
@@ -115,8 +124,17 @@ Module Int16.
   Extract Inlined Constant of_float => "Numeric_types.Int16.of_float".
   Module Set_.
     (* numeric_types.mli:76  include Container_types.S with type t := t *)
+    Definition elt : Type := Numeric_types.Int16.t.
+    Extract Inlined Constant elt => "Numeric_types.Int16.Set.elt".
+    (* numeric_types.mli:76  include Container_types.S with type t := t *)
     Parameter t : Type.
     Extract Inlined Constant t => "Numeric_types.Int16.Set.t".
+    (* numeric_types.mli:76  include Container_types.S with type t := t *)
+    Parameter empty : t.
+    Extract Inlined Constant empty => "Numeric_types.Int16.Set.empty".
+    (* numeric_types.mli:76  include Container_types.S with type t := t *)
+    Parameter add : elt -> t -> M t.
+    Extract Inlined Constant add => "Numeric_types.Int16.Set.add".
   End Set_.
 End Int16.
 Module Int32.
@@ -146,8 +164,17 @@ Module Int32.
   Extract Inlined Constant t => "Numeric_types.Int32.t".
   Module Set_.
     (* numeric_types.mli:84  include Container_types.S with type t := Int32.t *)
+    Definition elt : Type := decl.Int32.t.
+    Extract Inlined Constant elt => "Numeric_types.Int32.Set.elt".
+    (* numeric_types.mli:84  include Container_types.S with type t := Int32.t *)
     Parameter t : Type.
     Extract Inlined Constant t => "Numeric_types.Int32.Set.t".
+    (* numeric_types.mli:84  include Container_types.S with type t := Int32.t *)
+    Parameter empty : t.
+    Extract Inlined Constant empty => "Numeric_types.Int32.Set.empty".
+    (* numeric_types.mli:84  include Container_types.S with type t := Int32.t *)
+    Parameter add : elt -> t -> M t.
+    Extract Inlined Constant add => "Numeric_types.Int32.Set.add".
   End Set_.
 End Int32.
 Module Int64.
@@ -192,8 +219,20 @@ Module Int64.
   Extract Inlined Constant t => "Numeric_types.Int64.t".
   Module Set_.
     (* numeric_types.mli:98  include Container_types.S with type t := Int64.t *)
+    Definition elt : Type := decl.Int64.t.
+    Extract Inlined Constant elt => "Numeric_types.Int64.Set.elt".
+    (* numeric_types.mli:98  include Container_types.S with type t := Int64.t *)
     Parameter t : Type.
     Extract Inlined Constant t => "Numeric_types.Int64.Set.t".
+    (* numeric_types.mli:98  include Container_types.S with type t := Int64.t *)
+    Parameter empty : t.
+    Extract Inlined Constant empty => "Numeric_types.Int64.Set.empty".
+    (* numeric_types.mli:98  include Container_types.S with type t := Int64.t *)
+    Parameter add : elt -> t -> M t.
+    Extract Inlined Constant add => "Numeric_types.Int64.Set.add".
+    (* numeric_types.mli:98  include Container_types.S with type t := Int64.t *)
+    Parameter fold : forall {A : Type}, (elt -> A -> M A) -> t -> A -> M A.
+    Extract Inlined Constant fold => "Numeric_types.Int64.Set.fold".
   End Set_.
 End Int64.
 Module Float_by_bit_pattern.
@@ -203,10 +242,48 @@ Module Float_by_bit_pattern.
   (* container_types_intf.ml:297  type t *)
   Parameter t : Type.
   Extract Inlined Constant t => "Numeric_types.Float_by_bit_pattern.t".
+  Module T.
+    (* container_types_intf.ml:299  module T : Thing with type t = t *)
+    Definition t : Type := Numeric_types.Float_by_bit_pattern.t.
+    Extract Inlined Constant t => "Numeric_types.Float_by_bit_pattern.T.t".
+  End T.
+  (* container_types_intf.ml:301  include Thing with type t := T.t *)
+  Parameter equal : Numeric_types.Float_by_bit_pattern.T.t -> Numeric_types.Float_by_bit_pattern.T.t -> M bool.
+  Extract Inlined Constant equal => "Numeric_types.Float_by_bit_pattern.equal".
+  (* container_types_intf.ml:301  include Thing with type t := T.t *)
+  Parameter compare : Numeric_types.Float_by_bit_pattern.T.t -> Numeric_types.Float_by_bit_pattern.T.t -> M int.
+  Extract Inlined Constant compare => "Numeric_types.Float_by_bit_pattern.compare".
   Module Set_.
+    (* container_types_intf.ml:303  module Set : Set with type elt = t *)
+    Definition elt : Type := Numeric_types.Float_by_bit_pattern.t.
+    Extract Inlined Constant elt => "Numeric_types.Float_by_bit_pattern.Set.elt".
     (* container_types_intf.ml:38  type t *)
     Parameter t : Type.
     Extract Inlined Constant t => "Numeric_types.Float_by_bit_pattern.Set.t".
+    (* container_types_intf.ml:40  val empty : t *)
+    Parameter empty : t.
+    Extract Inlined Constant empty => "Numeric_types.Float_by_bit_pattern.Set.empty".
+    (* container_types_intf.ml:42  val is_empty : t -> bool *)
+    Parameter is_empty : t -> M bool.
+    Extract Inlined Constant is_empty => "Numeric_types.Float_by_bit_pattern.Set.is_empty".
+    (* container_types_intf.ml:46  val add : elt -> t -> t *)
+    Parameter add : elt -> t -> M t.
+    Extract Inlined Constant add => "Numeric_types.Float_by_bit_pattern.Set.add".
+    (* container_types_intf.ml:84  val map : (elt -> elt) -> t -> t *)
+    Parameter map : (elt -> M elt) -> t -> M t.
+    Extract Inlined Constant map => "Numeric_types.Float_by_bit_pattern.Set.map".
+    (* container_types_intf.ml:86  val fold : (elt -> 'a -> 'a) -> t -> 'a -> 'a *)
+    Parameter fold : forall {A : Type}, (elt -> A -> M A) -> t -> A -> M A.
+    Extract Inlined Constant fold => "Numeric_types.Float_by_bit_pattern.Set.fold".
+    (* container_types_intf.ml:98  val cardinal : t -> int *)
+    Parameter cardinal : t -> M int.
+    Extract Inlined Constant cardinal => "Numeric_types.Float_by_bit_pattern.Set.cardinal".
+    (* container_types_intf.ml:118  val of_list : elt list -> t *)
+    Parameter of_list : list elt -> M t.
+    Extract Inlined Constant of_list => "Numeric_types.Float_by_bit_pattern.Set.of_list".
+    (* container_types_intf.ml:128  val get_singleton : t -> elt option *)
+    Parameter get_singleton : t -> M (option elt).
+    Extract Inlined Constant get_singleton => "Numeric_types.Float_by_bit_pattern.Set.get_singleton".
   End Set_.
   (* numeric_types.mli:145  val create : float -> t *)
   Parameter create : Stdlib_.float_ -> M t.
@@ -226,6 +303,9 @@ Module Float_by_bit_pattern.
   (* numeric_types.mli:161  val minus_one : t *)
   Parameter minus_one : t.
   Extract Inlined Constant minus_one => "Numeric_types.Float_by_bit_pattern.minus_one".
+  (* numeric_types.mli:165  val is_any_nan : t -> bool *)
+  Parameter is_any_nan : t -> M bool.
+  Extract Inlined Constant is_any_nan => "Numeric_types.Float_by_bit_pattern.is_any_nan".
   Module IEEE_semantics.
     (* numeric_types.mli:167  module IEEE_semantics : IEEE_semantics with type t = t *)
     Definition t : Type := Numeric_types.Float_by_bit_pattern.t.
@@ -245,16 +325,85 @@ Module Float_by_bit_pattern.
     (* numeric_types.mli:118  val mod_ : t -> t -> t *)
     Parameter mod_ : t -> t -> M t.
     Extract Inlined Constant mod_ => "Numeric_types.Float_by_bit_pattern.IEEE_semantics.mod_".
+    (* numeric_types.mli:120  val neg : t -> t *)
+    Parameter neg : t -> M t.
+    Extract Inlined Constant neg => "Numeric_types.Float_by_bit_pattern.IEEE_semantics.neg".
+    (* numeric_types.mli:122  val abs : t -> t *)
+    Parameter abs : t -> M t.
+    Extract Inlined Constant abs => "Numeric_types.Float_by_bit_pattern.IEEE_semantics.abs".
+    (* numeric_types.mli:124  val compare : t -> t -> int *)
+    Parameter compare : t -> t -> M int.
+    Extract Inlined Constant compare => "Numeric_types.Float_by_bit_pattern.IEEE_semantics.compare".
+    (* numeric_types.mli:126  val equal : t -> t -> bool *)
+    Parameter equal : t -> t -> M bool.
+    Extract Inlined Constant equal => "Numeric_types.Float_by_bit_pattern.IEEE_semantics.equal".
   End IEEE_semantics.
+  Module Pair.
+    (* numeric_types.mli:169  module Pair : Container_types.S with type t = t * t *)
+    Definition t : Type := (Numeric_types.Float_by_bit_pattern.t * Numeric_types.Float_by_bit_pattern.t).
+    Extract Inlined Constant t => "Numeric_types.Float_by_bit_pattern.Pair.t".
+    Module Set_.
+      (* container_types_intf.ml:303  module Set : Set with type elt = t *)
+      Definition elt : Type := Numeric_types.Float_by_bit_pattern.Pair.t.
+      Extract Inlined Constant elt => "Numeric_types.Float_by_bit_pattern.Pair.Set.elt".
+      (* container_types_intf.ml:38  type t *)
+      Parameter t : Type.
+      Extract Inlined Constant t => "Numeric_types.Float_by_bit_pattern.Pair.Set.t".
+      (* container_types_intf.ml:86  val fold : (elt -> 'a -> 'a) -> t -> 'a -> 'a *)
+      Parameter fold : forall {A : Type}, (elt -> A -> M A) -> t -> A -> M A.
+      Extract Inlined Constant fold => "Numeric_types.Float_by_bit_pattern.Pair.Set.fold".
+    End Set_.
+  End Pair.
+  (* numeric_types.mli:171  val cross_product : Set.t -> Set.t -> Pair.Set.t *)
+  Parameter cross_product : Numeric_types.Float_by_bit_pattern.Set_.t -> Numeric_types.Float_by_bit_pattern.Set_.t -> M Numeric_types.Float_by_bit_pattern.Pair.Set_.t.
+  Extract Inlined Constant cross_product => "Numeric_types.Float_by_bit_pattern.cross_product".
 End Float_by_bit_pattern.
 Module Float32_by_bit_pattern.
   (* container_types_intf.ml:297  type t *)
   Parameter t : Type.
   Extract Inlined Constant t => "Numeric_types.Float32_by_bit_pattern.t".
+  Module T.
+    (* container_types_intf.ml:299  module T : Thing with type t = t *)
+    Definition t : Type := Numeric_types.Float32_by_bit_pattern.t.
+    Extract Inlined Constant t => "Numeric_types.Float32_by_bit_pattern.T.t".
+  End T.
+  (* container_types_intf.ml:301  include Thing with type t := T.t *)
+  Parameter equal : Numeric_types.Float32_by_bit_pattern.T.t -> Numeric_types.Float32_by_bit_pattern.T.t -> M bool.
+  Extract Inlined Constant equal => "Numeric_types.Float32_by_bit_pattern.equal".
+  (* container_types_intf.ml:301  include Thing with type t := T.t *)
+  Parameter compare : Numeric_types.Float32_by_bit_pattern.T.t -> Numeric_types.Float32_by_bit_pattern.T.t -> M int.
+  Extract Inlined Constant compare => "Numeric_types.Float32_by_bit_pattern.compare".
   Module Set_.
+    (* container_types_intf.ml:303  module Set : Set with type elt = t *)
+    Definition elt : Type := Numeric_types.Float32_by_bit_pattern.t.
+    Extract Inlined Constant elt => "Numeric_types.Float32_by_bit_pattern.Set.elt".
     (* container_types_intf.ml:38  type t *)
     Parameter t : Type.
     Extract Inlined Constant t => "Numeric_types.Float32_by_bit_pattern.Set.t".
+    (* container_types_intf.ml:40  val empty : t *)
+    Parameter empty : t.
+    Extract Inlined Constant empty => "Numeric_types.Float32_by_bit_pattern.Set.empty".
+    (* container_types_intf.ml:42  val is_empty : t -> bool *)
+    Parameter is_empty : t -> M bool.
+    Extract Inlined Constant is_empty => "Numeric_types.Float32_by_bit_pattern.Set.is_empty".
+    (* container_types_intf.ml:46  val add : elt -> t -> t *)
+    Parameter add : elt -> t -> M t.
+    Extract Inlined Constant add => "Numeric_types.Float32_by_bit_pattern.Set.add".
+    (* container_types_intf.ml:84  val map : (elt -> elt) -> t -> t *)
+    Parameter map : (elt -> M elt) -> t -> M t.
+    Extract Inlined Constant map => "Numeric_types.Float32_by_bit_pattern.Set.map".
+    (* container_types_intf.ml:86  val fold : (elt -> 'a -> 'a) -> t -> 'a -> 'a *)
+    Parameter fold : forall {A : Type}, (elt -> A -> M A) -> t -> A -> M A.
+    Extract Inlined Constant fold => "Numeric_types.Float32_by_bit_pattern.Set.fold".
+    (* container_types_intf.ml:98  val cardinal : t -> int *)
+    Parameter cardinal : t -> M int.
+    Extract Inlined Constant cardinal => "Numeric_types.Float32_by_bit_pattern.Set.cardinal".
+    (* container_types_intf.ml:118  val of_list : elt list -> t *)
+    Parameter of_list : list elt -> M t.
+    Extract Inlined Constant of_list => "Numeric_types.Float32_by_bit_pattern.Set.of_list".
+    (* container_types_intf.ml:128  val get_singleton : t -> elt option *)
+    Parameter get_singleton : t -> M (option elt).
+    Extract Inlined Constant get_singleton => "Numeric_types.Float32_by_bit_pattern.Set.get_singleton".
   End Set_.
   (* numeric_types.mli:145  val create : float -> t *)
   Parameter create : Stdlib_.float_ -> M t.
@@ -271,6 +420,9 @@ Module Float32_by_bit_pattern.
   (* numeric_types.mli:161  val minus_one : t *)
   Parameter minus_one : t.
   Extract Inlined Constant minus_one => "Numeric_types.Float32_by_bit_pattern.minus_one".
+  (* numeric_types.mli:165  val is_any_nan : t -> bool *)
+  Parameter is_any_nan : t -> M bool.
+  Extract Inlined Constant is_any_nan => "Numeric_types.Float32_by_bit_pattern.is_any_nan".
   Module IEEE_semantics.
     (* numeric_types.mli:167  module IEEE_semantics : IEEE_semantics with type t = t *)
     Definition t : Type := Numeric_types.Float32_by_bit_pattern.t.
@@ -290,7 +442,38 @@ Module Float32_by_bit_pattern.
     (* numeric_types.mli:118  val mod_ : t -> t -> t *)
     Parameter mod_ : t -> t -> M t.
     Extract Inlined Constant mod_ => "Numeric_types.Float32_by_bit_pattern.IEEE_semantics.mod_".
+    (* numeric_types.mli:120  val neg : t -> t *)
+    Parameter neg : t -> M t.
+    Extract Inlined Constant neg => "Numeric_types.Float32_by_bit_pattern.IEEE_semantics.neg".
+    (* numeric_types.mli:122  val abs : t -> t *)
+    Parameter abs : t -> M t.
+    Extract Inlined Constant abs => "Numeric_types.Float32_by_bit_pattern.IEEE_semantics.abs".
+    (* numeric_types.mli:124  val compare : t -> t -> int *)
+    Parameter compare : t -> t -> M int.
+    Extract Inlined Constant compare => "Numeric_types.Float32_by_bit_pattern.IEEE_semantics.compare".
+    (* numeric_types.mli:126  val equal : t -> t -> bool *)
+    Parameter equal : t -> t -> M bool.
+    Extract Inlined Constant equal => "Numeric_types.Float32_by_bit_pattern.IEEE_semantics.equal".
   End IEEE_semantics.
+  Module Pair.
+    (* numeric_types.mli:169  module Pair : Container_types.S with type t = t * t *)
+    Definition t : Type := (Numeric_types.Float32_by_bit_pattern.t * Numeric_types.Float32_by_bit_pattern.t).
+    Extract Inlined Constant t => "Numeric_types.Float32_by_bit_pattern.Pair.t".
+    Module Set_.
+      (* container_types_intf.ml:303  module Set : Set with type elt = t *)
+      Definition elt : Type := Numeric_types.Float32_by_bit_pattern.Pair.t.
+      Extract Inlined Constant elt => "Numeric_types.Float32_by_bit_pattern.Pair.Set.elt".
+      (* container_types_intf.ml:38  type t *)
+      Parameter t : Type.
+      Extract Inlined Constant t => "Numeric_types.Float32_by_bit_pattern.Pair.Set.t".
+      (* container_types_intf.ml:86  val fold : (elt -> 'a -> 'a) -> t -> 'a -> 'a *)
+      Parameter fold : forall {A : Type}, (elt -> A -> M A) -> t -> A -> M A.
+      Extract Inlined Constant fold => "Numeric_types.Float32_by_bit_pattern.Pair.Set.fold".
+    End Set_.
+  End Pair.
+  (* numeric_types.mli:171  val cross_product : Set.t -> Set.t -> Pair.Set.t *)
+  Parameter cross_product : Numeric_types.Float32_by_bit_pattern.Set_.t -> Numeric_types.Float32_by_bit_pattern.Set_.t -> M Numeric_types.Float32_by_bit_pattern.Pair.Set_.t.
+  Extract Inlined Constant cross_product => "Numeric_types.Float32_by_bit_pattern.cross_product".
 End Float32_by_bit_pattern.
 
 (* Not in the interface: an empty module with the name of this file. With

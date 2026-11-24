@@ -229,8 +229,12 @@ Extract Inlined Constant disable_inlining => "Downwards_env.disable_inlining".
 (* downwards_env.mli:197  val disable_partial_application_stub_generation : t -> bool *)
 Parameter disable_partial_application_stub_generation : t -> M bool.
 Extract Inlined Constant disable_partial_application_stub_generation => "Downwards_env.disable_partial_application_stub_generation".
+(* The tuple with labels (Inlined_attribute.t * forwarded_from:Inlined_debuginfo.t) that the interface writes: Rocq has no label in a tuple. [Forwarded_from_tuple] makes one, and a [match] takes it apart. *)
+Inductive forwarded_from_tuple : Type :=
+| Forwarded_from_tuple : Inlined_attribute.t -> Inlined_debuginfo.t -> forwarded_from_tuple.
+Extract Inductive forwarded_from_tuple => "(Inlined_attribute.t * forwarded_from:Inlined_debuginfo.t)" [ "(fun (x__1, x__2) -> (x__1, ~forwarded_from:x__2))" ] "(fun f__1 x__0 -> let (x__1, ~forwarded_from:x__2) = x__0 in f__1 x__1 x__2)".
 (* downwards_env.mli:204  val inlined_attribute_to_forward : t -> (Inlined_attribute.t * forwarded_from:Inlined_debuginfo.t) option *)
-Parameter inlined_attribute_to_forward : t -> M (option (Inlined_attribute.t * Inlined_debuginfo.t)).
+Parameter inlined_attribute_to_forward : t -> M (option forwarded_from_tuple).
 Extract Inlined Constant inlined_attribute_to_forward => "Downwards_env.inlined_attribute_to_forward".
 (* downwards_env.mli:207  val enter_set_of_closures : t -> t *)
 Parameter enter_set_of_closures : t -> M t.

@@ -34,6 +34,9 @@ End T.
 (* target_ocaml_int.mli:23  include Container_types.S with type t := t *)
 Parameter equal : Target_ocaml_int.T.t -> Target_ocaml_int.T.t -> M bool.
 Extract Inlined Constant equal => "Target_ocaml_int.equal".
+(* target_ocaml_int.mli:23  include Container_types.S with type t := t *)
+Parameter compare : Target_ocaml_int.T.t -> Target_ocaml_int.T.t -> M int.
+Extract Inlined Constant compare => "Target_ocaml_int.compare".
 Module Set_.
   (* target_ocaml_int.mli:23  include Container_types.S with type t := t *)
   Definition elt : Type := Target_ocaml_int.t.
@@ -59,6 +62,12 @@ Module Set_.
   (* target_ocaml_int.mli:23  include Container_types.S with type t := t *)
   Parameter filter_map : (elt -> M (option elt)) -> t -> M t.
   Extract Inlined Constant filter_map => "Target_ocaml_int.Set.filter_map".
+  (* target_ocaml_int.mli:23  include Container_types.S with type t := t *)
+  Parameter cardinal : t -> M int.
+  Extract Inlined Constant cardinal => "Target_ocaml_int.Set.cardinal".
+  (* target_ocaml_int.mli:23  include Container_types.S with type t := t *)
+  Parameter of_list : list elt -> M t.
+  Extract Inlined Constant of_list => "Target_ocaml_int.Set.of_list".
   (* target_ocaml_int.mli:23  include Container_types.S with type t := t *)
   Parameter get_singleton : t -> M (option elt).
   Extract Inlined Constant get_singleton => "Target_ocaml_int.Set.get_singleton".

@@ -37,7 +37,7 @@ Parameter print : Format.formatter -> t -> M unit.
 Extract Inlined Constant print => "Flambda_arity.print".
 Module Component_for_creation.
   (* flambda_arity.mli:36  type _ t = | Singleton : Flambda_kind.With_subkind.t -> [> ] t ( * The nullary unboxed product is called 'void'. It is important to propagate information about void layouts, even though the corresponding variables have no runtime representation, as they interact with currying. (For example void parameters cannot just be erased.) * ) | Unboxed_product : _ t list -> [`Complex] t *)
-  (* PORT-GAP(type): it is a GADT: abstract, with a maker for each constructor and one eliminator. *)
+  (* PORT-GAP(type): it is a GADT: abstract, with a maker for each constructor and no eliminator (its branches could not have one type). *)
   Parameter t : Type.
   Extract Inlined Constant t => "(_) Flambda_arity.Component_for_creation.t".
   (* [t] where the interface writes this instance of the index that Rocq does not have. *)

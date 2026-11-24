@@ -10,16 +10,20 @@
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Apply_cont_expr Apply_cont_rewrite_id Bound_parameters Branch_annotations Closure_info Common_subexpression_elimination Continuation Continuation_extra_params_and_args Debuginfo Flambda Flambda2_types Flambda_arity Lifted_constant_state Named_rewrite_id Removed_operations Simple Simplified_named Symbol Target_ocaml_int.
 
+(* The tuple with labels (Apply_cont_expr.t * annotations:Branch_annotations.t * Apply_cont_rewrite_id.t * [ `Unarized ] Flambda_arity.t * Flambda2_types.Typing_env.t) that the interface writes: Rocq has no label in a tuple. [Arms_tuple] makes one, and a [match] takes it apart. *)
+Inductive arms_tuple : Type :=
+| Arms_tuple : Apply_cont_expr.t -> Branch_annotations.t -> Apply_cont_rewrite_id.t -> Flambda_arity.t_Unarized -> Flambda2_types.Typing_env.t -> arms_tuple.
+Extract Inductive arms_tuple => "(Apply_cont_expr.t * annotations:Branch_annotations.t * Apply_cont_rewrite_id.t * [ `Unarized ] Flambda_arity.t * Flambda2_types.Typing_env.t)" [ "(fun (x__1, x__2, x__3, x__4, x__5) -> (x__1, ~annotations:x__2, x__3, x__4, x__5))" ] "(fun f__1 x__0 -> let (x__1, ~annotations:x__2, x__3, x__4, x__5) = x__0 in f__1 x__1 x__2 x__3 x__4 x__5)".
 (* simplified_expr.mli:31  type t = private { simplified_lets_and_let_conts : simplified_lets_and_let_conts; simplified_terminator : simplified_terminator; removed_operations : Removed_operations.t; is_cold : bool } *)
-(* PORT-GAP(type): it is a record that is recursive with other types: abstract, with a maker for each constructor and one eliminator. *)
+(* PORT-GAP(type): it is a record that is recursive with other types: abstract, with no maker (OCaml makes no value of a private type outside its module) and one eliminator. *)
 Parameter t : Type.
 Extract Inlined Constant t => "Simplified_expr.t".
 (* simplified_expr.mli:59  and simplified_handler = { params : Bound_parameters.t; simplified_handler : t; is_exn_handler : bool; is_cold : bool; extra_params_and_args : Continuation_extra_params_and_args.t; ( * Note: EPA.extra_params invariant_extra_params_and_args should always be equal to invariant_extra_params in stage4 * ) invariant_extra_params_and_args : Continuation_extra_params_and_args.t; rewrite_ids : Apply_co... *)
-(* PORT-GAP(type): it is a record that is recursive with other types: abstract, with a maker for each constructor and one eliminator. *)
+(* PORT-GAP(type): it is a record that is recursive with other types: abstract, with one maker and one eliminator. *)
 Parameter simplified_handler_ : Type.
 Extract Inlined Constant simplified_handler_ => "Simplified_expr.simplified_handler".
 (* simplified_expr.mli:81  and simplified_let_cont_handlers = { at_unit_toplevel : bool; handlers_from_the_outside_to_the_inside : simplified_handlers_group list; original_invariant_params : Bound_parameters.t; invariant_extra_params : Bound_parameters.t } *)
-(* PORT-GAP(type): it is a record that is recursive with other types: abstract, with a maker for each constructor and one eliminator. *)
+(* PORT-GAP(type): it is a record that is recursive with other types: abstract, with one maker and one eliminator. *)
 Parameter simplified_let_cont_handlers : Type.
 Extract Inlined Constant simplified_let_cont_handlers => "Simplified_expr.simplified_let_cont_handlers".
 (* simplified_expr.mli:44  and simplified_defining_expr = private ( * CR-soon bclement: it seems like some fields don't actually have their place here. [removed_operations] could be accumulated in the basic block directly, and [at_unit_toplevel] and [closure_info] could be stored there as well (something went very wrong if these change in the middle of a basic block). * ) { bindings_to_place : Simplified_named.binding_to... *)
@@ -38,11 +42,11 @@ Extract Inductive simplified_handlers_group => "Simplified_expr.simplified_handl
 (* simplified_expr.mli:88  and simplified_apply = private { apply : Apply.t; use_id : Apply_cont_rewrite_id.t option; exn_cont_use_id : Apply_cont_rewrite_id.t; result_arity : [`Complex] Flambda_arity.t; is_cold : bool } *)
 Record simplified_apply_ : Type := { apply : Flambda.Import_.Apply.t; use_id : option Apply_cont_rewrite_id.t; exn_cont_use_id : Apply_cont_rewrite_id.t; result_arity : Flambda_arity.t_Complex; is_cold : bool }.
 (* simplified_expr.mli:102  and simplified_apply_cont = private { apply_cont : Apply_cont.t; args : Simple.t list; rewrite_id : Apply_cont_rewrite_id.t } *)
-(* PORT-GAP(type): the name of a field of it is taken in Rocq: abstract, with a maker for each constructor and one eliminator. *)
+(* PORT-GAP(type): the name of a field of it is taken in Rocq: abstract, with no maker (OCaml makes no value of a private type outside its module) and one eliminator. *)
 Parameter simplified_apply_cont_ : Type.
 Extract Inlined Constant simplified_apply_cont_ => "Simplified_expr.simplified_apply_cont".
 (* simplified_expr.mli:108  and simplified_switch = private { arms : (Apply_cont_expr.t * annotations:Branch_annotations.t * Apply_cont_rewrite_id.t * [`Unarized] Flambda_arity.t * Typing_env.t) Target_ocaml_int.Map.t; condition_dbg : Debuginfo.t; scrutinee : Simple.t; scrutinee_ty : flambda_type; shareable_constants : Symbol.t Static_const.Map.t; typing_env_before_switch : Typing_env.t; cse_before_switch : Common_subexpr... *)
-Record simplified_switch_ : Type := { arms : Target_ocaml_int.Map.t (tuple5 Apply_cont_expr.t Branch_annotations.t Apply_cont_rewrite_id.t Flambda_arity.t_Unarized Flambda2_types.Typing_env.t); condition_dbg : Debuginfo.t; scrutinee : Simple.t; scrutinee_ty : Flambda2_types.flambda_type; shareable_constants : Flambda.Import_.Static_const.Map.t Symbol.t; typing_env_before_switch : Flambda2_types.Typing_env.t; cse_before_switch : Common_subexpression_elimination.t }.
+Record simplified_switch_ : Type := { arms : Target_ocaml_int.Map.t arms_tuple; condition_dbg : Debuginfo.t; scrutinee : Simple.t; scrutinee_ty : Flambda2_types.flambda_type; shareable_constants : Flambda.Import_.Static_const.Map.t Symbol.t; typing_env_before_switch : Flambda2_types.Typing_env.t; cse_before_switch : Common_subexpression_elimination.t }.
 (* simplified_expr.mli:96  and simplified_terminator = private | Simplified_apply of simplified_apply | Simplified_apply_cont of simplified_apply_cont | Simplified_switch of simplified_switch | Simplified_invalid of Flambda.Invalid.t *)
 Inductive simplified_terminator_ : Type :=
 | Simplified_apply : simplified_apply_ -> simplified_terminator_
@@ -81,7 +85,7 @@ Extract Inlined Constant simplified_apply => "(fun x__1 x__2 x__3 x__4 x__5 -> S
 Parameter simplified_apply_cont : Flambda.Import_.Apply_cont.t -> list Simple.t -> Apply_cont_rewrite_id.t -> M t.
 Extract Inlined Constant simplified_apply_cont => "Simplified_expr.simplified_apply_cont".
 (* simplified_expr.mli:151  val simplified_switch : arms: (Apply_cont_expr.t * annotations:Branch_annotations.t * Apply_cont_rewrite_id.t * [`Unarized] Flambda_arity.t * Typing_env.t) Target_ocaml_int.Map.t -> condition_dbg:Debuginfo.t -> scrutinee:Simple.t -> scrutinee_ty:flambda_type -> shareable_constants:Symbol.t Static_const.Map.t -> typing_env_before_switch:Typing_env.t -> cse_before_switch:Common_subexpression_elim... *)
-Parameter simplified_switch : Target_ocaml_int.Map.t (tuple5 Apply_cont_expr.t Branch_annotations.t Apply_cont_rewrite_id.t Flambda_arity.t_Unarized Flambda2_types.Typing_env.t) -> Debuginfo.t -> Simple.t -> Flambda2_types.flambda_type -> Flambda.Import_.Static_const.Map.t Symbol.t -> Flambda2_types.Typing_env.t -> Common_subexpression_elimination.t -> M t.
+Parameter simplified_switch : Target_ocaml_int.Map.t arms_tuple -> Debuginfo.t -> Simple.t -> Flambda2_types.flambda_type -> Flambda.Import_.Static_const.Map.t Symbol.t -> Flambda2_types.Typing_env.t -> Common_subexpression_elimination.t -> M t.
 Extract Inlined Constant simplified_switch => "Simplified_expr.simplified_switch".
 (* simplified_expr.mli:167  val simplified_invalid : Flambda.Invalid.t -> t *)
 Parameter simplified_invalid : Flambda.Invalid.t -> M t.

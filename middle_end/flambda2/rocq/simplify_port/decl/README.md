@@ -23,7 +23,9 @@ type of an argument; for a constructor or a field of a mirrored type, a
 pattern or a projection with its name), and OCaml type-checks the lines
 against the compiled interfaces, with `-nolabels` and the libraries that the
 build opens for Simplify. So a name that does not exist, a wrong number of
-type parameters, or a closed function that does not type is refused. It does
+type parameters, or a closed function that does not type is refused. For a
+tuple with labels it also checks that the two functions of the directive make
+and take the type that the directive names. It does
 NOT compare the type that OCaml gives a realisation with the signature that
 the declaration has in Rocq: that is checked only where a ported file uses
 the declaration, by the check of the extracted file. Left out, and counted
@@ -43,7 +45,12 @@ The same inputs give the same bytes.
 
 The typed trees (`.cmt`) of the 78 files say what each uses: every value,
 every constructor built or matched, every field, every type written, every
-exception, each resolved by the compiler's own environment. An abbreviation of
+exception, each resolved by the compiler's own environment. A file that
+gives a module to a functor of its own (`Edge (Name.Map) (Name.Set)` in
+`flow/data_flow_graph.ml`) uses, of that module, what the body of the functor
+uses of its parameter (`Src_map.find` is `Name.Map.find`); the modules of the
+file are followed for that, through a structure written in the place and
+through the result of another functor of the file. An abbreviation of
 a module in a file of Simplify (`module DA = Downwards_acc`,
 `Simplify_import.T`) is followed; a module that another interface makes an
 alias (`Code_id.Map`, which is `Int_ids.Code_id.Map`) keeps the name that the
@@ -97,6 +104,19 @@ OCaml name, Rocq name, kind, number of arguments, interface and line.
   field (`inline field`).
 - A record whose fields Simplify reads or builds: a `Record` with the
   compiler's fields; a mutable field also has `set_FIELD`.
+- A tuple with labels (`a * annotations:b * c`): a type of its own with one
+  constructor, an `Inductive` with an `Extract Inductive`. Rocq has no label
+  in a tuple, and OCaml refuses the tuple without its labels. The type's
+  string is the tuple type of OCaml; the constructor's string is a function
+  that makes the tuple with its labels from a plain tuple; the third string
+  takes it apart, so a `match` of Rocq on it is printed as that function
+  applied to the branch. One type for each such tuple type, declared in the
+  module whose interface writes it first, before the item that writes it, and
+  used wherever the interfaces write that tuple type. Its name is that of the
+  labelled argument or of the field where it is first written, or else its
+  own labels, then `_tuple`; its constructor has the same name with a
+  capital: `Simplified_expr.arms_tuple` and `Arms_tuple`,
+  `Upwards_env.handler_tuple`, `Downwards_env.forwarded_from_tuple`.
 - Types defined together (`type a = ... and b = ...`): the abstract ones
   first, then the others, each after what it mentions; variants that mention
   each other are one `Inductive ... with ...`.
@@ -110,7 +130,8 @@ OCaml name, Rocq name, kind, number of arguments, interface and line.
 - A module that a file of Simplify names by an alias exists, though empty.
 - Every file ends with an empty module of its own name (`Module Simple. End
   Simple.` in `Simple.v`), which the interface does not have. It is there so
-  that no extracted file opens a file of decl/. Without it Rocq's extraction
+  that Rocq, of itself, writes no `open` of a file of decl/ in what it
+  extracts. Without it Rocq's extraction
   writes `open U` in a file that uses a name of `U` that Rocq prints itself (a
   type with parameters, a record, a field, a module), and prints such names
   without `U.`. In OCaml that `open` brings every name of the real module,
@@ -121,8 +142,10 @@ OCaml name, Rocq name, kind, number of arguments, interface and line.
   `Simple.List`). Rocq writes no `open U` when `U` has, at its top, a module
   with the name of a file in use, and `U` is in use where it would be opened.
   So with that last line Rocq prints each name of a file of decl/ in full
-  (`Apply_cont_rewrite_id.Map.t`, `r.Flow_types.Acc.stack`), and an `open` of
-  a module declared here in what Rocq extracts is a fault.
+  (`Apply_cont_rewrite_id.Map.t`, `r.Flow_types.Acc.stack`). Only the `open`s
+  that Rocq inserts by itself go. `open Port_monad` stays, and so does an
+  `open` that a port file carries as OCaml text (such as `open
+  Simplify_import`).
 
 ## Names
 
