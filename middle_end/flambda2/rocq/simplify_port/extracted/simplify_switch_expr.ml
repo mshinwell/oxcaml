@@ -82,17 +82,17 @@ let find_all_aliases env arg =
         Poison kind
       | None -> find_all_aliases0 ())
 
-(** val rebuild_arm : Upwards_acc.t -> Target_ocaml_int.t -> (Apply_cont_expr.t,
-    Branch_annotations.t, Apply_cont_rewrite_id.t, [ `Unarized ]
-    Flambda_arity.t, Flambda2_types.Typing_env.t) Port_monad.tuple5 ->
+(** val rebuild_arm : Upwards_acc.t -> Target_ocaml_int.t -> (Apply_cont_expr.t
+    * annotations:Branch_annotations.t * Apply_cont_rewrite_id.t * [ `Unarized ]
+    Flambda_arity.t * Flambda2_types.Typing_env.t) ->
     (Simplify_import.EB.new_let_cont list, Switch_arm.t TI.Map.t,
     mergeable_arms) Port_monad.tuple3 -> (Simplify_import.EB.new_let_cont list,
     Switch_arm.t TI.Map.t, mergeable_arms) Port_monad.tuple3 coq_M **)
 
 let rebuild_arm uacc arm pat pat0 =
-  (fun x__0 f__1 ->
+  (fun f__1 x__0 ->
     let x__1, ~annotations:x__2, x__3, x__4, x__5 = x__0 in
-    f__1 x__1 x__2 x__3 x__4 x__5) pat
+    f__1 x__1 x__2 x__3 x__4 x__5)
     (fun action annotations use_id arity env_at_use ->
       let new_let_conts, arms0, mergeable_arms0 = pat0 in
       let action0 =
@@ -387,6 +387,7 @@ let rebuild_arm uacc arm pat pat0 =
           let arms1 = Target_ocaml_int.Map.add arm (create_arm action1) arms0 in
           new_let_conts0, arms1, Not_mergeable)
         (Expr_builder.rewrite_switch_arm uacc action0 use_id arity))
+    pat
 
 (** val filter_and_choose_alias : Name.Set.t -> alias_set -> Simple.t option
     coq_M **)
@@ -1369,12 +1370,12 @@ let rebuild_switch pat uacc after_rebuild =
   after_rebuild expr uacc1
 
 (** val simplify_arm : Target_ocaml_int.t -> (Switch_arm.t *
-    Flambda2_types.Typing_env.t) -> ((Apply_cont_expr.t, Branch_annotations.t,
-    Apply_cont_rewrite_id.t, [ `Unarized ] Flambda_arity.t,
-    Flambda2_types.Typing_env.t) Port_monad.tuple5 TI.Map.t * Downwards_acc.t)
-    -> ((Apply_cont_expr.t, Branch_annotations.t, Apply_cont_rewrite_id.t,
-    [ `Unarized ] Flambda_arity.t, Flambda2_types.Typing_env.t)
-    Port_monad.tuple5 TI.Map.t * Downwards_acc.t) coq_M **)
+    Flambda2_types.Typing_env.t) -> ((Apply_cont_expr.t *
+    annotations:Branch_annotations.t * Apply_cont_rewrite_id.t * [ `Unarized ]
+    Flambda_arity.t * Flambda2_types.Typing_env.t) TI.Map.t * Downwards_acc.t)
+    -> ((Apply_cont_expr.t * annotations:Branch_annotations.t *
+    Apply_cont_rewrite_id.t * [ `Unarized ] Flambda_arity.t *
+    Flambda2_types.Typing_env.t) TI.Map.t * Downwards_acc.t) coq_M **)
 
 let simplify_arm arm pat pat0 =
   let switch_arm, env_at_use = pat in
@@ -1425,9 +1426,9 @@ let simplify_arm arm pat pat0 =
   in
   let arms1 =
     Target_ocaml_int.Map.add arm
-      ((fun x__1 x__2 x__3 x__4 x__5 ->
+      ((fun (x__1, x__2, x__3, x__4, x__5) ->
          x__1, ~annotations:x__2, x__3, x__4, x__5)
-         action1 annotations rewrite_id arity env_at_use)
+         (action1, annotations, rewrite_id, arity, env_at_use))
       arms0
   in
   arms1, dacc1

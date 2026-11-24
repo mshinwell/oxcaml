@@ -20,16 +20,16 @@
    that file. What is not from that file: the form (the monad, the
    temporaries [tmpN] and their order, the types with an inline record and
    the polymorphic variants as Rocq inductive types with their extraction)
-   is that of GUIDE.md; the two abbreviations [rebuilder] and [labelled_arm]
-   for two types that the compiler does not name; the names of the
-   arguments that the compiler takes apart in its patterns. No proof. *)
+   is that of GUIDE.md; the abbreviation [rebuilder] for a type that the
+   compiler does not name; the names of the arguments that the compiler
+   takes apart in its patterns. No proof. *)
 
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Import Simplify_import.
 From SimplifyPort.decl Require Simplified_expr Simplify_simple.
-From SimplifyPort.decl Require Alloc_mode Apply_cont_expr
-  Apply_cont_rewrite_id Are_lifting_conts Are_rebuilding_terms
-  Bound_parameters Branch_annotations Code_size Coercion
+From SimplifyPort.decl Require Alloc_mode Apply_cont_rewrite_id
+  Are_lifting_conts Are_rebuilding_terms Bound_parameters
+  Branch_annotations Code_size Coercion
   Common_subexpression_elimination Continuation Continuation_in_env
   Continuation_uses Cost_metrics Current_unit Debuginfo Flambda
   Flambda2_types Flambda_arity Flambda_debug_uid Flambda_features
@@ -128,33 +128,17 @@ Definition find_all_aliases (env : TE.t) (arg : Simple.t) : M alias_set :=
       | None => find_all_aliases tt
       end).
 
-(* PORT-GAP(decl): the arms of a simplified switch are tuples with a label,
-   [(action, ~annotations, use_id, arity, env_at_use)], which decl/ gives
-   as [tuple5]: OCaml does not take a tuple without the label for one. The
-   maker and the eliminator of that tuple are here. *)
-Local Abbreviation labelled_arm :=
-  (tuple5 Apply_cont_expr.t Branch_annotations.t Apply_cont_rewrite_id.t
-     Flambda_arity.t_Unarized Flambda2_types.Typing_env.t).
-Definition mk_labelled_arm (action : Apply_cont_expr.t)
-    (annotations : Branch_annotations.t) (use_id : Apply_cont_rewrite_id.t)
-    (arity : Flambda_arity.t_Unarized) (env_at_use : TE.t) : labelled_arm :=
-  T5 action annotations use_id arity env_at_use.
-Extract Inlined Constant mk_labelled_arm => "(fun x__1 x__2 x__3 x__4 x__5 -> (x__1, ~annotations:x__2, x__3, x__4, x__5))".
-Definition match_labelled_arm {Res : Type} (x : labelled_arm)
-    (f : Apply_cont_expr.t -> Branch_annotations.t -> Apply_cont_rewrite_id.t
-         -> Flambda_arity.t_Unarized -> TE.t -> M Res) : M Res :=
-  match x with T5 x1 x2 x3 x4 x5 => f x1 x2 x3 x4 x5 end.
-Extract Inlined Constant match_labelled_arm => "(fun x__0 f__1 -> let (x__1, ~annotations:x__2, x__3, x__4, x__5) = x__0 in f__1 x__1 x__2 x__3 x__4 x__5)".
-
 (* 82-179. In the compiler the third and the fourth argument are the
    patterns [(action, ~annotations, use_id, arity, env_at_use)] and
    [(new_let_conts, arms, (mergeable_arms : mergeable_arms))]. *)
-Definition rebuild_arm (uacc : UA.t) (arm : TI.t) (pat : labelled_arm)
+Definition rebuild_arm (uacc : UA.t) (arm : TI.t) (pat : SE.arms_tuple)
     (pat0 : tuple3 (list EB.new_let_cont) (TI.Map.t Switch_arm.t)
               mergeable_arms)
     : M (tuple3 (list EB.new_let_cont) (TI.Map.t Switch_arm.t)
            mergeable_arms) :=
-  match_labelled_arm pat (fun action annotations use_id arity env_at_use =>
+  let* '(SE.Arms_tuple action annotations use_id arity env_at_use) :=
+    ret pat
+  in
   let* '(T3 new_let_conts arms mergeable_arms) := ret pat0 in
   (* 84-87 *)
   let* action :=
@@ -287,7 +271,7 @@ Definition rebuild_arm (uacc : UA.t) (arm : TI.t) (pat : labelled_arm)
       TI.Map.add arm tmp1 arms
     in
     ret (T3 new_let_conts arms Not_mergeable)
-  end).
+  end.
 
 (* 181-192. [Simple.pattern_match alias ~name ~const]: the arguments are in
    the order of the interface. *)
@@ -1355,8 +1339,8 @@ Definition rebuild_switch (pat : Simplified_expr.simplified_switch_)
 (* 848-887. In the compiler the second and the third argument are the
    patterns [(switch_arm, env_at_use)] and [(arms, dacc)]. *)
 Definition simplify_arm (arm : TI.t) (pat : Switch_arm.t * TE.t)
-    (pat0 : TI.Map.t labelled_arm * DA.t)
-    : M (TI.Map.t labelled_arm * DA.t) :=
+    (pat0 : TI.Map.t SE.arms_tuple * DA.t)
+    : M (TI.Map.t SE.arms_tuple * DA.t) :=
   let* '(switch_arm, env_at_use) := ret pat in
   let* '(arms, dacc) := ret pat0 in
   let* action := Switch_arm.action switch_arm in
@@ -1411,7 +1395,7 @@ Definition simplify_arm (arm : TI.t) (pat : Switch_arm.t * TE.t)
   in
   let* arms :=
     TI.Map.add arm
-      (mk_labelled_arm action annotations rewrite_id arity env_at_use)
+      (SE.Arms_tuple action annotations rewrite_id arity env_at_use)
       arms
   in
   ret (arms, dacc).
