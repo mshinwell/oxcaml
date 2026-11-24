@@ -22,6 +22,7 @@
 
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Import Simplify_import.
+From SimplifyPort.decl Require Simplified_expr Simplify_simple.
 From SimplifyPort.decl Require Bound_pattern Bound_static Bound_var
   Closure_info Code_id Flow Flow_types List ListLabels Name Name_mode
   Name_occurrences Named_rewrite Named_rewrite_id Or_invalid Or_unknown
@@ -64,15 +65,16 @@ Definition keep_lifted_constant_only_if_used (uacc : UA.t) (acc : LCS.t)
 (* PORT-GAP(loose): 40-48, the compiler's first parameter is the pattern
    [({ SE.bindings_to_place; ... }, body)]; here it has a name and is taken
    apart on the next lines. *)
-Definition rebuild_let (arg : SE.simplified_defining_expr * RE.t) (uacc : UA.t)
-    (after_rebuild : Simplify_common.after_rebuild) : M (RE.t * UA.t) :=
-  let '({| SE.bindings_to_place := bindings_to_place;
-           SE.removed_operations := removed_operations;
-           SE.lifted_constants_from_defining_expr :=
+Definition rebuild_let (arg : Simplified_expr.simplified_defining_expr * RE.t)
+    (uacc : UA.t) (after_rebuild : Simplify_common.after_rebuild)
+    : M (RE.t * UA.t) :=
+  let '({| Simplified_expr.bindings_to_place := bindings_to_place;
+           Simplified_expr.removed_operations := removed_operations;
+           Simplified_expr.lifted_constants_from_defining_expr :=
              lifted_constants_from_defining_expr;
-           SE.at_unit_toplevel := at_unit_toplevel;
-           SE.closure_info := closure_info;
-           SE.rewrite_id := rewrite_id
+           Simplified_expr.at_unit_toplevel := at_unit_toplevel;
+           Simplified_expr.closure_info := closure_info;
+           Simplified_expr.rewrite_id := rewrite_id
         |}, body) := arg in
   (* 49-59 *)
   let* lifted_constants_from_defining_expr :=

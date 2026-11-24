@@ -27,6 +27,7 @@ From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Flambda.
 Import Flambda.Import_.
 From SimplifyPort.decl Require Import Simplify_import.
+From SimplifyPort.decl Require Simplified_expr Simplify_simple.
 From SimplifyPort.decl Require Alloc_mode Apply_cont_expr Apply_cont_rewrite_id
   Apply_expr Are_rebuilding_terms Bound_parameters Bound_pattern Bound_var
   Call_kind Call_site_inlining_decision Call_site_inlining_decision_type
@@ -278,7 +279,7 @@ Definition simplify_direct_tuple_application
 (* 184-197. In the compiler: [expr ~original_call ~callee's_code_metadata]. *)
 Definition update_direct_call_benefit (expr : SE.t)
     (original_call : Call_kind.Function_call.t)
-    (callee's_code_metadata : Code_metadata.t) : M SE.t :=
+    (callee's_code_metadata : Code_metadata.t) : M Simplified_expr.t :=
   match original_call with
   | Call_kind.Function_call.Indirect_unknown_arity
   | Call_kind.Function_call.Indirect_known_arity _ =>
@@ -295,14 +296,14 @@ Definition update_direct_call_benefit (expr : SE.t)
 (* PORT-GAP(loose): 199-201, the compiler's first parameter is the record
    pattern [{ apply; use_id; exn_cont_use_id; result_arity; is_cold }]; here
    it has a name and is taken apart on the next lines. *)
-Definition rebuild_apply (simplified_apply : SE.simplified_apply_)
+Definition rebuild_apply (simplified_apply : Simplified_expr.simplified_apply_)
     (uacc : UA.t) (after_rebuild : Simplify_common.after_rebuild)
     : M (RE.t * UA.t) :=
-  let '{| SE.apply := apply;
-          SE.use_id := use_id;
-          SE.exn_cont_use_id := exn_cont_use_id;
-          SE.result_arity := result_arity;
-          SE.is_cold := is_cold
+  let '{| Simplified_expr.apply := apply;
+          Simplified_expr.use_id := use_id;
+          Simplified_expr.exn_cont_use_id := exn_cont_use_id;
+          Simplified_expr.result_arity := result_arity;
+          Simplified_expr.is_cold := is_cold
        |} := simplified_apply in
   let* apply :=
     Simplify_common.update_exn_continuation_extra_args uacc exn_cont_use_id
@@ -1633,9 +1634,10 @@ Definition simplify_apply_shared (dacc : DA.t) (apply : Apply.t)
       ret (Some callee_ty, Some simplified_callee)
     end
   in
-  let* '{| S.simples := args; S.simple_tys := arg_types |} :=
+  let* '{| Simplify_simple.simples := args;
+           Simplify_simple.simple_tys := arg_types |} :=
     let! tmp1 := Apply.args apply in
-    S.simplify_simples dacc tmp1
+    Simplify_simple.simplify_simples dacc tmp1
   in
   let* kind_mismatch := mk_ref false in
   (* 1283-1296 *)

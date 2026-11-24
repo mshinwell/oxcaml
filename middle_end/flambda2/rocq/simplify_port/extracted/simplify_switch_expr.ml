@@ -1264,17 +1264,17 @@ let recognize_mergeable_argument machine_width scrutinee0 required_names dbg arg
                    Affine_argument { kind = x__1; offset = x__2; slope = x__3 })
                    (kind, offset, slope))))
 
-(** val rebuild_switch : Simplify_import.SE.simplified_switch_ -> Upwards_acc.t
-    -> Simplify_common.after_rebuild -> (Rebuilt_expr.t * Upwards_acc.t) coq_M **)
+(** val rebuild_switch : Simplified_expr.simplified_switch_ -> Upwards_acc.t ->
+    Simplify_common.after_rebuild -> (Rebuilt_expr.t * Upwards_acc.t) coq_M **)
 
 let rebuild_switch pat uacc after_rebuild =
-  let { Simplify_import.SE.arms = arms0;
-        Simplify_import.SE.condition_dbg = condition_dbg0;
-        Simplify_import.SE.scrutinee = scrutinee0;
-        Simplify_import.SE.scrutinee_ty = scrutinee_ty0;
-        Simplify_import.SE.shareable_constants = shareable_constants0;
-        Simplify_import.SE.typing_env_before_switch = typing_env_before_switch0;
-        Simplify_import.SE.cse_before_switch = cse_before_switch0
+  let { Simplified_expr.arms = arms0;
+        Simplified_expr.condition_dbg = condition_dbg0;
+        Simplified_expr.scrutinee = scrutinee0;
+        Simplified_expr.scrutinee_ty = scrutinee_ty0;
+        Simplified_expr.shareable_constants = shareable_constants0;
+        Simplified_expr.typing_env_before_switch = typing_env_before_switch0;
+        Simplified_expr.cse_before_switch = cse_before_switch0
       } =
     pat
   in
@@ -1390,8 +1390,8 @@ let simplify_arm arm pat pat0 =
   let use_kind =
     Simplify_common.apply_cont_use_kind Simplify_common.Switch_branch action
   in
-  let { Simplify_import.S.simples = args0;
-        Simplify_import.S.simple_tys = arg_types
+  let { Simplify_simple.simples = args0;
+        Simplify_simple.simple_tys = arg_types
       } =
     Simplify_simple.simplify_simples
       (Downwards_acc.with_denv dacc denv_at_use)

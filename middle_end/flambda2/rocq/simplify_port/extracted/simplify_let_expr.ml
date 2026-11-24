@@ -54,19 +54,19 @@ let keep_lifted_constant_only_if_used uacc acc lifted_constant =
   then Lifted_constant_state.add acc lifted_constant
   else acc
 
-(** val rebuild_let : (Simplify_import.SE.simplified_defining_expr *
+(** val rebuild_let : (Simplified_expr.simplified_defining_expr *
     Rebuilt_expr.t) -> Upwards_acc.t -> Simplify_common.after_rebuild ->
     (Rebuilt_expr.t * Upwards_acc.t) coq_M **)
 
 let rebuild_let arg uacc after_rebuild =
   let s, body = arg in
-  let { Simplify_import.SE.bindings_to_place = bindings_to_place0;
-        Simplify_import.SE.removed_operations = removed_operations0;
-        Simplify_import.SE.lifted_constants_from_defining_expr =
+  let { Simplified_expr.bindings_to_place = bindings_to_place0;
+        Simplified_expr.removed_operations = removed_operations0;
+        Simplified_expr.lifted_constants_from_defining_expr =
           lifted_constants_from_defining_expr0;
-        Simplify_import.SE.at_unit_toplevel = at_unit_toplevel0;
-        Simplify_import.SE.closure_info = closure_info0;
-        Simplify_import.SE.rewrite_id = rewrite_id0
+        Simplified_expr.at_unit_toplevel = at_unit_toplevel0;
+        Simplified_expr.closure_info = closure_info0;
+        Simplified_expr.rewrite_id = rewrite_id0
       } =
     s
   in

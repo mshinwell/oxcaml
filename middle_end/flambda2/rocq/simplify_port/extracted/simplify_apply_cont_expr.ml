@@ -205,9 +205,8 @@ let rebuild_apply_cont args rewrite_id apply_cont uacc after_rebuild =
     Downwards_acc.t) coq_M **)
 
 let simplify_apply_cont dacc apply_cont down_to_up0 =
-  let { Simplify_import.S.simples = args;
-        Simplify_import.S.simple_tys = arg_types
-      } =
+  let { Simplify_simple.simples = args; Simplify_simple.simple_tys = arg_types }
+      =
     Simplify_simple.simplify_simples dacc (Flambda.Apply_cont.args apply_cont)
   in
   let use_kind =

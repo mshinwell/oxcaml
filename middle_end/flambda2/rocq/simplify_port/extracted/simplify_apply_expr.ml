@@ -221,15 +221,15 @@ let update_direct_call_benefit expr original_call callee's_code_metadata =
     Simplified_expr.notify_removed Removed_operations.direct_call_of_indirect
       expr
 
-(** val rebuild_apply : Simplify_import.SE.simplified_apply_ -> Upwards_acc.t ->
+(** val rebuild_apply : Simplified_expr.simplified_apply_ -> Upwards_acc.t ->
     Simplify_common.after_rebuild -> (Rebuilt_expr.t * Upwards_acc.t) coq_M **)
 
 let rebuild_apply simplified_apply uacc after_rebuild =
-  let { Simplify_import.SE.apply = apply0;
-        Simplify_import.SE.use_id = use_id0;
-        Simplify_import.SE.exn_cont_use_id = exn_cont_use_id0;
-        Simplify_import.SE.result_arity = result_arity0;
-        Simplify_import.SE.is_cold = is_cold0
+  let { Simplified_expr.apply = apply0;
+        Simplified_expr.use_id = use_id0;
+        Simplified_expr.exn_cont_use_id = exn_cont_use_id0;
+        Simplified_expr.result_arity = result_arity0;
+        Simplified_expr.is_cold = is_cold0
       } =
     simplified_apply
   in
@@ -1643,9 +1643,8 @@ let simplify_apply_shared dacc apply0 =
       Some callee_ty, Some simplified_callee
     | None -> None, None
   in
-  let { Simplify_import.S.simples = args;
-        Simplify_import.S.simple_tys = arg_types
-      } =
+  let { Simplify_simple.simples = args; Simplify_simple.simple_tys = arg_types }
+      =
     Simplify_simple.simplify_simples dacc (Flambda.Apply.args apply0)
   in
   let kind_mismatch = ref false in

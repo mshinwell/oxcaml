@@ -22,6 +22,7 @@
 
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Import Simplify_import.
+From SimplifyPort.decl Require Simplified_expr Simplify_simple.
 From SimplifyPort.decl Require Apply_cont_expr Apply_cont_rewrite_id
   Bound_parameters Code_size Continuation Continuation_callsite_map
   Continuation_in_env Cost_metrics Flow List ListLabels Name_occurrences
@@ -44,6 +45,11 @@ Definition inline_linearly_used_continuation (uacc : UA.t)
   (let! tmp1 := AC.trap_action apply_cont in
    let! tmp2 := Option.is_none tmp1 in
    assert_ tmp2) ;;
+  (* We can't easily call [simplify_expr] on the inlined body since [dacc] isn't
+     the correct accumulator and environment any more. However there's no need
+     to simplify the inlined body except to make use of parameter-to-argument
+     bindings; we just leave them for a subsequent round of [Simplify] or
+     [To_cmm] to clean up. *)
   let* args := AC.args apply_cont in
   (* 33-41 *)
   (let! tmp1 := List.compare_lengths params args in
@@ -116,7 +122,10 @@ Definition rebuild_apply_cont (args : list Simple.t)
         let! tmp1 := AC.with_continuation apply_cont specialized in
         ret (specialized, tmp1))
   in
-  (* 86-88 *)
+  (* 83-88 *)
+  (* Get temperature information from the original apply cont before applying
+     shortcuts, so that we don't lose it when following a shortcut from a cold
+     to a hot continuation. *)
   let* is_cold :=
     let! tmp1 := UA.uenv uacc in
     UE.is_cold_continuation tmp1 cont
@@ -127,6 +136,12 @@ Definition rebuild_apply_cont (args : list Simple.t)
   let& create_apply_cont :=
     fun (apply_cont_to_expr :
           Apply_cont.t -> M (tuple3 RE.t Cost_metrics.t Name_occurrences.t)) =>
+    (* The function returned by this code accepts another function, which will
+       be called with the [Apply_cont] expression after subjecting it to any
+       rewrites (e.g. adding or removing parameters). This gives the chance of
+       replacing the [Apply_cont] with something else -- in particular an
+       inlined continuation -- before it is wrapped in any [Let]-expressions
+       needed as a result of the rewrite. *)
     let* rewrite_use_result :=
       let* apply_cont :=
         Simplify_common.clear_demoted_trap_action_and_patch_unused_exn_bucket
@@ -157,15 +172,38 @@ Definition rebuild_apply_cont (args : list Simple.t)
   (* 119-173 *)
   let& apply_cont_to_expr :=
     fun (apply_cont : Apply_cont.t) =>
+    (* Note that we call [UE.find_continuation] on the continuation after
+       resolving shortcuts, which looks like it could break linearity.
+
+       However this is OK because we can't create shortcuts to a
+       [Linearly_used_and_inlinable] continuation: shortcuts are created after
+       rebuilding, at which point [Linearly_used_and_inlinable] continuations
+       have already been inlined. *)
     let* cont := AC.continuation apply_cont in
     let! tmp1 := UE.find_continuation uenv cont in
     match tmp1 with
     | Continuation_in_env.Linearly_used_and_inlinable params handler
         free_names_of_handler cost_metrics_of_handler =>
+      (* We must not fail to inline here, since we've already decided that the
+         relevant [Let_cont] is no longer needed.
+
+         When removing continuations don't increment the removed branch counter.
+         We can't be sure that removing a continuation maps to removing a branch
+         as the decision will be taken later on by the backend. If we were able
+         to track the number of times each continuation is used then we would be
+         able to track this a bit better (or to create a new counter to count
+         the number of continuations) that became linearly used. In any case the
+         impact of branches is harder to quantify than the impact of allocating
+         (branches can be moved by the backend, their runtime depends on the
+         branch predictor...). Underestimating the number of removed branches is
+         fine. *)
       let* handler := if is_cold then RE.mark_as_cold handler else ret handler in
       inline_linearly_used_continuation uacc params handler
         free_names_of_handler cost_metrics_of_handler apply_cont
     | Continuation_in_env.Invalid _ =>
+      (* We allow this transformation even if there is a trap action, on the
+         basis that there wouldn't be any opportunity to collect any backtrace,
+         even if the [Apply_cont] were compiled as "raise". *)
       let! tmp1 :=
         RE.create_invalid
           (Flambda.Invalid.Apply_cont_of_unreachable_continuation cont)
@@ -174,6 +212,15 @@ Definition rebuild_apply_cont (args : list Simple.t)
     | Continuation_in_env.Non_inlinable_zero_arity _
     | Continuation_in_env.Non_inlinable_non_zero_arity _
     | Continuation_in_env.Toplevel_or_function_return_or_exn_continuation _ =>
+      (* Update temperature from the actual continuation after taking shortcuts,
+         as we could have a shortcut from a hot to a cold continuation.
+
+         CR-someday bclement: we can sometimes lose temperature information if
+         we merge a [k1] (hot) -> [k2] (cold) -> [k3] (hot) shortcut chain: this
+         should be replaced by a cold (rebuilt) apply_cont to [k3], but we'll
+         currently create a hot one because we don't store temperature
+         information in the shortcuts themselves. This seems rare enough not to
+         worry about too much. *)
       let* is_cold :=
         or_else is_cold
           (let! tmp1 := Apply_cont.continuation apply_cont in
@@ -193,9 +240,10 @@ Definition rebuild_apply_cont (args : list Simple.t)
 Definition simplify_apply_cont (dacc : DA.t) (apply_cont : Apply_cont.t)
     (down_to_up : Simplify_common.down_to_up SE.t) : M (SE.t * DA.t) :=
   (* 177-179 *)
-  let* '{| S.simples := args; S.simple_tys := arg_types |} :=
+  let* '{| Simplify_simple.simples := args;
+           Simplify_simple.simple_tys := arg_types |} :=
     let! tmp1 := AC.args apply_cont in
-    S.simplify_simples dacc tmp1
+    Simplify_simple.simplify_simples dacc tmp1
   in
   let* use_kind :=
     Simplify_common.apply_cont_use_kind Simplify_common.Apply_cont_expr

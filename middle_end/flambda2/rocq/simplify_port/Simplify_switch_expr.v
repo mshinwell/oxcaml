@@ -26,6 +26,7 @@
 
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Import Simplify_import.
+From SimplifyPort.decl Require Simplified_expr Simplify_simple.
 From SimplifyPort.decl Require Alloc_mode Apply_cont_expr
   Apply_cont_rewrite_id Are_lifting_conts Are_rebuilding_terms
   Bound_parameters Branch_annotations Code_size Coercion
@@ -1237,15 +1238,16 @@ Definition recognize_mergeable_argument
 (* 759-846. In the compiler the first argument is the pattern of the
    record. *)
 (* PORT-GAP(loose): 797, the attribute [@inline] is not kept. *)
-Definition rebuild_switch (pat : SE.simplified_switch_) (uacc : UA.t)
-    (after_rebuild : Simplify_common.after_rebuild) : M (RE.t * UA.t) :=
-  let* '{| SE.arms := arms;
-           SE.condition_dbg := condition_dbg;
-           SE.scrutinee := scrutinee;
-           SE.scrutinee_ty := scrutinee_ty;
-           SE.shareable_constants := shareable_constants;
-           SE.typing_env_before_switch := typing_env_before_switch;
-           SE.cse_before_switch := cse_before_switch |} :=
+Definition rebuild_switch (pat : Simplified_expr.simplified_switch_)
+    (uacc : UA.t) (after_rebuild : Simplify_common.after_rebuild)
+    : M (RE.t * UA.t) :=
+  let* '{| Simplified_expr.arms := arms;
+           Simplified_expr.condition_dbg := condition_dbg;
+           Simplified_expr.scrutinee := scrutinee;
+           Simplified_expr.scrutinee_ty := scrutinee_ty;
+           Simplified_expr.shareable_constants := shareable_constants;
+           Simplified_expr.typing_env_before_switch := typing_env_before_switch;
+           Simplified_expr.cse_before_switch := cse_before_switch |} :=
     ret pat
   in
   let* machine_width := TE.machine_width typing_env_before_switch in
@@ -1370,9 +1372,10 @@ Definition simplify_arm (arm : TI.t) (pat : Switch_arm.t * TE.t)
   let* use_kind :=
     Simplify_common.apply_cont_use_kind Simplify_common.Switch_branch action
   in
-  let* '{| S.simples := args; S.simple_tys := arg_types |} :=
+  let* '{| Simplify_simple.simples := args;
+           Simplify_simple.simple_tys := arg_types |} :=
     let! tmp1 := DA.with_denv dacc denv_at_use in
-    S.simplify_simples tmp1 args
+    Simplify_simple.simplify_simples tmp1 args
   in
   let* denv_at_use :=
     let! tmp1 := Switch_arm.is_cold switch_arm in
