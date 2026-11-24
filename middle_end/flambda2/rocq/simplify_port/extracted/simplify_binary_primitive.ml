@@ -21,424 +21,1235 @@
    middle_end/flambda2/rocq/simplify_port. *)
 
 open! Simplify_import
+
+module Number_adjuncts = struct
+  include Number_adjuncts
+
+  module For_tagged_immediates = struct
+    include For_tagged_immediates
+
+    module Num = struct
+      include Num
+      module Set_ = Set
+
+      module Pair = struct
+        include Pair
+        module Set_ = Set
+      end
+    end
+  end
+
+  module For_naked_immediates = struct
+    include For_naked_immediates
+
+    module Num = struct
+      include Num
+      module Set_ = Set
+
+      module Pair = struct
+        include Pair
+        module Set_ = Set
+      end
+    end
+  end
+
+  module For_int8s = struct
+    include For_int8s
+
+    module Num = struct
+      include Num
+      module Set_ = Set
+
+      module Pair = struct
+        include Pair
+        module Set_ = Set
+      end
+    end
+  end
+
+  module For_int16s = struct
+    include For_int16s
+
+    module Num = struct
+      include Num
+      module Set_ = Set
+
+      module Pair = struct
+        include Pair
+        module Set_ = Set
+      end
+    end
+  end
+
+  module For_int32s = struct
+    include For_int32s
+
+    module Num = struct
+      include Num
+      module Set_ = Set
+
+      module Pair = struct
+        include Pair
+        module Set_ = Set
+      end
+    end
+  end
+
+  module For_int64s = struct
+    include For_int64s
+
+    module Num = struct
+      include Num
+      module Set_ = Set
+
+      module Pair = struct
+        include Pair
+        module Set_ = Set
+      end
+    end
+  end
+
+  module For_nativeints = struct
+    include For_nativeints
+
+    module Num = struct
+      include Num
+      module Set_ = Set
+
+      module Pair = struct
+        include Pair
+        module Set_ = Set
+      end
+    end
+  end
+end
+
+open Port_monad
 module A = Number_adjuncts
+
+module Target_ocaml_int_ = struct
+  type t = Target_ocaml_int.t
+
+  (** val compare : t -> t -> int coq_M **)
+
+  let compare = Target_ocaml_int.compare
+
+  module Set_ = struct
+    type elt = Target_ocaml_int.t
+
+    type t = Target_ocaml_int.Set.t
+
+    (** val is_empty : t -> bool coq_M **)
+
+    let is_empty = Target_ocaml_int.Set.is_empty
+
+    (** val cardinal : t -> int coq_M **)
+
+    let cardinal = Target_ocaml_int.Set.cardinal
+
+    (** val fold : (elt -> 'a1 -> 'a1 coq_M) -> t -> 'a1 -> 'a1 coq_M **)
+
+    let fold = Target_ocaml_int.Set.fold
+
+    (** val of_list : elt list -> t coq_M **)
+
+    let of_list = Target_ocaml_int.Set.of_list
+
+    (** val get_singleton : t -> elt option coq_M **)
+
+    let get_singleton = Target_ocaml_int.Set.get_singleton
+  end
+end
+
+module Float_by_bit_pattern = struct
+  type t = Numeric_types.Float_by_bit_pattern.t
+
+  (** val equal : t -> t -> bool coq_M **)
+
+  let equal = Numeric_types.Float_by_bit_pattern.equal
+
+  (** val compare : t -> t -> int coq_M **)
+
+  let compare = Numeric_types.Float_by_bit_pattern.compare
+
+  module Set_ = struct
+    type elt = Numeric_types.Float_by_bit_pattern.t
+
+    type t = Numeric_types.Float_by_bit_pattern.Set.t
+
+    (** val is_empty : t -> bool coq_M **)
+
+    let is_empty = Numeric_types.Float_by_bit_pattern.Set.is_empty
+
+    (** val cardinal : t -> int coq_M **)
+
+    let cardinal = Numeric_types.Float_by_bit_pattern.Set.cardinal
+
+    (** val fold : (elt -> 'a1 -> 'a1 coq_M) -> t -> 'a1 -> 'a1 coq_M **)
+
+    let fold = Numeric_types.Float_by_bit_pattern.Set.fold
+
+    (** val of_list : elt list -> t coq_M **)
+
+    let of_list = Numeric_types.Float_by_bit_pattern.Set.of_list
+
+    (** val get_singleton : t -> elt option coq_M **)
+
+    let get_singleton = Numeric_types.Float_by_bit_pattern.Set.get_singleton
+  end
+
+  (** val one : t **)
+
+  let one = Numeric_types.Float_by_bit_pattern.one
+
+  (** val minus_one : t **)
+
+  let minus_one = Numeric_types.Float_by_bit_pattern.minus_one
+
+  (** val is_any_nan : t -> bool coq_M **)
+
+  let is_any_nan = Numeric_types.Float_by_bit_pattern.is_any_nan
+
+  module IEEE_semantics = struct
+    (** val add : t -> t -> t coq_M **)
+
+    let add = Numeric_types.Float_by_bit_pattern.IEEE_semantics.add
+
+    (** val sub : t -> t -> t coq_M **)
+
+    let sub = Numeric_types.Float_by_bit_pattern.IEEE_semantics.sub
+
+    (** val mul : t -> t -> t coq_M **)
+
+    let mul = Numeric_types.Float_by_bit_pattern.IEEE_semantics.mul
+
+    (** val div : t -> t -> t coq_M **)
+
+    let div = Numeric_types.Float_by_bit_pattern.IEEE_semantics.div
+
+    (** val equal : t -> t -> bool coq_M **)
+
+    let equal = Numeric_types.Float_by_bit_pattern.IEEE_semantics.equal
+
+    (** val compare : t -> t -> int coq_M **)
+
+    let compare = Numeric_types.Float_by_bit_pattern.IEEE_semantics.compare
+  end
+
+  module Pair = struct
+    type t =
+      Numeric_types.Float_by_bit_pattern.t
+      * Numeric_types.Float_by_bit_pattern.t
+
+    module Set_ = struct
+      type elt =
+        Numeric_types.Float_by_bit_pattern.t
+        * Numeric_types.Float_by_bit_pattern.t
+
+      type t = Numeric_types.Float_by_bit_pattern.Pair.Set.t
+
+      (** val fold : (elt -> 'a1 -> 'a1 coq_M) -> t -> 'a1 -> 'a1 coq_M **)
+
+      let fold = Numeric_types.Float_by_bit_pattern.Pair.Set.fold
+    end
+  end
+
+  (** val cross_product : Set_.t -> Set_.t -> Pair.Set_.t coq_M **)
+
+  let cross_product = Numeric_types.Float_by_bit_pattern.cross_product
+end
+
+module Float32_by_bit_pattern = struct
+  type t = Numeric_types.Float32_by_bit_pattern.t
+
+  (** val equal : t -> t -> bool coq_M **)
+
+  let equal = Numeric_types.Float32_by_bit_pattern.equal
+
+  (** val compare : t -> t -> int coq_M **)
+
+  let compare = Numeric_types.Float32_by_bit_pattern.compare
+
+  module Set_ = struct
+    type elt = Numeric_types.Float32_by_bit_pattern.t
+
+    type t = Numeric_types.Float32_by_bit_pattern.Set.t
+
+    (** val is_empty : t -> bool coq_M **)
+
+    let is_empty = Numeric_types.Float32_by_bit_pattern.Set.is_empty
+
+    (** val cardinal : t -> int coq_M **)
+
+    let cardinal = Numeric_types.Float32_by_bit_pattern.Set.cardinal
+
+    (** val fold : (elt -> 'a1 -> 'a1 coq_M) -> t -> 'a1 -> 'a1 coq_M **)
+
+    let fold = Numeric_types.Float32_by_bit_pattern.Set.fold
+
+    (** val of_list : elt list -> t coq_M **)
+
+    let of_list = Numeric_types.Float32_by_bit_pattern.Set.of_list
+
+    (** val get_singleton : t -> elt option coq_M **)
+
+    let get_singleton = Numeric_types.Float32_by_bit_pattern.Set.get_singleton
+  end
+
+  (** val one : t **)
+
+  let one = Numeric_types.Float32_by_bit_pattern.one
+
+  (** val minus_one : t **)
+
+  let minus_one = Numeric_types.Float32_by_bit_pattern.minus_one
+
+  (** val is_any_nan : t -> bool coq_M **)
+
+  let is_any_nan = Numeric_types.Float32_by_bit_pattern.is_any_nan
+
+  module IEEE_semantics = struct
+    (** val add : t -> t -> t coq_M **)
+
+    let add = Numeric_types.Float32_by_bit_pattern.IEEE_semantics.add
+
+    (** val sub : t -> t -> t coq_M **)
+
+    let sub = Numeric_types.Float32_by_bit_pattern.IEEE_semantics.sub
+
+    (** val mul : t -> t -> t coq_M **)
+
+    let mul = Numeric_types.Float32_by_bit_pattern.IEEE_semantics.mul
+
+    (** val div : t -> t -> t coq_M **)
+
+    let div = Numeric_types.Float32_by_bit_pattern.IEEE_semantics.div
+
+    (** val equal : t -> t -> bool coq_M **)
+
+    let equal = Numeric_types.Float32_by_bit_pattern.IEEE_semantics.equal
+
+    (** val compare : t -> t -> int coq_M **)
+
+    let compare = Numeric_types.Float32_by_bit_pattern.IEEE_semantics.compare
+  end
+
+  module Pair = struct
+    type t =
+      Numeric_types.Float32_by_bit_pattern.t
+      * Numeric_types.Float32_by_bit_pattern.t
+
+    module Set_ = struct
+      type elt =
+        Numeric_types.Float32_by_bit_pattern.t
+        * Numeric_types.Float32_by_bit_pattern.t
+
+      type t = Numeric_types.Float32_by_bit_pattern.Pair.Set.t
+
+      (** val fold : (elt -> 'a1 -> 'a1 coq_M) -> t -> 'a1 -> 'a1 coq_M **)
+
+      let fold = Numeric_types.Float32_by_bit_pattern.Pair.Set.fold
+    end
+  end
+
+  (** val cross_product : Set_.t -> Set_.t -> Pair.Set_.t coq_M **)
+
+  let cross_product = Numeric_types.Float32_by_bit_pattern.cross_product
+end
 
 type 'a binary_arith_outcome_for_one_side_only =
   | Exactly of 'a
   | The_other_side
   | Negation_of_the_other_side
-  | Bitwise_not_of_the_other_side of K.Standard_int.t
+  | Bitwise_not_of_the_other_side of Flambda_kind.Standard_int.t
   | Float_negation_of_the_other_side of Flambda_primitive.float_bitwidth
   | Cannot_simplify
   | Invalid
 
-module type Binary_arith_like_sig = sig
-  module Lhs : Container_types.S
+module type Container_types_S = sig
+  type t
 
-  module Rhs : Container_types.S
+  val compare : t -> t -> int coq_M
 
-  module Pair : Container_types.S with type t = Lhs.t * Rhs.t
+  module Set_ : sig
+    type elt = t
 
-  module Result : Container_types.S
+    type t
 
-  val ok_to_evaluate : DE.t -> bool
+    val is_empty : t -> bool coq_M
 
-  val cross_product : Lhs.Set.t -> Rhs.Set.t -> Pair.Set.t
+    val cardinal : t -> int coq_M
 
-  val arg_kind : K.Standard_int_or_float.t
+    val fold : (elt -> 'a1 -> 'a1 coq_M) -> t -> 'a1 -> 'a1 coq_M
 
-  val result_kind : K.t
+    val of_list : elt list -> t coq_M
 
-  val term : Result.t -> Named.t
-
-  val prover_lhs : T.Typing_env.t -> T.t -> Lhs.Set.t T.meet_shortcut
-
-  val prover_rhs : T.Typing_env.t -> T.t -> Rhs.Set.t T.meet_shortcut
-
-  type op
-
-  val unknown : machine_width:Target_system.Machine_width.t -> op -> T.t
-
-  val these : Result.Set.t -> T.t * Simple.t option
-
-  val op :
-    machine_width:Target_system.Machine_width.t ->
-    op ->
-    Lhs.t ->
-    Rhs.t ->
-    Result.t option
-
-  val op_lhs_unknown :
-    machine_width:Target_system.Machine_width.t ->
-    op ->
-    rhs:Rhs.t ->
-    Result.t binary_arith_outcome_for_one_side_only
-
-  val op_rhs_unknown :
-    machine_width:Target_system.Machine_width.t ->
-    op ->
-    lhs:Lhs.t ->
-    Result.t binary_arith_outcome_for_one_side_only
+    val get_singleton : t -> elt option coq_M
+  end
 end
 
-module Binary_arith_like (N : Binary_arith_like_sig) : sig
-  val simplify :
-    N.op ->
-    DA.t ->
-    original_term:Named.t ->
-    Debuginfo.t ->
-    arg1:Simple.t ->
-    arg1_ty:Flambda2_types.t ->
-    arg2:Simple.t ->
-    arg2_ty:Flambda2_types.t ->
-    result_var:Bound_var.t ->
-    SPR.t
-end = struct
-  module Possible_result = struct
-    type t =
-      | Simple of Simple.t
-      | Prim of P.t
-      | Exactly of N.Result.t
+module type Pair_S = sig
+  type t
 
-    (* This signature aims to constrain the size of the [Set] module block,
-       since this is duplicated a lot via inlining in the rest of this file. *)
-    module Set : sig
+  module Set_ : sig
+    type elt = t
+
+    type t
+
+    val fold : (elt -> 'a1 -> 'a1 coq_M) -> t -> 'a1 -> 'a1 coq_M
+  end
+end
+
+module type Int_number_kind = sig
+  module Num : sig
+    type t
+
+    val equal : t -> t -> bool coq_M
+
+    val compare : t -> t -> int coq_M
+
+    module Set_ : sig
       type elt = t
 
       type t
 
-      val empty : t
+      val is_empty : t -> bool coq_M
 
-      val add : elt -> t -> t
+      val cardinal : t -> int coq_M
 
-      val is_empty : t -> bool
+      val fold : (elt -> 'a1 -> 'a1 coq_M) -> t -> 'a1 -> 'a1 coq_M
 
-      val cardinal : t -> int
+      val of_list : elt list -> t coq_M
 
-      val get_singleton : t -> elt option
+      val get_singleton : t -> elt option coq_M
+    end
 
-      val elements : t -> elt list
-    end = Container_types.Make_set [@inlined hint] (struct
-      type nonrec t = t
+    module Pair : Pair_S with type t = t * t
 
-      let compare t1 t2 =
-        match t1, t2 with
-        | Simple simple1, Simple simple2 -> Simple.compare simple1 simple2
-        | Prim prim1, Prim prim2 -> P.compare prim1 prim2
-        | Exactly i1, Exactly i2 -> N.Result.compare i1 i2
-        | Simple _, (Prim _ | Exactly _) -> -1
-        | Prim _, Simple _ -> 1
-        | Prim _, Exactly _ -> -1
-        | Exactly _, (Simple _ | Prim _) -> 1
+    val cross_product : Set_.t -> Set_.t -> Pair.Set_.t coq_M
 
-      let print _ _ = Misc.fatal_error "Not implemented"
-    end)
+    val zero : Target_system.Machine_width.t -> t coq_M
+
+    val one : Target_system.Machine_width.t -> t coq_M
+
+    val minus_one : Target_system.Machine_width.t -> t coq_M
+
+    val add : t -> t -> t coq_M
+
+    val sub : t -> t -> t coq_M
+
+    val mul : t -> t -> t coq_M
+
+    val div : t -> t -> t option coq_M
+
+    val mod_ : t -> t -> t option coq_M
+
+    val to_const : t -> Reg_width_const.t coq_M
+
+    val and_ : t -> t -> t coq_M
+
+    val or_ : t -> t -> t coq_M
+
+    val xor : t -> t -> t coq_M
+
+    val unsigned_div : t -> t -> t option coq_M
+
+    val unsigned_mod : t -> t -> t option coq_M
+
+    val shift_left : t -> Target_ocaml_int.t -> t coq_M
+
+    val shift_right : t -> Target_ocaml_int.t -> t coq_M
+
+    val shift_right_logical : t -> Target_ocaml_int.t -> t coq_M
+
+    val compare_unsigned : t -> t -> int coq_M
   end
 
-  let max_num_possible_results = 10
+  val standard_int_or_float_kind : Flambda_kind.Standard_int_or_float.t
 
-  let simplify op dacc ~original_term dbg ~arg1 ~arg1_ty ~arg2 ~arg2_ty
-      ~result_var =
-    let module PR = Possible_result in
-    let denv = DA.denv dacc in
-    let typing_env = DE.typing_env denv in
-    let proof1 = N.prover_lhs typing_env arg1_ty in
-    let proof2 = N.prover_rhs typing_env arg2_ty in
-    let kind = N.result_kind in
-    let[@inline always] result_unknown () =
-      let machine_width = DE.machine_width denv in
-      let dacc =
-        DA.add_variable dacc result_var (N.unknown ~machine_width op)
-      in
-      SPR.create original_term ~try_reify:false dacc
-    in
-    let[@inline always] result_invalid () =
-      let dacc = DA.add_variable dacc result_var (T.bottom kind) in
-      SPR.create_invalid dacc
-    in
-    let check_possible_results ~possible_results =
-      if PR.Set.is_empty possible_results
-      then result_invalid ()
-      else
-        let named =
-          match PR.Set.get_singleton possible_results with
-          | Some (Exactly i) -> N.term i
-          | Some (Prim prim) -> Named.create_prim prim dbg
-          | Some (Simple simple) -> Named.create_simple simple
-          | None -> original_term
+  val unboxed_prover :
+    Flambda2_types.Typing_env.t ->
+    Flambda2_types.t ->
+    Num.Set_.t Flambda2_types.meet_shortcut coq_M
+
+  val these_unboxed : Num.Set_.t -> Flambda2_types.t coq_M
+
+  val term_unboxed : Num.t -> Flambda.Named.t coq_M
+
+  val standard_int_kind : Flambda_kind.Standard_int.t
+end
+
+module type Numeric_types_Float_by_bit_pattern = sig
+  type t
+
+  val equal : t -> t -> bool coq_M
+
+  val compare : t -> t -> int coq_M
+
+  module Set_ : sig
+    type elt = t
+
+    type t
+
+    val is_empty : t -> bool coq_M
+
+    val cardinal : t -> int coq_M
+
+    val fold : (elt -> 'a1 -> 'a1 coq_M) -> t -> 'a1 -> 'a1 coq_M
+
+    val of_list : elt list -> t coq_M
+
+    val get_singleton : t -> elt option coq_M
+  end
+
+  val one : t
+
+  val minus_one : t
+
+  val is_any_nan : t -> bool coq_M
+
+  module IEEE_semantics : sig
+    val add : t -> t -> t coq_M
+
+    val sub : t -> t -> t coq_M
+
+    val mul : t -> t -> t coq_M
+
+    val div : t -> t -> t coq_M
+
+    val equal : t -> t -> bool coq_M
+
+    val compare : t -> t -> int coq_M
+  end
+
+  module Pair : Pair_S with type t = t * t
+
+  val cross_product : Set_.t -> Set_.t -> Pair.Set_.t coq_M
+end
+
+module type Binary_arith_like_sig = sig
+  module Lhs : Container_types_S
+
+  module Rhs : Container_types_S
+
+  module Pair : Pair_S with type t = Lhs.t * Rhs.t
+
+  module Result : Container_types_S
+
+  val ok_to_evaluate : Downwards_env.t -> bool coq_M
+
+  val cross_product : Lhs.Set_.t -> Rhs.Set_.t -> Pair.Set_.t coq_M
+
+  val arg_kind : Flambda_kind.Standard_int_or_float.t
+
+  val result_kind : Flambda_kind.t
+
+  val term : Result.t -> Flambda.Named.t coq_M
+
+  val prover_lhs :
+    Flambda2_types.Typing_env.t ->
+    Flambda2_types.t ->
+    Lhs.Set_.t Flambda2_types.meet_shortcut coq_M
+
+  val prover_rhs :
+    Flambda2_types.Typing_env.t ->
+    Flambda2_types.t ->
+    Rhs.Set_.t Flambda2_types.meet_shortcut coq_M
+
+  type op_
+
+  val unknown : Target_system.Machine_width.t -> op_ -> Flambda2_types.t coq_M
+
+  val these : Result.Set_.t -> (Flambda2_types.t * Simple.t option) coq_M
+
+  val op :
+    Target_system.Machine_width.t ->
+    op_ ->
+    Lhs.t ->
+    Rhs.t ->
+    Result.t option coq_M
+
+  val op_lhs_unknown :
+    Target_system.Machine_width.t ->
+    op_ ->
+    Rhs.t ->
+    Result.t binary_arith_outcome_for_one_side_only coq_M
+
+  val op_rhs_unknown :
+    Target_system.Machine_width.t ->
+    op_ ->
+    Lhs.t ->
+    Result.t binary_arith_outcome_for_one_side_only coq_M
+end
+
+module Binary_arith_like =
+functor
+  (N : Binary_arith_like_sig)
+  ->
+  struct
+    module Possible_result = struct
+      type t =
+        | Simple of Simple.t
+        | Prim of Flambda_primitive.t
+        | Exactly of N.Result.t
+
+      (** val compare : t -> t -> int coq_M **)
+
+      let compare t1 t2 =
+        match t1 with
+        | Simple simple1 -> (
+          match t2 with
+          | Simple simple2 -> Simple.compare simple1 simple2
+          | Prim _ -> -1
+          | Exactly _ -> -1)
+        | Prim prim1 -> (
+          match t2 with
+          | Simple _ -> 1
+          | Prim prim2 -> Flambda_primitive.compare prim1 prim2
+          | Exactly _ -> -1)
+        | Exactly i1 -> (
+          match t2 with
+          | Simple _ -> 1
+          | Prim _ -> 1
+          | Exactly i2 -> N.Result.compare i1 i2)
+
+      (** val print : Format.formatter -> t -> unit coq_M **)
+
+      let print _ _ = Misc.fatal_error "Not implemented"
+
+      module Set_ = struct
+        type elt = t
+
+        type t = elt list
+
+        (** val empty : t **)
+
+        let empty = []
+
+        (** val add : elt -> t -> t coq_M **)
+
+        let rec add elt0 s =
+          match s with
+          | [] -> elt0 :: []
+          | elt' :: rest ->
+            let c = compare elt0 elt' in
+            if c < 0
+            then elt0 :: s
+            else if c = 0
+            then s
+            else
+              let rest0 = add elt0 rest in
+              elt' :: rest0
+
+        (** val is_empty : t -> bool coq_M **)
+
+        let is_empty = function [] -> true | _ :: _ -> false
+
+        (** val cardinal : t -> int coq_M **)
+
+        let cardinal = List.length
+
+        (** val get_singleton : t -> elt option coq_M **)
+
+        let get_singleton = function
+          | [] -> None
+          | elt0 :: l -> ( match l with [] -> Some elt0 | _ :: _ -> None)
+
+        (** val elements : t -> elt list coq_M **)
+
+        let elements s = s
+      end
+    end
+
+    (** val max_num_possible_results : int **)
+
+    let max_num_possible_results = 10
+
+    (** val simplify : N.op_ -> Downwards_acc.t -> Flambda.Named.t ->
+        Debuginfo.t -> Simple.t -> Flambda2_types.t -> Simple.t ->
+        Flambda2_types.t -> Bound_var.t -> Simplify_primitive_result.t coq_M **)
+
+    let simplify op0 dacc original_term dbg arg1 arg1_ty arg2 arg2_ty result_var
+        =
+      let denv = Downwards_acc.denv dacc in
+      let typing_env = Downwards_env.typing_env denv in
+      let proof1 = N.prover_lhs typing_env arg1_ty in
+      let proof2 = N.prover_rhs typing_env arg2_ty in
+      let kind = N.result_kind in
+      let result_unknown =
+       fun _ ->
+        let machine_width = Downwards_env.machine_width denv in
+        let dacc0 =
+          Downwards_acc.add_variable dacc result_var
+            (N.unknown machine_width op0)
         in
-        let ty, simple_opt =
-          let is =
-            List.filter_map
-              (fun (possible_result : PR.t) ->
-                match possible_result with
-                | Exactly i -> Some i
-                | Prim _ | Simple _ -> None)
-              (PR.Set.elements possible_results)
+        Simplify_primitive_result.create original_term false dacc0
+      in
+      let result_invalid =
+       fun _ ->
+        let dacc0 =
+          Downwards_acc.add_variable dacc result_var
+            (Flambda2_types.bottom kind)
+        in
+        Simplify_primitive_result.create_invalid dacc0
+      in
+      let check_possible_results =
+       fun possible_results ->
+        if Possible_result.Set_.is_empty possible_results
+        then result_invalid ()
+        else
+          let named =
+            match Possible_result.Set_.get_singleton possible_results with
+            | Some e -> (
+              match e with
+              | Possible_result.Simple simple ->
+                Flambda.Named.create_simple simple
+              | Possible_result.Prim prim -> Flambda.Named.create_prim prim dbg
+              | Possible_result.Exactly i -> N.term i)
+            | None -> original_term
           in
-          if List.length is = PR.Set.cardinal possible_results
-          then N.these (N.Result.Set.of_list is)
-          else
-            match PR.Set.get_singleton possible_results with
-            | Some (Simple simple) -> T.alias_type_of kind simple, Some simple
-            | Some (Exactly _) | Some (Prim _) | None ->
-              let machine_width = DE.machine_width denv in
-              N.unknown ~machine_width op, None
-        in
-        let dacc = DA.add_variable dacc result_var ty in
-        match simple_opt with
-        | None -> SPR.create named ~try_reify:false dacc
-        | Some simple ->
-          let named = Named.create_simple simple in
-          SPR.create named ~try_reify:false dacc
-    in
-    let only_one_side_known op nums ~folder ~other_side =
-      let possible_results =
-        folder
-          (fun i possible_results ->
-            match possible_results with
-            | None -> None
-            | Some possible_results -> (
-              match op i with
-              | Exactly result ->
-                Some (PR.Set.add (Exactly result) possible_results)
-              | The_other_side ->
-                Some (PR.Set.add (Simple other_side) possible_results)
-              | Negation_of_the_other_side ->
-                let standard_int_kind : K.Standard_int.t =
-                  match N.arg_kind with
-                  | Tagged_immediate -> Tagged_immediate
-                  | Naked_immediate -> Naked_immediate
-                  | Naked_int8 -> Naked_int8
-                  | Naked_int16 -> Naked_int16
-                  | Naked_int32 -> Naked_int32
-                  | Naked_int64 -> Naked_int64
-                  | Naked_nativeint -> Naked_nativeint
-                  | Naked_float | Naked_float32 ->
-                    Misc.fatal_error
-                      "Cannot use [Negation_of_the_other_side] with floats; \
-                       use the float version instead"
-                in
-                let machine_width = DE.machine_width denv in
-                let zero =
-                  Simple.const_int_of_kind ~machine_width
-                    (K.Standard_int.to_kind standard_int_kind)
-                    0
-                in
-                let prim : P.t =
-                  Binary (Int_arith (standard_int_kind, Sub), zero, other_side)
-                in
-                Some (PR.Set.add (Prim prim) possible_results)
-              | Bitwise_not_of_the_other_side kind ->
-                let prim : P.t = Unary (Int_arith (kind, Not), other_side) in
-                Some (PR.Set.add (Prim prim) possible_results)
-              | Float_negation_of_the_other_side width ->
-                let prim : P.t = Unary (Float_arith (width, Neg), other_side) in
-                Some (PR.Set.add (Prim prim) possible_results)
-              | Cannot_simplify -> None
-              | Invalid -> Some possible_results))
-          nums (Some PR.Set.empty)
+          let ty, simple_opt =
+            let is_ =
+              List.filter_map
+                (fun possible_result ->
+                  match possible_result with
+                  | Possible_result.Simple _ -> None
+                  | Possible_result.Prim _ -> None
+                  | Possible_result.Exactly i -> Some i)
+                (Possible_result.Set_.elements possible_results)
+            in
+            if List.length is_ = Possible_result.Set_.cardinal possible_results
+            then N.these (N.Result.Set_.of_list is_)
+            else
+              match Possible_result.Set_.get_singleton possible_results with
+              | Some e -> (
+                match e with
+                | Possible_result.Simple simple ->
+                  Flambda2_types.alias_type_of kind simple, Some simple
+                | Possible_result.Prim _ ->
+                  let machine_width = Downwards_env.machine_width denv in
+                  N.unknown machine_width op0, None
+                | Possible_result.Exactly _ ->
+                  let machine_width = Downwards_env.machine_width denv in
+                  N.unknown machine_width op0, None)
+              | None ->
+                let machine_width = Downwards_env.machine_width denv in
+                N.unknown machine_width op0, None
+          in
+          let dacc0 = Downwards_acc.add_variable dacc result_var ty in
+          match simple_opt with
+          | Some simple ->
+            let named0 = Flambda.Named.create_simple simple in
+            Simplify_primitive_result.create named0 false dacc0
+          | None -> Simplify_primitive_result.create named false dacc0
       in
-      match possible_results with
-      | Some results -> check_possible_results ~possible_results:results
-      | None -> result_unknown ()
-    in
-    match proof1, proof2 with
-    | Known_result nums1, Known_result nums2 when N.ok_to_evaluate denv ->
-      assert (not (N.Lhs.Set.is_empty nums1));
-      assert (not (N.Rhs.Set.is_empty nums2));
-      if
-        N.Lhs.Set.cardinal nums1 > max_num_possible_results
-        || N.Rhs.Set.cardinal nums2 > max_num_possible_results
-      then result_unknown ()
-      else
-        let all_pairs = N.cross_product nums1 nums2 in
-        let possible_results =
-          N.Pair.Set.fold
-            (fun (i1, i2) possible_results ->
-              let machine_width = DE.machine_width denv in
-              match N.op ~machine_width op i1 i2 with
-              | None -> possible_results
-              | Some result -> PR.Set.add (Exactly result) possible_results)
-            all_pairs PR.Set.empty
-        in
-        check_possible_results ~possible_results
-    | Known_result nums1, Need_meet when N.ok_to_evaluate denv ->
-      assert (not (N.Lhs.Set.is_empty nums1));
-      let machine_width = DE.machine_width denv in
-      only_one_side_known
-        (fun i -> N.op_rhs_unknown ~machine_width op ~lhs:i)
-        nums1 ~folder:N.Lhs.Set.fold ~other_side:arg2
-    | Need_meet, Known_result nums2 when N.ok_to_evaluate denv ->
-      assert (not (N.Rhs.Set.is_empty nums2));
-      let machine_width = DE.machine_width denv in
-      only_one_side_known
-        (fun i -> N.op_lhs_unknown ~machine_width op ~rhs:i)
-        nums2 ~folder:N.Rhs.Set.fold ~other_side:arg1
-    | (Known_result _ | Need_meet), (Known_result _ | Need_meet) ->
-      result_unknown ()
-    | Invalid, _ | _, Invalid -> result_invalid ()
-end
-[@@inline always]
+      (fun f__1 f__2 f__3 x__0 ->
+        match (x__0 : _ Flambda2_types.meet_shortcut) with
+        | Flambda2_types.Known_result x__1 -> f__1 x__1
+        | Flambda2_types.Need_meet -> f__2 ()
+        | Flambda2_types.Invalid -> f__3 ())
+        (fun nums1 ->
+          (fun f__1 f__2 f__3 x__0 ->
+            match (x__0 : _ Flambda2_types.meet_shortcut) with
+            | Flambda2_types.Known_result x__1 -> f__1 x__1
+            | Flambda2_types.Need_meet -> f__2 ()
+            | Flambda2_types.Invalid -> f__3 ())
+            (fun nums2 ->
+              if N.ok_to_evaluate denv
+              then
+                let () = assert (not (N.Lhs.Set_.is_empty nums1)) in
+                let () = assert (not (N.Rhs.Set_.is_empty nums2)) in
+                if
+                  N.Lhs.Set_.cardinal nums1 > max_num_possible_results
+                  || N.Rhs.Set_.cardinal nums2 > max_num_possible_results
+                then result_unknown ()
+                else
+                  let all_pairs = N.cross_product nums1 nums2 in
+                  let possible_results =
+                    N.Pair.Set_.fold
+                      (fun pat ->
+                        let i1, i2 = pat in
+                        fun possible_results ->
+                          let machine_width =
+                            Downwards_env.machine_width denv
+                          in
+                          match N.op machine_width op0 i1 i2 with
+                          | Some result ->
+                            Possible_result.Set_.add
+                              (Possible_result.Exactly result) possible_results
+                          | None -> possible_results)
+                      all_pairs Possible_result.Set_.empty
+                  in
+                  check_possible_results possible_results
+              else result_unknown ())
+            (fun _ ->
+              if N.ok_to_evaluate denv
+              then
+                let () = assert (not (N.Lhs.Set_.is_empty nums1)) in
+                let machine_width = Downwards_env.machine_width denv in
+                let possible_results =
+                  N.Lhs.Set_.fold
+                    (fun i possible_results ->
+                      match possible_results with
+                      | Some possible_results0 -> (
+                        match N.op_rhs_unknown machine_width op0 i with
+                        | Exactly result ->
+                          Some
+                            (Possible_result.Set_.add
+                               (Possible_result.Exactly result)
+                               possible_results0)
+                        | The_other_side ->
+                          Some
+                            (Possible_result.Set_.add
+                               (Possible_result.Simple arg2) possible_results0)
+                        | Negation_of_the_other_side ->
+                          let standard_int_kind0 =
+                            match N.arg_kind with
+                            | Flambda_kind.Standard_int_or_float
+                              .Tagged_immediate ->
+                              Flambda_kind.Standard_int.Tagged_immediate
+                            | Flambda_kind.Standard_int_or_float.Naked_immediate
+                              ->
+                              Flambda_kind.Standard_int.Naked_immediate
+                            | Flambda_kind.Standard_int_or_float.Naked_float32
+                              ->
+                              Misc.fatal_error
+                                "Cannot use [Negation_of_the_other_side] with \
+                                 floats; use the float version instead"
+                            | Flambda_kind.Standard_int_or_float.Naked_float ->
+                              Misc.fatal_error
+                                "Cannot use [Negation_of_the_other_side] with \
+                                 floats; use the float version instead"
+                            | Flambda_kind.Standard_int_or_float.Naked_int8 ->
+                              Flambda_kind.Standard_int.Naked_int8
+                            | Flambda_kind.Standard_int_or_float.Naked_int16 ->
+                              Flambda_kind.Standard_int.Naked_int16
+                            | Flambda_kind.Standard_int_or_float.Naked_int32 ->
+                              Flambda_kind.Standard_int.Naked_int32
+                            | Flambda_kind.Standard_int_or_float.Naked_int64 ->
+                              Flambda_kind.Standard_int.Naked_int64
+                            | Flambda_kind.Standard_int_or_float.Naked_nativeint
+                              ->
+                              Flambda_kind.Standard_int.Naked_nativeint
+                          in
+                          let machine_width0 =
+                            Downwards_env.machine_width denv
+                          in
+                          let zero0 =
+                            Simple.const_int_of_kind machine_width0
+                              (Flambda_kind.Standard_int.to_kind
+                                 standard_int_kind0)
+                              0
+                          in
+                          let prim =
+                            Flambda_primitive.Binary
+                              ( Flambda_primitive.Int_arith
+                                  ( standard_int_kind0,
+                                    (Flambda_primitive.Sub
+                                      : Flambda_primitive.binary_int_arith_op)
+                                  ),
+                                zero0,
+                                arg2 )
+                          in
+                          Some
+                            (Possible_result.Set_.add
+                               (Possible_result.Prim prim) possible_results0)
+                        | Bitwise_not_of_the_other_side kind0 ->
+                          let prim =
+                            Flambda_primitive.Unary
+                              ( (fun (x__1, x__2) ->
+                                  (Flambda_primitive.Int_arith (x__1, x__2)
+                                    : Flambda_primitive.unary_primitive))
+                                  (kind0, Flambda_primitive.Not),
+                                arg2 )
+                          in
+                          Some
+                            (Possible_result.Set_.add
+                               (Possible_result.Prim prim) possible_results0)
+                        | Float_negation_of_the_other_side width0 ->
+                          let prim =
+                            Flambda_primitive.Unary
+                              ( (fun (x__1, x__2) ->
+                                  (Flambda_primitive.Float_arith (x__1, x__2)
+                                    : Flambda_primitive.unary_primitive))
+                                  (width0, Flambda_primitive.Neg),
+                                arg2 )
+                          in
+                          Some
+                            (Possible_result.Set_.add
+                               (Possible_result.Prim prim) possible_results0)
+                        | Cannot_simplify -> None
+                        | Invalid -> Some possible_results0)
+                      | None -> None)
+                    nums1 (Some Possible_result.Set_.empty)
+                in
+                match possible_results with
+                | Some results -> check_possible_results results
+                | None -> result_unknown ()
+              else result_unknown ())
+            (fun _ -> result_invalid ())
+            proof2)
+        (fun _ ->
+          (fun f__1 f__2 f__3 x__0 ->
+            match (x__0 : _ Flambda2_types.meet_shortcut) with
+            | Flambda2_types.Known_result x__1 -> f__1 x__1
+            | Flambda2_types.Need_meet -> f__2 ()
+            | Flambda2_types.Invalid -> f__3 ())
+            (fun nums2 ->
+              if N.ok_to_evaluate denv
+              then
+                let () = assert (not (N.Rhs.Set_.is_empty nums2)) in
+                let machine_width = Downwards_env.machine_width denv in
+                let possible_results =
+                  N.Rhs.Set_.fold
+                    (fun i possible_results ->
+                      match possible_results with
+                      | Some possible_results0 -> (
+                        match N.op_lhs_unknown machine_width op0 i with
+                        | Exactly result ->
+                          Some
+                            (Possible_result.Set_.add
+                               (Possible_result.Exactly result)
+                               possible_results0)
+                        | The_other_side ->
+                          Some
+                            (Possible_result.Set_.add
+                               (Possible_result.Simple arg1) possible_results0)
+                        | Negation_of_the_other_side ->
+                          let standard_int_kind0 =
+                            match N.arg_kind with
+                            | Flambda_kind.Standard_int_or_float
+                              .Tagged_immediate ->
+                              Flambda_kind.Standard_int.Tagged_immediate
+                            | Flambda_kind.Standard_int_or_float.Naked_immediate
+                              ->
+                              Flambda_kind.Standard_int.Naked_immediate
+                            | Flambda_kind.Standard_int_or_float.Naked_float32
+                              ->
+                              Misc.fatal_error
+                                "Cannot use [Negation_of_the_other_side] with \
+                                 floats; use the float version instead"
+                            | Flambda_kind.Standard_int_or_float.Naked_float ->
+                              Misc.fatal_error
+                                "Cannot use [Negation_of_the_other_side] with \
+                                 floats; use the float version instead"
+                            | Flambda_kind.Standard_int_or_float.Naked_int8 ->
+                              Flambda_kind.Standard_int.Naked_int8
+                            | Flambda_kind.Standard_int_or_float.Naked_int16 ->
+                              Flambda_kind.Standard_int.Naked_int16
+                            | Flambda_kind.Standard_int_or_float.Naked_int32 ->
+                              Flambda_kind.Standard_int.Naked_int32
+                            | Flambda_kind.Standard_int_or_float.Naked_int64 ->
+                              Flambda_kind.Standard_int.Naked_int64
+                            | Flambda_kind.Standard_int_or_float.Naked_nativeint
+                              ->
+                              Flambda_kind.Standard_int.Naked_nativeint
+                          in
+                          let machine_width0 =
+                            Downwards_env.machine_width denv
+                          in
+                          let zero0 =
+                            Simple.const_int_of_kind machine_width0
+                              (Flambda_kind.Standard_int.to_kind
+                                 standard_int_kind0)
+                              0
+                          in
+                          let prim =
+                            Flambda_primitive.Binary
+                              ( Flambda_primitive.Int_arith
+                                  ( standard_int_kind0,
+                                    (Flambda_primitive.Sub
+                                      : Flambda_primitive.binary_int_arith_op)
+                                  ),
+                                zero0,
+                                arg1 )
+                          in
+                          Some
+                            (Possible_result.Set_.add
+                               (Possible_result.Prim prim) possible_results0)
+                        | Bitwise_not_of_the_other_side kind0 ->
+                          let prim =
+                            Flambda_primitive.Unary
+                              ( (fun (x__1, x__2) ->
+                                  (Flambda_primitive.Int_arith (x__1, x__2)
+                                    : Flambda_primitive.unary_primitive))
+                                  (kind0, Flambda_primitive.Not),
+                                arg1 )
+                          in
+                          Some
+                            (Possible_result.Set_.add
+                               (Possible_result.Prim prim) possible_results0)
+                        | Float_negation_of_the_other_side width0 ->
+                          let prim =
+                            Flambda_primitive.Unary
+                              ( (fun (x__1, x__2) ->
+                                  (Flambda_primitive.Float_arith (x__1, x__2)
+                                    : Flambda_primitive.unary_primitive))
+                                  (width0, Flambda_primitive.Neg),
+                                arg1 )
+                          in
+                          Some
+                            (Possible_result.Set_.add
+                               (Possible_result.Prim prim) possible_results0)
+                        | Cannot_simplify -> None
+                        | Invalid -> Some possible_results0)
+                      | None -> None)
+                    nums2 (Some Possible_result.Set_.empty)
+                in
+                match possible_results with
+                | Some results -> check_possible_results results
+                | None -> result_unknown ()
+              else result_unknown ())
+            (fun _ -> result_unknown ())
+            (fun _ -> result_invalid ())
+            proof2)
+        (fun _ -> result_invalid ())
+        proof1
+  end
 
-module Int_ops_for_binary_arith (I : A.Int_number_kind) : sig
-  include Binary_arith_like_sig with type op = P.binary_int_arith_op
-end = struct
-  module Lhs = I.Num
-  module Rhs = I.Num
-  module Result = I.Num
+module Int_ops_for_binary_arith =
+functor
+  (I : Int_number_kind)
+  ->
+  struct
+    module Lhs = I.Num
+    module Rhs = I.Num
+    module Result = I.Num
 
-  type op = P.binary_int_arith_op
+    type op_ = Flambda_primitive.binary_int_arith_op
 
-  (* There are never any restrictions on the constant propagation of integers,
-     unlike for floats. *)
-  let ok_to_evaluate _env = true
+    (** val ok_to_evaluate : Downwards_env.t -> bool coq_M **)
 
-  let arg_kind = I.standard_int_or_float_kind
+    let ok_to_evaluate _ = true
 
-  let result_kind = K.Standard_int_or_float.to_kind arg_kind
+    (** val arg_kind : Flambda_kind.Standard_int_or_float.t **)
 
-  let prover_lhs = I.unboxed_prover
+    let arg_kind = I.standard_int_or_float_kind
 
-  let prover_rhs = I.unboxed_prover
+    (** val result_kind : Flambda_kind.t **)
 
-  let unknown ~machine_width:_ _ =
-    match arg_kind with
-    | Tagged_immediate -> T.any_tagged_immediate
-    | Naked_immediate -> T.any_naked_immediate
-    | Naked_float32 -> T.any_naked_float32
-    | Naked_float -> T.any_naked_float
-    | Naked_int8 -> T.any_naked_int8
-    | Naked_int16 -> T.any_naked_int16
-    | Naked_int32 -> T.any_naked_int32
-    | Naked_int64 -> T.any_naked_int64
-    | Naked_nativeint -> T.any_naked_nativeint
+    let result_kind = Flambda_kind.Standard_int_or_float.to_kind arg_kind
 
-  let these s =
-    let ty = I.these_unboxed s in
-    let simple_opt =
-      match I.Num.Set.get_singleton s with
-      | None -> None
-      | Some i -> Some (Simple.const (I.Num.to_const i))
-    in
-    ty, simple_opt
+    (** val prover_lhs : Flambda2_types.Typing_env.t -> Flambda2_types.t ->
+        I.Num.Set_.t Flambda2_types.meet_shortcut coq_M **)
 
-  let term = I.term_unboxed
+    let prover_lhs = I.unboxed_prover
 
-  module Pair = I.Num.Pair
+    (** val prover_rhs : Flambda2_types.Typing_env.t -> Flambda2_types.t ->
+        I.Num.Set_.t Flambda2_types.meet_shortcut coq_M **)
 
-  let cross_product = I.Num.cross_product
+    let prover_rhs = I.unboxed_prover
 
-  let op ~machine_width:_ (op : P.binary_int_arith_op) n1 n2 =
-    let always_some f = Some (f n1 n2) in
-    match op with
-    | Add -> always_some I.Num.add
-    | Sub -> always_some I.Num.sub
-    | Mul -> always_some I.Num.mul
-    | Div Signed -> I.Num.div n1 n2
-    | Mod Signed -> I.Num.mod_ n1 n2
-    | Div Unsigned -> I.Num.unsigned_div n1 n2
-    | Mod Unsigned -> I.Num.unsigned_mod n1 n2
-    | And -> always_some I.Num.and_
-    | Or -> always_some I.Num.or_
-    | Xor -> always_some I.Num.xor
+    (** val unknown : Target_system.Machine_width.t -> op_ -> Flambda2_types.t
+        coq_M **)
 
-  type symmetric_op =
-    | Add
-    | Mul
-    | And
-    | Or
-    | Xor
+    let unknown _ _ =
+      match arg_kind with
+      | Flambda_kind.Standard_int_or_float.Tagged_immediate ->
+        Flambda2_types.any_tagged_immediate
+      | Flambda_kind.Standard_int_or_float.Naked_immediate ->
+        Flambda2_types.any_naked_immediate
+      | Flambda_kind.Standard_int_or_float.Naked_float32 ->
+        Flambda2_types.any_naked_float32
+      | Flambda_kind.Standard_int_or_float.Naked_float ->
+        Flambda2_types.any_naked_float
+      | Flambda_kind.Standard_int_or_float.Naked_int8 ->
+        Flambda2_types.any_naked_int8
+      | Flambda_kind.Standard_int_or_float.Naked_int16 ->
+        Flambda2_types.any_naked_int16
+      | Flambda_kind.Standard_int_or_float.Naked_int32 ->
+        Flambda2_types.any_naked_int32
+      | Flambda_kind.Standard_int_or_float.Naked_int64 ->
+        Flambda2_types.any_naked_int64
+      | Flambda_kind.Standard_int_or_float.Naked_nativeint ->
+        Flambda2_types.any_naked_nativeint
 
-  module Num = I.Num
+    (** val these : I.Num.Set_.t -> (Flambda2_types.t * Simple.t option) coq_M **)
 
-  let symmetric_op_one_side_unknown ~machine_width (op : symmetric_op)
-      ~this_side : Num.t binary_arith_outcome_for_one_side_only =
-    match op with
-    | Add ->
-      if Num.equal this_side (Num.zero machine_width)
-      then The_other_side
-      else Cannot_simplify
-    | Mul ->
-      if Num.equal this_side (Num.zero machine_width)
-      then Exactly (Num.zero machine_width)
-      else if Num.equal this_side (Num.one machine_width)
-      then The_other_side
-      else if Num.equal this_side (Num.minus_one machine_width)
-      then Negation_of_the_other_side
-      else Cannot_simplify
-    | And ->
-      if Num.equal this_side (Num.minus_one machine_width)
-      then The_other_side
-      else if Num.equal this_side (Num.zero machine_width)
-      then Exactly (Num.zero machine_width)
-      else Cannot_simplify
-    | Or ->
-      if Num.equal this_side (Num.minus_one machine_width)
-      then Exactly (Num.minus_one machine_width)
-      else if Num.equal this_side (Num.zero machine_width)
-      then The_other_side
-      else Cannot_simplify
-    | Xor ->
-      if Num.equal this_side (Num.zero machine_width)
-      then The_other_side
-      else if Num.equal this_side (Num.minus_one machine_width)
-      then Bitwise_not_of_the_other_side I.standard_int_kind
-      else Cannot_simplify
+    let these s =
+      let ty = I.these_unboxed s in
+      let simple_opt =
+        match I.Num.Set_.get_singleton s with
+        | Some i -> Some (Simple.const (I.Num.to_const i))
+        | None -> None
+      in
+      ty, simple_opt
 
-  let op_lhs_unknown ~machine_width (op : P.binary_int_arith_op) ~rhs :
-      Num.t binary_arith_outcome_for_one_side_only =
-    match op with
-    | Add -> symmetric_op_one_side_unknown ~machine_width Add ~this_side:rhs
-    | Mul -> symmetric_op_one_side_unknown ~machine_width Mul ~this_side:rhs
-    | And -> symmetric_op_one_side_unknown ~machine_width And ~this_side:rhs
-    | Or -> symmetric_op_one_side_unknown ~machine_width Or ~this_side:rhs
-    | Xor -> symmetric_op_one_side_unknown ~machine_width Xor ~this_side:rhs
-    | Sub ->
-      if Num.equal rhs (Num.zero machine_width)
-      then The_other_side
-      else Cannot_simplify
-    | Div signedness ->
-      (* Division ("safe" division, strictly speaking, in Lambda terminology) is
-         translated to a conditional on the denominator followed by an unsafe
-         division (the "Div" seen here) on the way into Flambda 2. So if the
-         denominator turns out to be zero here, via the typing or whatever, then
-         we're in unreachable code. *)
-      if Num.equal rhs (Num.zero machine_width)
-      then Invalid
-      else if Num.equal rhs (Num.one machine_width)
-      then The_other_side
-      else if
-        Num.equal rhs (Num.minus_one machine_width)
-        && match signedness with Signed -> true | Unsigned -> false
-      then Negation_of_the_other_side
-      else Cannot_simplify
-    | Mod signedness ->
-      if Num.equal rhs (Num.zero machine_width)
-      then Invalid
-      else if Num.equal rhs (Num.one machine_width)
-      then Exactly (Num.zero machine_width)
-      else if
-        Num.equal rhs (Num.minus_one machine_width)
-        && match signedness with Signed -> true | Unsigned -> false
-      then Exactly (Num.zero machine_width)
-      else Cannot_simplify
+    (** val term : I.Num.t -> Flambda.Named.t coq_M **)
 
-  let op_rhs_unknown ~machine_width (op : P.binary_int_arith_op) ~lhs :
-      Num.t binary_arith_outcome_for_one_side_only =
-    match op with
-    | Add -> symmetric_op_one_side_unknown ~machine_width Add ~this_side:lhs
-    | Mul -> symmetric_op_one_side_unknown ~machine_width Mul ~this_side:lhs
-    | And -> symmetric_op_one_side_unknown ~machine_width And ~this_side:lhs
-    | Or -> symmetric_op_one_side_unknown ~machine_width Or ~this_side:lhs
-    | Xor -> symmetric_op_one_side_unknown ~machine_width Xor ~this_side:lhs
-    | Sub ->
-      if Num.equal lhs (Num.zero machine_width)
-      then Negation_of_the_other_side
-      else Cannot_simplify
-    | Div (Signed | Unsigned) | Mod (Signed | Unsigned) -> Cannot_simplify
-end
-[@@inline always]
+    let term = I.term_unboxed
+
+    module Pair = I.Num.Pair
+
+    (** val cross_product : I.Num.Set_.t -> I.Num.Set_.t -> I.Num.Pair.Set_.t
+        coq_M **)
+
+    let cross_product = I.Num.cross_product
+
+    (** val op : Target_system.Machine_width.t ->
+        Flambda_primitive.binary_int_arith_op -> I.Num.t -> I.Num.t -> I.Num.t
+        option coq_M **)
+
+    let op _ op0 n1 n2 =
+      let always_some = fun f -> Some (f n1 n2) in
+      (fun f__1 f__2 f__3 f__4 f__5 f__6 f__7 f__8 x__0 ->
+        match (x__0 : Flambda_primitive.binary_int_arith_op) with
+        | Flambda_primitive.Add -> f__1 ()
+        | Flambda_primitive.Sub -> f__2 ()
+        | Flambda_primitive.Mul -> f__3 ()
+        | Flambda_primitive.Div x__1 -> f__4 x__1
+        | Flambda_primitive.Mod x__1 -> f__5 x__1
+        | Flambda_primitive.And -> f__6 ()
+        | Flambda_primitive.Or -> f__7 ()
+        | Flambda_primitive.Xor -> f__8 ())
+        (fun _ -> always_some I.Num.add)
+        (fun _ -> always_some I.Num.sub)
+        (fun _ -> always_some I.Num.mul)
+        (fun t0 ->
+          match t0 with
+          | Scalar.Signedness.Signed -> I.Num.div n1 n2
+          | Scalar.Signedness.Unsigned -> I.Num.unsigned_div n1 n2)
+        (fun t0 ->
+          match t0 with
+          | Scalar.Signedness.Signed -> I.Num.mod_ n1 n2
+          | Scalar.Signedness.Unsigned -> I.Num.unsigned_mod n1 n2)
+        (fun _ -> always_some I.Num.and_)
+        (fun _ -> always_some I.Num.or_)
+        (fun _ -> always_some I.Num.xor)
+        op0
+
+    type symmetric_op =
+      | Add
+      | Mul
+      | And
+      | Or
+      | Xor
+
+    module Num = I.Num
+
+    (** val symmetric_op_one_side_unknown : Target_system.Machine_width.t ->
+        symmetric_op -> Num.t -> Num.t binary_arith_outcome_for_one_side_only
+        coq_M **)
+
+    let symmetric_op_one_side_unknown machine_width op0 this_side =
+      match op0 with
+      | Add ->
+        if Num.equal this_side (Num.zero machine_width)
+        then The_other_side
+        else Cannot_simplify
+      | Mul ->
+        if Num.equal this_side (Num.zero machine_width)
+        then Exactly (Num.zero machine_width)
+        else if Num.equal this_side (Num.one machine_width)
+        then The_other_side
+        else if Num.equal this_side (Num.minus_one machine_width)
+        then Negation_of_the_other_side
+        else Cannot_simplify
+      | And ->
+        if Num.equal this_side (Num.minus_one machine_width)
+        then The_other_side
+        else if Num.equal this_side (Num.zero machine_width)
+        then Exactly (Num.zero machine_width)
+        else Cannot_simplify
+      | Or ->
+        if Num.equal this_side (Num.minus_one machine_width)
+        then Exactly (Num.minus_one machine_width)
+        else if Num.equal this_side (Num.zero machine_width)
+        then The_other_side
+        else Cannot_simplify
+      | Xor ->
+        if Num.equal this_side (Num.zero machine_width)
+        then The_other_side
+        else if Num.equal this_side (Num.minus_one machine_width)
+        then Bitwise_not_of_the_other_side I.standard_int_kind
+        else Cannot_simplify
+
+    (** val op_lhs_unknown : Target_system.Machine_width.t ->
+        Flambda_primitive.binary_int_arith_op -> Num.t -> Num.t
+        binary_arith_outcome_for_one_side_only coq_M **)
+
+    let op_lhs_unknown machine_width op0 rhs =
+      (fun f__1 f__2 f__3 f__4 f__5 f__6 f__7 f__8 x__0 ->
+        match (x__0 : Flambda_primitive.binary_int_arith_op) with
+        | Flambda_primitive.Add -> f__1 ()
+        | Flambda_primitive.Sub -> f__2 ()
+        | Flambda_primitive.Mul -> f__3 ()
+        | Flambda_primitive.Div x__1 -> f__4 x__1
+        | Flambda_primitive.Mod x__1 -> f__5 x__1
+        | Flambda_primitive.And -> f__6 ()
+        | Flambda_primitive.Or -> f__7 ()
+        | Flambda_primitive.Xor -> f__8 ())
+        (fun _ -> symmetric_op_one_side_unknown machine_width Add rhs)
+        (fun _ ->
+          if Num.equal rhs (Num.zero machine_width)
+          then The_other_side
+          else Cannot_simplify)
+        (fun _ -> symmetric_op_one_side_unknown machine_width Mul rhs)
+        (fun signedness ->
+          if Num.equal rhs (Num.zero machine_width)
+          then Invalid
+          else if Num.equal rhs (Num.one machine_width)
+          then The_other_side
+          else if
+            Num.equal rhs (Num.minus_one machine_width)
+            &&
+            match signedness with
+            | Scalar.Signedness.Signed -> true
+            | Scalar.Signedness.Unsigned -> false
+          then Negation_of_the_other_side
+          else Cannot_simplify)
+        (fun signedness ->
+          if Num.equal rhs (Num.zero machine_width)
+          then Invalid
+          else if Num.equal rhs (Num.one machine_width)
+          then Exactly (Num.zero machine_width)
+          else if
+            Num.equal rhs (Num.minus_one machine_width)
+            &&
+            match signedness with
+            | Scalar.Signedness.Signed -> true
+            | Scalar.Signedness.Unsigned -> false
+          then Exactly (Num.zero machine_width)
+          else Cannot_simplify)
+        (fun _ -> symmetric_op_one_side_unknown machine_width And rhs)
+        (fun _ -> symmetric_op_one_side_unknown machine_width Or rhs)
+        (fun _ -> symmetric_op_one_side_unknown machine_width Xor rhs)
+        op0
+
+    (** val op_rhs_unknown : Target_system.Machine_width.t ->
+        Flambda_primitive.binary_int_arith_op -> Num.t -> Num.t
+        binary_arith_outcome_for_one_side_only coq_M **)
+
+    let op_rhs_unknown machine_width op0 lhs =
+      (fun f__1 f__2 f__3 f__4 f__5 f__6 f__7 f__8 x__0 ->
+        match (x__0 : Flambda_primitive.binary_int_arith_op) with
+        | Flambda_primitive.Add -> f__1 ()
+        | Flambda_primitive.Sub -> f__2 ()
+        | Flambda_primitive.Mul -> f__3 ()
+        | Flambda_primitive.Div x__1 -> f__4 x__1
+        | Flambda_primitive.Mod x__1 -> f__5 x__1
+        | Flambda_primitive.And -> f__6 ()
+        | Flambda_primitive.Or -> f__7 ()
+        | Flambda_primitive.Xor -> f__8 ())
+        (fun _ -> symmetric_op_one_side_unknown machine_width Add lhs)
+        (fun _ ->
+          if Num.equal lhs (Num.zero machine_width)
+          then Negation_of_the_other_side
+          else Cannot_simplify)
+        (fun _ -> symmetric_op_one_side_unknown machine_width Mul lhs)
+        (fun t0 ->
+          match t0 with
+          | Scalar.Signedness.Signed -> Cannot_simplify
+          | Scalar.Signedness.Unsigned -> Cannot_simplify)
+        (fun t0 ->
+          match t0 with
+          | Scalar.Signedness.Signed -> Cannot_simplify
+          | Scalar.Signedness.Unsigned -> Cannot_simplify)
+        (fun _ -> symmetric_op_one_side_unknown machine_width And lhs)
+        (fun _ -> symmetric_op_one_side_unknown machine_width Or lhs)
+        (fun _ -> symmetric_op_one_side_unknown machine_width Xor lhs)
+        op0
+  end
 
 module Int_ops_for_binary_arith_tagged_immediate =
   Int_ops_for_binary_arith (A.For_tagged_immediates)
@@ -464,108 +1275,168 @@ module Binary_int_arith_int64 =
 module Binary_int_arith_nativeint =
   Binary_arith_like (Int_ops_for_binary_arith_nativeint)
 
-module Int_ops_for_binary_shift (I : A.Int_number_kind) : sig
-  include Binary_arith_like_sig with type op = P.int_shift_op
-end = struct
-  module Lhs = I.Num
-  module Rhs = Target_ocaml_int
-  module Result = I.Num
+module Int_ops_for_binary_shift =
+functor
+  (I : Int_number_kind)
+  ->
+  struct
+    module Lhs = I.Num
+    module Rhs = Target_ocaml_int_
+    module Result = I.Num
 
-  type op = P.int_shift_op
+    type op_ = Flambda_primitive.int_shift_op
 
-  let arg_kind = I.standard_int_or_float_kind
+    (** val arg_kind : Flambda_kind.Standard_int_or_float.t **)
 
-  let result_kind = K.Standard_int_or_float.to_kind arg_kind
+    let arg_kind = I.standard_int_or_float_kind
 
-  let ok_to_evaluate _env = true
+    (** val result_kind : Flambda_kind.t **)
 
-  let prover_lhs = I.unboxed_prover
+    let result_kind = Flambda_kind.Standard_int_or_float.to_kind arg_kind
 
-  let prover_rhs = T.meet_naked_immediates
+    (** val ok_to_evaluate : Downwards_env.t -> bool coq_M **)
 
-  let unknown ~machine_width:_ _ =
-    match arg_kind with
-    | Tagged_immediate -> T.any_tagged_immediate
-    | Naked_immediate -> T.any_naked_immediate
-    | Naked_float32 -> T.any_naked_float32
-    | Naked_float -> T.any_naked_float
-    | Naked_int8 -> T.any_naked_int8
-    | Naked_int16 -> T.any_naked_int16
-    | Naked_int32 -> T.any_naked_int32
-    | Naked_int64 -> T.any_naked_int64
-    | Naked_nativeint -> T.any_naked_nativeint
+    let ok_to_evaluate _ = true
 
-  let these s =
-    let ty = I.these_unboxed s in
-    let simple_opt =
-      match I.Num.Set.get_singleton s with
-      | None -> None
-      | Some i -> Some (Simple.const (I.Num.to_const i))
-    in
-    ty, simple_opt
+    (** val prover_lhs : Flambda2_types.Typing_env.t -> Flambda2_types.t ->
+        I.Num.Set_.t Flambda2_types.meet_shortcut coq_M **)
 
-  let term = I.term_unboxed
+    let prover_lhs = I.unboxed_prover
 
-  module Pair = struct
-    type nonrec t = Lhs.t * Rhs.t
+    (** val prover_rhs : Flambda2_types.Typing_env.t -> Flambda2_types.t ->
+        Target_ocaml_int.Set.t Flambda2_types.meet_shortcut coq_M **)
 
-    include Container_types.Make_pair (Lhs) (Rhs)
+    let prover_rhs = Flambda2_types.meet_naked_immediates
+
+    (** val unknown : Target_system.Machine_width.t -> op_ -> Flambda2_types.t
+        coq_M **)
+
+    let unknown _ _ =
+      match arg_kind with
+      | Flambda_kind.Standard_int_or_float.Tagged_immediate ->
+        Flambda2_types.any_tagged_immediate
+      | Flambda_kind.Standard_int_or_float.Naked_immediate ->
+        Flambda2_types.any_naked_immediate
+      | Flambda_kind.Standard_int_or_float.Naked_float32 ->
+        Flambda2_types.any_naked_float32
+      | Flambda_kind.Standard_int_or_float.Naked_float ->
+        Flambda2_types.any_naked_float
+      | Flambda_kind.Standard_int_or_float.Naked_int8 ->
+        Flambda2_types.any_naked_int8
+      | Flambda_kind.Standard_int_or_float.Naked_int16 ->
+        Flambda2_types.any_naked_int16
+      | Flambda_kind.Standard_int_or_float.Naked_int32 ->
+        Flambda2_types.any_naked_int32
+      | Flambda_kind.Standard_int_or_float.Naked_int64 ->
+        Flambda2_types.any_naked_int64
+      | Flambda_kind.Standard_int_or_float.Naked_nativeint ->
+        Flambda2_types.any_naked_nativeint
+
+    (** val these : I.Num.Set_.t -> (Flambda2_types.t * Simple.t option) coq_M **)
+
+    let these s =
+      let ty = I.these_unboxed s in
+      let simple_opt =
+        match I.Num.Set_.get_singleton s with
+        | Some i -> Some (Simple.const (I.Num.to_const i))
+        | None -> None
+      in
+      ty, simple_opt
+
+    (** val term : I.Num.t -> Flambda.Named.t coq_M **)
+
+    let term = I.term_unboxed
+
+    module Pair = struct
+      type t = Lhs.t * Rhs.t
+
+      module Set_ = struct
+        type elt = t
+
+        type t = elt list
+
+        (** val empty : t **)
+
+        let empty = []
+
+        (** val add : elt -> t -> t coq_M **)
+
+        let add elt0 s = elt0 :: s
+
+        (** val fold : (elt -> 'a1 -> 'a1 coq_M) -> t -> 'a1 -> 'a1 coq_M **)
+
+        let rec fold f s acc =
+          match s with
+          | [] -> acc
+          | elt0 :: rest ->
+            let acc0 = fold f rest acc in
+            f elt0 acc0
+      end
+    end
+
+    (** val cross_product : Lhs.Set_.t -> Rhs.Set_.t -> Pair.Set_.t coq_M **)
+
+    let cross_product set1 set2 =
+      Lhs.Set_.fold
+        (fun elt1 result ->
+          Rhs.Set_.fold
+            (fun elt2 result0 -> Pair.Set_.add (elt1, elt2) result0)
+            set2 result)
+        set1 Pair.Set_.empty
+
+    module Num = I.Num
+
+    (** val op : Target_system.Machine_width.t -> Flambda_primitive.int_shift_op
+        -> Num.t -> Target_ocaml_int.t -> Num.t option coq_M **)
+
+    let op _ op0 n1 n2 =
+      let always_some = fun f -> Some (f n1 n2) in
+      match op0 with
+      | Flambda_primitive.Lsl -> always_some Num.shift_left
+      | Flambda_primitive.Lsr -> always_some Num.shift_right_logical
+      | Flambda_primitive.Asr -> always_some Num.shift_right
+
+    (** val op_lhs_unknown : Target_system.Machine_width.t ->
+        Flambda_primitive.int_shift_op -> Target_ocaml_int.t -> Num.t
+        binary_arith_outcome_for_one_side_only coq_M **)
+
+    let op_lhs_unknown machine_width op0 rhs =
+      let rhs0 = rhs in
+      match op0 with
+      | Flambda_primitive.Lsl ->
+        if Target_ocaml_int.equal rhs0 (Target_ocaml_int.zero machine_width)
+        then The_other_side
+        else Cannot_simplify
+      | Flambda_primitive.Lsr ->
+        if Target_ocaml_int.equal rhs0 (Target_ocaml_int.zero machine_width)
+        then The_other_side
+        else Cannot_simplify
+      | Flambda_primitive.Asr ->
+        if Target_ocaml_int.equal rhs0 (Target_ocaml_int.zero machine_width)
+        then The_other_side
+        else Cannot_simplify
+
+    (** val op_rhs_unknown : Target_system.Machine_width.t ->
+        Flambda_primitive.int_shift_op -> Num.t -> Num.t
+        binary_arith_outcome_for_one_side_only coq_M **)
+
+    let op_rhs_unknown machine_width op0 lhs =
+      match op0 with
+      | Flambda_primitive.Lsl ->
+        if Num.equal lhs (Num.zero machine_width)
+        then Exactly (Num.zero machine_width)
+        else Cannot_simplify
+      | Flambda_primitive.Lsr ->
+        if Num.equal lhs (Num.zero machine_width)
+        then Exactly (Num.zero machine_width)
+        else Cannot_simplify
+      | Flambda_primitive.Asr ->
+        if Num.equal lhs (Num.zero machine_width)
+        then Exactly (Num.zero machine_width)
+        else if Num.equal lhs (Num.minus_one machine_width)
+        then Exactly (Num.minus_one machine_width)
+        else Cannot_simplify
   end
-
-  let cross_product set1 set2 =
-    Lhs.Set.fold
-      (fun elt1 result ->
-        Rhs.Set.fold
-          (fun elt2 result -> Pair.Set.add (elt1, elt2) result)
-          set2 result)
-      set1 Pair.Set.empty
-
-  module Num = I.Num
-
-  let op ~machine_width:_ (op : P.int_shift_op) n1 n2 =
-    let always_some f = Some (f n1 n2) in
-    match op with
-    | Lsl -> always_some Num.shift_left
-    | Lsr -> always_some Num.shift_right_logical
-    | Asr -> always_some Num.shift_right
-
-  let op_lhs_unknown ~machine_width (op : P.int_shift_op) ~rhs :
-      Num.t binary_arith_outcome_for_one_side_only =
-    let module O = Target_ocaml_int in
-    let rhs = rhs in
-    match op with
-    | Lsl | Lsr | Asr ->
-      (* Shifting either way by [Targetint_32_64.size] or above, or by a
-         negative amount, is undefined.
-
-         However note that we cannot produce [Invalid] unless the code is type
-         unsafe, which it is not here. (Otherwise a GADT match might be reduced
-         to only one possible case which it would be wrong to take.) *)
-      if O.equal rhs (O.zero machine_width)
-      then The_other_side
-      else Cannot_simplify
-
-  let op_rhs_unknown ~machine_width (op : P.int_shift_op) ~lhs :
-      Num.t binary_arith_outcome_for_one_side_only =
-    (* In these cases we are giving a semantics for some cases where the
-       right-hand side may be less than zero or greater than or equal to
-       [Targetint_32_64.size]. These cases have undefined semantics, as above;
-       however, it seems fine to give them a semantics since there is benefit to
-       doing so in this particular case. (This is not the case for the situation
-       in [op_lhs_unknown], above, where there would be no such benefit.) *)
-    match op with
-    | Lsl | Lsr ->
-      if Num.equal lhs (Num.zero machine_width)
-      then Exactly (Num.zero machine_width)
-      else Cannot_simplify
-    | Asr ->
-      if Num.equal lhs (Num.zero machine_width)
-      then Exactly (Num.zero machine_width)
-      else if Num.equal lhs (Num.minus_one machine_width)
-      then Exactly (Num.minus_one machine_width)
-      else Cannot_simplify
-end
-[@@inline always]
 
 module Int_ops_for_binary_shift_tagged_immediate =
   Int_ops_for_binary_shift (A.For_tagged_immediates)
@@ -591,93 +1462,149 @@ module Binary_int_shift_int64 =
 module Binary_int_shift_nativeint =
   Binary_arith_like (Int_ops_for_binary_shift_nativeint)
 
-module Int_ops_for_binary_comp (I : A.Int_number_kind) : sig
-  include
-    Binary_arith_like_sig
-      with type op = P.signed_or_unsigned P.comparison_behaviour
-end = struct
-  module Lhs = I.Num
-  module Rhs = I.Num
-  module Result = Target_ocaml_int
+module Int_ops_for_binary_comp =
+functor
+  (I : Int_number_kind)
+  ->
+  struct
+    module Lhs = I.Num
+    module Rhs = I.Num
+    module Result = Target_ocaml_int_
 
-  type op = P.signed_or_unsigned P.comparison_behaviour
+    type op_ =
+      Flambda_primitive.signed_or_unsigned
+      Flambda_primitive.comparison_behaviour
 
-  let arg_kind = I.standard_int_or_float_kind
+    (** val arg_kind : Flambda_kind.Standard_int_or_float.t **)
 
-  let result_kind = K.naked_immediate
+    let arg_kind = I.standard_int_or_float_kind
 
-  let ok_to_evaluate _env = true
+    (** val result_kind : Flambda_kind.t **)
 
-  let prover_lhs = I.unboxed_prover
+    let result_kind = Flambda_kind.naked_immediate
 
-  let prover_rhs = I.unboxed_prover
+    (** val ok_to_evaluate : Downwards_env.t -> bool coq_M **)
 
-  let unknown ~machine_width (op : op) =
-    match op with
-    | Yielding_bool _ ->
-      T.these_naked_immediates (Target_ocaml_int.all_bools machine_width)
-    | Yielding_int_like_compare_functions _signedness ->
-      T.these_naked_immediates
-        (Target_ocaml_int.zero_one_and_minus_one machine_width)
+    let ok_to_evaluate _ = true
 
-  let these s =
-    let ty = T.these_naked_immediates s in
-    let simple_opt =
-      match Target_ocaml_int.Set.get_singleton s with
-      | None -> None
-      | Some i -> Some (Simple.const (Reg_width_const.naked_immediate i))
-    in
-    ty, simple_opt
+    (** val prover_lhs : Flambda2_types.Typing_env.t -> Flambda2_types.t ->
+        I.Num.Set_.t Flambda2_types.meet_shortcut coq_M **)
 
-  let term imm : Named.t =
-    Named.create_simple (Simple.const (Reg_width_const.naked_immediate imm))
+    let prover_lhs = I.unboxed_prover
 
-  module Pair = I.Num.Pair
+    (** val prover_rhs : Flambda2_types.Typing_env.t -> Flambda2_types.t ->
+        I.Num.Set_.t Flambda2_types.meet_shortcut coq_M **)
 
-  let cross_product = I.Num.cross_product
+    let prover_rhs = I.unboxed_prover
 
-  module Num = I.Num
+    (** val unknown : Target_system.Machine_width.t -> op_ -> Flambda2_types.t
+        coq_M **)
 
-  let op ~machine_width (op : P.signed_or_unsigned P.comparison_behaviour) n1 n2
-      =
-    match op with
-    | Yielding_bool op -> (
-      let bool b = Target_ocaml_int.bool machine_width b in
-      match op with
-      | Eq -> Some (bool (Num.compare n1 n2 = 0))
-      | Neq -> Some (bool (Num.compare n1 n2 <> 0))
-      | Lt Signed -> Some (bool (Num.compare n1 n2 < 0))
-      | Gt Signed -> Some (bool (Num.compare n1 n2 > 0))
-      | Le Signed -> Some (bool (Num.compare n1 n2 <= 0))
-      | Ge Signed -> Some (bool (Num.compare n1 n2 >= 0))
-      | Lt Unsigned -> Some (bool (Num.compare_unsigned n1 n2 < 0))
-      | Gt Unsigned -> Some (bool (Num.compare_unsigned n1 n2 > 0))
-      | Le Unsigned -> Some (bool (Num.compare_unsigned n1 n2 <= 0))
-      | Ge Unsigned -> Some (bool (Num.compare_unsigned n1 n2 >= 0)))
-    | Yielding_int_like_compare_functions signed_or_unsigned -> (
-      match signed_or_unsigned with
-      | Signed ->
-        let int i = Target_ocaml_int.of_int machine_width i in
-        let c = Num.compare n1 n2 in
-        if c < 0
-        then Some (int (-1))
-        else if c = 0
-        then Some (int 0)
-        else Some (int 1)
-      | Unsigned ->
-        let int i = Target_ocaml_int.of_int machine_width i in
-        let c = Num.compare_unsigned n1 n2 in
-        if c < 0
-        then Some (int (-1))
-        else if c = 0
-        then Some (int 0)
-        else Some (int 1))
+    let unknown machine_width = function
+      | Flambda_primitive.Yielding_bool _ ->
+        Flambda2_types.these_naked_immediates
+          (Target_ocaml_int.all_bools machine_width)
+      | Flambda_primitive.Yielding_int_like_compare_functions _ ->
+        Flambda2_types.these_naked_immediates
+          (Target_ocaml_int.zero_one_and_minus_one machine_width)
 
-  let op_lhs_unknown ~machine_width:_ _op ~rhs:_ = Cannot_simplify
+    (** val these : Target_ocaml_int.Set.t -> (Flambda2_types.t * Simple.t
+        option) coq_M **)
 
-  let op_rhs_unknown ~machine_width:_ _op ~lhs:_ = Cannot_simplify
-end
-[@@inline always]
+    let these s =
+      let ty = Flambda2_types.these_naked_immediates s in
+      let simple_opt =
+        match Target_ocaml_int.Set.get_singleton s with
+        | Some i -> Some (Simple.const (Reg_width_const.naked_immediate i))
+        | None -> None
+      in
+      ty, simple_opt
+
+    (** val term : Target_ocaml_int.t -> Flambda.Named.t coq_M **)
+
+    let term imm =
+      Flambda.Named.create_simple
+        (Simple.const (Reg_width_const.naked_immediate imm))
+
+    module Pair = I.Num.Pair
+
+    (** val cross_product : I.Num.Set_.t -> I.Num.Set_.t -> I.Num.Pair.Set_.t
+        coq_M **)
+
+    let cross_product = I.Num.cross_product
+
+    module Num = I.Num
+
+    (** val op : Target_system.Machine_width.t ->
+        Flambda_primitive.signed_or_unsigned
+        Flambda_primitive.comparison_behaviour -> Num.t -> Num.t ->
+        Target_ocaml_int.t option coq_M **)
+
+    let op machine_width op0 n1 n2 =
+      match op0 with
+      | Flambda_primitive.Yielding_bool op1 ->
+        let bool = fun b -> Target_ocaml_int.bool machine_width b in
+        (fun f__1 f__2 f__3 f__4 f__5 f__6 x__0 ->
+          match (x__0 : _ Flambda_primitive.comparison) with
+          | Flambda_primitive.Eq -> f__1 ()
+          | Flambda_primitive.Neq -> f__2 ()
+          | Flambda_primitive.Lt x__1 -> f__3 x__1
+          | Flambda_primitive.Gt x__1 -> f__4 x__1
+          | Flambda_primitive.Le x__1 -> f__5 x__1
+          | Flambda_primitive.Ge x__1 -> f__6 x__1)
+          (fun _ -> Some (bool (Num.compare n1 n2 = 0)))
+          (fun _ -> Some (bool (Num.compare n1 n2 <> 0)))
+          (fun s ->
+            match s with
+            | Flambda_primitive.Signed -> Some (bool (Num.compare n1 n2 < 0))
+            | Flambda_primitive.Unsigned ->
+              Some (bool (Num.compare_unsigned n1 n2 < 0)))
+          (fun s ->
+            match s with
+            | Flambda_primitive.Signed -> Some (bool (Num.compare n1 n2 > 0))
+            | Flambda_primitive.Unsigned ->
+              Some (bool (Num.compare_unsigned n1 n2 > 0)))
+          (fun s ->
+            match s with
+            | Flambda_primitive.Signed -> Some (bool (Num.compare n1 n2 <= 0))
+            | Flambda_primitive.Unsigned ->
+              Some (bool (Num.compare_unsigned n1 n2 <= 0)))
+          (fun s ->
+            match s with
+            | Flambda_primitive.Signed -> Some (bool (Num.compare n1 n2 >= 0))
+            | Flambda_primitive.Unsigned ->
+              Some (bool (Num.compare_unsigned n1 n2 >= 0)))
+          op1
+      | Flambda_primitive.Yielding_int_like_compare_functions signed_or_unsigned
+        -> (
+        match signed_or_unsigned with
+        | Flambda_primitive.Signed ->
+          let int = fun i -> Target_ocaml_int.of_int machine_width i in
+          let c = Num.compare n1 n2 in
+          if c < 0
+          then Some (int (-1))
+          else if c = 0
+          then Some (int 0)
+          else Some (int 1)
+        | Flambda_primitive.Unsigned ->
+          let int = fun i -> Target_ocaml_int.of_int machine_width i in
+          let c = Num.compare_unsigned n1 n2 in
+          if c < 0
+          then Some (int (-1))
+          else if c = 0
+          then Some (int 0)
+          else Some (int 1))
+
+    (** val op_lhs_unknown : Target_system.Machine_width.t -> op_ -> Num.t ->
+        Target_ocaml_int.t binary_arith_outcome_for_one_side_only coq_M **)
+
+    let op_lhs_unknown _ _ _ = Cannot_simplify
+
+    (** val op_rhs_unknown : Target_system.Machine_width.t -> op_ -> Num.t ->
+        Target_ocaml_int.t binary_arith_outcome_for_one_side_only coq_M **)
+
+    let op_rhs_unknown _ _ _ = Cannot_simplify
+  end
 
 module Int_ops_for_binary_comp_tagged_immediate =
   Int_ops_for_binary_comp (A.For_tagged_immediates)
@@ -700,298 +1627,474 @@ module Binary_int_comp_int64 = Binary_arith_like (Int_ops_for_binary_comp_int64)
 module Binary_int_comp_nativeint =
   Binary_arith_like (Int_ops_for_binary_comp_nativeint)
 
-module Float_ops_for_binary_arith_gen (FP : sig
-  module F : Numeric_types.Float_by_bit_pattern
+module type Float_ops_for_binary_arith_gen_FP = sig
+  module F : Numeric_types_Float_by_bit_pattern
 
   val width : Flambda_primitive.float_bitwidth
 
-  val arg_kind : K.Standard_int_or_float.t
+  val arg_kind : Flambda_kind.Standard_int_or_float.t
 
   val result_kind : Flambda_kind.t
 
-  val prover : T.Typing_env.t -> T.t -> F.Set.t T.meet_shortcut
+  val prover :
+    Flambda2_types.Typing_env.t ->
+    Flambda2_types.t ->
+    F.Set_.t Flambda2_types.meet_shortcut coq_M
 
-  val unknown : T.t
+  val unknown : Flambda2_types.t
 
-  val these : F.Set.t -> T.t
+  val these : F.Set_.t -> Flambda2_types.t coq_M
 
-  val const : F.t -> Const.t
-end) : sig
-  include Binary_arith_like_sig with type op = P.binary_float_arith_op
-end = struct
-  module F = FP.F
-  module Lhs = F
-  module Rhs = F
-  module Result = F
-
-  type op = P.binary_float_arith_op
-
-  let arg_kind = FP.arg_kind
-
-  let result_kind = FP.result_kind
-
-  let ok_to_evaluate denv = DE.propagating_float_consts denv
-
-  let prover_lhs = FP.prover
-
-  let prover_rhs = FP.prover
-
-  let unknown ~machine_width:_ _ = FP.unknown
-
-  let these s =
-    let ty = FP.these s in
-    let simple_opt =
-      match F.Set.get_singleton s with
-      | None -> None
-      | Some f -> Some (Simple.const (FP.const f))
-    in
-    ty, simple_opt
-
-  let term f = Named.create_simple (Simple.const (FP.const f))
-
-  module Pair = F.Pair
-
-  let cross_product = F.cross_product
-
-  let op ~machine_width:_ (op : op) n1 n2 =
-    let always_some f = Some (f n1 n2) in
-    match op with
-    | Add -> always_some F.IEEE_semantics.add
-    | Sub -> always_some F.IEEE_semantics.sub
-    | Mul -> always_some F.IEEE_semantics.mul
-    | Div -> always_some F.IEEE_semantics.div
-
-  type symmetric_op =
-    | Add
-    | Mul
-
-  (* To be certain of correctness we restrict identities on floating-point
-     numbers to those that preserve the _bit pattern_. *)
-
-  let symmetric_op_one_side_unknown (op : symmetric_op) ~this_side :
-      F.t binary_arith_outcome_for_one_side_only =
-    match op with
-    | Add ->
-      (* You might think that "x + 0" has the same representation as "x".
-         However it doesn't in the case where that constant zero is +0 and x is
-         equal to -0. *)
-      Cannot_simplify
-    | Mul ->
-      if F.equal this_side F.one
-      then
-        The_other_side
-        [@z3 check_float_binary_neutral `Mul 1.0 `Right]
-        [@z3 check_float_binary_neutral `Mul 1.0 `Left]
-      else if F.equal this_side F.minus_one
-      then
-        Float_negation_of_the_other_side FP.width
-        [@z3 check_float_binary_opposite `Mul (-1.0) `Left]
-        [@z3 check_float_binary_opposite `Mul (-1.0) `Right]
-      else Cannot_simplify
-
-  let op_lhs_unknown ~machine_width:_ (op : op) ~rhs :
-      F.t binary_arith_outcome_for_one_side_only =
-    match op with
-    | Add -> symmetric_op_one_side_unknown Add ~this_side:rhs
-    | Mul -> symmetric_op_one_side_unknown Mul ~this_side:rhs
-    | Sub -> Cannot_simplify
-    | Div ->
-      if F.equal rhs F.one
-      then The_other_side [@z3 check_float_binary_neutral `Div 1.0 `Right]
-      else if F.equal rhs F.minus_one
-      then
-        Float_negation_of_the_other_side FP.width
-        [@z3 check_float_binary_opposite `Div (-1.0) `Right]
-      else Cannot_simplify
-
-  let op_rhs_unknown ~machine_width:_ (op : op) ~lhs :
-      F.t binary_arith_outcome_for_one_side_only =
-    match op with
-    | Add -> symmetric_op_one_side_unknown Add ~this_side:lhs
-    | Mul -> symmetric_op_one_side_unknown Mul ~this_side:lhs
-    | Sub -> Cannot_simplify
-    | Div -> Cannot_simplify
+  val const : F.t -> Reg_width_const.t coq_M
 end
 
-module Float_ops_for_binary_arith = Float_ops_for_binary_arith_gen (struct
-  module F = Numeric_types.Float_by_bit_pattern
+module Float_ops_for_binary_arith_gen =
+functor
+  (FP : Float_ops_for_binary_arith_gen_FP)
+  ->
+  struct
+    module F = FP.F
+    module Lhs = F
+    module Rhs = F
+    module Result = F
+
+    type op_ = Flambda_primitive.binary_float_arith_op
+
+    (** val arg_kind : Flambda_kind.Standard_int_or_float.t **)
+
+    let arg_kind = FP.arg_kind
+
+    (** val result_kind : Flambda_kind.t **)
+
+    let result_kind = FP.result_kind
+
+    (** val ok_to_evaluate : Downwards_env.t -> bool coq_M **)
+
+    let ok_to_evaluate = Downwards_env.propagating_float_consts
+
+    (** val prover_lhs : Flambda2_types.Typing_env.t -> Flambda2_types.t ->
+        FP.F.Set_.t Flambda2_types.meet_shortcut coq_M **)
+
+    let prover_lhs = FP.prover
+
+    (** val prover_rhs : Flambda2_types.Typing_env.t -> Flambda2_types.t ->
+        FP.F.Set_.t Flambda2_types.meet_shortcut coq_M **)
+
+    let prover_rhs = FP.prover
+
+    (** val unknown : Target_system.Machine_width.t -> op_ -> Flambda2_types.t
+        coq_M **)
+
+    let unknown _ _ = FP.unknown
+
+    (** val these : F.Set_.t -> (Flambda2_types.t * Simple.t option) coq_M **)
+
+    let these s =
+      let ty = FP.these s in
+      let simple_opt =
+        match F.Set_.get_singleton s with
+        | Some f -> Some (Simple.const (FP.const f))
+        | None -> None
+      in
+      ty, simple_opt
+
+    (** val term : F.t -> Flambda.Named.t coq_M **)
+
+    let term f = Flambda.Named.create_simple (Simple.const (FP.const f))
+
+    module Pair = F.Pair
+
+    (** val cross_product : F.Set_.t -> F.Set_.t -> F.Pair.Set_.t coq_M **)
+
+    let cross_product = F.cross_product
+
+    (** val op : Target_system.Machine_width.t -> op_ -> F.t -> F.t -> F.t
+        option coq_M **)
+
+    let op _ op0 n1 n2 =
+      let always_some = fun f -> Some (f n1 n2) in
+      (fun f__1 f__2 f__3 f__4 x__0 ->
+        match (x__0 : Flambda_primitive.binary_float_arith_op) with
+        | Flambda_primitive.Add -> f__1 ()
+        | Flambda_primitive.Sub -> f__2 ()
+        | Flambda_primitive.Mul -> f__3 ()
+        | Flambda_primitive.Div -> f__4 ())
+        (fun _ -> always_some F.IEEE_semantics.add)
+        (fun _ -> always_some F.IEEE_semantics.sub)
+        (fun _ -> always_some F.IEEE_semantics.mul)
+        (fun _ -> always_some F.IEEE_semantics.div)
+        op0
+
+    type symmetric_op =
+      | Add
+      | Mul
+
+    (** val symmetric_op_one_side_unknown : symmetric_op -> F.t -> F.t
+        binary_arith_outcome_for_one_side_only coq_M **)
+
+    let symmetric_op_one_side_unknown op0 this_side =
+      match op0 with
+      | Add -> Cannot_simplify
+      | Mul ->
+        if F.equal this_side F.one
+        then The_other_side
+        else if F.equal this_side F.minus_one
+        then Float_negation_of_the_other_side FP.width
+        else Cannot_simplify
+
+    (** val op_lhs_unknown : Target_system.Machine_width.t -> op_ -> F.t -> F.t
+        binary_arith_outcome_for_one_side_only coq_M **)
+
+    let op_lhs_unknown _ op0 rhs =
+      (fun f__1 f__2 f__3 f__4 x__0 ->
+        match (x__0 : Flambda_primitive.binary_float_arith_op) with
+        | Flambda_primitive.Add -> f__1 ()
+        | Flambda_primitive.Sub -> f__2 ()
+        | Flambda_primitive.Mul -> f__3 ()
+        | Flambda_primitive.Div -> f__4 ())
+        (fun _ -> symmetric_op_one_side_unknown Add rhs)
+        (fun _ -> Cannot_simplify)
+        (fun _ -> symmetric_op_one_side_unknown Mul rhs)
+        (fun _ ->
+          if F.equal rhs F.one
+          then The_other_side
+          else if F.equal rhs F.minus_one
+          then Float_negation_of_the_other_side FP.width
+          else Cannot_simplify)
+        op0
+
+    (** val op_rhs_unknown : Target_system.Machine_width.t -> op_ -> F.t -> F.t
+        binary_arith_outcome_for_one_side_only coq_M **)
+
+    let op_rhs_unknown _ op0 lhs =
+      (fun f__1 f__2 f__3 f__4 x__0 ->
+        match (x__0 : Flambda_primitive.binary_float_arith_op) with
+        | Flambda_primitive.Add -> f__1 ()
+        | Flambda_primitive.Sub -> f__2 ()
+        | Flambda_primitive.Mul -> f__3 ()
+        | Flambda_primitive.Div -> f__4 ())
+        (fun _ -> symmetric_op_one_side_unknown Add lhs)
+        (fun _ -> Cannot_simplify)
+        (fun _ -> symmetric_op_one_side_unknown Mul lhs)
+        (fun _ -> Cannot_simplify)
+        op0
+  end
+
+module Float_ops_for_binary_arith_FP = struct
+  module F = Float_by_bit_pattern
+
+  (** val width : Flambda_primitive.float_bitwidth **)
 
   let width = Flambda_primitive.Float64
 
-  let arg_kind = K.Standard_int_or_float.Naked_float
+  (** val arg_kind : Flambda_kind.Standard_int_or_float.t **)
 
-  let result_kind = K.naked_float
+  let arg_kind = Flambda_kind.Standard_int_or_float.Naked_float
 
-  let prover = T.meet_naked_floats
+  (** val result_kind : Flambda_kind.t **)
 
-  let unknown = T.any_naked_float
+  let result_kind = Flambda_kind.naked_float
 
-  let these = T.these_naked_floats
+  (** val prover : Flambda2_types.Typing_env.t -> Flambda2_types.t ->
+      Numeric_types.Float_by_bit_pattern.Set.t Flambda2_types.meet_shortcut
+      coq_M **)
+
+  let prover = Flambda2_types.meet_naked_floats
+
+  (** val unknown : Flambda2_types.t **)
+
+  let unknown = Flambda2_types.any_naked_float
+
+  (** val these : Numeric_types.Float_by_bit_pattern.Set.t -> Flambda2_types.t
+      coq_M **)
+
+  let these = Flambda2_types.these_naked_floats
+
+  (** val const : Numeric_types.Float_by_bit_pattern.t -> Reg_width_const.t
+      coq_M **)
 
   let const = Reg_width_const.naked_float
-end)
+end
 
-module Float32_ops_for_binary_arith = Float_ops_for_binary_arith_gen (struct
-  module F = Numeric_types.Float32_by_bit_pattern
+module Float_ops_for_binary_arith =
+  Float_ops_for_binary_arith_gen (Float_ops_for_binary_arith_FP)
+
+module Float32_ops_for_binary_arith_FP = struct
+  module F = Float32_by_bit_pattern
+
+  (** val width : Flambda_primitive.float_bitwidth **)
 
   let width = Flambda_primitive.Float32
 
-  let arg_kind = K.Standard_int_or_float.Naked_float32
+  (** val arg_kind : Flambda_kind.Standard_int_or_float.t **)
 
-  let result_kind = K.naked_float32
+  let arg_kind = Flambda_kind.Standard_int_or_float.Naked_float32
 
-  let prover = T.meet_naked_float32s
+  (** val result_kind : Flambda_kind.t **)
 
-  let unknown = T.any_naked_float32
+  let result_kind = Flambda_kind.naked_float32
 
-  let these = T.these_naked_float32s
+  (** val prover : Flambda2_types.Typing_env.t -> Flambda2_types.t ->
+      Numeric_types.Float32_by_bit_pattern.Set.t Flambda2_types.meet_shortcut
+      coq_M **)
+
+  let prover = Flambda2_types.meet_naked_float32s
+
+  (** val unknown : Flambda2_types.t **)
+
+  let unknown = Flambda2_types.any_naked_float32
+
+  (** val these : Numeric_types.Float32_by_bit_pattern.Set.t -> Flambda2_types.t
+      coq_M **)
+
+  let these = Flambda2_types.these_naked_float32s
+
+  (** val const : Numeric_types.Float32_by_bit_pattern.t -> Reg_width_const.t
+      coq_M **)
 
   let const = Reg_width_const.naked_float32
-end)
+end
 
+module Float32_ops_for_binary_arith =
+  Float_ops_for_binary_arith_gen (Float32_ops_for_binary_arith_FP)
 module Binary_float_arith = Binary_arith_like (Float_ops_for_binary_arith)
 module Binary_float32_arith = Binary_arith_like (Float32_ops_for_binary_arith)
 
-module Float_ops_for_binary_comp_gen (FP : sig
-  module F : Numeric_types.Float_by_bit_pattern
+module type Float_ops_for_binary_comp_gen_FP = sig
+  module F : Numeric_types_Float_by_bit_pattern
 
-  val arg_kind : K.Standard_int_or_float.t
+  val arg_kind : Flambda_kind.Standard_int_or_float.t
 
-  val prover : T.Typing_env.t -> T.t -> F.Set.t T.meet_shortcut
-end) : sig
-  include Binary_arith_like_sig with type op = unit P.comparison_behaviour
-end = struct
-  module F = FP.F
-  module Lhs = F
-  module Rhs = F
-  module Result = Target_ocaml_int
-
-  type op = unit P.comparison_behaviour
-
-  let arg_kind = FP.arg_kind
-
-  let result_kind = K.naked_immediate
-
-  let ok_to_evaluate denv = DE.propagating_float_consts denv
-
-  let prover_lhs = FP.prover
-
-  let prover_rhs = FP.prover
-
-  let unknown ~machine_width (op : op) =
-    match op with
-    | Yielding_bool _ ->
-      T.these_naked_immediates (Target_ocaml_int.all_bools machine_width)
-    | Yielding_int_like_compare_functions () ->
-      T.these_naked_immediates
-        (Target_ocaml_int.zero_one_and_minus_one machine_width)
-
-  let these s =
-    let ty = T.these_naked_immediates s in
-    let simple_opt =
-      match Target_ocaml_int.Set.get_singleton s with
-      | None -> None
-      | Some i -> Some (Simple.const (Reg_width_const.naked_immediate i))
-    in
-    ty, simple_opt
-
-  let term imm : Named.t =
-    Named.create_simple (Simple.const (Reg_width_const.naked_immediate imm))
-
-  module Pair = F.Pair
-
-  let cross_product = F.cross_product
-
-  let op ~machine_width (op : op) n1 n2 =
-    match op with
-    | Yielding_bool op -> (
-      let has_nan = F.is_any_nan n1 || F.is_any_nan n2 in
-      let bool b = Target_ocaml_int.bool machine_width b in
-      match op with
-      | Eq -> Some (bool (F.IEEE_semantics.equal n1 n2))
-      | Neq -> Some (bool (not (F.IEEE_semantics.equal n1 n2)))
-      | Lt () ->
-        if has_nan
-        then Some (bool false)
-        else Some (bool (F.IEEE_semantics.compare n1 n2 < 0))
-      | Gt () ->
-        if has_nan
-        then Some (bool false)
-        else Some (bool (F.IEEE_semantics.compare n1 n2 > 0))
-      | Le () ->
-        if has_nan
-        then Some (bool false)
-        else Some (bool (F.IEEE_semantics.compare n1 n2 <= 0))
-      | Ge () ->
-        if has_nan
-        then Some (bool false)
-        else Some (bool (F.IEEE_semantics.compare n1 n2 >= 0)))
-    | Yielding_int_like_compare_functions () ->
-      let int i = Target_ocaml_int.of_int machine_width i in
-      let c = F.IEEE_semantics.compare n1 n2 in
-      if c < 0
-      then Some (int (-1))
-      else if c = 0
-      then Some (int 0)
-      else Some (int 1)
-
-  let result_of_comparison_with_nan ~machine_width (op : unit P.comparison) =
-    match op with
-    | Neq -> Exactly (Target_ocaml_int.bool_true machine_width)
-    | Eq | Lt () | Gt () | Le () | Ge () ->
-      Exactly (Target_ocaml_int.bool_false machine_width)
-
-  let op_lhs_unknown ~machine_width (op : op) ~rhs :
-      _ binary_arith_outcome_for_one_side_only =
-    match op with
-    | Yielding_bool op ->
-      if F.is_any_nan rhs
-      then result_of_comparison_with_nan ~machine_width op
-      else Cannot_simplify
-    | Yielding_int_like_compare_functions () -> Cannot_simplify
-
-  let op_rhs_unknown ~machine_width (op : op) ~lhs :
-      _ binary_arith_outcome_for_one_side_only =
-    match op with
-    | Yielding_bool op ->
-      if F.is_any_nan lhs
-      then result_of_comparison_with_nan ~machine_width op
-      else Cannot_simplify
-    | Yielding_int_like_compare_functions () -> Cannot_simplify
+  val prover :
+    Flambda2_types.Typing_env.t ->
+    Flambda2_types.t ->
+    F.Set_.t Flambda2_types.meet_shortcut coq_M
 end
 
-module Float_ops_for_binary_comp = Float_ops_for_binary_comp_gen (struct
-  module F = Numeric_types.Float_by_bit_pattern
+module Float_ops_for_binary_comp_gen =
+functor
+  (FP : Float_ops_for_binary_comp_gen_FP)
+  ->
+  struct
+    module F = FP.F
+    module Lhs = F
+    module Rhs = F
+    module Result = Target_ocaml_int_
 
-  let arg_kind = K.Standard_int_or_float.Naked_float
+    type op_ = unit Flambda_primitive.comparison_behaviour
 
-  let prover = T.meet_naked_floats
-end)
+    (** val arg_kind : Flambda_kind.Standard_int_or_float.t **)
 
-module Float32_ops_for_binary_comp = Float_ops_for_binary_comp_gen (struct
-  module F = Numeric_types.Float32_by_bit_pattern
+    let arg_kind = FP.arg_kind
 
-  let arg_kind = K.Standard_int_or_float.Naked_float32
+    (** val result_kind : Flambda_kind.t **)
 
-  let prover = T.meet_naked_float32s
-end)
+    let result_kind = Flambda_kind.naked_immediate
 
+    (** val ok_to_evaluate : Downwards_env.t -> bool coq_M **)
+
+    let ok_to_evaluate = Downwards_env.propagating_float_consts
+
+    (** val prover_lhs : Flambda2_types.Typing_env.t -> Flambda2_types.t ->
+        FP.F.Set_.t Flambda2_types.meet_shortcut coq_M **)
+
+    let prover_lhs = FP.prover
+
+    (** val prover_rhs : Flambda2_types.Typing_env.t -> Flambda2_types.t ->
+        FP.F.Set_.t Flambda2_types.meet_shortcut coq_M **)
+
+    let prover_rhs = FP.prover
+
+    (** val unknown : Target_system.Machine_width.t -> op_ -> Flambda2_types.t
+        coq_M **)
+
+    let unknown machine_width = function
+      | Flambda_primitive.Yielding_bool _ ->
+        Flambda2_types.these_naked_immediates
+          (Target_ocaml_int.all_bools machine_width)
+      | Flambda_primitive.Yielding_int_like_compare_functions u ->
+        let () = u in
+        Flambda2_types.these_naked_immediates
+          (Target_ocaml_int.zero_one_and_minus_one machine_width)
+
+    (** val these : Target_ocaml_int.Set.t -> (Flambda2_types.t * Simple.t
+        option) coq_M **)
+
+    let these s =
+      let ty = Flambda2_types.these_naked_immediates s in
+      let simple_opt =
+        match Target_ocaml_int.Set.get_singleton s with
+        | Some i -> Some (Simple.const (Reg_width_const.naked_immediate i))
+        | None -> None
+      in
+      ty, simple_opt
+
+    (** val term : Target_ocaml_int.t -> Flambda.Named.t coq_M **)
+
+    let term imm =
+      Flambda.Named.create_simple
+        (Simple.const (Reg_width_const.naked_immediate imm))
+
+    module Pair = F.Pair
+
+    (** val cross_product : F.Set_.t -> F.Set_.t -> F.Pair.Set_.t coq_M **)
+
+    let cross_product = F.cross_product
+
+    (** val op : Target_system.Machine_width.t -> op_ -> F.t -> F.t ->
+        Target_ocaml_int.t option coq_M **)
+
+    let op machine_width op0 n1 n2 =
+      match op0 with
+      | Flambda_primitive.Yielding_bool op1 ->
+        let has_nan = F.is_any_nan n1 || F.is_any_nan n2 in
+        let bool = fun b -> Target_ocaml_int.bool machine_width b in
+        (fun f__1 f__2 f__3 f__4 f__5 f__6 x__0 ->
+          match (x__0 : _ Flambda_primitive.comparison) with
+          | Flambda_primitive.Eq -> f__1 ()
+          | Flambda_primitive.Neq -> f__2 ()
+          | Flambda_primitive.Lt x__1 -> f__3 x__1
+          | Flambda_primitive.Gt x__1 -> f__4 x__1
+          | Flambda_primitive.Le x__1 -> f__5 x__1
+          | Flambda_primitive.Ge x__1 -> f__6 x__1)
+          (fun _ -> Some (bool (F.IEEE_semantics.equal n1 n2)))
+          (fun _ -> Some (bool (not (F.IEEE_semantics.equal n1 n2))))
+          (fun u ->
+            let () = u in
+            if has_nan
+            then Some (bool false)
+            else Some (bool (F.IEEE_semantics.compare n1 n2 < 0)))
+          (fun u ->
+            let () = u in
+            if has_nan
+            then Some (bool false)
+            else Some (bool (F.IEEE_semantics.compare n1 n2 > 0)))
+          (fun u ->
+            let () = u in
+            if has_nan
+            then Some (bool false)
+            else Some (bool (F.IEEE_semantics.compare n1 n2 <= 0)))
+          (fun u ->
+            let () = u in
+            if has_nan
+            then Some (bool false)
+            else Some (bool (F.IEEE_semantics.compare n1 n2 >= 0)))
+          op1
+      | Flambda_primitive.Yielding_int_like_compare_functions u ->
+        let () = u in
+        let int = fun i -> Target_ocaml_int.of_int machine_width i in
+        let c = F.IEEE_semantics.compare n1 n2 in
+        if c < 0
+        then Some (int (-1))
+        else if c = 0
+        then Some (int 0)
+        else Some (int 1)
+
+    (** val result_of_comparison_with_nan : Target_system.Machine_width.t ->
+        unit Flambda_primitive.comparison -> Target_ocaml_int.t
+        binary_arith_outcome_for_one_side_only coq_M **)
+
+    let result_of_comparison_with_nan machine_width op0 =
+      (fun f__1 f__2 f__3 f__4 f__5 f__6 x__0 ->
+        match (x__0 : _ Flambda_primitive.comparison) with
+        | Flambda_primitive.Eq -> f__1 ()
+        | Flambda_primitive.Neq -> f__2 ()
+        | Flambda_primitive.Lt x__1 -> f__3 x__1
+        | Flambda_primitive.Gt x__1 -> f__4 x__1
+        | Flambda_primitive.Le x__1 -> f__5 x__1
+        | Flambda_primitive.Ge x__1 -> f__6 x__1)
+        (fun _ -> Exactly (Target_ocaml_int.bool_false machine_width))
+        (fun _ -> Exactly (Target_ocaml_int.bool_true machine_width))
+        (fun u ->
+          let () = u in
+          Exactly (Target_ocaml_int.bool_false machine_width))
+        (fun u ->
+          let () = u in
+          Exactly (Target_ocaml_int.bool_false machine_width))
+        (fun u ->
+          let () = u in
+          Exactly (Target_ocaml_int.bool_false machine_width))
+        (fun u ->
+          let () = u in
+          Exactly (Target_ocaml_int.bool_false machine_width))
+        op0
+
+    (** val op_lhs_unknown : Target_system.Machine_width.t -> op_ -> F.t ->
+        Target_ocaml_int.t binary_arith_outcome_for_one_side_only coq_M **)
+
+    let op_lhs_unknown machine_width op0 rhs =
+      match op0 with
+      | Flambda_primitive.Yielding_bool op1 ->
+        if F.is_any_nan rhs
+        then result_of_comparison_with_nan machine_width op1
+        else Cannot_simplify
+      | Flambda_primitive.Yielding_int_like_compare_functions u ->
+        let () = u in
+        Cannot_simplify
+
+    (** val op_rhs_unknown : Target_system.Machine_width.t -> op_ -> F.t ->
+        Target_ocaml_int.t binary_arith_outcome_for_one_side_only coq_M **)
+
+    let op_rhs_unknown machine_width op0 lhs =
+      match op0 with
+      | Flambda_primitive.Yielding_bool op1 ->
+        if F.is_any_nan lhs
+        then result_of_comparison_with_nan machine_width op1
+        else Cannot_simplify
+      | Flambda_primitive.Yielding_int_like_compare_functions u ->
+        let () = u in
+        Cannot_simplify
+  end
+
+module Float_ops_for_binary_comp_FP = struct
+  module F = Float_by_bit_pattern
+
+  (** val arg_kind : Flambda_kind.Standard_int_or_float.t **)
+
+  let arg_kind = Flambda_kind.Standard_int_or_float.Naked_float
+
+  (** val prover : Flambda2_types.Typing_env.t -> Flambda2_types.t ->
+      Numeric_types.Float_by_bit_pattern.Set.t Flambda2_types.meet_shortcut
+      coq_M **)
+
+  let prover = Flambda2_types.meet_naked_floats
+end
+
+module Float_ops_for_binary_comp =
+  Float_ops_for_binary_comp_gen (Float_ops_for_binary_comp_FP)
+
+module Float32_ops_for_binary_comp_FP = struct
+  module F = Float32_by_bit_pattern
+
+  (** val arg_kind : Flambda_kind.Standard_int_or_float.t **)
+
+  let arg_kind = Flambda_kind.Standard_int_or_float.Naked_float32
+
+  (** val prover : Flambda2_types.Typing_env.t -> Flambda2_types.t ->
+      Numeric_types.Float32_by_bit_pattern.Set.t Flambda2_types.meet_shortcut
+      coq_M **)
+
+  let prover = Flambda2_types.meet_naked_float32s
+end
+
+module Float32_ops_for_binary_comp =
+  Float_ops_for_binary_comp_gen (Float32_ops_for_binary_comp_FP)
 module Binary_float_comp = Binary_arith_like (Float_ops_for_binary_comp)
 module Binary_float32_comp = Binary_arith_like (Float32_ops_for_binary_comp)
-open Port_monad
 
 (** val simplify_phys_equal : Flambda_primitive.equality_comparison ->
     Downwards_acc.t -> Flambda.Named.t -> Debuginfo.t -> Simple.t ->
     Flambda2_types.t -> Simple.t -> Flambda2_types.t -> Bound_var.t ->
     Simplify_primitive_result.t coq_M **)
 
-let simplify_phys_equal op dacc original_term _ _ arg1_ty _ arg2_ty result_var =
+let simplify_phys_equal op0 dacc original_term _ _ arg1_ty _ arg2_ty result_var
+    =
   let typing_env = Downwards_acc.typing_env dacc in
   let machine_width = Downwards_env.machine_width (Downwards_acc.denv dacc) in
   match Flambda2_types.prove_physical_equality typing_env arg1_ty arg2_ty with
   | Flambda2_types.Proved bool ->
     let result =
-      match op with
+      match op0 with
       | Flambda_primitive.Eq -> bool
       | Flambda_primitive.Neq -> not bool
     in
@@ -1019,7 +2122,7 @@ let simplify_phys_equal op dacc original_term _ _ arg1_ty _ arg2_ty result_var =
 
 let simplify_array_load array_kind array_load_kind mutability dacc _ dbg array
     array_ty index index_ty result_var =
-  let result_kind =
+  let result_kind0 =
     match array_load_kind with
     | Flambda_primitive.Array_load_kind.Immediates -> Flambda_kind.value
     | Flambda_primitive.Array_load_kind.Gc_ignorable_values ->
@@ -1072,8 +2175,8 @@ let simplify_array_load array_kind array_load_kind mutability dacc _ dbg array
         (Downwards_acc.typing_env dacc)
         array_ty
     with
-    | Flambda2_types.Proved t -> (
-      let elt_kind, fields, _ = t in
+    | Flambda2_types.Proved t0 -> (
+      let elt_kind, fields, _ = t0 in
       match elt_kind with
       | Or_unknown_or_bottom.Unknown -> contents_unknown ()
       | Or_unknown_or_bottom.Ok elt_kind0 -> (
@@ -1081,7 +2184,7 @@ let simplify_array_load array_kind array_load_kind mutability dacc _ dbg array
           not
             (Flambda_kind.equal
                (Flambda_kind.With_subkind.kind elt_kind0)
-               result_kind)
+               result_kind0)
         then contents_unknown ()
         else
           match
@@ -1110,7 +2213,7 @@ let simplify_array_load array_kind array_load_kind mutability dacc _ dbg array
       | Or_unknown_or_bottom.Bottom -> contents_unknown ())
     | Flambda2_types.Unknown -> contents_unknown ())
   | Or_bottom.Bottom ->
-    let ty = Flambda2_types.bottom result_kind in
+    let ty = Flambda2_types.bottom result_kind0 in
     let dacc0 = Downwards_acc.add_variable dacc result_var ty in
     Simplify_primitive_result.create_invalid dacc0
 
@@ -1228,71 +2331,71 @@ let simplify_binary_primitive0 dacc original_prim prim arg1 arg1_ty arg2 arg2_ty
       | Flambda_primitive.Poke x__1 -> f__13 x__1
       | Flambda_primitive.Read_offset (x__1, x__2) -> f__14 x__1 x__2)
       (fun kind init field -> simplify_block_set kind init field)
-      (fun array_kind width mutability ->
-        simplify_array_load array_kind width mutability)
+      (fun array_kind width0 mutability ->
+        simplify_array_load array_kind width0 mutability)
       (fun string_like_value string_accessor_width ->
         simplify_string_or_bigstring_load string_like_value
           string_accessor_width original_prim)
       (fun num_dimensions bigarray_kind bigarray_layout ->
         simplify_bigarray_load num_dimensions bigarray_kind bigarray_layout
           original_prim)
-      (fun op -> simplify_phys_equal op)
-      (fun kind op ->
+      (fun op0 -> simplify_phys_equal op0)
+      (fun kind op0 ->
         match kind with
         | Flambda_kind.Standard_int.Tagged_immediate ->
-          Binary_int_arith_tagged_immediate.simplify op
+          Binary_int_arith_tagged_immediate.simplify op0
         | Flambda_kind.Standard_int.Naked_immediate ->
-          Binary_int_arith_naked_immediate.simplify op
+          Binary_int_arith_naked_immediate.simplify op0
         | Flambda_kind.Standard_int.Naked_int8 ->
-          Binary_int_arith_int8.simplify op
+          Binary_int_arith_int8.simplify op0
         | Flambda_kind.Standard_int.Naked_int16 ->
-          Binary_int_arith_int16.simplify op
+          Binary_int_arith_int16.simplify op0
         | Flambda_kind.Standard_int.Naked_int32 ->
-          Binary_int_arith_int32.simplify op
+          Binary_int_arith_int32.simplify op0
         | Flambda_kind.Standard_int.Naked_int64 ->
-          Binary_int_arith_int64.simplify op
+          Binary_int_arith_int64.simplify op0
         | Flambda_kind.Standard_int.Naked_nativeint ->
-          Binary_int_arith_nativeint.simplify op)
-      (fun kind op ->
+          Binary_int_arith_nativeint.simplify op0)
+      (fun kind op0 ->
         match kind with
         | Flambda_kind.Standard_int.Tagged_immediate ->
-          Binary_int_shift_tagged_immediate.simplify op
+          Binary_int_shift_tagged_immediate.simplify op0
         | Flambda_kind.Standard_int.Naked_immediate ->
-          Binary_int_shift_naked_immediate.simplify op
+          Binary_int_shift_naked_immediate.simplify op0
         | Flambda_kind.Standard_int.Naked_int8 ->
-          Binary_int_shift_int8.simplify op
+          Binary_int_shift_int8.simplify op0
         | Flambda_kind.Standard_int.Naked_int16 ->
-          Binary_int_shift_int16.simplify op
+          Binary_int_shift_int16.simplify op0
         | Flambda_kind.Standard_int.Naked_int32 ->
-          Binary_int_shift_int32.simplify op
+          Binary_int_shift_int32.simplify op0
         | Flambda_kind.Standard_int.Naked_int64 ->
-          Binary_int_shift_int64.simplify op
+          Binary_int_shift_int64.simplify op0
         | Flambda_kind.Standard_int.Naked_nativeint ->
-          Binary_int_shift_nativeint.simplify op)
-      (fun kind op ->
+          Binary_int_shift_nativeint.simplify op0)
+      (fun kind op0 ->
         match kind with
         | Flambda_kind.Standard_int.Tagged_immediate ->
-          Binary_int_comp_tagged_immediate.simplify op
+          Binary_int_comp_tagged_immediate.simplify op0
         | Flambda_kind.Standard_int.Naked_immediate ->
-          Binary_int_comp_naked_immediate.simplify op
+          Binary_int_comp_naked_immediate.simplify op0
         | Flambda_kind.Standard_int.Naked_int8 ->
-          Binary_int_comp_int8.simplify op
+          Binary_int_comp_int8.simplify op0
         | Flambda_kind.Standard_int.Naked_int16 ->
-          Binary_int_comp_int16.simplify op
+          Binary_int_comp_int16.simplify op0
         | Flambda_kind.Standard_int.Naked_int32 ->
-          Binary_int_comp_int32.simplify op
+          Binary_int_comp_int32.simplify op0
         | Flambda_kind.Standard_int.Naked_int64 ->
-          Binary_int_comp_int64.simplify op
+          Binary_int_comp_int64.simplify op0
         | Flambda_kind.Standard_int.Naked_nativeint ->
-          Binary_int_comp_nativeint.simplify op)
-      (fun f op ->
+          Binary_int_comp_nativeint.simplify op0)
+      (fun f op0 ->
         match f with
-        | Flambda_primitive.Float32 -> Binary_float32_arith.simplify op
-        | Flambda_primitive.Float64 -> Binary_float_arith.simplify op)
-      (fun f op ->
+        | Flambda_primitive.Float32 -> Binary_float32_arith.simplify op0
+        | Flambda_primitive.Float64 -> Binary_float_arith.simplify op0)
+      (fun f op0 ->
         match f with
-        | Flambda_primitive.Float32 -> Binary_float32_comp.simplify op
-        | Flambda_primitive.Float64 -> Binary_float_comp.simplify op)
+        | Flambda_primitive.Float32 -> Binary_float32_comp.simplify op0
+        | Flambda_primitive.Float64 -> Binary_float_comp.simplify op0)
       (fun align -> simplify_bigarray_get_alignment align original_prim)
       (fun _ _ -> simplify_atomic_load original_prim)
       (fun _ -> simplify_poke)
@@ -1307,11 +2410,11 @@ let simplify_binary_primitive0 dacc original_prim prim arg1 arg1_ty arg2 arg2_ty
 
 let recover_comparison_primitive dacc prim arg1 arg2 =
   let try_one_direction =
-   fun left right op ->
+   fun left right op0 ->
     Simple.pattern_match right
       (fun _ _ -> None)
-      (fun const ->
-        match Reg_width_const.descr const with
+      (fun const0 ->
+        match Reg_width_const.descr const0 with
         | Int_ids.Const.Descr.Naked_immediate _ -> None
         | Int_ids.Const.Descr.Tagged_immediate i ->
           if
@@ -1327,7 +2430,7 @@ let recover_comparison_primitive dacc prim arg1 arg2 =
                 with
                 | Some comp ->
                   Comparison_result.convert_result_compared_to_tagged_zero comp
-                    op
+                    op0
                 | None -> None)
               (fun _ _ -> None)
               (fun _ -> None)
@@ -1347,8 +2450,8 @@ let recover_comparison_primitive dacc prim arg1 arg2 =
         | Int_ids.Const.Descr.Poison (_, _) -> None)
   in
   let try_both_directions =
-   fun op swapped_op ->
-    match try_one_direction arg1 arg2 op with
+   fun op0 swapped_op ->
+    match try_one_direction arg1 arg2 op0 with
     | Some p -> Some p
     | None -> try_one_direction arg2 arg1 swapped_op
   in
@@ -1388,20 +2491,20 @@ let recover_comparison_primitive dacc prim arg1 arg2 =
     (fun _ _ _ -> None)
     (fun _ _ -> None)
     (fun _ _ _ -> None)
-    (fun op ->
-      let op0 =
-        match op with
+    (fun op0 ->
+      let op1 =
+        match op0 with
         | Flambda_primitive.Eq ->
           (Flambda_primitive.Eq : _ Flambda_primitive.comparison)
         | Flambda_primitive.Neq ->
           (Flambda_primitive.Neq : _ Flambda_primitive.comparison)
       in
-      try_both_directions op0 op0)
+      try_both_directions op1 op1)
     (fun _ _ -> None)
     (fun _ _ -> None)
     (fun kind c ->
       match c with
-      | Flambda_primitive.Yielding_bool op -> (
+      | Flambda_primitive.Yielding_bool op0 -> (
         match kind with
         | Flambda_kind.Standard_int.Tagged_immediate ->
           let swapped_op =
@@ -1420,9 +2523,9 @@ let recover_comparison_primitive dacc prim arg1 arg2 =
               (fun s -> Flambda_primitive.Lt s)
               (fun s -> Flambda_primitive.Ge s)
               (fun s -> Flambda_primitive.Le s)
-              op
+              op0
           in
-          try_both_directions op swapped_op
+          try_both_directions op0 swapped_op
         | Flambda_kind.Standard_int.Naked_immediate -> None
         | Flambda_kind.Standard_int.Naked_int8 -> None
         | Flambda_kind.Standard_int.Naked_int16 -> None
