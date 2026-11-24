@@ -141,14 +141,21 @@ Definition print (ppf : Format.formatter)
    [let cost_metrics t = t.cost_metrics], after the type and not here, and
    its Rocq type is not in the monad. *)
 
+(* PORT-GAP(update): 88, [{ t with cost_metrics }]. The setter gets one [_]
+   after its name: [update_cost_metrics] is the compiler's function of 88. *)
+Definition update_cost_metrics_ (t : Simplified_named.t)
+    (cost_metrics : Cost_metrics.t) : Simplified_named.t :=
+  {| named := t.(named);
+     cost_metrics := cost_metrics;
+     free_names := t.(free_names)
+  |}.
+Extract Inlined Constant update_cost_metrics_ =>
+  "(fun t x__1 -> { t with cost_metrics = x__1 })".
+
 (* 88 *)
 Definition update_cost_metrics (cost_metrics : Cost_metrics.t)
     (t : Simplified_named.t) : M Simplified_named.t :=
-  ret
-    {| named := t.(named);
-       Simplified_named.cost_metrics := cost_metrics;
-       free_names := t.(free_names)
-    |}.
+  ret (update_cost_metrics_ t cost_metrics).
 
 (* 90-92 *)
 Inductive or_rewritten (A : Type) : Type :=
