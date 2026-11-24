@@ -18,8 +18,8 @@
    ecc5c0d968c892b4312065caef0f19ffffa042a9, definition by definition under
    the compiler's names; the numbers in the comments are the lines of that
    file. What is not from that file: the form (the monad, the temporaries
-   [tmpN] and their order, the arguments by place, every field written where
-   the compiler writes [{ t with ... }]) is that of GUIDE.md. No proof. *)
+   [tmpN] and their order, the arguments by place, a setter [update_f] where
+   the compiler writes [{ t with f }]) is that of GUIDE.md. No proof. *)
 
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Apply_cont_rewrite_id Are_rebuilding_terms
@@ -126,36 +126,34 @@ Definition code_age_relation (t : Upwards_acc.t)
   let! tmp1 := Downwards_acc.typing_env t.(creation_dacc) in
   Flambda2_types.Typing_env.code_age_relation tmp1.
 
+(* PORT-GAP(update): 88, [{ t with lifted_constants }]. *)
+Definition update_lifted_constants (t : Upwards_acc.t)
+    (lifted_constants : Lifted_constant_state.t) : Upwards_acc.t :=
+  {| uenv := t.(uenv);
+     creation_dacc := t.(creation_dacc);
+     lifted_constants := lifted_constants;
+     all_code := t.(all_code);
+     name_occurrences := t.(name_occurrences);
+     cost_metrics := t.(cost_metrics);
+     slot_offsets := t.(slot_offsets);
+     flow_result := t.(flow_result);
+     resimplify := t.(resimplify)
+  |}.
+Extract Inlined Constant update_lifted_constants =>
+  "(fun t x__1 -> { t with lifted_constants = x__1 })".
+
 (* 87-88 *)
 Definition get_and_clear_lifted_constants (t : Upwards_acc.t)
     : M (Upwards_acc.t * Lifted_constant_state.t) :=
   ret
-    ({| uenv := t.(Upwards_acc.uenv);
-        creation_dacc := t.(Upwards_acc.creation_dacc);
-        lifted_constants := Lifted_constant_state.empty;
-        all_code := t.(Upwards_acc.all_code);
-        name_occurrences := t.(Upwards_acc.name_occurrences);
-        cost_metrics := t.(Upwards_acc.cost_metrics);
-        slot_offsets := t.(Upwards_acc.slot_offsets);
-        flow_result := t.(Upwards_acc.flow_result);
-        resimplify := t.(Upwards_acc.resimplify)
-     |},
+    (update_lifted_constants t Lifted_constant_state.empty,
      t.(lifted_constants)).
 
 (* 90-91 *)
 Definition add_lifted_constant (t : Upwards_acc.t) (const : Lifted_constant.t)
     : M Upwards_acc.t :=
   let! tmp1 := Lifted_constant_state.add t.(lifted_constants) const in
-  ret {| uenv := t.(Upwards_acc.uenv);
-         creation_dacc := t.(Upwards_acc.creation_dacc);
-         lifted_constants := tmp1;
-         all_code := t.(Upwards_acc.all_code);
-         name_occurrences := t.(Upwards_acc.name_occurrences);
-         cost_metrics := t.(Upwards_acc.cost_metrics);
-         slot_offsets := t.(Upwards_acc.slot_offsets);
-         flow_result := t.(Upwards_acc.flow_result);
-         resimplify := t.(Upwards_acc.resimplify)
-      |}.
+  ret (update_lifted_constants t tmp1).
 
 (* 95 *)
 Definition are_rebuilding_terms (t : Upwards_acc.t)
@@ -166,49 +164,54 @@ Definition are_rebuilding_terms (t : Upwards_acc.t)
 (* 97 *)
 Definition with_lifted_constants (t : Upwards_acc.t)
     (lifted_constants : Lifted_constant_state.t) : M Upwards_acc.t :=
-  ret {| uenv := t.(Upwards_acc.uenv);
-         creation_dacc := t.(Upwards_acc.creation_dacc);
-         lifted_constants := lifted_constants;
-         all_code := t.(Upwards_acc.all_code);
-         name_occurrences := t.(Upwards_acc.name_occurrences);
-         cost_metrics := t.(Upwards_acc.cost_metrics);
-         slot_offsets := t.(Upwards_acc.slot_offsets);
-         flow_result := t.(Upwards_acc.flow_result);
-         resimplify := t.(Upwards_acc.resimplify)
-      |}.
+  ret (update_lifted_constants t lifted_constants).
 
 (* 99 *)
 Definition no_lifted_constants (t : Upwards_acc.t) : M bool :=
   Lifted_constant_state.is_empty t.(lifted_constants).
 
+(* PORT-GAP(update): 101, [{ t with uenv }]. *)
+Definition update_uenv (t : Upwards_acc.t)
+    (uenv : Upwards_env.t) : Upwards_acc.t :=
+  {| uenv := uenv;
+     creation_dacc := t.(creation_dacc);
+     lifted_constants := t.(lifted_constants);
+     all_code := t.(all_code);
+     name_occurrences := t.(name_occurrences);
+     cost_metrics := t.(cost_metrics);
+     slot_offsets := t.(slot_offsets);
+     flow_result := t.(flow_result);
+     resimplify := t.(resimplify)
+  |}.
+Extract Inlined Constant update_uenv =>
+  "(fun t x__1 -> { t with uenv = x__1 })".
+
 (* 101 *)
 Definition map_uenv (t : Upwards_acc.t)
     (f : Upwards_env.t -> M Upwards_env.t) : M Upwards_acc.t :=
   let! tmp1 := f t.(uenv) in
-  ret {| uenv := tmp1;
-         creation_dacc := t.(Upwards_acc.creation_dacc);
-         lifted_constants := t.(Upwards_acc.lifted_constants);
-         all_code := t.(Upwards_acc.all_code);
-         name_occurrences := t.(Upwards_acc.name_occurrences);
-         cost_metrics := t.(Upwards_acc.cost_metrics);
-         slot_offsets := t.(Upwards_acc.slot_offsets);
-         flow_result := t.(Upwards_acc.flow_result);
-         resimplify := t.(Upwards_acc.resimplify)
-      |}.
+  ret (update_uenv t tmp1).
 
 (* 103 *)
 Definition with_uenv (t : Upwards_acc.t) (uenv : Upwards_env.t)
     : M Upwards_acc.t :=
-  ret {| uenv := uenv;
-         creation_dacc := t.(Upwards_acc.creation_dacc);
-         lifted_constants := t.(Upwards_acc.lifted_constants);
-         all_code := t.(Upwards_acc.all_code);
-         name_occurrences := t.(Upwards_acc.name_occurrences);
-         cost_metrics := t.(Upwards_acc.cost_metrics);
-         slot_offsets := t.(Upwards_acc.slot_offsets);
-         flow_result := t.(Upwards_acc.flow_result);
-         resimplify := t.(Upwards_acc.resimplify)
-      |}.
+  ret (update_uenv t uenv).
+
+(* PORT-GAP(update): 113, [{ t with all_code }]. *)
+Definition update_all_code (t : Upwards_acc.t)
+    (all_code : Exported_code.t) : Upwards_acc.t :=
+  {| uenv := t.(uenv);
+     creation_dacc := t.(creation_dacc);
+     lifted_constants := t.(lifted_constants);
+     all_code := all_code;
+     name_occurrences := t.(name_occurrences);
+     cost_metrics := t.(cost_metrics);
+     slot_offsets := t.(slot_offsets);
+     flow_result := t.(flow_result);
+     resimplify := t.(resimplify)
+  |}.
+Extract Inlined Constant update_all_code =>
+  "(fun t x__1 -> { t with all_code = x__1 })".
 
 (* 105-113 *)
 Definition remember_code_for_cmx (t : Upwards_acc.t)
@@ -224,31 +227,29 @@ Definition remember_code_for_cmx (t : Upwards_acc.t)
       Code_id.Set_.mem code_id tmp1
     in
     let* all_code := Exported_code.add_code keep_code code t.(all_code) in
-    ret {| uenv := t.(Upwards_acc.uenv);
-           creation_dacc := t.(Upwards_acc.creation_dacc);
-           lifted_constants := t.(Upwards_acc.lifted_constants);
-           all_code := all_code;
-           name_occurrences := t.(Upwards_acc.name_occurrences);
-           cost_metrics := t.(Upwards_acc.cost_metrics);
-           slot_offsets := t.(Upwards_acc.slot_offsets);
-           flow_result := t.(Upwards_acc.flow_result);
-           resimplify := t.(Upwards_acc.resimplify)
-        |}.
+    ret (update_all_code t all_code).
+
+(* PORT-GAP(update): 122, [{ t with name_occurrences }]. *)
+Definition update_name_occurrences (t : Upwards_acc.t)
+    (name_occurrences : Name_occurrences.t) : Upwards_acc.t :=
+  {| uenv := t.(uenv);
+     creation_dacc := t.(creation_dacc);
+     lifted_constants := t.(lifted_constants);
+     all_code := t.(all_code);
+     name_occurrences := name_occurrences;
+     cost_metrics := t.(cost_metrics);
+     slot_offsets := t.(slot_offsets);
+     flow_result := t.(flow_result);
+     resimplify := t.(resimplify)
+  |}.
+Extract Inlined Constant update_name_occurrences =>
+  "(fun t x__1 -> { t with name_occurrences = x__1 })".
 
 (* 119-122 *)
 Definition with_name_occurrences (t : Upwards_acc.t)
     (name_occurrences : Name_occurrences.t) : M Upwards_acc.t :=
   let! tmp1 := phys_equal name_occurrences t.(Upwards_acc.name_occurrences) in
-  if tmp1 then ret t else ret {| uenv := t.(Upwards_acc.uenv);
-                                 creation_dacc := t.(Upwards_acc.creation_dacc);
-                                 lifted_constants := t.(Upwards_acc.lifted_constants);
-                                 all_code := t.(Upwards_acc.all_code);
-                                 name_occurrences := name_occurrences;
-                                 cost_metrics := t.(Upwards_acc.cost_metrics);
-                                 slot_offsets := t.(Upwards_acc.slot_offsets);
-                                 flow_result := t.(Upwards_acc.flow_result);
-                                 resimplify := t.(Upwards_acc.resimplify)
-                              |}.
+  if tmp1 then ret t else ret (update_name_occurrences t name_occurrences).
 
 (* 124-125 *)
 Definition clear_name_occurrences (t : Upwards_acc.t) : M Upwards_acc.t :=
@@ -260,16 +261,7 @@ Definition add_free_names (t : Upwards_acc.t) (free_names : Name_occurrences.t)
   let* name_occurrences :=
     Name_occurrences.union t.(name_occurrences) free_names
   in
-  ret {| uenv := t.(Upwards_acc.uenv);
-         creation_dacc := t.(Upwards_acc.creation_dacc);
-         lifted_constants := t.(Upwards_acc.lifted_constants);
-         all_code := t.(Upwards_acc.all_code);
-         name_occurrences := name_occurrences;
-         cost_metrics := t.(Upwards_acc.cost_metrics);
-         slot_offsets := t.(Upwards_acc.slot_offsets);
-         flow_result := t.(Upwards_acc.flow_result);
-         resimplify := t.(Upwards_acc.resimplify)
-      |}.
+  ret (update_name_occurrences t name_occurrences).
 
 (* 131 *)
 Definition used_value_slots (t : Upwards_acc.t) : M Name_occurrences.t :=
@@ -286,73 +278,44 @@ Definition remove_all_occurrences_of_free_names (t : Upwards_acc.t)
   let* name_occurrences :=
     Name_occurrences.diff t.(name_occurrences) to_remove
   in
-  ret {| uenv := t.(Upwards_acc.uenv);
-         creation_dacc := t.(Upwards_acc.creation_dacc);
-         lifted_constants := t.(Upwards_acc.lifted_constants);
-         all_code := t.(Upwards_acc.all_code);
-         name_occurrences := name_occurrences;
-         cost_metrics := t.(Upwards_acc.cost_metrics);
-         slot_offsets := t.(Upwards_acc.slot_offsets);
-         flow_result := t.(Upwards_acc.flow_result);
-         resimplify := t.(Upwards_acc.resimplify)
-      |}.
+  ret (update_name_occurrences t name_occurrences).
+
+(* PORT-GAP(update): 141, [{ t with cost_metrics }]. *)
+Definition update_cost_metrics (t : Upwards_acc.t)
+    (cost_metrics : Cost_metrics.t) : Upwards_acc.t :=
+  {| uenv := t.(uenv);
+     creation_dacc := t.(creation_dacc);
+     lifted_constants := t.(lifted_constants);
+     all_code := t.(all_code);
+     name_occurrences := t.(name_occurrences);
+     cost_metrics := cost_metrics;
+     slot_offsets := t.(slot_offsets);
+     flow_result := t.(flow_result);
+     resimplify := t.(resimplify)
+  |}.
+Extract Inlined Constant update_cost_metrics =>
+  "(fun t x__1 -> { t with cost_metrics = x__1 })".
 
 (* 141 *)
 Definition clear_cost_metrics (t : Upwards_acc.t) : M Upwards_acc.t :=
-  ret {| uenv := t.(Upwards_acc.uenv);
-         creation_dacc := t.(Upwards_acc.creation_dacc);
-         lifted_constants := t.(Upwards_acc.lifted_constants);
-         all_code := t.(Upwards_acc.all_code);
-         name_occurrences := t.(Upwards_acc.name_occurrences);
-         cost_metrics := Cost_metrics.zero;
-         slot_offsets := t.(Upwards_acc.slot_offsets);
-         flow_result := t.(Upwards_acc.flow_result);
-         resimplify := t.(Upwards_acc.resimplify)
-      |}.
+  ret (update_cost_metrics t Cost_metrics.zero).
 
 (* 143 *)
 Definition with_cost_metrics (cost_metrics : Cost_metrics.t)
     (t : Upwards_acc.t) : M Upwards_acc.t :=
-  ret {| uenv := t.(Upwards_acc.uenv);
-         creation_dacc := t.(Upwards_acc.creation_dacc);
-         lifted_constants := t.(Upwards_acc.lifted_constants);
-         all_code := t.(Upwards_acc.all_code);
-         name_occurrences := t.(Upwards_acc.name_occurrences);
-         cost_metrics := cost_metrics;
-         slot_offsets := t.(Upwards_acc.slot_offsets);
-         flow_result := t.(Upwards_acc.flow_result);
-         resimplify := t.(Upwards_acc.resimplify)
-      |}.
+  ret (update_cost_metrics t cost_metrics).
 
 (* 145-146 *)
 Definition notify_added (code_size : Code_size.t) (t : Upwards_acc.t)
     : M Upwards_acc.t :=
   let! tmp1 := Cost_metrics.notify_added code_size t.(cost_metrics) in
-  ret {| uenv := t.(Upwards_acc.uenv);
-         creation_dacc := t.(Upwards_acc.creation_dacc);
-         lifted_constants := t.(Upwards_acc.lifted_constants);
-         all_code := t.(Upwards_acc.all_code);
-         name_occurrences := t.(Upwards_acc.name_occurrences);
-         cost_metrics := tmp1;
-         slot_offsets := t.(Upwards_acc.slot_offsets);
-         flow_result := t.(Upwards_acc.flow_result);
-         resimplify := t.(Upwards_acc.resimplify)
-      |}.
+  ret (update_cost_metrics t tmp1).
 
 (* 148-151 *)
 Definition notify_removed (operation : Removed_operations.t)
     (t : Upwards_acc.t) : M Upwards_acc.t :=
   let! tmp1 := Cost_metrics.notify_removed operation t.(cost_metrics) in
-  ret {| uenv := t.(Upwards_acc.uenv);
-         creation_dacc := t.(Upwards_acc.creation_dacc);
-         lifted_constants := t.(Upwards_acc.lifted_constants);
-         all_code := t.(Upwards_acc.all_code);
-         name_occurrences := t.(Upwards_acc.name_occurrences);
-         cost_metrics := tmp1;
-         slot_offsets := t.(Upwards_acc.slot_offsets);
-         flow_result := t.(Upwards_acc.flow_result);
-         resimplify := t.(Upwards_acc.resimplify)
-      |}.
+  ret (update_cost_metrics t tmp1).
 
 (* 153-154 *)
 Definition add_cost_metrics (cost_metrics : Cost_metrics.t)
@@ -360,16 +323,24 @@ Definition add_cost_metrics (cost_metrics : Cost_metrics.t)
   let! tmp1 :=
     Cost_metrics.op_plus t.(Upwards_acc.cost_metrics) cost_metrics
   in
-  ret {| uenv := t.(Upwards_acc.uenv);
-         creation_dacc := t.(Upwards_acc.creation_dacc);
-         lifted_constants := t.(Upwards_acc.lifted_constants);
-         all_code := t.(Upwards_acc.all_code);
-         name_occurrences := t.(Upwards_acc.name_occurrences);
-         cost_metrics := tmp1;
-         slot_offsets := t.(Upwards_acc.slot_offsets);
-         flow_result := t.(Upwards_acc.flow_result);
-         resimplify := t.(Upwards_acc.resimplify)
-      |}.
+  ret (update_cost_metrics t tmp1).
+
+(* PORT-GAP(update): 157, [{ t with cost_metrics; name_occurrences }]. *)
+Definition update_cost_metrics_name_occurrences (t : Upwards_acc.t)
+    (cost_metrics : Cost_metrics.t)
+    (name_occurrences : Name_occurrences.t) : Upwards_acc.t :=
+  {| uenv := t.(uenv);
+     creation_dacc := t.(creation_dacc);
+     lifted_constants := t.(lifted_constants);
+     all_code := t.(all_code);
+     name_occurrences := name_occurrences;
+     cost_metrics := cost_metrics;
+     slot_offsets := t.(slot_offsets);
+     flow_result := t.(flow_result);
+     resimplify := t.(resimplify)
+  |}.
+Extract Inlined Constant update_cost_metrics_name_occurrences =>
+  "(fun t x__1 x__2 -> { t with cost_metrics = x__1; name_occurrences = x__2 })".
 
 (* 156-160 *)
 Definition add_cost_metrics_and_with_name_occurrences (t : Upwards_acc.t)
@@ -378,16 +349,7 @@ Definition add_cost_metrics_and_with_name_occurrences (t : Upwards_acc.t)
   let! tmp1 :=
     Cost_metrics.op_plus t.(Upwards_acc.cost_metrics) cost_metrics
   in
-  ret {| uenv := t.(Upwards_acc.uenv);
-         creation_dacc := t.(Upwards_acc.creation_dacc);
-         lifted_constants := t.(Upwards_acc.lifted_constants);
-         all_code := t.(Upwards_acc.all_code);
-         name_occurrences := name_occurrences;
-         cost_metrics := tmp1;
-         slot_offsets := t.(Upwards_acc.slot_offsets);
-         flow_result := t.(Upwards_acc.flow_result);
-         resimplify := t.(Upwards_acc.resimplify)
-      |}.
+  ret (update_cost_metrics_name_occurrences t tmp1 name_occurrences).
 
 (* 162 *)
 Definition generate_phantom_lets (t : Upwards_acc.t) : M bool :=
@@ -400,19 +362,26 @@ Definition is_demoted_exn_handler (t : Upwards_acc.t) (cont : Continuation.t)
   let! tmp1 := Downwards_acc.demoted_exn_handlers t.(creation_dacc) in
   Continuation.Set_.mem cont tmp1.
 
+(* PORT-GAP(update): 169, [{ t with slot_offsets }]. *)
+Definition update_slot_offsets (t : Upwards_acc.t)
+    (slot_offsets : Or_unknown.t Slot_offsets.t) : Upwards_acc.t :=
+  {| uenv := t.(uenv);
+     creation_dacc := t.(creation_dacc);
+     lifted_constants := t.(lifted_constants);
+     all_code := t.(all_code);
+     name_occurrences := t.(name_occurrences);
+     cost_metrics := t.(cost_metrics);
+     slot_offsets := slot_offsets;
+     flow_result := t.(flow_result);
+     resimplify := t.(resimplify)
+  |}.
+Extract Inlined Constant update_slot_offsets =>
+  "(fun t x__1 -> { t with slot_offsets = x__1 })".
+
 (* 169 *)
 Definition with_slot_offsets (t : Upwards_acc.t)
     (slot_offsets : Or_unknown.t Slot_offsets.t) : M Upwards_acc.t :=
-  ret {| uenv := t.(Upwards_acc.uenv);
-         creation_dacc := t.(Upwards_acc.creation_dacc);
-         lifted_constants := t.(Upwards_acc.lifted_constants);
-         all_code := t.(Upwards_acc.all_code);
-         name_occurrences := t.(Upwards_acc.name_occurrences);
-         cost_metrics := t.(Upwards_acc.cost_metrics);
-         slot_offsets := slot_offsets;
-         flow_result := t.(Upwards_acc.flow_result);
-         resimplify := t.(Upwards_acc.resimplify)
-      |}.
+  ret (update_slot_offsets t slot_offsets).
 
 (* 171 *)
 Definition required_names (t : Upwards_acc.t) : M Name.Set_.t :=
@@ -435,18 +404,25 @@ Definition mutable_unboxing_result (t : Upwards_acc.t)
     : M Flow_types.Mutable_unboxing_result.t :=
   ret t.(flow_result).(Flow_types.Flow_result.mutable_unboxing_result).
 
+(* PORT-GAP(update): 179, [{ t with resimplify }]. *)
+Definition update_resimplify (t : Upwards_acc.t)
+    (resimplify : bool) : Upwards_acc.t :=
+  {| uenv := t.(uenv);
+     creation_dacc := t.(creation_dacc);
+     lifted_constants := t.(lifted_constants);
+     all_code := t.(all_code);
+     name_occurrences := t.(name_occurrences);
+     cost_metrics := t.(cost_metrics);
+     slot_offsets := t.(slot_offsets);
+     flow_result := t.(flow_result);
+     resimplify := resimplify
+  |}.
+Extract Inlined Constant update_resimplify =>
+  "(fun t x__1 -> { t with resimplify = x__1 })".
+
 (* 179 *)
 Definition set_resimplify (t : Upwards_acc.t) : M Upwards_acc.t :=
-  ret {| uenv := t.(Upwards_acc.uenv);
-         creation_dacc := t.(Upwards_acc.creation_dacc);
-         lifted_constants := t.(Upwards_acc.lifted_constants);
-         all_code := t.(Upwards_acc.all_code);
-         name_occurrences := t.(Upwards_acc.name_occurrences);
-         cost_metrics := t.(Upwards_acc.cost_metrics);
-         slot_offsets := t.(Upwards_acc.slot_offsets);
-         flow_result := t.(Upwards_acc.flow_result);
-         resimplify := true
-      |}.
+  ret (update_resimplify t true).
 
 (* 183. In the compiler: [DA.specialization_map (creation_dacc t)]; here
    [creation_dacc] is the projection. *)
