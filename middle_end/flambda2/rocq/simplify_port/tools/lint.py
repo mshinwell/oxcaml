@@ -26,12 +26,14 @@
 #* DEALINGS IN THE SOFTWARE.                                                  *
 #******************************************************************************
 
-"""lint.py FILE.v : one cheap check of a ported file (GUIDE.md, section 2):
-every temporary that [let! tmpN := ... in] binds is used exactly once before
-it is bound again or its definition ends, and [let!] binds no other name. The
-extraction writes the call where the temporary is used: one that is not used
-would vanish with its call. It does not see where the use is (under a [fun],
-in a branch). It follows no file of the compiler."""
+"""lint.py FILE.v : one cheap check of a ported file (GUIDE.md, section 2).
+It COUNTS WORDS, it does not know Rocq's scopes: after the [in] that ends
+[let! tmpN := ... in], the word tmpN must stand exactly once before the next
+[let! tmpN] or the end of the definition, and [let!] must bind no other name.
+The extraction writes the call where the temporary is used: one that is not
+used would vanish with its call. What it does not see: where the use is
+(under a [fun], in a branch), and a use that is in truth of another variable
+of the same name. It follows no file of the compiler."""
 import re, sys
 
 def strip_comments(s):
@@ -63,7 +65,16 @@ for n, m in enumerate(binds):
         if m2.group(1) == name: end = m2.start(); break
     stop = re.compile(r"\.\s*\n").search(text, m.end())
     if stop and stop.start() < end: end = stop.start()
-    uses = len(re.findall(r"(?<![A-Za-z_0-9'.])%s(?![A-Za-z_0-9'])" % name, text[m.end():end]))
+    # the body: after the [in] that ends the right side (outside brackets)
+    depth = 0; body = None
+    for m3 in re.finditer(r"[()]|(?<![A-Za-z_0-9'.])in(?![A-Za-z_0-9'])", text[m.end():end]):
+        if m3.group(0) == "(": depth += 1
+        elif m3.group(0) == ")": depth -= 1
+        elif depth == 0: body = m.end() + m3.end(); break
+    if body is None:
+        print("%s:%d: no [in] found for let! %s" % (path, line_of(m.start()), name)); bad += 1
+        continue
+    uses = len(re.findall(r"(?<![A-Za-z_0-9'.])%s(?![A-Za-z_0-9'])" % name, text[body:end]))
     if uses != 1:
         print("%s:%d: %s is used %d times: a let! is used exactly once" % (path, line_of(m.start()), name, uses)); bad += 1
 sys.exit(1 if bad else 0)

@@ -56,8 +56,10 @@ the order of the Rocq arguments), inside each argument the same:
 A `tmpN` is used EXACTLY ONCE, by the expression that follows its `let!`
 directly, and not inside a `fun` or a branch of it: Rocq writes the call
 where the `tmpN` is, so an unused one would vanish and one under a `fun`
-would move (`make` refuses a `tmpN` that is not used once; do not bind a
-`tmpN` again before it is used). The scrutinee of
+would move. `make` only COUNTS WORDS (`tools/lint.py`): after its `let!`,
+the word `tmpN` must stand once before the next `let! tmpN`; so do not bind
+a `tmpN` again before it is used, and give no other variable that name. The
+scrutinee of
 a `match` or `if` that is a call is a `let!` before it. A value at the end
 is `ret v`. Never: a call as an argument; Rocq's own `let x := f a in`; a
 `Definition x : M T` without arguments; a computation in a pair, a list or a
@@ -197,12 +199,13 @@ with its Rocq type, and the file begins with `open` lines for the modules
 of `decl/` whose records it uses.
 
 KNOWN PROBLEMS OF THE EXTRACTION (the human has put them off; none is
-checked by a tool but the first). In the identity build `M A` is `A`, and
+checked by a tool, but the first in part). In the identity build `M A` is `A`, and
 Rocq's extraction takes every term for a pure one:
 1. A `let!` that is not used is DROPPED with its call; used twice it stays a
    `let`; used under a `fun` or in a branch the call MOVES there
    (`let! tmp1 := f x in g (fun y => h tmp1 y)` gives `g (fun y -> h (f x)
-   y)`). `make` checks the count of uses only.
+   y)`). `make` counts the words only: it does not know scopes or
+   shadowing, and it does not look at branches or `fun`s.
 2. Rocq's own `let x := f a in k` with `x` used once: the call moves to the
    use; not used: dropped. (Hence `let*`, which is a match and stays.)
 3. A computation that is STORED (in a pair, a record, a variable, a
@@ -215,7 +218,12 @@ Rocq's extraction takes every term for a pure one:
 6. The realisation strings of `decl/` are texts: a string that is not a
    function or constructor (a call) would run wherever Rocq puts it.
 7. A variable named `program_branch_N` that is used once may be inlined
-   even where an ordinary `let` is kept. Do not use `Program`.
+   even where an ordinary `let` is kept. Do not use `Program`. And
+   `Extraction Inline f` puts the arguments of `f` where its body uses
+   them, whatever the flags: with `Definition two (a b : M int) := ...`
+   inlined, `two (tick 1) (tick 2)` may run the ticks in another order or
+   twice. No ported file has an `Extraction Inline`; the kit has it for
+   `ret` and `papp1` .. `papp4` only.
 8. The identity build is NOT a model: its `fatal_error : forall A, string ->
    A` is a parameter, its fuel never ends. Nothing is proved in it;
    statements are about `monad/real`. That the extracted OCaml does what

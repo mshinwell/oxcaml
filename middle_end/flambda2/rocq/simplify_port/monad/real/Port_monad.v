@@ -238,7 +238,10 @@ Definition fatal_errorf16 {A A1 A2 A3 A4 A5 A6 A7 A8 A9 A10 A11 A12 A13 A14 A15 
 
 (* The value of [Assert_failure (file, line, column)] that a failed
    assertion raises. It is an exception like another: a handler for every
-   exception catches it, one for [Misc.Fatal_error] does not. *)
+   exception catches it, one for [Misc.Fatal_error] does not.
+   PORT-GAP(loose): OCaml's exception carries the place of the assertion
+   that failed; here ONE value stands for every place, so two assertions
+   that fail are not told apart. *)
 Parameter assert_failure : exn.
 
 (* [assert b]. (The port assumes that the compiler is built with its
