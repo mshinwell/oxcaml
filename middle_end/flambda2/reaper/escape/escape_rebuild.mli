@@ -41,18 +41,26 @@ val create :
   machine_width:Target_system.Machine_width.t ->
   t
 
+(** What rebuilding accumulates, to be threaded through it: the statistics, and
+    the continuations created by [redirect_switch_arms] and [rebuild_apply],
+    until they are bound by [leave_recursive_handler] or [leave_function]. *)
+type acc
+
+val empty_acc : acc
+
 (** Print the statistics on the heap allocations seen by [localize] (blocks,
     boxed numbers and sets of closures): how many were made local and how many
     stayed on the heap, with their sizes in words. Nothing is printed unless the
     reaper debug flag [escape-stats] (one line per compilation unit) or
     [escape-stats-verbose] (also one line per allocation) is given; see
     [escape_rebuild.ml] for the format. *)
-val report_stats : t -> unit
+val report_stats : t -> acc -> unit
 
 (** The defining expression of a [Let], to be rebuilt in place of the given one:
     a heap allocation (of a block, boxed number or set of closures) that the
     analysis decided to make local allocates in the innermost region. *)
-val localize : t -> Bound_pattern.t -> Rev_expr.rev_named -> Rev_expr.rev_named
+val localize :
+  t -> acc -> Bound_pattern.t -> Rev_expr.rev_named -> Rev_expr.rev_named * acc
 
 (** See [Escape_solution.adjust_code_metadata]. *)
 val adjust_code_metadata : t -> Code_id.t -> Code_metadata.t -> Code_metadata.t
@@ -67,30 +75,35 @@ val end_regions_before_jump :
     give fresh parameters for the continuation, as it is rebuilt. *)
 val redirect_switch_arms :
   t ->
+  acc ->
   params_of_continuation:(Continuation.t -> Bound_parameter.t list) ->
   Switch_arm.t Target_ocaml_int.Map.t ->
-  Switch_arm.t Target_ocaml_int.Map.t
+  Switch_arm.t Target_ocaml_int.Map.t * acc
 
 (** Rebuild an application with [rebuild], after giving it a local return mode
     if the callee was made to return at mode local, and close the regions left
     when it returns. *)
 val rebuild_apply :
   t ->
+  acc ->
   params_of_continuation:(Continuation.t -> Bound_parameter.t list) ->
   Flambda.Apply.t ->
   rebuild:(Flambda.Apply.t -> Rebuilt_expr.t) ->
-  Rebuilt_expr.t
+  Rebuilt_expr.t * acc
 
-(** Rebuild the handler of the given recursive continuation, adding a region
-    around it if needed (see [Escape_graph.recursive_scope]). *)
-val rebuild_recursive_handler :
-  t ->
-  Continuation.t ->
-  rebuild_body:(t -> Rebuilt_expr.t * 'r) ->
-  Rebuilt_expr.t * 'r
+(** The state for rebuilding the handler of the given recursive continuation,
+    which may get a region of its own (see [Escape_graph.recursive_scope]). *)
+val enter_recursive_handler : t -> Continuation.t -> t
 
-(** Enter the body of a function: returns its allocation mode, made
-    [Maybe_alloc_stack] if the function is to return at mode local. *)
+(** To be called on the rebuilt handler of a recursive continuation, with the
+    state returned by [enter_recursive_handler]: adds the region around it if
+    needed. *)
+val leave_recursive_handler :
+  t -> acc -> Continuation.t -> Rebuilt_expr.t -> Rebuilt_expr.t * acc
+
+(** The state for rebuilding the body of a function, which may get a region of
+    its own, and its allocation mode, made [Maybe_alloc_stack] if the function
+    is to return at mode local. *)
 val enter_function :
   t ->
   code_id:Code_id.t ->
@@ -98,10 +111,7 @@ val enter_function :
   my_alloc_mode:Alloc_mode.For_applications.t ->
   Alloc_mode.For_applications.t * t
 
-(** Rebuild the body of a function (entered with [enter_function]), adding a
-    region around it if needed. *)
-val rebuild_function_body :
-  t ->
-  code_id:Code_id.t ->
-  rebuild_body:(t -> Rebuilt_expr.t * 'r) ->
-  Rebuilt_expr.t * 'r
+(** To be called on the rebuilt body of a function, with the state returned by
+    [enter_function]: adds the region around it if needed. *)
+val leave_function :
+  t -> acc -> code_id:Code_id.t -> Rebuilt_expr.t -> Rebuilt_expr.t * acc

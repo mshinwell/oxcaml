@@ -43,12 +43,37 @@ module RE = Rebuilt_expr
    (see [allocation_is_kept]), are not counted. The allocations are described as
    they are before rebuilding, which may still remove some of their fields. *)
 type stats =
-  { mutable local_allocs : int;
-    mutable local_words : int;
-    mutable heap_allocs : int;
-    mutable heap_words : int;
-    mutable heap_candidate_allocs : int;
-    mutable heap_candidate_words : int
+  { local_allocs : int;
+    local_words : int;
+    heap_allocs : int;
+    heap_words : int;
+    heap_candidate_allocs : int;
+    heap_candidate_words : int
+  }
+
+(* What rebuilding accumulates: the statistics, and for each region we
+   introduce, the continuations closing the regions left by a jump from a
+   [Switch] arm or a non-tail application (see [closer]), keyed by the target of
+   the jump. These continuations are shared by all such jumps for which that
+   region is the innermost one; they are bound at the start of its scope (see
+   [leave_region_scope]), which removes them from the accumulator. *)
+type acc =
+  { stats : stats;
+    closers :
+      (Continuation.t * RE.continuation_handler) Continuation.Map.t
+      Variable.Map.t
+  }
+
+let empty_acc =
+  { stats =
+      { local_allocs = 0;
+        local_words = 0;
+        heap_allocs = 0;
+        heap_words = 0;
+        heap_candidate_allocs = 0;
+        heap_candidate_words = 0
+      };
+    closers = Variable.Map.empty
   }
 
 type stats_mode =
@@ -69,13 +94,7 @@ type region =
     (* The region scope, for the regions we introduce; [None] for the region of
        the caller of a function returning at mode local ([my_region]), which the
        function must not close. *)
-    scope : Code_id_or_name.t option;
-    (* The continuations closing the regions left by a jump from a [Switch] arm
-       or a non-tail application (see [closer]), keyed by the target of the
-       jump. They are shared by all such jumps for which this is the innermost
-       region, and bound at the start of its scope. *)
-    mutable closers :
-      (Continuation.t * RE.continuation_handler) Continuation.Map.t
+    scope : Code_id_or_name.t option
   }
 
 type enabled =
@@ -92,8 +111,7 @@ type enabled =
     (* The regions of the enclosing region scopes being rebuilt, innermost
        first. *)
     regions : region list;
-    stats_mode : stats_mode;
-    stats : stats
+    stats_mode : stats_mode
   }
 
 (* When the analysis has not been run, every function below leaves what it is
@@ -117,15 +135,7 @@ let create graph ~is_unboxed ~allocation_is_kept ~code_ids_directly_called
         machine_width;
         return_continuation = None;
         regions = [];
-        stats_mode = stats_mode ();
-        stats =
-          { local_allocs = 0;
-            local_words = 0;
-            heap_allocs = 0;
-            heap_words = 0;
-            heap_candidate_allocs = 0;
-            heap_candidate_words = 0
-          }
+        stats_mode = stats_mode ()
       }
 
 (* Descriptions of the allocations for the statistics (see [stats]). *)
@@ -232,9 +242,9 @@ let closure_allocation t (set_of_closures : Rev_expr.rev_set_of_closures) =
 let unit_name () =
   Compilation_unit.full_path_as_string (Current_unit.get_cu_exn ())
 
-let record_allocation t ~is_local ~candidate allocation =
+let record_allocation t stats ~is_local ~candidate allocation =
   match t.stats_mode with
-  | No_stats -> ()
+  | No_stats -> stats
   | Summary | Verbose ->
     let allocation, dbg = allocation () in
     let words = words_of_allocation allocation in
@@ -247,24 +257,32 @@ let record_allocation t ~is_local ~candidate allocation =
         (if is_local then "local" else "heap")
         candidate print_allocation allocation words Debuginfo.print_compact dbg
     | No_stats | Summary -> ());
-    let stats = t.stats in
     if is_local
-    then (
-      stats.local_allocs <- stats.local_allocs + 1;
-      stats.local_words <- stats.local_words + words)
-    else (
-      stats.heap_allocs <- stats.heap_allocs + 1;
-      stats.heap_words <- stats.heap_words + words;
+    then
+      { stats with
+        local_allocs = stats.local_allocs + 1;
+        local_words = stats.local_words + words
+      }
+    else
+      let stats =
+        { stats with
+          heap_allocs = stats.heap_allocs + 1;
+          heap_words = stats.heap_words + words
+        }
+      in
       if candidate
-      then (
-        stats.heap_candidate_allocs <- stats.heap_candidate_allocs + 1;
-        stats.heap_candidate_words <- stats.heap_candidate_words + words))
+      then
+        { stats with
+          heap_candidate_allocs = stats.heap_candidate_allocs + 1;
+          heap_candidate_words = stats.heap_candidate_words + words
+        }
+      else stats
 
-let report_stats t =
+let report_stats t { stats; closers = _ } =
   match t with
   | Disabled -> ()
   | Enabled { stats_mode = No_stats; _ } -> ()
-  | Enabled { stats_mode = Summary | Verbose; stats; _ } ->
+  | Enabled { stats_mode = Summary | Verbose; _ } ->
     Format.eprintf
       "reaper-escape-stats: unit=%s local_allocs=%d local_words=%d \
        heap_allocs=%d heap_words=%d heap_candidate_allocs=%d \
@@ -276,10 +294,10 @@ let report_stats t =
    region of the innermost region scope when the escape analysis has decided it
    is local. The allocation is recorded in the statistics if the reaper keeps
    it. Allocations already local in the input are not ours. *)
-let localize_alloc_mode t vars ~allocation
+let localize_alloc_mode t acc vars ~allocation
     (alloc_mode : Alloc_mode.For_allocations.t) =
   match alloc_mode with
-  | Local _ -> alloc_mode
+  | Local _ -> alloc_mode, acc
   | Heap { alloc_region } -> (
     let is_local =
       List.for_all (Escape_solution.is_local_allocation t.solution) vars
@@ -287,23 +305,25 @@ let localize_alloc_mode t vars ~allocation
     let record ~is_local =
       if List.exists t.allocation_is_kept vars
       then
-        record_allocation t ~is_local
-          ~candidate:
-            (List.for_all (Escape_solution.is_candidate t.solution) vars)
-          allocation
+        { acc with
+          stats =
+            record_allocation t acc.stats ~is_local
+              ~candidate:
+                (List.for_all (Escape_solution.is_candidate t.solution) vars)
+              allocation
+        }
+      else acc
     in
     match t.regions with
     | { region; _ } :: _ when is_local ->
-      record ~is_local:true;
-      Alloc_mode.For_allocations.local ~alloc_region ~region
-    | [] | _ :: _ ->
-      record ~is_local:false;
-      alloc_mode)
+      ( Alloc_mode.For_allocations.local ~alloc_region ~region,
+        record ~is_local:true )
+    | [] | _ :: _ -> alloc_mode, record ~is_local:false)
 
-let localize t (bound_pattern : Bound_pattern.t)
-    (defining_expr : Rev_expr.rev_named) : Rev_expr.rev_named =
+let localize t acc (bound_pattern : Bound_pattern.t)
+    (defining_expr : Rev_expr.rev_named) : Rev_expr.rev_named * acc =
   match t with
-  | Disabled -> defining_expr
+  | Disabled -> defining_expr, acc
   | Enabled t -> (
     match[@ocaml.warning "-fragile-match"] bound_pattern, defining_expr with
     | ( Singleton bv,
@@ -311,44 +331,47 @@ let localize t (bound_pattern : Bound_pattern.t)
           (Prim
              ( Variadic (Make_block (block_kind, mutability, alloc_mode), fields),
                dbg )) ) ->
-      let alloc_mode' =
-        localize_alloc_mode t
+      let alloc_mode', acc =
+        localize_alloc_mode t acc
           [Bound_var.var bv]
           ~allocation:(fun () ->
             block_allocation block_kind ~num_fields:(List.length fields) ~dbg)
           alloc_mode
       in
       if alloc_mode' == alloc_mode
-      then defining_expr
+      then defining_expr, acc
       else
-        Named
-          (Named.create_prim
-             (Variadic (Make_block (block_kind, mutability, alloc_mode'), fields))
-             dbg)
+        ( Named
+            (Named.create_prim
+               (Variadic
+                  (Make_block (block_kind, mutability, alloc_mode'), fields))
+               dbg),
+          acc )
     | Singleton bv, Named (Prim (Unary (Box_number (bn, alloc_mode), arg), dbg))
       ->
-      let alloc_mode' =
-        localize_alloc_mode t
+      let alloc_mode', acc =
+        localize_alloc_mode t acc
           [Bound_var.var bv]
           ~allocation:(fun () -> boxed_number_allocation bn ~dbg)
           alloc_mode
       in
       if alloc_mode' == alloc_mode
-      then defining_expr
+      then defining_expr, acc
       else
-        Named
-          (Named.create_prim (Unary (Box_number (bn, alloc_mode'), arg)) dbg)
+        ( Named
+            (Named.create_prim (Unary (Box_number (bn, alloc_mode'), arg)) dbg),
+          acc )
     | Set_of_closures bvs, Set_of_closures (set_of_closures, alloc_mode) ->
-      let alloc_mode' =
-        localize_alloc_mode t
+      let alloc_mode', acc =
+        localize_alloc_mode t acc
           (List.map Bound_var.var bvs)
           ~allocation:(fun () -> closure_allocation t set_of_closures)
           alloc_mode
       in
       if alloc_mode' == alloc_mode
-      then defining_expr
-      else Set_of_closures (set_of_closures, alloc_mode')
-    | _ -> defining_expr)
+      then defining_expr, acc
+      else Set_of_closures (set_of_closures, alloc_mode'), acc
+    | _ -> defining_expr, acc)
 
 let adjust_code_metadata t code_id code_metadata =
   match t with
@@ -481,14 +504,19 @@ let set_local_return_mode t apply =
 (* A continuation that closes the regions left when jumping to [k], then jumps
    to [k]. Used where an [End_region] cannot simply be inserted before the jump:
    [Switch] arms, and non-tail applications returning to [k]. *)
-let closer t ~params_of_continuation k =
+let closer t acc ~params_of_continuation k =
   match t.regions with
   | [] ->
     Misc.fatal_errorf "[closer]: no region to close before jumping to %a"
       Continuation.print k
   | innermost :: _ -> (
-    match Continuation.Map.find_opt k innermost.closers with
-    | Some (k_close, _) -> k_close
+    let closers =
+      match Variable.Map.find_opt innermost.region acc.closers with
+      | Some closers -> closers
+      | None -> Continuation.Map.empty
+    in
+    match Continuation.Map.find_opt k closers with
+    | Some (k_close, _) -> k_close, acc
     | None ->
       let k_close = Continuation.create () in
       let params = params_of_continuation k in
@@ -509,38 +537,43 @@ let closer t ~params_of_continuation k =
           (Bound_parameters.create params)
           ~handler ~is_exn_handler:false ~is_cold:false
       in
-      innermost.closers
-        <- Continuation.Map.add k (k_close, handler) innermost.closers;
-      k_close)
+      let closers = Continuation.Map.add k (k_close, handler) closers in
+      ( k_close,
+        { acc with
+          closers = Variable.Map.add innermost.region closers acc.closers
+        } ))
 
-let redirect_switch_arms t ~params_of_continuation arms =
+let redirect_switch_arms t acc ~params_of_continuation arms =
   match t with
-  | Disabled | Enabled { regions = []; _ } -> arms
+  | Disabled | Enabled { regions = []; _ } -> arms, acc
   | Enabled ({ regions = _ :: _; _ } as t) ->
-    Target_ocaml_int.Map.map_sharing
-      (fun arm ->
+    Target_ocaml_int.Map.fold
+      (fun discr arm (arms, acc) ->
         let action = Switch_arm.action arm in
         let k = Apply_cont_expr.continuation action in
         match regions_exited_by t k with
-        | [] -> arm
+        | [] -> arms, acc
         | _ :: _ ->
-          let k_close = closer t ~params_of_continuation k in
-          Switch_arm.create
-            ~annotations:(Switch_arm.annotations arm)
-            (Apply_cont_expr.with_continuation action k_close))
-      arms
+          let k_close, acc = closer t acc ~params_of_continuation k in
+          let arm =
+            Switch_arm.create
+              ~annotations:(Switch_arm.annotations arm)
+              (Apply_cont_expr.with_continuation action k_close)
+          in
+          Target_ocaml_int.Map.add discr arm arms, acc)
+      arms (arms, acc)
 
-let rebuild_apply t ~params_of_continuation apply ~rebuild : RE.t =
+let rebuild_apply t acc ~params_of_continuation apply ~rebuild : RE.t * acc =
   match t with
-  | Disabled -> rebuild apply
+  | Disabled -> rebuild apply, acc
   | Enabled t -> (
     let apply = set_local_return_mode t apply in
     let expr : RE.t = rebuild apply in
     match Apply.continuation apply with
-    | Never_returns -> expr
+    | Never_returns -> expr, acc
     | Return k -> (
       match regions_exited_by t k with
-      | [] -> expr
+      | [] -> expr, acc
       | _ :: _ as regions ->
         let is_tail_call =
           Option.equal Continuation.equal (Some k) t.return_continuation
@@ -551,58 +584,82 @@ let rebuild_apply t ~params_of_continuation apply ~rebuild : RE.t =
           (* Tail call: close the regions beforehand so that it remains a tail
              call; no local value is passed to it (see
              [Escape_traverse.record_apply]). *)
-          end_regions t regions expr
+          end_regions t regions expr, acc
         else
-          let k_close = closer t ~params_of_continuation k in
+          let k_close, acc = closer t acc ~params_of_continuation k in
           let renaming = Renaming.add_continuation Renaming.empty k k_close in
-          RE.from_expr
-            ~expr:(Expr.apply_renaming expr.expr renaming)
-            ~free_names:
-              (Name_occurrences.apply_renaming expr.free_names renaming)
-            ~code_size:expr.code_size))
+          ( RE.from_expr
+              ~expr:(Expr.apply_renaming expr.expr renaming)
+              ~free_names:
+                (Name_occurrences.apply_renaming expr.free_names renaming)
+              ~code_size:expr.code_size,
+            acc )))
 
-(* Rebuild the body of a region scope (a function body or the handler of a
-   recursive continuation), adding a region around it if the escape analysis
-   found local allocations in it: [Begin_region] at the start, and [End_region]
-   on every exit, which [Rebuild.rebuild_expr] inserts when rebuilding the jumps
-   to continuations defined outside the scope. Tail calls are preserved by
-   closing the regions before them (no local value may be passed to them, see
+(* A region scope (a function body or the handler of a recursive continuation)
+   gets a region if the escape analysis found local allocations in it:
+   [Begin_region] at the start, and [End_region] on every exit, which
+   [Rebuild.rebuild_expr] inserts when rebuilding the jumps to continuations
+   defined outside the scope. Tail calls are preserved by closing the regions
+   before them (no local value may be passed to them, see
    [Escape_traverse.record_apply]). Nothing is done on the exceptional path: the
    exception handler that catches the exception closes the region (as for
    regions introduced by the type checker), or, failing that, an enclosing
    region. *)
-let rebuild_region_scope t ~scope ~rebuild_body =
+let enter_region_scope t ~scope =
   if not (Escape_solution.scope_needs_region t.solution scope)
-  then rebuild_body (Enabled t)
+  then t
   else
     let region =
       { region = Variable.create "region" K.region;
         ghost_region = Variable.create "ghost_region" K.region;
-        scope = Some scope;
-        closers = Continuation.Map.empty
+        scope = Some scope
       }
     in
-    let (body : RE.t), res =
-      rebuild_body (Enabled { t with regions = region :: t.regions })
-    in
-    let body =
-      Continuation.Map.fold
-        (fun _ (k_close, handler) body ->
-          RE.create_non_recursive_let_cont k_close handler ~body)
-        region.closers body
-    in
-    begin_regions t region body, res
+    { t with regions = region :: t.regions }
 
-let rebuild_recursive_handler t cont ~rebuild_body =
+(* [t] must be the result of [enter_region_scope] for [scope]. *)
+let leave_region_scope t acc ~scope (body : RE.t) =
+  if not (Escape_solution.scope_needs_region t.solution scope)
+  then body, acc
+  else
+    match t.regions with
+    | ({ scope = Some scope'; _ } as region) :: _
+      when Code_id_or_name.equal scope scope' ->
+      let body, acc =
+        match Variable.Map.find_opt region.region acc.closers with
+        | None -> body, acc
+        | Some closers ->
+          ( Continuation.Map.fold
+              (fun _ (k_close, handler) body ->
+                RE.create_non_recursive_let_cont k_close handler ~body)
+              closers body,
+            { acc with closers = Variable.Map.remove region.region acc.closers }
+          )
+      in
+      begin_regions t region body, acc
+    | [] | { scope = Some _ | None; _ } :: _ ->
+      Misc.fatal_errorf
+        "[leave_region_scope]: the innermost region is not the one of %a"
+        Code_id_or_name.print scope
+
+let recursive_scope t cont =
+  Option.map Code_id_or_name.var (Escape_graph.recursive_scope t.graph cont)
+
+let enter_recursive_handler t cont =
   match t with
-  | Disabled -> rebuild_body t
+  | Disabled -> t
   | Enabled enabled -> (
-    match Escape_graph.recursive_scope enabled.graph cont with
-    | None -> rebuild_body t
-    | Some scope ->
-      rebuild_region_scope enabled
-        ~scope:(Code_id_or_name.var scope)
-        ~rebuild_body)
+    match recursive_scope enabled cont with
+    | None -> t
+    | Some scope -> Enabled (enter_region_scope enabled ~scope))
+
+let leave_recursive_handler t acc cont body =
+  match t with
+  | Disabled -> body, acc
+  | Enabled t -> (
+    match recursive_scope t cont with
+    | None -> body, acc
+    | Some scope -> leave_region_scope t acc ~scope body)
 
 (* A function returning at mode local allocates in its caller's region, which it
    must not close (see [Escape_analysis]). *)
@@ -615,7 +672,10 @@ let enter_function t ~code_id ~return_continuation
       { t with return_continuation = Some return_continuation; regions = [] }
     in
     if not (Escape_solution.returns_local t.solution code_id)
-    then my_alloc_mode, Enabled t
+    then
+      ( my_alloc_mode,
+        Enabled (enter_region_scope t ~scope:(Code_id_or_name.code_id code_id))
+      )
     else
       match my_alloc_mode with
       | Maybe_alloc_stack _ ->
@@ -628,23 +688,13 @@ let enter_function t ~code_id ~return_continuation
         let ghost_region = Variable.create "my_ghost_region" K.region in
         ( Alloc_mode.For_applications.maybe_alloc_stack ~alloc_region ~region
             ~ghost_region,
-          Enabled
-            { t with
-              regions =
-                [ { region;
-                    ghost_region;
-                    scope = None;
-                    closers = Continuation.Map.empty
-                  } ]
-            } ))
+          Enabled { t with regions = [{ region; ghost_region; scope = None }] }
+        ))
 
-let rebuild_function_body t ~code_id ~rebuild_body =
+let leave_function t acc ~code_id body =
   match t with
-  | Disabled -> rebuild_body t
-  | Enabled enabled ->
-    if Escape_solution.returns_local enabled.solution code_id
-    then rebuild_body t
-    else
-      rebuild_region_scope enabled
-        ~scope:(Code_id_or_name.code_id code_id)
-        ~rebuild_body
+  | Disabled -> body, acc
+  | Enabled t ->
+    if Escape_solution.returns_local t.solution code_id
+    then body, acc
+    else leave_region_scope t acc ~scope:(Code_id_or_name.code_id code_id) body

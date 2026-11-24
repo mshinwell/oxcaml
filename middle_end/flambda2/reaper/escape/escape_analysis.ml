@@ -170,12 +170,18 @@ let code_with_unknown_closure = rel1 "escape_code_with_unknown_closure" Cols.[n]
 
 (* [tail_edge f c]: the function [f] contains a known-arity application in tail
    position (an application whose result is the result of [f]; this includes the
-   ones marked [@nontail]) whose callee may have code [c]; [tail_reach] is its
-   transitive closure. Only the functions whose calling convention may be
-   changed are considered: the others never return at mode local anyway. *)
+   ones marked [@nontail]) whose callee may have code [c]. Only the functions
+   whose calling convention may be changed are considered: the others never
+   return at mode local anyway. *)
 let tail_edge = rel2 "escape_tail_edge" Cols.[n; n]
 
-let tail_reach = rel2 "escape_tail_reach" Cols.[n; n]
+(* [on_tail_cycle f]: the function [f] is on a cycle of [tail_edge]s. This is
+   computed outside of Datalog (see [add_tail_cycles]), in time linear in the
+   number of edges: a transitive closure would be quadratic on long chains of
+   tail calls. *)
+let on_tail_cycle_tbl = Schemas.N.create ~name:"escape_on_tail_cycle"
+
+let on_tail_cycle f = Datalog.atom on_tail_cycle_tbl [f]
 
 (* [cannot_return_local s]: the function [s] cannot be made to return at mode
    local: either its calling convention cannot be changed, or it is on a cycle
@@ -329,7 +335,7 @@ let candidate_rules =
          ~~(cannot_change_calling_convention f);
          call_result_of_code q s' c;
          ~~(cannot_change_calling_convention c) ]
-       ==> and_ [tail_edge f c; tail_reach f c]);
+       ==> tail_edge f c);
       (* The result of an unknown-arity application is aliased to a partial
          application node of the code of its callee exactly when fewer arguments
          than the arity are supplied. *)
@@ -395,15 +401,50 @@ let no_calling_convention_change_rules =
     [ (let$ [s; r] = ["s"; "r"] in
        [return_of ~scope:s ~result:r] ==> cannot_return_local s) ]
 
+module SCC = Strongly_connected_components.Make (Code_id_or_name)
+
+let add_tail_cycles =
+  let tail_edges =
+    query
+      (let$ [f; c] = ["f"; "c"] in
+       [tail_edge f c] =>? [f; c])
+  in
+  fun db ->
+    let add_node node graph =
+      if Code_id_or_name.Map.mem node graph
+      then graph
+      else Code_id_or_name.Map.add node Code_id_or_name.Set.empty graph
+    in
+    let graph =
+      Cursor.fold tail_edges db ~init:Code_id_or_name.Map.empty
+        ~f:(fun [f; c] graph ->
+          Code_id_or_name.Map.update f
+            (fun callees ->
+              let callees =
+                Option.value callees ~default:Code_id_or_name.Set.empty
+              in
+              Some (Code_id_or_name.Set.add c callees))
+            (add_node c graph))
+    in
+    let on_tail_cycle =
+      Array.fold_left
+        (fun on_tail_cycle (component : SCC.component) ->
+          match component with
+          | No_loop _ -> on_tail_cycle
+          | Has_loop nodes ->
+            List.fold_left
+              (fun on_tail_cycle node ->
+                Schemas.N.add_or_replace [node] () on_tail_cycle)
+              on_tail_cycle nodes)
+        Schemas.N.empty
+        (SCC.connected_components_sorted_from_roots_to_leaf graph)
+    in
+    Datalog.set_table on_tail_cycle_tbl on_tail_cycle db
+
 let tail_cycle_rules =
-  [ Schedule.saturate
-      [ (let$ [f; c; d] = ["f"; "c"; "d"] in
-         [tail_reach f c; tail_edge c d] ==> tail_reach f d) ];
-    Schedule.saturate
-      [ (let$ [f; c] = ["f"; "c"] in
-         [ tail_reach f c;
-           Datalog.filter (fun [f; c] -> Code_id_or_name.equal f c) [f; c] ]
-         ==> cannot_return_local f) ] ]
+  saturate_in_order
+    [ (let$ [f] = ["f"] in
+       [on_tail_cycle f] ==> cannot_return_local f) ]
 
 (* First stratum: where the allocated values flow, and the reasons for escaping
    that do not depend on region scopes. *)
@@ -545,7 +586,7 @@ let perform_analysis graph (unboxing : Unboxing_analysis.result) =
         let db = run db candidate_rules in
         let db =
           if Flambda_features.reaper_change_calling_conventions ()
-          then run db tail_cycle_rules
+          then run (add_tail_cycles db) tail_cycle_rules
           else run db no_calling_convention_change_rules
         in
         let db = Schedule.run ?stats flow_rules db in

@@ -65,7 +65,8 @@ type 'f env =
 
 type rebuild_result =
   { all_code : Code.t Code_id.Map.t;
-    code_ids_to_remember : Code_id.Set.t
+    code_ids_to_remember : Code_id.Set.t;
+    escape_acc : Escape_rebuild.acc
   }
 
 let freshen_decisions :
@@ -1998,9 +1999,11 @@ and rebuild_holed env res (rev_expr : Rev_expr.rev_expr_holed) (hole : RE.t) :
   match rev_expr with
   | Hole -> hole, res
   | Let { bound_pattern; defining_expr; parent } ->
-    let defining_expr =
-      Escape_rebuild.localize env.escape bound_pattern defining_expr
+    let defining_expr, escape_acc =
+      Escape_rebuild.localize env.escape res.escape_acc bound_pattern
+        defining_expr
     in
+    let res = { res with escape_acc } in
     rebuild_let_expr_holed env res ~bound_pattern ~defining_expr ~parent ~hole
   | Let_cont { cont; parent; handler } ->
     if not (Name_occurrences.mem_continuation hole.free_names cont)
@@ -2065,11 +2068,13 @@ and rebuild_holed env res (rev_expr : Rev_expr.rev_expr_holed) (hole : RE.t) :
             handler
           in
           let bound_parameters = filter_params cont bound_parameters in
-          let handler, res =
-            Escape_rebuild.rebuild_recursive_handler env.escape cont
-              ~rebuild_body:(fun escape ->
-                rebuild_expr { env with escape } res expr)
+          let escape = Escape_rebuild.enter_recursive_handler env.escape cont in
+          let handler, res = rebuild_expr { env with escape } res expr in
+          let handler, escape_acc =
+            Escape_rebuild.leave_recursive_handler escape res.escape_acc cont
+              handler
           in
+          let res = { res with escape_acc } in
           let cont_handler =
             RE.create_continuation_handler bound_parameters ~handler
               ~is_exn_handler ~is_cold
@@ -2088,28 +2093,30 @@ and rebuild_holed env res (rev_expr : Rev_expr.rev_expr_holed) (hole : RE.t) :
 and rebuild_expr env (res : rebuild_result) (rev_expr : Rev_expr.rev_expr) :
     RE.t * rebuild_result =
   let { Rev_expr.expr; holed_expr } = rev_expr in
-  let expr =
+  let expr, escape_acc =
     match expr with
     | Invalid { message } ->
-      RE.from_expr
-        ~expr:(Expr.create_invalid (Message message))
-        ~free_names:Name_occurrences.empty ~code_size:Code_size.invalid
-    | Apply_cont ac -> (
-      match rewrite_apply_cont_expr env ac with
-      | None ->
-        RE.from_expr
-          ~expr:
-            (Expr.create_invalid
-               (Message
-                  (Format.asprintf "Dead variable in apply cont: %a"
-                     Apply_cont_expr.print ac)))
-          ~free_names:Name_occurrences.empty ~code_size:Code_size.invalid
-      | Some ac ->
-        let expr = Expr.create_apply_cont ac in
-        let free_names = Apply_cont_expr.free_names ac in
-        Escape_rebuild.end_regions_before_jump env.escape
-          (Apply_cont_expr.continuation ac)
-          (RE.from_expr ~expr ~free_names ~code_size:(Code_size.apply_cont ac)))
+      ( RE.from_expr
+          ~expr:(Expr.create_invalid (Message message))
+          ~free_names:Name_occurrences.empty ~code_size:Code_size.invalid,
+        res.escape_acc )
+    | Apply_cont ac ->
+      ( (match rewrite_apply_cont_expr env ac with
+        | None ->
+          RE.from_expr
+            ~expr:
+              (Expr.create_invalid
+                 (Message
+                    (Format.asprintf "Dead variable in apply cont: %a"
+                       Apply_cont_expr.print ac)))
+            ~free_names:Name_occurrences.empty ~code_size:Code_size.invalid
+        | Some ac ->
+          let expr = Expr.create_apply_cont ac in
+          let free_names = Apply_cont_expr.free_names ac in
+          Escape_rebuild.end_regions_before_jump env.escape
+            (Apply_cont_expr.continuation ac)
+            (RE.from_expr ~expr ~free_names ~code_size:(Code_size.apply_cont ac))),
+        res.escape_acc )
     | Switch switch ->
       let arms =
         Target_ocaml_int.Map.filter_map
@@ -2123,34 +2130,35 @@ and rebuild_expr env (res : rebuild_result) (rev_expr : Rev_expr.rev_expr) :
                    action))
           (Switch_expr.arms switch)
       in
-      let arms =
-        Escape_rebuild.redirect_switch_arms env.escape
+      let arms, escape_acc =
+        Escape_rebuild.redirect_switch_arms env.escape res.escape_acc
           ~params_of_continuation:(fresh_params_of_continuation env)
           arms
       in
-      if Target_ocaml_int.Map.is_empty arms
-      then
-        RE.from_expr
-          ~expr:(Expr.create_invalid Zero_switch_arms)
-          ~free_names:Name_occurrences.empty ~code_size:Code_size.invalid
-      else
-        let switch =
-          Switch_expr.create
-            ~condition_dbg:(Switch_expr.condition_dbg switch)
-              (* Scrutinee should never need rewriting, do it anyway for
-                 completeness *)
-            ~scrutinee:(rewrite_simple env (Switch_expr.scrutinee switch))
-            ~arms
-        in
-        let expr = Expr.create_switch switch in
-        let free_names = Switch_expr.free_names switch in
-        RE.from_expr ~expr ~free_names ~code_size:(Code_size.switch switch)
+      ( (if Target_ocaml_int.Map.is_empty arms
+         then
+           RE.from_expr
+             ~expr:(Expr.create_invalid Zero_switch_arms)
+             ~free_names:Name_occurrences.empty ~code_size:Code_size.invalid
+         else
+           let switch =
+             Switch_expr.create
+               ~condition_dbg:(Switch_expr.condition_dbg switch)
+                 (* Scrutinee should never need rewriting, do it anyway for
+                    completeness *)
+               ~scrutinee:(rewrite_simple env (Switch_expr.scrutinee switch))
+               ~arms
+           in
+           let expr = Expr.create_switch switch in
+           let free_names = Switch_expr.free_names switch in
+           RE.from_expr ~expr ~free_names ~code_size:(Code_size.switch switch)),
+        escape_acc )
     | Apply apply ->
-      Escape_rebuild.rebuild_apply env.escape
+      Escape_rebuild.rebuild_apply env.escape res.escape_acc
         ~params_of_continuation:(fresh_params_of_continuation env)
         apply ~rebuild:(rebuild_apply env)
   in
-  rebuild_holed env res holed_expr expr
+  rebuild_holed env { res with escape_acc } holed_expr expr
 
 and rebuild_function_params_and_body env res code_metadata
     (params_and_body : Rev_expr.rev_params_and_body) =
@@ -2195,8 +2203,11 @@ and rebuild_function_params_and_body env res code_metadata
     let all_vars = region_vars @ (my_closure :: Bound_parameters.vars params) in
     match List.filter (is_dead_var env) all_vars with
     | [] ->
-      Escape_rebuild.rebuild_function_body env.escape ~code_id
-        ~rebuild_body:(fun escape -> rebuild_expr { env with escape } res body)
+      let body, res = rebuild_expr env res body in
+      let body, escape_acc =
+        Escape_rebuild.leave_function env.escape res.escape_acc ~code_id body
+      in
+      body, { res with escape_acc }
     | _ :: _ as dead_vars ->
       let msg =
         Format.asprintf
@@ -2484,9 +2495,13 @@ let rebuild (type f) ~escape ~machine_width ~cmx_loader ~all_code ~skeleton
     }
   in
   let res =
-    { all_code = Code_id.Map.empty; code_ids_to_remember = Code_id.Set.empty }
+    { all_code = Code_id.Map.empty;
+      code_ids_to_remember = Code_id.Set.empty;
+      escape_acc = Escape_rebuild.empty_acc
+    }
   in
-  let rebuilt_expr, ({ all_code; code_ids_to_remember } : rebuild_result) =
+  let ( rebuilt_expr,
+        ({ all_code; code_ids_to_remember; escape_acc } : rebuild_result) ) =
     Profile.record_call ~accumulate:true "up" (fun () ->
         let res =
           Array.fold_left
@@ -2497,7 +2512,7 @@ let rebuild (type f) ~escape ~machine_width ~cmx_loader ~all_code ~skeleton
         in
         rebuild_expr env res toplevel_expr)
   in
-  Escape_rebuild.report_stats env.escape;
+  Escape_rebuild.report_stats env.escape escape_acc;
   let exported_code =
     Exported_code.add_code
       ~keep_code:(fun code_id -> Code_id.Set.mem code_id code_ids_to_remember)
