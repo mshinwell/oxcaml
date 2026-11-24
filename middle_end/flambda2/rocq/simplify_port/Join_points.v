@@ -115,12 +115,10 @@ Definition introduce_extra_params_for_join (denv : DE.t)
     let* extra_params := EPA.extra_params extra_params_and_args in
     let* denv := DE.define_parameters true denv extra_params in
     let* use_envs_with_ids :=
-      (* 71: [introduce_extra_params_in_use_env], a function of this file,
-         is given its first argument only. *)
-      let! tmp1 :=
-        papp1 introduce_extra_params_in_use_env extra_params_and_args
-      in
-      List.filter_map tmp1 use_envs_with_ids
+      (* 71: a function of this file, given its first argument. *)
+      List.filter_map
+        (introduce_extra_params_in_use_env extra_params_and_args)
+        use_envs_with_ids
     in
     ret (denv, use_envs_with_ids).
 
@@ -437,10 +435,8 @@ Definition compute_handler_env (replay : option (Replay_history.t * bool))
   let& general_case :=
     fun (_ : unit) =>
     let* use_envs_with_ids :=
-      (* 388: [compute_use_env_with_ids], a function of this file, is given
-         its first three arguments only. *)
-      let! tmp1 := papp3 compute_use_env_with_ids None is_recursive params in
-      List.map tmp1 uses
+      (* 388: a function of this file, given its first three arguments. *)
+      List.map (compute_use_env_with_ids None is_recursive params) uses
     in
     (* This is the general case.
 
