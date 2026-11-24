@@ -1,9 +1,10 @@
 (******************************************************************************
  *                                  OxCaml                                    *
+ *                        Basile Clément, OCamlPro                            *
  * -------------------------------------------------------------------------- *
  *                               MIT License                                  *
  *                                                                            *
- * Copyright (c) 2026 Jane Street Group LLC                                   *
+ * Copyright (c) 2024 Jane Street Group LLC                                   *
  * opensource-contacts@janestreet.com                                         *
  *                                                                            *
  * Permission is hereby granted, free of charge, to any person obtaining a    *
@@ -25,14 +26,15 @@
  * DEALINGS IN THE SOFTWARE.                                                  *
  ******************************************************************************)
 
-(* The abbreviations of modules that
-   middle_end/flambda2/simplify/simplified_expr.ml
-   makes itself, for Simplified_expr.v (GUIDE.md, section 7, ABBREVIATIONS OF
-   MODULES). The OCaml text at the head of that file has the same lines,
-   [module A = P]. Every such library has the name Port_abbreviations: Rocq
-   writes [open Port_abbreviations] in an extracted file that needs it, and
-   runtime/port_abbreviations.ml is that (empty) module. This file follows
-   no other file of the compiler. *)
+(* This file follows middle_end/flambda2/simplify/simplified_expr.ml at commit
+   ecc5c0d968c892b4312065caef0f19ffffa042a9: the abbreviations of modules that
+   that file makes itself (lines 30-34), as Rocq's [Module A := P.], for
+   Simplified_expr.v (GUIDE.md, section 7, ABBREVIATIONS OF MODULES). The
+   OCaml text at the head of Simplified_expr.v has the compiler's own lines,
+   [module A = P]. What is not from that file: the [Require] lines; and the
+   name of the library: every such library is named Port_abbreviations,
+   because Rocq writes [open Port_abbreviations] in an extracted file that
+   needs it, and runtime/port_abbreviations.ml is that (empty) module. *)
 
 From SimplifyPort.decl Require Common_subexpression_elimination
   Continuation_extra_params_and_args Flambda2_types Lifted_constant_state.
