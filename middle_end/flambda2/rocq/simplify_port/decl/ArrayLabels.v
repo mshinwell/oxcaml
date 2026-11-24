@@ -20,11 +20,10 @@
    change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
-From SimplifyPort.decl Require Stdlib_.
 
 (* stdlib/arrayLabels.mli  val map : f:('a -> 'b) -> 'a array -> 'b array *)
-Parameter map : forall {A B : Type}, (A -> M B) -> Stdlib_.array A -> M (Stdlib_.array B).
+Parameter map : forall {A B : Type}, (A -> M B) -> array A -> M (array B).
 Extract Inlined Constant map => "ArrayLabels.map".
 (* stdlib/arrayLabels.mli  val fold_left : f:('acc -> 'a -> 'acc) -> init:'acc -> 'a array -> 'acc *)
-Parameter fold_left : forall {Acc A : Type}, (Acc -> A -> M Acc) -> Acc -> Stdlib_.array A -> M Acc.
+Parameter fold_left : forall {Acc A : Type}, (Acc -> A -> M Acc) -> Acc -> array A -> M Acc.
 Extract Inlined Constant fold_left => "ArrayLabels.fold_left".

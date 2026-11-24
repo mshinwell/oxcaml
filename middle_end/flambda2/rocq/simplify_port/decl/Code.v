@@ -102,7 +102,7 @@ Extract Inlined Constant loopify => "Code.loopify".
 Parameter create_with_metadata : Flambda.Function_params_and_body.t -> Name_occurrences.t -> Code_metadata.t -> M t.
 Extract Inlined Constant create_with_metadata => "Code.create_with_metadata".
 (* code.mli:35  val create : params_and_body:Flambda.Function_params_and_body.t -> free_names_of_params_and_body:Name_occurrences.t -> t Code_metadata.create_type *)
-Parameter create : Flambda.Function_params_and_body.t -> Name_occurrences.t -> M (Code_metadata.create_type t).
+Parameter create : Flambda.Function_params_and_body.t -> Name_occurrences.t -> Code_metadata.create_type t.
 Extract Inlined Constant create => "Code.create".
 (* code.mli:40  val with_code_id : Code_id.t -> t -> t *)
 Parameter with_code_id : Code_id.t -> t -> M t.

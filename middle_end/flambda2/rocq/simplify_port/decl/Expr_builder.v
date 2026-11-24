@@ -56,12 +56,6 @@ Inductive rewrite_apply_cont_result : Type :=
 (* PORT-GAP(type): the name of the field [message] is taken in Rocq: abstract, with a maker for each constructor and one eliminator. *)
 Parameter rewrite_switch_arm_result : Type.
 Extract Inlined Constant rewrite_switch_arm_result => "Expr_builder.rewrite_switch_arm_result".
-Parameter mk_Invalid : string -> rewrite_switch_arm_result.
-Extract Inlined Constant mk_Invalid => "(fun x__1 -> Expr_builder.Invalid { message = x__1 })".
-Parameter mk_Apply_cont : Flambda.Import_.Apply_cont.t -> rewrite_switch_arm_result.
-Extract Inlined Constant mk_Apply_cont => "(fun x__1 -> Expr_builder.Apply_cont x__1)".
-Parameter mk_New_wrapper : new_let_cont -> rewrite_switch_arm_result.
-Extract Inlined Constant mk_New_wrapper => "(fun x__1 -> Expr_builder.New_wrapper x__1)".
 Parameter match_rewrite_switch_arm_result : forall {Res : Type}, rewrite_switch_arm_result -> (string -> M Res) -> (Flambda.Import_.Apply_cont.t -> M Res) -> (new_let_cont -> M Res) -> M Res.
 Extract Inlined Constant match_rewrite_switch_arm_result => "(fun x__0 f__1 f__2 f__3 -> match x__0 with Expr_builder.Invalid { message = x__1 } -> f__1 x__1 | Expr_builder.Apply_cont x__1 -> f__2 x__1 | Expr_builder.New_wrapper x__1 -> f__3 x__1)".
 (* expr_builder.mli:119  val no_rewrite_apply_cont : Upwards_env.t -> Apply_cont.t -> rewrite_apply_cont_result *)

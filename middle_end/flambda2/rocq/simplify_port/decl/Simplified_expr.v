@@ -46,38 +46,18 @@ Parameter simplified_apply_cont_ : Type.
 Extract Inlined Constant simplified_apply_cont_ => "Simplified_expr.simplified_apply_cont".
 (* simplified_expr.mli:108  and simplified_switch = private { arms : (Apply_cont_expr.t * annotations:Branch_annotations.t * Apply_cont_rewrite_id.t * [`Unarized] Flambda_arity.t * Typing_env.t) Target_ocaml_int.Map.t; condition_dbg : Debuginfo.t; scrutinee : Simple.t; scrutinee_ty : flambda_type; shareable_constants : Symbol.t Static_const.Map.t; typing_env_before_switch : Typing_env.t; cse_before_switch : Common_subexpr... *)
 Record simplified_switch_ : Type := { arms : Target_ocaml_int.Map.t (tuple5 Apply_cont_expr.t Branch_annotations.t Apply_cont_rewrite_id.t Flambda_arity.t Flambda2_types.Typing_env.t); condition_dbg : Debuginfo.t; scrutinee : Simple.t; scrutinee_ty : Flambda2_types.flambda_type; shareable_constants : Flambda.Import_.Static_const.Map.t Symbol.t; typing_env_before_switch : Flambda2_types.Typing_env.t; cse_before_switch : Common_subexpression_elimination.t }.
-Parameter mk_t : simplified_lets_and_let_conts_ -> simplified_terminator_ -> Removed_operations.t -> bool -> t.
-Extract Inlined Constant mk_t => "(fun x__1 x__2 x__3 x__4 -> { Simplified_expr.simplified_lets_and_let_conts = x__1; simplified_terminator = x__2; removed_operations = x__3; is_cold = x__4 })".
 Parameter match_t : forall {Res : Type}, t -> (simplified_lets_and_let_conts_ -> simplified_terminator_ -> Removed_operations.t -> bool -> M Res) -> M Res.
 Extract Inlined Constant match_t => "(fun x__0 f__1 -> let { Simplified_expr.simplified_lets_and_let_conts = x__1; simplified_terminator = x__2; removed_operations = x__3; is_cold = x__4 } = x__0 in f__1 x__1 x__2 x__3 x__4)".
-Parameter mk_Simplified_terminator : simplified_lets_and_let_conts_.
-Extract Inlined Constant mk_Simplified_terminator => "Simplified_expr.Simplified_terminator".
-Parameter mk_Simplified_let : simplified_defining_expr -> simplified_lets_and_let_conts_ -> simplified_lets_and_let_conts_.
-Extract Inlined Constant mk_Simplified_let => "(fun x__1 x__2 -> Simplified_expr.Simplified_let (x__1, x__2))".
-Parameter mk_Simplified_let_cont : simplified_let_cont_handlers -> simplified_lets_and_let_conts_ -> simplified_lets_and_let_conts_.
-Extract Inlined Constant mk_Simplified_let_cont => "(fun x__1 x__2 -> Simplified_expr.Simplified_let_cont (x__1, x__2))".
 Parameter match_simplified_lets_and_let_conts_ : forall {Res : Type}, simplified_lets_and_let_conts_ -> (unit -> M Res) -> (simplified_defining_expr -> simplified_lets_and_let_conts_ -> M Res) -> (simplified_let_cont_handlers -> simplified_lets_and_let_conts_ -> M Res) -> M Res.
 Extract Inlined Constant match_simplified_lets_and_let_conts_ => "(fun x__0 f__1 f__2 f__3 -> match x__0 with Simplified_expr.Simplified_terminator -> f__1 () | Simplified_expr.Simplified_let (x__1, x__2) -> f__2 x__1 x__2 | Simplified_expr.Simplified_let_cont (x__1, x__2) -> f__3 x__1 x__2)".
 Parameter mk_simplified_let_cont_handlers : bool -> list simplified_handlers_group -> Bound_parameters.t -> Bound_parameters.t -> simplified_let_cont_handlers.
 Extract Inlined Constant mk_simplified_let_cont_handlers => "(fun x__1 x__2 x__3 x__4 -> { Simplified_expr.at_unit_toplevel = x__1; handlers_from_the_outside_to_the_inside = x__2; original_invariant_params = x__3; invariant_extra_params = x__4 })".
 Parameter match_simplified_let_cont_handlers : forall {Res : Type}, simplified_let_cont_handlers -> (bool -> list simplified_handlers_group -> Bound_parameters.t -> Bound_parameters.t -> M Res) -> M Res.
 Extract Inlined Constant match_simplified_let_cont_handlers => "(fun x__0 f__1 -> let { Simplified_expr.at_unit_toplevel = x__1; handlers_from_the_outside_to_the_inside = x__2; original_invariant_params = x__3; invariant_extra_params = x__4 } = x__0 in f__1 x__1 x__2 x__3 x__4)".
-Parameter mk_simplified_apply_ : Flambda.Import_.Apply.t -> option Apply_cont_rewrite_id.t -> Apply_cont_rewrite_id.t -> Flambda_arity.t -> bool -> simplified_apply_.
-Extract Inlined Constant mk_simplified_apply_ => "(fun x__1 x__2 x__3 x__4 x__5 -> { Simplified_expr.apply = x__1; use_id = x__2; exn_cont_use_id = x__3; result_arity = x__4; is_cold = x__5 })".
 Parameter match_simplified_apply_ : forall {Res : Type}, simplified_apply_ -> (Flambda.Import_.Apply.t -> option Apply_cont_rewrite_id.t -> Apply_cont_rewrite_id.t -> Flambda_arity.t -> bool -> M Res) -> M Res.
 Extract Inlined Constant match_simplified_apply_ => "(fun x__0 f__1 -> let { Simplified_expr.apply = x__1; use_id = x__2; exn_cont_use_id = x__3; result_arity = x__4; is_cold = x__5 } = x__0 in f__1 x__1 x__2 x__3 x__4 x__5)".
-Parameter mk_Simplified_apply : simplified_apply_ -> simplified_terminator_.
-Extract Inlined Constant mk_Simplified_apply => "(fun x__1 -> Simplified_expr.Simplified_apply x__1)".
-Parameter mk_Simplified_apply_cont : simplified_apply_cont_ -> simplified_terminator_.
-Extract Inlined Constant mk_Simplified_apply_cont => "(fun x__1 -> Simplified_expr.Simplified_apply_cont x__1)".
-Parameter mk_Simplified_switch : simplified_switch_ -> simplified_terminator_.
-Extract Inlined Constant mk_Simplified_switch => "(fun x__1 -> Simplified_expr.Simplified_switch x__1)".
-Parameter mk_Simplified_invalid : Flambda.Invalid.t -> simplified_terminator_.
-Extract Inlined Constant mk_Simplified_invalid => "(fun x__1 -> Simplified_expr.Simplified_invalid x__1)".
 Parameter match_simplified_terminator_ : forall {Res : Type}, simplified_terminator_ -> (simplified_apply_ -> M Res) -> (simplified_apply_cont_ -> M Res) -> (simplified_switch_ -> M Res) -> (Flambda.Invalid.t -> M Res) -> M Res.
 Extract Inlined Constant match_simplified_terminator_ => "(fun x__0 f__1 f__2 f__3 f__4 -> match x__0 with Simplified_expr.Simplified_apply x__1 -> f__1 x__1 | Simplified_expr.Simplified_apply_cont x__1 -> f__2 x__1 | Simplified_expr.Simplified_switch x__1 -> f__3 x__1 | Simplified_expr.Simplified_invalid x__1 -> f__4 x__1)".
-Parameter mk_simplified_apply_cont_ : Flambda.Import_.Apply_cont.t -> list Simple.t -> Apply_cont_rewrite_id.t -> simplified_apply_cont_.
-Extract Inlined Constant mk_simplified_apply_cont_ => "(fun x__1 x__2 x__3 -> { Simplified_expr.apply_cont = x__1; args = x__2; rewrite_id = x__3 })".
 Parameter match_simplified_apply_cont_ : forall {Res : Type}, simplified_apply_cont_ -> (Flambda.Import_.Apply_cont.t -> list Simple.t -> Apply_cont_rewrite_id.t -> M Res) -> M Res.
 Extract Inlined Constant match_simplified_apply_cont_ => "(fun x__0 f__1 -> let { Simplified_expr.apply_cont = x__1; args = x__2; rewrite_id = x__3 } = x__0 in f__1 x__1 x__2 x__3)".
 (* simplified_expr.mli:124  val notify_removed : operation:Removed_operations.t -> t -> t *)

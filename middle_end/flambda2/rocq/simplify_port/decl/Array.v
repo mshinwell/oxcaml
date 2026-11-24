@@ -20,23 +20,22 @@
    change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
-From SimplifyPort.decl Require Stdlib_.
 
 (* stdlib/array.mli  val length : 'a array -> int *)
-Parameter length : forall {A : Type}, Stdlib_.array A -> M int.
+Parameter length : forall {A : Type}, array A -> M int.
 Extract Inlined Constant length => "Array.length".
 (* stdlib/array.mli  val get : 'a array -> int -> 'a *)
-Parameter get : forall {A : Type}, Stdlib_.array A -> int -> M A.
+Parameter get : forall {A : Type}, array A -> int -> M A.
 Extract Inlined Constant get => "Array.get".
 (* stdlib/array.mli  val to_list : 'a array -> 'a list *)
-Parameter to_list : forall {A : Type}, Stdlib_.array A -> M (list A).
+Parameter to_list : forall {A : Type}, array A -> M (list A).
 Extract Inlined Constant to_list => "Array.to_list".
 (* stdlib/array.mli  val of_list : 'a list -> 'a array *)
-Parameter of_list : forall {A : Type}, list A -> M (Stdlib_.array A).
+Parameter of_list : forall {A : Type}, list A -> M (array A).
 Extract Inlined Constant of_list => "Array.of_list".
 (* stdlib/array.mli  val fold_left : ('acc -> 'a -> 'acc) -> 'acc -> 'a array -> 'acc *)
-Parameter fold_left : forall {Acc A : Type}, (Acc -> A -> M Acc) -> Acc -> Stdlib_.array A -> M Acc.
+Parameter fold_left : forall {Acc A : Type}, (Acc -> A -> M Acc) -> Acc -> array A -> M Acc.
 Extract Inlined Constant fold_left => "Array.fold_left".
 (* stdlib/array.mli  val fold_right : ('a -> 'acc -> 'acc) -> 'a array -> 'acc -> 'acc *)
-Parameter fold_right : forall {A Acc : Type}, (A -> Acc -> M Acc) -> Stdlib_.array A -> Acc -> M Acc.
+Parameter fold_right : forall {A Acc : Type}, (A -> Acc -> M Acc) -> array A -> Acc -> M Acc.
 Extract Inlined Constant fold_right => "Array.fold_right".

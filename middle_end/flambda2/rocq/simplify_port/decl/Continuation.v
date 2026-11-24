@@ -163,7 +163,7 @@ Module Map.
   Parameter mapi : forall {A B : Type}, (key -> A -> M B) -> t A -> M (t B).
   Extract Inlined Constant mapi => "Continuation.Map.mapi".
   (* continuation.mli:23  include Container_types.S with type t := t *)
-  Parameter to_seq : forall {A : Type}, t A -> M (Seq.t (key * A)).
+  Parameter to_seq : forall {A : Type}, t A -> Seq.t (key * A).
   Extract Inlined Constant to_seq => "Continuation.Map.to_seq".
   (* continuation.mli:23  include Container_types.S with type t := t *)
   Parameter disjoint_union : forall {A : Type}, option (A -> A -> M bool) -> option (Format.formatter -> A -> M unit) -> t A -> t A -> M (t A).

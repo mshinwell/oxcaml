@@ -33,12 +33,6 @@ Inductive reason : Type :=
 (* PORT-GAP(type): the name of the field [continuation] is taken in Rocq: abstract, with a maker for each constructor and one eliminator. *)
 Parameter t : Type.
 Extract Inlined Constant t => "Are_lifting_conts.t".
-Parameter mk_Not_lifting : reason -> t.
-Extract Inlined Constant mk_Not_lifting => "(fun x__1 -> Are_lifting_conts.Not_lifting x__1)".
-Parameter mk_Analyzing : Continuation.t -> bool -> Continuation_uses.t -> t.
-Extract Inlined Constant mk_Analyzing => "(fun x__1 x__2 x__3 -> Are_lifting_conts.Analyzing { continuation = x__1; is_exn_handler = x__2; uses = x__3 })".
-Parameter mk_Lifting_out_of : Continuation.t -> t.
-Extract Inlined Constant mk_Lifting_out_of => "(fun x__1 -> Are_lifting_conts.Lifting_out_of { continuation = x__1 })".
 Parameter match_t : forall {Res : Type}, t -> (reason -> M Res) -> (Continuation.t -> bool -> Continuation_uses.t -> M Res) -> (Continuation.t -> M Res) -> M Res.
 Extract Inlined Constant match_t => "(fun x__0 f__1 f__2 f__3 -> match x__0 with Are_lifting_conts.Not_lifting x__1 -> f__1 x__1 | Are_lifting_conts.Analyzing { continuation = x__1; is_exn_handler = x__2; uses = x__3 } -> f__2 x__1 x__2 x__3 | Are_lifting_conts.Lifting_out_of { continuation = x__1 } -> f__3 x__1)".
 (* are_lifting_conts.mli:70  val print : Format.formatter -> t -> unit *)

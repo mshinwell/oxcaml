@@ -23,24 +23,19 @@ From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Apply_cont_rewrite_id Bound_var Cost_metrics Flambda2_types Flambda_primitive Format Original_handlers Set_of_closures Switch_expr.
 
 (* specialization_cost.mli:47  type reason = | Specialization_disabled | At_toplevel | Contains_static_consts | Contains_set_of_closures *)
-Inductive reason : Type :=
-| Specialization_disabled : reason
-| At_toplevel : reason
-| Contains_static_consts : reason
-| Contains_set_of_closures : reason.
+Inductive reason_ : Type :=
+| Specialization_disabled : reason_
+| At_toplevel : reason_
+| Contains_static_consts : reason_
+| Contains_set_of_closures : reason_.
 (* specialization_cost.mli:53  type cost *)
 Parameter cost : Type.
 Extract Inlined Constant cost => "Specialization_cost.cost".
 (* specialization_cost.mli:56  type t = private | Can_specialize of cost | Cannot_specialize of { reason : reason } *)
-(* PORT-GAP(type): the name of the field [reason] is taken in Rocq: abstract, with a maker for each constructor and one eliminator. *)
-Parameter t : Type.
-Extract Inlined Constant t => "Specialization_cost.t".
-Parameter mk_Can_specialize : cost -> t.
-Extract Inlined Constant mk_Can_specialize => "(fun x__1 -> Specialization_cost.Can_specialize x__1)".
-Parameter mk_Cannot_specialize : reason -> t.
-Extract Inlined Constant mk_Cannot_specialize => "(fun x__1 -> Specialization_cost.Cannot_specialize { reason = x__1 })".
-Parameter match_t : forall {Res : Type}, t -> (cost -> M Res) -> (reason -> M Res) -> M Res.
-Extract Inlined Constant match_t => "(fun x__0 f__1 f__2 -> match x__0 with Specialization_cost.Can_specialize x__1 -> f__1 x__1 | Specialization_cost.Cannot_specialize { reason = x__1 } -> f__2 x__1)".
+Record cannot_specialize_payload_ : Type := { reason : reason_ }.
+Inductive t : Type :=
+| Can_specialize : cost -> t
+| Cannot_specialize : cannot_specialize_payload_ -> t.
 (* specialization_cost.mli:62  val print : Format.formatter -> t -> unit *)
 Parameter print : Format.formatter -> t -> M unit.
 Extract Inlined Constant print => "Specialization_cost.print".
@@ -48,7 +43,7 @@ Extract Inlined Constant print => "Specialization_cost.print".
 Parameter can_specialize : unit -> M t.
 Extract Inlined Constant can_specialize => "Specialization_cost.can_specialize".
 (* specialization_cost.mli:70  val cannot_specialize : reason -> t *)
-Parameter cannot_specialize : reason -> M t.
+Parameter cannot_specialize : reason_ -> M t.
 Extract Inlined Constant cannot_specialize => "Specialization_cost.cannot_specialize".
 (* specialization_cost.mli:75  val add_prim : Bound_var.t -> Flambda_primitive.t -> t -> t *)
 Parameter add_prim : Bound_var.t -> Flambda_primitive.t -> t -> M t.

@@ -19,7 +19,7 @@
    change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
-From SimplifyPort.decl Require Continuation Flambda_kind Flow_types Format Name Simple Stdlib_ Variable_.
+From SimplifyPort.decl Require Continuation Flambda_kind Flow_types Format Name Simple Variable_.
 
 Module G.
   (* dominator_graph.mli:15  module G : Strongly_connected_components.S with module Id := Simple *)
@@ -29,13 +29,13 @@ Module G.
   Parameter component : Type.
   Extract Inlined Constant component => "Dominator_graph.G.component".
   (* dominator_graph.mli:15  module G : Strongly_connected_components.S with module Id := Simple *)
-  Parameter stable_connected_components_sorted_from_roots_to_leaf : list (Simple.t * Simple.Set_.t) -> M (Stdlib_.array component).
+  Parameter stable_connected_components_sorted_from_roots_to_leaf : list (Simple.t * Simple.Set_.t) -> M (array component).
   Extract Inlined Constant stable_connected_components_sorted_from_roots_to_leaf => "Dominator_graph.G.stable_connected_components_sorted_from_roots_to_leaf".
   (* dominator_graph.mli:15  module G : Strongly_connected_components.S with module Id := Simple *)
-  Parameter connected_components_sorted_from_roots_to_leaf : directed_graph -> M (Stdlib_.array component).
+  Parameter connected_components_sorted_from_roots_to_leaf : directed_graph -> M (array component).
   Extract Inlined Constant connected_components_sorted_from_roots_to_leaf => "Dominator_graph.G.connected_components_sorted_from_roots_to_leaf".
   (* dominator_graph.mli:15  module G : Strongly_connected_components.S with module Id := Simple *)
-  Parameter component_graph : directed_graph -> M (Stdlib_.array (component * list int)).
+  Parameter component_graph : directed_graph -> M (array (component * list int)).
   Extract Inlined Constant component_graph => "Dominator_graph.G.component_graph".
 End G.
 (* dominator_graph.mli:18  type t = { required_names : Name.Set.t; params_kind : Flambda_kind.With_subkind.t Variable.Map.t; graph : G.directed_graph; dominator_roots : Simple.Set.t ( * variables that are dominated only by themselves, usually because a constant or a symbol can flow to that variable, and thus that variable cannot be dominated by another variable. * ) } *)

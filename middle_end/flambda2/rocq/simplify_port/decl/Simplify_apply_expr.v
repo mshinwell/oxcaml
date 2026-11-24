@@ -24,7 +24,7 @@ From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Flambda Simplified_expr Simplify_common.
 
 (* simplify_apply_expr.mli:19  val simplify_apply : simplify_expr:Expr.t Simplify_common.expr_simplifier -> rebuild_expr:Simplified_expr.t Simplify_common.rebuild -> Apply.t Simplify_common.expr_simplifier *)
-Parameter simplify_apply : Simplify_common.expr_simplifier Flambda.Expr.t -> Simplify_common.rebuild Simplified_expr.t -> M (Simplify_common.expr_simplifier Flambda.Apply.t).
+Parameter simplify_apply : Simplify_common.expr_simplifier Flambda.Expr.t -> Simplify_common.rebuild Simplified_expr.t -> Simplify_common.expr_simplifier Flambda.Apply.t.
 Extract Inlined Constant simplify_apply => "Simplify_apply_expr.simplify_apply".
 (* simplify_apply_expr.mli:24  val rebuild_apply : Simplified_expr.simplified_apply Simplify_common.rebuild *)
 Parameter rebuild_apply : Simplify_common.rebuild Simplified_expr.simplified_apply_.

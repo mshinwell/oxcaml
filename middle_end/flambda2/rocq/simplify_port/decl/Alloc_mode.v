@@ -39,10 +39,6 @@ Module For_applications.
   (* PORT-GAP(type): the name of the field [alloc_region] is taken in Rocq: abstract, with a maker for each constructor and one eliminator. *)
   Parameter t : Type.
   Extract Inlined Constant t => "Alloc_mode.For_applications.t".
-  Parameter mk_Not_alloc_stack : Variable_.t -> t.
-  Extract Inlined Constant mk_Not_alloc_stack => "(fun x__1 -> Alloc_mode.For_applications.Not_alloc_stack { alloc_region = x__1 })".
-  Parameter mk_Maybe_alloc_stack : Variable_.t -> Variable_.t -> Variable_.t -> t.
-  Extract Inlined Constant mk_Maybe_alloc_stack => "(fun x__1 x__2 x__3 -> Alloc_mode.For_applications.Maybe_alloc_stack { alloc_region = x__1; region = x__2; ghost_region = x__3 })".
   Parameter match_t : forall {Res : Type}, t -> (Variable_.t -> M Res) -> (Variable_.t -> Variable_.t -> Variable_.t -> M Res) -> M Res.
   Extract Inlined Constant match_t => "(fun x__0 f__1 f__2 -> match x__0 with Alloc_mode.For_applications.Not_alloc_stack { alloc_region = x__1 } -> f__1 x__1 | Alloc_mode.For_applications.Maybe_alloc_stack { alloc_region = x__1; region = x__2; ghost_region = x__3 } -> f__2 x__1 x__2 x__3)".
   (* alloc_mode.mli:58  val not_alloc_stack : alloc_region:Variable.t -> t *)
@@ -69,10 +65,6 @@ Module For_allocations.
   (* PORT-GAP(type): the name of the field [alloc_region] is taken in Rocq: abstract, with a maker for each constructor and one eliminator. *)
   Parameter t : Type.
   Extract Inlined Constant t => "Alloc_mode.For_allocations.t".
-  Parameter mk_Heap : Variable_.t -> t.
-  Extract Inlined Constant mk_Heap => "(fun x__1 -> Alloc_mode.For_allocations.Heap { alloc_region = x__1 })".
-  Parameter mk_Local : Variable_.t -> Variable_.t -> t.
-  Extract Inlined Constant mk_Local => "(fun x__1 x__2 -> Alloc_mode.For_allocations.Local { alloc_region = x__1; region = x__2 })".
   Parameter match_t : forall {Res : Type}, t -> (Variable_.t -> M Res) -> (Variable_.t -> Variable_.t -> M Res) -> M Res.
   Extract Inlined Constant match_t => "(fun x__0 f__1 f__2 -> match x__0 with Alloc_mode.For_allocations.Heap { alloc_region = x__1 } -> f__1 x__1 | Alloc_mode.For_allocations.Local { alloc_region = x__1; region = x__2 } -> f__2 x__1 x__2)".
   (* alloc_mode.mli:96  val heap : alloc_region:Variable.t -> t *)

@@ -36,7 +36,7 @@ Extract Inlined Constant print => "Rebuilt_static_const.print".
 Parameter cost_metrics : t -> M Cost_metrics.t.
 Extract Inlined Constant cost_metrics => "Rebuilt_static_const.cost_metrics".
 (* rebuilt_static_const.mli:31  val create_code : Are_rebuilding_terms.t -> params_and_body:Rebuilt_expr.Function_params_and_body.t -> free_names_of_params_and_body:Name_occurrences.t -> (t * Code.t option) Code_metadata.create_type *)
-Parameter create_code : Are_rebuilding_terms.t -> Rebuilt_expr.Function_params_and_body.t -> Name_occurrences.t -> M (Code_metadata.create_type (t * option Code.t)).
+Parameter create_code : Are_rebuilding_terms.t -> Rebuilt_expr.Function_params_and_body.t -> Name_occurrences.t -> Code_metadata.create_type (t * option Code.t).
 Extract Inlined Constant create_code => "Rebuilt_static_const.create_code".
 (* rebuilt_static_const.mli:41  val create_code' : Code.t -> t *)
 Parameter create_code' : Code.t -> M t.

@@ -117,7 +117,7 @@ Extract Inlined Constant function_slot_size => "Non_constructed_code.function_sl
 Parameter create_with_metadata : Name_occurrences.t -> Code_metadata.t -> M t.
 Extract Inlined Constant create_with_metadata => "Non_constructed_code.create_with_metadata".
 (* non_constructed_code.mli:31  val create : free_names_of_params_and_body:Name_occurrences.t -> t Code_metadata.create_type *)
-Parameter create : Name_occurrences.t -> M (Code_metadata.create_type t).
+Parameter create : Name_occurrences.t -> Code_metadata.create_type t.
 Extract Inlined Constant create => "Non_constructed_code.create".
 (* non_constructed_code.mli:35  include Contains_names.S with type t := t *)
 Parameter free_names : t -> M Name_occurrences.t.

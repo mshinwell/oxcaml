@@ -25,7 +25,7 @@ From SimplifyPort.decl Require Flambda_kind Format.
 
 (* flambda_arity.mli:30  type _ t *)
 Parameter t : Type.
-Extract Inlined Constant t => "Flambda_arity.t".
+Extract Inlined Constant t => "(_) Flambda_arity.t".
 (* flambda_arity.mli:33  val print : Format.formatter -> _ t -> unit *)
 Parameter print : Format.formatter -> t -> M unit.
 Extract Inlined Constant print => "Flambda_arity.print".
@@ -33,13 +33,11 @@ Module Component_for_creation.
   (* flambda_arity.mli:36  type _ t = | Singleton : Flambda_kind.With_subkind.t -> [> ] t ( * The nullary unboxed product is called 'void'. It is important to propagate information about void layouts, even though the corresponding variables have no runtime representation, as they interact with currying. (For example void parameters cannot just be erased.) * ) | Unboxed_product : _ t list -> [`Complex] t *)
   (* PORT-GAP(type): it is a GADT: abstract, with a maker for each constructor and one eliminator. *)
   Parameter t : Type.
-  Extract Inlined Constant t => "Flambda_arity.Component_for_creation.t".
+  Extract Inlined Constant t => "(_) Flambda_arity.Component_for_creation.t".
   Parameter mk_Singleton : Flambda_kind.With_subkind.t -> t.
   Extract Inlined Constant mk_Singleton => "(fun x__1 -> Flambda_arity.Component_for_creation.Singleton x__1)".
   Parameter mk_Unboxed_product : list t -> t.
   Extract Inlined Constant mk_Unboxed_product => "(fun x__1 -> Flambda_arity.Component_for_creation.Unboxed_product x__1)".
-  Parameter match_t : forall {Res : Type}, t -> (Flambda_kind.With_subkind.t -> M Res) -> (list t -> M Res) -> M Res.
-  Extract Inlined Constant match_t => "(fun x__0 f__1 f__2 -> match x__0 with Flambda_arity.Component_for_creation.Singleton x__1 -> f__1 x__1 | Flambda_arity.Component_for_creation.Unboxed_product x__1 -> f__2 x__1)".
 End Component_for_creation.
 (* flambda_arity.mli:51  val create : 'uc Component_for_creation.t list -> 'uc t *)
 Parameter create : list Flambda_arity.Component_for_creation.t -> M t.

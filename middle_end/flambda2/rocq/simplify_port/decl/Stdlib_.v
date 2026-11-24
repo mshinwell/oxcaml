@@ -33,9 +33,6 @@ Extract Inlined Constant int32 => "int32".
 (* the type [int64] that OCaml defines before any module *)
 Parameter int64 : Type.
 Extract Inlined Constant int64 => "int64".
-(* the type [array] that OCaml defines before any module *)
-Parameter array : Type -> Type.
-Extract Constant array "'a1" => "('a1) array".
 (* raise: in the kit (Port_monad.v). *)
 (* raise_notrace: in the kit (Port_monad.v). *)
 (* stdlib/stdlib.mli  val invalid_arg : string -> 'a *)
@@ -68,22 +65,22 @@ Extract Inlined Constant __LOC__ => "__LOC__".
 (* NOT DECLARED: ( / ): an operator of Stdlib: the kit and Rocq have their own. *)
 (* stdlib/stdlib.mli  val mod : int -> int -> int *)
 Parameter mod_ : int -> int -> M int.
-Extract Inlined Constant mod_ => "mod".
+Extract Inlined Constant mod_ => "( mod )".
 (* stdlib/stdlib.mli  val max_int : int *)
 Parameter max_int : int.
 Extract Inlined Constant max_int => "max_int".
 (* stdlib/stdlib.mli  val land : int -> int -> int *)
 Parameter land : int -> int -> M int.
-Extract Inlined Constant land => "land".
+Extract Inlined Constant land => "( land )".
 (* stdlib/stdlib.mli  val lor : int -> int -> int *)
 Parameter lor : int -> int -> M int.
-Extract Inlined Constant lor => "lor".
+Extract Inlined Constant lor => "( lor )".
 (* stdlib/stdlib.mli  val lsl : int -> int -> int *)
 Parameter lsl : int -> int -> M int.
-Extract Inlined Constant lsl => "lsl".
+Extract Inlined Constant lsl => "( lsl )".
 (* stdlib/stdlib.mli  val lsr : int -> int -> int *)
 Parameter lsr : int -> int -> M int.
-Extract Inlined Constant lsr => "lsr".
+Extract Inlined Constant lsr => "( lsr )".
 (* NOT DECLARED: ( ^ ): an operator of Stdlib: the kit and Rocq have their own. *)
 (* ignore: in the kit (Port_monad.v). *)
 (* stdlib/stdlib.mli  val string_of_int : int -> string *)

@@ -1,8 +1,8 @@
-(fun x__1 -> Alloc_mode.For_allocations.Heap { alloc_region = x__1 })	Alloc_mode.For_allocations.mk_Heap	maker	1	alloc_mode.mli:84
-(fun x__1 -> Alloc_mode.For_applications.Not_alloc_stack { alloc_region = x__1 })	Alloc_mode.For_applications.mk_Not_alloc_stack	maker	1	alloc_mode.mli:47
-(fun x__1 -> Are_lifting_conts.Lifting_out_of { continuation = x__1 })	Are_lifting_conts.mk_Lifting_out_of	maker	1	are_lifting_conts.mli:59
-(fun x__1 -> Are_lifting_conts.Not_lifting x__1)	Are_lifting_conts.mk_Not_lifting	maker	1	are_lifting_conts.mli:59
-(fun x__1 -> Call_kind.Effect.Perform { eff = x__1 })	Call_kind.Effect.mk_Perform	maker	1	call_kind.mli:51
+( land )	Stdlib_.land	value	2	stdlib/stdlib.mli
+( lor )	Stdlib_.lor	value	2	stdlib/stdlib.mli
+( lsl )	Stdlib_.lsl	value	2	stdlib/stdlib.mli
+( lsr )	Stdlib_.lsr	value	2	stdlib/stdlib.mli
+( mod )	Stdlib_.mod_	value	2	stdlib/stdlib.mli
 (fun x__1 -> Call_site_inlining_decision_type.Begin_unrolling x__1)	Call_site_inlining_decision_type.mk_Begin_unrolling	maker	1	call_site_inlining_decision_type.mli:20
 (fun x__1 -> Call_site_inlining_decision_type.Definition_says_inline { was_inline_always = x__1 })	Call_site_inlining_decision_type.mk_Definition_says_inline	maker	1	call_site_inlining_decision_type.mli:20
 (fun x__1 -> Call_site_inlining_decision_type.Replay_history_says_must_inline x__1)	Call_site_inlining_decision_type.mk_Replay_history_says_must_inline	maker	1	call_site_inlining_decision_type.mli:20
@@ -10,38 +10,6 @@
 (fun x__1 -> Continuation_in_env.Non_inlinable_non_zero_arity { arity = x__1 })	Continuation_in_env.mk_Non_inlinable_non_zero_arity	maker	1	continuation_in_env.mli:17
 (fun x__1 -> Continuation_in_env.Non_inlinable_zero_arity { handler = x__1 })	Continuation_in_env.mk_Non_inlinable_zero_arity	maker	1	continuation_in_env.mli:17
 (fun x__1 -> Continuation_in_env.Toplevel_or_function_return_or_exn_continuation { arity = x__1 })	Continuation_in_env.mk_Toplevel_or_function_return_or_exn_continuation	maker	1	continuation_in_env.mli:17
-(fun x__1 -> Expr_builder.Apply_cont x__1)	Expr_builder.mk_Apply_cont	maker	1	expr_builder.mli:114
-(fun x__1 -> Expr_builder.Invalid { message = x__1 })	Expr_builder.mk_Invalid	maker	1	expr_builder.mli:114
-(fun x__1 -> Expr_builder.New_wrapper x__1)	Expr_builder.mk_New_wrapper	maker	1	expr_builder.mli:114
-(fun x__1 -> Flambda.Apply x__1)	Flambda.mk_Apply	maker	1	flambda.mli:53
-(fun x__1 -> Flambda.Apply_cont x__1)	Flambda.mk_Apply_cont	maker	1	flambda.mli:53
-(fun x__1 -> Flambda.Invalid { message = x__1 })	Flambda.mk_Invalid	maker	1	flambda.mli:53
-(fun x__1 -> Flambda.Let x__1)	Flambda.mk_Let	maker	1	flambda.mli:53
-(fun x__1 -> Flambda.Let_cont x__1)	Flambda.mk_Let_cont	maker	1	flambda.mli:53
-(fun x__1 -> Flambda.Switch x__1)	Flambda.mk_Switch	maker	1	flambda.mli:53
-(fun x__1 -> Flambda2_types.Boxed_float x__1)	Flambda2_types.mk_Boxed_float	maker	1	flambda2_types.mli:942
-(fun x__1 -> Flambda2_types.Boxed_float32 x__1)	Flambda2_types.mk_Boxed_float32	maker	1	flambda2_types.mli:942
-(fun x__1 -> Flambda2_types.Boxed_int32 x__1)	Flambda2_types.mk_Boxed_int32	maker	1	flambda2_types.mli:942
-(fun x__1 -> Flambda2_types.Boxed_int64 x__1)	Flambda2_types.mk_Boxed_int64	maker	1	flambda2_types.mli:942
-(fun x__1 -> Flambda2_types.Boxed_mask x__1)	Flambda2_types.mk_Boxed_mask	maker	1	flambda2_types.mli:942
-(fun x__1 -> Flambda2_types.Boxed_nativeint x__1)	Flambda2_types.mk_Boxed_nativeint	maker	1	flambda2_types.mli:942
-(fun x__1 -> Flambda2_types.Boxed_vec128 x__1)	Flambda2_types.mk_Boxed_vec128	maker	1	flambda2_types.mli:942
-(fun x__1 -> Flambda2_types.Boxed_vec256 x__1)	Flambda2_types.mk_Boxed_vec256	maker	1	flambda2_types.mli:942
-(fun x__1 -> Flambda2_types.Boxed_vec512 x__1)	Flambda2_types.mk_Boxed_vec512	maker	1	flambda2_types.mli:942
-(fun x__1 -> Flambda2_types.Empty_array x__1)	Flambda2_types.mk_Empty_array	maker	1	flambda2_types.mli:942
-(fun x__1 -> Flambda2_types.Immutable_float32_array { fields = x__1 })	Flambda2_types.mk_Immutable_float32_array	maker	1	flambda2_types.mli:942
-(fun x__1 -> Flambda2_types.Immutable_float_array { fields = x__1 })	Flambda2_types.mk_Immutable_float_array	maker	1	flambda2_types.mli:942
-(fun x__1 -> Flambda2_types.Immutable_int16_array { fields = x__1 })	Flambda2_types.mk_Immutable_int16_array	maker	1	flambda2_types.mli:942
-(fun x__1 -> Flambda2_types.Immutable_int32_array { fields = x__1 })	Flambda2_types.mk_Immutable_int32_array	maker	1	flambda2_types.mli:942
-(fun x__1 -> Flambda2_types.Immutable_int64_array { fields = x__1 })	Flambda2_types.mk_Immutable_int64_array	maker	1	flambda2_types.mli:942
-(fun x__1 -> Flambda2_types.Immutable_int8_array { fields = x__1 })	Flambda2_types.mk_Immutable_int8_array	maker	1	flambda2_types.mli:942
-(fun x__1 -> Flambda2_types.Immutable_int_array { fields = x__1 })	Flambda2_types.mk_Immutable_int_array	maker	1	flambda2_types.mli:942
-(fun x__1 -> Flambda2_types.Immutable_mask_array { fields = x__1 })	Flambda2_types.mk_Immutable_mask_array	maker	1	flambda2_types.mli:942
-(fun x__1 -> Flambda2_types.Immutable_nativeint_array { fields = x__1 })	Flambda2_types.mk_Immutable_nativeint_array	maker	1	flambda2_types.mli:942
-(fun x__1 -> Flambda2_types.Immutable_value_array { fields = x__1 })	Flambda2_types.mk_Immutable_value_array	maker	1	flambda2_types.mli:942
-(fun x__1 -> Flambda2_types.Immutable_vec128_array { fields = x__1 })	Flambda2_types.mk_Immutable_vec128_array	maker	1	flambda2_types.mli:942
-(fun x__1 -> Flambda2_types.Immutable_vec256_array { fields = x__1 })	Flambda2_types.mk_Immutable_vec256_array	maker	1	flambda2_types.mli:942
-(fun x__1 -> Flambda2_types.Immutable_vec512_array { fields = x__1 })	Flambda2_types.mk_Immutable_vec512_array	maker	1	flambda2_types.mli:942
 (fun x__1 -> Flambda_arity.Component_for_creation.Singleton x__1)	Flambda_arity.Component_for_creation.mk_Singleton	maker	1	flambda_arity.mli:36
 (fun x__1 -> Flambda_arity.Component_for_creation.Unboxed_product x__1)	Flambda_arity.Component_for_creation.mk_Unboxed_product	maker	1	flambda_arity.mli:36
 (fun x__1 -> Flambda_primitive.Array_length x__1)	Flambda_primitive.mk_Array_length	maker	1	flambda_primitive.mli:422
@@ -62,14 +30,7 @@
 (fun x__1 -> Flow_types.Mutable_prim.Is_int x__1)	Flow_types.Mutable_prim.mk_Is_int	maker	1	flow_types.mli:39
 (fun x__1 -> Function_decl_inlining_decision_type.Function_body_too_large x__1)	Function_decl_inlining_decision_type.mk_Function_body_too_large	maker	1	function_decl_inlining_decision_type.mli:17
 (fun x__1 -> Function_decl_inlining_decision_type.Functor_body_too_large x__1)	Function_decl_inlining_decision_type.mk_Functor_body_too_large	maker	1	function_decl_inlining_decision_type.mli:17
-(fun x__1 -> Lifted_constant.Definition.Code x__1)	Lifted_constant.Definition_.mk_Code	maker	1	lifted_constant.mli:25
-(fun x__1 -> Simplified_expr.Simplified_apply x__1)	Simplified_expr.mk_Simplified_apply	maker	1	simplified_expr.mli:96
-(fun x__1 -> Simplified_expr.Simplified_apply_cont x__1)	Simplified_expr.mk_Simplified_apply_cont	maker	1	simplified_expr.mli:96
-(fun x__1 -> Simplified_expr.Simplified_invalid x__1)	Simplified_expr.mk_Simplified_invalid	maker	1	simplified_expr.mli:96
-(fun x__1 -> Simplified_expr.Simplified_switch x__1)	Simplified_expr.mk_Simplified_switch	maker	1	simplified_expr.mli:96
 (fun x__1 -> Simplified_named.Delete_binding { original_defining_expr = x__1 })	Simplified_named.mk_Delete_binding	maker	1	simplified_named.mli:58
-(fun x__1 -> Specialization_cost.Can_specialize x__1)	Specialization_cost.mk_Can_specialize	maker	1	specialization_cost.mli:56
-(fun x__1 -> Specialization_cost.Cannot_specialize { reason = x__1 })	Specialization_cost.mk_Cannot_specialize	maker	1	specialization_cost.mli:56
 (fun x__1 -> Trap_action.Push { exn_handler = x__1 })	Trap_action.mk_Push	maker	1	trap_action.mli:37
 (fun x__1 -> Warnings.Ambiguous_var_in_pattern_guard x__1)	Warnings.mk_Ambiguous_var_in_pattern_guard	maker	1	warnings.mli:61
 (fun x__1 -> Warnings.Bad_module_name x__1)	Warnings.mk_Bad_module_name	maker	1	warnings.mli:61
@@ -109,9 +70,6 @@
 (fun x__1 -> Warnings.Useless_record_with x__1)	Warnings.mk_Useless_record_with	maker	1	warnings.mli:61
 (fun x__1 -> Warnings.Wrong_tailcall_expectation x__1)	Warnings.mk_Wrong_tailcall_expectation	maker	1	warnings.mli:61
 (fun x__1 -> Warnings.Zero_alloc_all_hidden_arrow x__1)	Warnings.mk_Zero_alloc_all_hidden_arrow	maker	1	warnings.mli:61
-(fun x__1 x__2 -> Alloc_mode.For_allocations.Local { alloc_region = x__1; region = x__2 })	Alloc_mode.For_allocations.mk_Local	maker	2	alloc_mode.mli:84
-(fun x__1 x__2 -> Call_kind.Effect.Continue { cont = x__1; value = x__2 })	Call_kind.Effect.mk_Continue	maker	2	call_kind.mli:51
-(fun x__1 x__2 -> Call_kind.Effect.Discontinue { cont = x__1; exn = x__2 })	Call_kind.Effect.mk_Discontinue	maker	2	call_kind.mli:51
 (fun x__1 x__2 -> Flambda_primitive.Box_number (x__1, x__2))	Flambda_primitive.mk_Box_number	maker	2	flambda_primitive.mli:422
 (fun x__1 x__2 -> Flambda_primitive.Duplicate_block { kind = x__1; alloc_region = x__2 })	Flambda_primitive.mk_Duplicate_block	maker	2	flambda_primitive.mli:422
 (fun x__1 x__2 -> Flambda_primitive.Float_arith (x__1, x__2))	Flambda_primitive.mk_Float_arith	maker	2	flambda_primitive.mli:422
@@ -123,8 +81,6 @@
 (fun x__1 x__2 -> Flambda_primitive.Project_value_slot { project_from = x__1; value_slot = x__2 })	Flambda_primitive.mk_Project_value_slot	maker	2	flambda_primitive.mli:422
 (fun x__1 x__2 -> Function_decl_inlining_decision_type.Small_function { size = x__1; small_function_size = x__2 })	Function_decl_inlining_decision_type.mk_Small_function	maker	2	function_decl_inlining_decision_type.mli:17
 (fun x__1 x__2 -> Function_decl_inlining_decision_type.Small_functor { size = x__1; small_functor_size = x__2 })	Function_decl_inlining_decision_type.mk_Small_functor	maker	2	function_decl_inlining_decision_type.mli:17
-(fun x__1 x__2 -> Simplified_expr.Simplified_let (x__1, x__2))	Simplified_expr.mk_Simplified_let	maker	2	simplified_expr.mli:38
-(fun x__1 x__2 -> Simplified_expr.Simplified_let_cont (x__1, x__2))	Simplified_expr.mk_Simplified_let_cont	maker	2	simplified_expr.mli:38
 (fun x__1 x__2 -> Trap_action.Pop { exn_handler = x__1; raise_kind = x__2 })	Trap_action.mk_Pop	maker	2	trap_action.mli:37
 (fun x__1 x__2 -> Unboxing_types.At_least_one { is_int = x__1; ctor = x__2 })	Unboxing_types.mk_At_least_one	maker	2	unboxing_types.mli:72
 (fun x__1 x__2 -> Unboxing_types.Closure_single_entry { function_slot = x__1; vars_within_closure = x__2 })	Unboxing_types.mk_Closure_single_entry	maker	2	unboxing_types.mli:46
@@ -144,29 +100,22 @@
 (fun x__1 x__2 -> Warnings.Unused_type_declaration (x__1, x__2))	Warnings.mk_Unused_type_declaration	maker	2	warnings.mli:61
 (fun x__1 x__2 -> Warnings.Unused_var { name = x__1; mutated = x__2 })	Warnings.mk_Unused_var	maker	2	warnings.mli:61
 (fun x__1 x__2 -> Warnings.Unused_var_strict { name = x__1; mutated = x__2 })	Warnings.mk_Unused_var_strict	maker	2	warnings.mli:61
-(fun x__1 x__2 x__3 -> Alloc_mode.For_applications.Maybe_alloc_stack { alloc_region = x__1; region = x__2; ghost_region = x__3 })	Alloc_mode.For_applications.mk_Maybe_alloc_stack	maker	3	alloc_mode.mli:47
-(fun x__1 x__2 x__3 -> Are_lifting_conts.Analyzing { continuation = x__1; is_exn_handler = x__2; uses = x__3 })	Are_lifting_conts.mk_Analyzing	maker	3	are_lifting_conts.mli:59
-(fun x__1 x__2 x__3 -> Call_kind.Effect.Discontinue_with_backtrace { cont = x__1; exn = x__2; bt = x__3 })	Call_kind.Effect.mk_Discontinue_with_backtrace	maker	3	call_kind.mli:51
-(fun x__1 x__2 x__3 -> Call_kind.Effect.Reperform { eff = x__1; cont = x__2; last_fiber = x__3 })	Call_kind.Effect.mk_Reperform	maker	3	call_kind.mli:51
 (fun x__1 x__2 x__3 -> Flambda_primitive.Block_access_kind.Values { tag = x__1; size = x__2; field_kind = x__3 })	Flambda_primitive.Block_access_kind.mk_Values	maker	3	flambda_primitive.mli:230
 (fun x__1 x__2 x__3 -> Flambda_primitive.Block_load { kind = x__1; mut = x__2; field = x__3 })	Flambda_primitive.mk_Block_load	maker	3	flambda_primitive.mli:422
 (fun x__1 x__2 x__3 -> Flambda_primitive.Make_array (x__1, x__2, x__3))	Flambda_primitive.mk_Make_array	maker	3	flambda_primitive.mli:653
 (fun x__1 x__2 x__3 -> Flambda_primitive.Make_block (x__1, x__2, x__3))	Flambda_primitive.mk_Make_block	maker	3	flambda_primitive.mli:653
 (fun x__1 x__2 x__3 -> Function_decl_inlining_decision_type.Speculatively_inlinable { size = x__1; small_function_size = x__2; large_function_size = x__3 })	Function_decl_inlining_decision_type.mk_Speculatively_inlinable	maker	3	function_decl_inlining_decision_type.mli:17
 (fun x__1 x__2 x__3 -> Function_decl_inlining_decision_type.Speculatively_inlinable_functor { size = x__1; small_functor_size = x__2; large_functor_size = x__3 })	Function_decl_inlining_decision_type.mk_Speculatively_inlinable_functor	maker	3	function_decl_inlining_decision_type.mli:17
-(fun x__1 x__2 x__3 -> Lifted_constant.Definition.Set_of_closures { typing_env = x__1; closure_symbols_with_types = x__2; symbol_projections = x__3 })	Lifted_constant.Definition_.mk_Set_of_closures	maker	3	lifted_constant.mli:25
 (fun x__1 x__2 x__3 -> Simplified_named.Keep_binding { let_bound = x__1; simplified_defining_expr = x__2; original_defining_expr = x__3 })	Simplified_named.mk_Keep_binding	maker	3	simplified_named.mli:58
 (fun x__1 x__2 x__3 -> Unboxing_types.Unique_tag_and_size { tag = x__1; shape = x__2; fields = x__3 })	Unboxing_types.mk_Unique_tag_and_size	maker	3	unboxing_types.mli:46
 (fun x__1 x__2 x__3 -> Unboxing_types.Variant { tag = x__1; const_ctors = x__2; fields_by_tag = x__3 })	Unboxing_types.mk_Variant	maker	3	unboxing_types.mli:46
 (fun x__1 x__2 x__3 -> Warnings.Imprecise_kind_annotation { name = x__1; annotated = x__2; inferred = x__3 })	Warnings.mk_Imprecise_kind_annotation	maker	3	warnings.mli:61
 (fun x__1 x__2 x__3 -> Warnings.Unused_extension (x__1, x__2, x__3))	Warnings.mk_Unused_extension	maker	3	warnings.mli:61
 (fun x__1 x__2 x__3 -> Warnings.Unused_field { form = x__1; field = x__2; complaint = x__3 })	Warnings.mk_Unused_field	maker	3	warnings.mli:61
-(fun x__1 x__2 x__3 -> { Simplified_expr.apply_cont = x__1; args = x__2; rewrite_id = x__3 })	Simplified_expr.mk_simplified_apply_cont_	maker	3	simplified_expr.mli:102
 (fun x__1 x__2 x__3 -> { Unboxing_types.epa = x__1; decision = x__2; kind = x__3 })	Unboxing_types.mk_field_decision	maker	3	unboxing_types.mli:66
 (fun x__1 x__2 x__3 x__4 -> Call_site_inlining_decision_type.Speculatively_inline { cost_metrics = x__1; evaluated_to = x__2; threshold = x__3; is_a_functor = x__4 })	Call_site_inlining_decision_type.mk_Speculatively_inline	maker	4	call_site_inlining_decision_type.mli:20
 (fun x__1 x__2 x__3 x__4 -> Call_site_inlining_decision_type.Speculatively_not_inline { cost_metrics = x__1; evaluated_to = x__2; threshold = x__3; is_a_functor = x__4 })	Call_site_inlining_decision_type.mk_Speculatively_not_inline	maker	4	call_site_inlining_decision_type.mli:20
 (fun x__1 x__2 x__3 x__4 -> Continuation_in_env.Linearly_used_and_inlinable { params = x__1; handler = x__2; free_names_of_handler = x__3; cost_metrics_of_handler = x__4 })	Continuation_in_env.mk_Linearly_used_and_inlinable	maker	4	continuation_in_env.mli:17
-(fun x__1 x__2 x__3 x__4 -> Flambda2_types.Immutable_block { tag = x__1; is_unique = x__2; shape = x__3; fields = x__4 })	Flambda2_types.mk_Immutable_block	maker	4	flambda2_types.mli:942
 (fun x__1 x__2 x__3 x__4 -> Flambda_primitive.Block_access_kind.Mixed { tag = x__1; size = x__2; field_kind = x__3; shape = x__4 })	Flambda_primitive.Block_access_kind.mk_Mixed	maker	4	flambda_primitive.mli:230
 (fun x__1 x__2 x__3 x__4 -> Flambda_primitive.Duplicate_array { kind = x__1; source_mutability = x__2; destination_mutability = x__3; alloc_region = x__4 })	Flambda_primitive.mk_Duplicate_array	maker	4	flambda_primitive.mli:422
 (fun x__1 x__2 x__3 x__4 -> Flow_types.Mutable_prim.Block_load { bak = x__1; mut = x__2; block = x__3; field = x__4 })	Flow_types.Mutable_prim.mk_Block_load	maker	4	flow_types.mli:39
@@ -174,14 +123,9 @@
 (fun x__1 x__2 x__3 x__4 -> Flow_types.Mutable_prim.Make_block { kind = x__1; mut = x__2; alloc_mode = x__3; fields = x__4 })	Flow_types.Mutable_prim.mk_Make_block	maker	4	flow_types.mli:39
 (fun x__1 x__2 x__3 x__4 -> Lambda.Assume { strict = x__1; never_returns_normally = x__2; never_raises = x__3; loc = x__4 })	Lambda.mk_Assume	maker	4	lambda.mli:860
 (fun x__1 x__2 x__3 x__4 -> Lambda.Check { strict = x__1; loc = x__2; custom_error_msg = x__3; partial = x__4 })	Lambda.mk_Check	maker	4	lambda.mli:860
-(fun x__1 x__2 x__3 x__4 -> Lifted_constant.Definition.Block_like { symbol = x__1; typing_env = x__2; ty = x__3; symbol_projections = x__4 })	Lifted_constant.Definition_.mk_Block_like	maker	4	lifted_constant.mli:25
 (fun x__1 x__2 x__3 x__4 -> Warnings.Ambiguous_name (x__1, x__2, x__3, x__4))	Warnings.mk_Ambiguous_name	maker	4	warnings.mli:61
 (fun x__1 x__2 x__3 x__4 -> Warnings.Duplicate_definitions (x__1, x__2, x__3, x__4))	Warnings.mk_Duplicate_definitions	maker	4	warnings.mli:61
 (fun x__1 x__2 x__3 x__4 -> { Simplified_expr.at_unit_toplevel = x__1; handlers_from_the_outside_to_the_inside = x__2; original_invariant_params = x__3; invariant_extra_params = x__4 })	Simplified_expr.mk_simplified_let_cont_handlers	maker	4	simplified_expr.mli:81
-(fun x__1 x__2 x__3 x__4 -> { Simplified_expr.simplified_lets_and_let_conts = x__1; simplified_terminator = x__2; removed_operations = x__3; is_cold = x__4 })	Simplified_expr.mk_t	maker	4	simplified_expr.mli:31
-(fun x__1 x__2 x__3 x__4 x__5 -> Call_kind.Effect.With_stack { valuec = x__1; exnc = x__2; effc = x__3; f = x__4; arg = x__5 })	Call_kind.Effect.mk_With_stack	maker	5	call_kind.mli:51
-(fun x__1 x__2 x__3 x__4 x__5 -> { Simplified_expr.apply = x__1; use_id = x__2; exn_cont_use_id = x__3; result_arity = x__4; is_cold = x__5 })	Simplified_expr.mk_simplified_apply_	maker	5	simplified_expr.mli:88
-(fun x__1 x__2 x__3 x__4 x__5 x__6 -> Call_kind.Effect.With_stack_preemptible { valuec = x__1; exnc = x__2; effc = x__3; handle_tick = x__4; f = x__5; arg = x__6 })	Call_kind.Effect.mk_With_stack_preemptible	maker	6	call_kind.mli:51
 Alloc_mode.For_allocations.as_type	Alloc_mode.For_allocations.as_type	value	1	alloc_mode.mli:101
 Alloc_mode.For_allocations.heap	Alloc_mode.For_allocations.heap	value	1	alloc_mode.mli:96
 Alloc_mode.For_allocations.local	Alloc_mode.For_allocations.local	value	2	alloc_mode.mli:99
@@ -6167,7 +6111,6 @@ Simple.with_coercion	Simple.with_coercion	value	2	int_ids.mli:218
 Simple.without_coercion	Simple.without_coercion	value	1	simple.mli:32
 Simplified_expr.Non_recursive	Simplified_expr.Non_recursive	constructor	3	simplified_expr.mli:71
 Simplified_expr.Recursive	Simplified_expr.Recursive	constructor	1	simplified_expr.mli:71
-Simplified_expr.Simplified_terminator	Simplified_expr.mk_Simplified_terminator	maker	0	simplified_expr.mli:38
 Simplified_expr.arms	Simplified_expr.arms	field	0	simplified_expr.mli:108
 Simplified_expr.at_unit_toplevel	Simplified_expr.at_unit_toplevel	field	0	simplified_expr.mli:44
 Simplified_expr.bindings_to_place	Simplified_expr.bindings_to_place	field	0	simplified_expr.mli:44
@@ -6327,6 +6270,8 @@ Slot_offsets.empty	Slot_offsets.empty	value	0	slot_offsets.mli:55
 Slot_offsets.print	Slot_offsets.print	value	2	slot_offsets.mli:52
 Slot_offsets.t	Slot_offsets.t	type	0	slot_offsets.mli:20
 Specialization_cost.At_toplevel	Specialization_cost.At_toplevel	constructor	0	specialization_cost.mli:47
+Specialization_cost.Can_specialize	Specialization_cost.Can_specialize	constructor	1	specialization_cost.mli:56
+Specialization_cost.Cannot_specialize	Specialization_cost.Cannot_specialize	constructor	1	specialization_cost.mli:56
 Specialization_cost.Contains_set_of_closures	Specialization_cost.Contains_set_of_closures	constructor	0	specialization_cost.mli:47
 Specialization_cost.Contains_static_consts	Specialization_cost.Contains_static_consts	constructor	0	specialization_cost.mli:47
 Specialization_cost.Specialization_disabled	Specialization_cost.Specialization_disabled	constructor	0	specialization_cost.mli:47
@@ -6339,7 +6284,7 @@ Specialization_cost.cannot_specialize	Specialization_cost.cannot_specialize	valu
 Specialization_cost.cost	Specialization_cost.cost	type	0	specialization_cost.mli:53
 Specialization_cost.cost_metrics	Specialization_cost.cost_metrics	value	6	specialization_cost.mli:87
 Specialization_cost.print	Specialization_cost.print	value	2	specialization_cost.mli:62
-Specialization_cost.t	Specialization_cost.t	type	0	specialization_cost.mli:56
+Specialization_cost.reason	Specialization_cost.reason	field	0	specialization_cost.mli:56
 Static_const.Block	Static_const.Block	constructor	4	static_const.mli:25
 Static_const.Boxed_float	Static_const.Boxed_float	constructor	1	static_const.mli:25
 Static_const.Boxed_float32	Static_const.Boxed_float32	constructor	1	static_const.mli:25
@@ -6817,7 +6762,6 @@ Warnings.type_declaration_usage_warning	Warnings.type_declaration_usage_warning	
 Warnings.upstream_compat_warning	Warnings.upstream_compat_warning	type	0	warnings.mli:42
 Zero_alloc_attribute.t	Zero_alloc_attribute.t	type	0	zero_alloc_attribute.mli:13
 __LOC__	Stdlib_.__LOC__	value	0	stdlib/stdlib.mli
-array	Stdlib_.array	type	1	predefined
 at_exit	Stdlib_.at_exit	value	1	stdlib/stdlib.mli
 char	Stdlib_.char	type	0	predefined
 close_out	Stdlib_.close_out	value	1	stdlib/stdlib.mli
@@ -6827,10 +6771,6 @@ incr	Stdlib_.incr	value	1	stdlib/stdlib.mli
 int32	Stdlib_.int32	type	0	predefined
 int64	Stdlib_.int64	type	0	predefined
 invalid_arg	Stdlib_.invalid_arg	value	1	stdlib/stdlib.mli
-land	Stdlib_.land	value	2	stdlib/stdlib.mli
-lor	Stdlib_.lor	value	2	stdlib/stdlib.mli
-lsl	Stdlib_.lsl	value	2	stdlib/stdlib.mli
-lsr	Stdlib_.lsr	value	2	stdlib/stdlib.mli
 match on Alloc_mode.For_allocations.t	Alloc_mode.For_allocations.match_t	eliminator	3	alloc_mode.mli:84
 match on Alloc_mode.For_applications.t	Alloc_mode.For_applications.match_t	eliminator	3	alloc_mode.mli:47
 match on Are_lifting_conts.t	Are_lifting_conts.match_t	eliminator	4	are_lifting_conts.mli:59
@@ -6840,7 +6780,6 @@ match on Continuation_in_env.t	Continuation_in_env.match_t	eliminator	6	continua
 match on Expr_builder.rewrite_switch_arm_result	Expr_builder.match_rewrite_switch_arm_result	eliminator	4	expr_builder.mli:114
 match on Flambda.expr_descr	Flambda.match_expr_descr	eliminator	7	flambda.mli:53
 match on Flambda2_types.to_lift	Flambda2_types.match_to_lift	eliminator	25	flambda2_types.mli:942
-match on Flambda_arity.Component_for_creation.t	Flambda_arity.Component_for_creation.match_t	eliminator	3	flambda_arity.mli:36
 match on Flambda_primitive.Block_access_kind.t	Flambda_primitive.Block_access_kind.match_t	eliminator	4	flambda_primitive.mli:230
 match on Flambda_primitive.unary_primitive	Flambda_primitive.match_unary_primitive	eliminator	32	flambda_primitive.mli:422
 match on Flambda_primitive.variadic_primitive	Flambda_primitive.match_variadic_primitive	eliminator	5	flambda_primitive.mli:653
@@ -6855,14 +6794,12 @@ match on Simplified_expr.simplified_lets_and_let_conts	Simplified_expr.match_sim
 match on Simplified_expr.simplified_terminator	Simplified_expr.match_simplified_terminator_	eliminator	5	simplified_expr.mli:96
 match on Simplified_expr.t	Simplified_expr.match_t	eliminator	2	simplified_expr.mli:31
 match on Simplified_named.binding_to_place	Simplified_named.match_binding_to_place	eliminator	3	simplified_named.mli:58
-match on Specialization_cost.t	Specialization_cost.match_t	eliminator	3	specialization_cost.mli:56
 match on Trap_action.t	Trap_action.match_t	eliminator	3	trap_action.mli:37
 match on Unboxing_types.const_ctors_decision	Unboxing_types.match_const_ctors_decision	eliminator	3	unboxing_types.mli:72
 match on Unboxing_types.field_decision	Unboxing_types.match_field_decision	eliminator	2	unboxing_types.mli:66
 match on Unboxing_types.unboxing_decision	Unboxing_types.match_unboxing_decision	eliminator	5	unboxing_types.mli:46
 match on Warnings.t	Warnings.match_t	eliminator	94	warnings.mli:61
 max_int	Stdlib_.max_int	value	0	stdlib/stdlib.mli
-mod	Stdlib_.mod_	value	2	stdlib/stdlib.mli
 open_out	Stdlib_.open_out	value	1	stdlib/stdlib.mli
 out_channel	Stdlib_.out_channel	type	0	stdlib/stdlib.mli
 snd	Stdlib_.snd	value	1	stdlib/stdlib.mli

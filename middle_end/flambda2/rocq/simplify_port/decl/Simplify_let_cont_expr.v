@@ -24,11 +24,11 @@ From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Continuation Flambda Simplified_expr Simplify_common.
 
 (* simplify_let_cont_expr.mli:19  val simplify_let_cont : simplify_expr:Expr.t Simplify_common.expr_simplifier -> Let_cont.t Simplify_common.expr_simplifier *)
-Parameter simplify_let_cont : Simplify_common.expr_simplifier Flambda.Expr.t -> M (Simplify_common.expr_simplifier Flambda.Let_cont.t).
+Parameter simplify_let_cont : Simplify_common.expr_simplifier Flambda.Expr.t -> Simplify_common.expr_simplifier Flambda.Let_cont.t.
 Extract Inlined Constant simplify_let_cont => "Simplify_let_cont_expr.simplify_let_cont".
 (* simplify_let_cont_expr.mli:23  val simplify_as_recursive_let_cont : simplify_expr:Expr.t Simplify_common.expr_simplifier -> (Expr.t * Continuation_handler.t Continuation.Lmap.t) Simplify_common.expr_simplifier *)
-Parameter simplify_as_recursive_let_cont : Simplify_common.expr_simplifier Flambda.Expr.t -> M (Simplify_common.expr_simplifier (Flambda.Expr.t * Continuation.Lmap.t Flambda.Continuation_handler.t)).
+Parameter simplify_as_recursive_let_cont : Simplify_common.expr_simplifier Flambda.Expr.t -> Simplify_common.expr_simplifier (Flambda.Expr.t * Continuation.Lmap.t Flambda.Continuation_handler.t).
 Extract Inlined Constant simplify_as_recursive_let_cont => "Simplify_let_cont_expr.simplify_as_recursive_let_cont".
 (* simplify_let_cont_expr.mli:28  val rebuild_let_cont : rebuild_body:'a Simplify_common.rebuild -> rebuild_expr:Simplified_expr.t Simplify_common.rebuild -> (Simplified_expr.simplified_let_cont_handlers * 'a) Simplify_common.rebuild *)
-Parameter rebuild_let_cont : forall {A : Type}, Simplify_common.rebuild A -> Simplify_common.rebuild Simplified_expr.t -> M (Simplify_common.rebuild (Simplified_expr.simplified_let_cont_handlers * A)).
+Parameter rebuild_let_cont : forall {A : Type}, Simplify_common.rebuild A -> Simplify_common.rebuild Simplified_expr.t -> Simplify_common.rebuild (Simplified_expr.simplified_let_cont_handlers * A).
 Extract Inlined Constant rebuild_let_cont => "Simplify_let_cont_expr.rebuild_let_cont".

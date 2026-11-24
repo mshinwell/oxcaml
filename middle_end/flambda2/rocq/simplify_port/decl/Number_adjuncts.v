@@ -180,7 +180,7 @@ Module For_tagged_immediates.
       Parameter of_list : list elt -> M t.
       Extract Inlined Constant of_list => "Number_adjuncts.For_tagged_immediates.Num.Set.of_list".
       (* container_types_intf.ml:120  val to_seq : t -> elt Seq.t *)
-      Parameter to_seq : t -> M (Seq.t elt).
+      Parameter to_seq : t -> Seq.t elt.
       Extract Inlined Constant to_seq => "Number_adjuncts.For_tagged_immediates.Num.Set.to_seq".
       (* container_types_intf.ml:122  val print : Format.formatter -> t -> unit *)
       Parameter print : Format.formatter -> t -> M unit.
@@ -315,7 +315,7 @@ Module For_tagged_immediates.
         Parameter of_list : list elt -> M t.
         Extract Inlined Constant of_list => "Number_adjuncts.For_tagged_immediates.Num.Map.Set.of_list".
         (* container_types_intf.ml:120  val to_seq : t -> elt Seq.t *)
-        Parameter to_seq : t -> M (Seq.t elt).
+        Parameter to_seq : t -> Seq.t elt.
         Extract Inlined Constant to_seq => "Number_adjuncts.For_tagged_immediates.Num.Map.Set.to_seq".
         (* container_types_intf.ml:122  val print : Format.formatter -> t -> unit *)
         Parameter print : Format.formatter -> t -> M unit.
@@ -454,7 +454,7 @@ Module For_tagged_immediates.
       Parameter mapi : forall {A B : Type}, (key -> A -> M B) -> t A -> M (t B).
       Extract Inlined Constant mapi => "Number_adjuncts.For_tagged_immediates.Num.Map.mapi".
       (* container_types_intf.ml:237  val to_seq : 'a t -> (key * 'a) Seq.t *)
-      Parameter to_seq : forall {A : Type}, t A -> M (Seq.t (key * A)).
+      Parameter to_seq : forall {A : Type}, t A -> Seq.t (key * A).
       Extract Inlined Constant to_seq => "Number_adjuncts.For_tagged_immediates.Num.Map.to_seq".
       (* container_types_intf.ml:239  val print_debug : (Format.formatter -> 'a -> unit) -> Format.formatter -> 'a t -> unit *)
       Parameter print_debug : forall {A : Type}, (Format.formatter -> A -> M unit) -> Format.formatter -> t A -> M unit.
@@ -660,7 +660,7 @@ Module For_tagged_immediates.
         Parameter of_list : list elt -> M t.
         Extract Inlined Constant of_list => "Number_adjuncts.For_tagged_immediates.Num.Pair.Set.of_list".
         (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
-        Parameter to_seq : t -> M (Seq.t elt).
+        Parameter to_seq : t -> Seq.t elt.
         Extract Inlined Constant to_seq => "Number_adjuncts.For_tagged_immediates.Num.Pair.Set.to_seq".
         (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
         Parameter print : Format.formatter -> t -> M unit.
@@ -795,7 +795,7 @@ Module For_tagged_immediates.
           Parameter of_list : list elt -> M t.
           Extract Inlined Constant of_list => "Number_adjuncts.For_tagged_immediates.Num.Pair.Map.Set.of_list".
           (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
-          Parameter to_seq : t -> M (Seq.t elt).
+          Parameter to_seq : t -> Seq.t elt.
           Extract Inlined Constant to_seq => "Number_adjuncts.For_tagged_immediates.Num.Pair.Map.Set.to_seq".
           (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
           Parameter print : Format.formatter -> t -> M unit.
@@ -934,7 +934,7 @@ Module For_tagged_immediates.
         Parameter mapi : forall {A B : Type}, (key -> A -> M B) -> t A -> M (t B).
         Extract Inlined Constant mapi => "Number_adjuncts.For_tagged_immediates.Num.Pair.Map.mapi".
         (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
-        Parameter to_seq : forall {A : Type}, t A -> M (Seq.t (key * A)).
+        Parameter to_seq : forall {A : Type}, t A -> Seq.t (key * A).
         Extract Inlined Constant to_seq => "Number_adjuncts.For_tagged_immediates.Num.Pair.Map.to_seq".
         (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
         Parameter print_debug : forall {A : Type}, (Format.formatter -> A -> M unit) -> Format.formatter -> t A -> M unit.
@@ -1252,7 +1252,7 @@ Module For_naked_immediates.
       Parameter of_list : list elt -> M t.
       Extract Inlined Constant of_list => "Number_adjuncts.For_naked_immediates.Num.Set.of_list".
       (* container_types_intf.ml:120  val to_seq : t -> elt Seq.t *)
-      Parameter to_seq : t -> M (Seq.t elt).
+      Parameter to_seq : t -> Seq.t elt.
       Extract Inlined Constant to_seq => "Number_adjuncts.For_naked_immediates.Num.Set.to_seq".
       (* container_types_intf.ml:122  val print : Format.formatter -> t -> unit *)
       Parameter print : Format.formatter -> t -> M unit.
@@ -1387,7 +1387,7 @@ Module For_naked_immediates.
         Parameter of_list : list elt -> M t.
         Extract Inlined Constant of_list => "Number_adjuncts.For_naked_immediates.Num.Map.Set.of_list".
         (* container_types_intf.ml:120  val to_seq : t -> elt Seq.t *)
-        Parameter to_seq : t -> M (Seq.t elt).
+        Parameter to_seq : t -> Seq.t elt.
         Extract Inlined Constant to_seq => "Number_adjuncts.For_naked_immediates.Num.Map.Set.to_seq".
         (* container_types_intf.ml:122  val print : Format.formatter -> t -> unit *)
         Parameter print : Format.formatter -> t -> M unit.
@@ -1526,7 +1526,7 @@ Module For_naked_immediates.
       Parameter mapi : forall {A B : Type}, (key -> A -> M B) -> t A -> M (t B).
       Extract Inlined Constant mapi => "Number_adjuncts.For_naked_immediates.Num.Map.mapi".
       (* container_types_intf.ml:237  val to_seq : 'a t -> (key * 'a) Seq.t *)
-      Parameter to_seq : forall {A : Type}, t A -> M (Seq.t (key * A)).
+      Parameter to_seq : forall {A : Type}, t A -> Seq.t (key * A).
       Extract Inlined Constant to_seq => "Number_adjuncts.For_naked_immediates.Num.Map.to_seq".
       (* container_types_intf.ml:239  val print_debug : (Format.formatter -> 'a -> unit) -> Format.formatter -> 'a t -> unit *)
       Parameter print_debug : forall {A : Type}, (Format.formatter -> A -> M unit) -> Format.formatter -> t A -> M unit.
@@ -1732,7 +1732,7 @@ Module For_naked_immediates.
         Parameter of_list : list elt -> M t.
         Extract Inlined Constant of_list => "Number_adjuncts.For_naked_immediates.Num.Pair.Set.of_list".
         (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
-        Parameter to_seq : t -> M (Seq.t elt).
+        Parameter to_seq : t -> Seq.t elt.
         Extract Inlined Constant to_seq => "Number_adjuncts.For_naked_immediates.Num.Pair.Set.to_seq".
         (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
         Parameter print : Format.formatter -> t -> M unit.
@@ -1867,7 +1867,7 @@ Module For_naked_immediates.
           Parameter of_list : list elt -> M t.
           Extract Inlined Constant of_list => "Number_adjuncts.For_naked_immediates.Num.Pair.Map.Set.of_list".
           (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
-          Parameter to_seq : t -> M (Seq.t elt).
+          Parameter to_seq : t -> Seq.t elt.
           Extract Inlined Constant to_seq => "Number_adjuncts.For_naked_immediates.Num.Pair.Map.Set.to_seq".
           (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
           Parameter print : Format.formatter -> t -> M unit.
@@ -2006,7 +2006,7 @@ Module For_naked_immediates.
         Parameter mapi : forall {A B : Type}, (key -> A -> M B) -> t A -> M (t B).
         Extract Inlined Constant mapi => "Number_adjuncts.For_naked_immediates.Num.Pair.Map.mapi".
         (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
-        Parameter to_seq : forall {A : Type}, t A -> M (Seq.t (key * A)).
+        Parameter to_seq : forall {A : Type}, t A -> Seq.t (key * A).
         Extract Inlined Constant to_seq => "Number_adjuncts.For_naked_immediates.Num.Pair.Map.to_seq".
         (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
         Parameter print_debug : forall {A : Type}, (Format.formatter -> A -> M unit) -> Format.formatter -> t A -> M unit.
@@ -2324,7 +2324,7 @@ Module For_float32s.
       Parameter of_list : list elt -> M t.
       Extract Inlined Constant of_list => "Number_adjuncts.For_float32s.Num.Set.of_list".
       (* container_types_intf.ml:120  val to_seq : t -> elt Seq.t *)
-      Parameter to_seq : t -> M (Seq.t elt).
+      Parameter to_seq : t -> Seq.t elt.
       Extract Inlined Constant to_seq => "Number_adjuncts.For_float32s.Num.Set.to_seq".
       (* container_types_intf.ml:122  val print : Format.formatter -> t -> unit *)
       Parameter print : Format.formatter -> t -> M unit.
@@ -2459,7 +2459,7 @@ Module For_float32s.
         Parameter of_list : list elt -> M t.
         Extract Inlined Constant of_list => "Number_adjuncts.For_float32s.Num.Map.Set.of_list".
         (* container_types_intf.ml:120  val to_seq : t -> elt Seq.t *)
-        Parameter to_seq : t -> M (Seq.t elt).
+        Parameter to_seq : t -> Seq.t elt.
         Extract Inlined Constant to_seq => "Number_adjuncts.For_float32s.Num.Map.Set.to_seq".
         (* container_types_intf.ml:122  val print : Format.formatter -> t -> unit *)
         Parameter print : Format.formatter -> t -> M unit.
@@ -2598,7 +2598,7 @@ Module For_float32s.
       Parameter mapi : forall {A B : Type}, (key -> A -> M B) -> t A -> M (t B).
       Extract Inlined Constant mapi => "Number_adjuncts.For_float32s.Num.Map.mapi".
       (* container_types_intf.ml:237  val to_seq : 'a t -> (key * 'a) Seq.t *)
-      Parameter to_seq : forall {A : Type}, t A -> M (Seq.t (key * A)).
+      Parameter to_seq : forall {A : Type}, t A -> Seq.t (key * A).
       Extract Inlined Constant to_seq => "Number_adjuncts.For_float32s.Num.Map.to_seq".
       (* container_types_intf.ml:239  val print_debug : (Format.formatter -> 'a -> unit) -> Format.formatter -> 'a t -> unit *)
       Parameter print_debug : forall {A : Type}, (Format.formatter -> A -> M unit) -> Format.formatter -> t A -> M unit.
@@ -2804,7 +2804,7 @@ Module For_float32s.
         Parameter of_list : list elt -> M t.
         Extract Inlined Constant of_list => "Number_adjuncts.For_float32s.Num.Pair.Set.of_list".
         (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
-        Parameter to_seq : t -> M (Seq.t elt).
+        Parameter to_seq : t -> Seq.t elt.
         Extract Inlined Constant to_seq => "Number_adjuncts.For_float32s.Num.Pair.Set.to_seq".
         (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
         Parameter print : Format.formatter -> t -> M unit.
@@ -2939,7 +2939,7 @@ Module For_float32s.
           Parameter of_list : list elt -> M t.
           Extract Inlined Constant of_list => "Number_adjuncts.For_float32s.Num.Pair.Map.Set.of_list".
           (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
-          Parameter to_seq : t -> M (Seq.t elt).
+          Parameter to_seq : t -> Seq.t elt.
           Extract Inlined Constant to_seq => "Number_adjuncts.For_float32s.Num.Pair.Map.Set.to_seq".
           (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
           Parameter print : Format.formatter -> t -> M unit.
@@ -3078,7 +3078,7 @@ Module For_float32s.
         Parameter mapi : forall {A B : Type}, (key -> A -> M B) -> t A -> M (t B).
         Extract Inlined Constant mapi => "Number_adjuncts.For_float32s.Num.Pair.Map.mapi".
         (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
-        Parameter to_seq : forall {A : Type}, t A -> M (Seq.t (key * A)).
+        Parameter to_seq : forall {A : Type}, t A -> Seq.t (key * A).
         Extract Inlined Constant to_seq => "Number_adjuncts.For_float32s.Num.Pair.Map.to_seq".
         (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
         Parameter print_debug : forall {A : Type}, (Format.formatter -> A -> M unit) -> Format.formatter -> t A -> M unit.
@@ -3369,7 +3369,7 @@ Module For_floats.
       Parameter of_list : list elt -> M t.
       Extract Inlined Constant of_list => "Number_adjuncts.For_floats.Num.Set.of_list".
       (* container_types_intf.ml:120  val to_seq : t -> elt Seq.t *)
-      Parameter to_seq : t -> M (Seq.t elt).
+      Parameter to_seq : t -> Seq.t elt.
       Extract Inlined Constant to_seq => "Number_adjuncts.For_floats.Num.Set.to_seq".
       (* container_types_intf.ml:122  val print : Format.formatter -> t -> unit *)
       Parameter print : Format.formatter -> t -> M unit.
@@ -3504,7 +3504,7 @@ Module For_floats.
         Parameter of_list : list elt -> M t.
         Extract Inlined Constant of_list => "Number_adjuncts.For_floats.Num.Map.Set.of_list".
         (* container_types_intf.ml:120  val to_seq : t -> elt Seq.t *)
-        Parameter to_seq : t -> M (Seq.t elt).
+        Parameter to_seq : t -> Seq.t elt.
         Extract Inlined Constant to_seq => "Number_adjuncts.For_floats.Num.Map.Set.to_seq".
         (* container_types_intf.ml:122  val print : Format.formatter -> t -> unit *)
         Parameter print : Format.formatter -> t -> M unit.
@@ -3643,7 +3643,7 @@ Module For_floats.
       Parameter mapi : forall {A B : Type}, (key -> A -> M B) -> t A -> M (t B).
       Extract Inlined Constant mapi => "Number_adjuncts.For_floats.Num.Map.mapi".
       (* container_types_intf.ml:237  val to_seq : 'a t -> (key * 'a) Seq.t *)
-      Parameter to_seq : forall {A : Type}, t A -> M (Seq.t (key * A)).
+      Parameter to_seq : forall {A : Type}, t A -> Seq.t (key * A).
       Extract Inlined Constant to_seq => "Number_adjuncts.For_floats.Num.Map.to_seq".
       (* container_types_intf.ml:239  val print_debug : (Format.formatter -> 'a -> unit) -> Format.formatter -> 'a t -> unit *)
       Parameter print_debug : forall {A : Type}, (Format.formatter -> A -> M unit) -> Format.formatter -> t A -> M unit.
@@ -3849,7 +3849,7 @@ Module For_floats.
         Parameter of_list : list elt -> M t.
         Extract Inlined Constant of_list => "Number_adjuncts.For_floats.Num.Pair.Set.of_list".
         (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
-        Parameter to_seq : t -> M (Seq.t elt).
+        Parameter to_seq : t -> Seq.t elt.
         Extract Inlined Constant to_seq => "Number_adjuncts.For_floats.Num.Pair.Set.to_seq".
         (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
         Parameter print : Format.formatter -> t -> M unit.
@@ -3984,7 +3984,7 @@ Module For_floats.
           Parameter of_list : list elt -> M t.
           Extract Inlined Constant of_list => "Number_adjuncts.For_floats.Num.Pair.Map.Set.of_list".
           (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
-          Parameter to_seq : t -> M (Seq.t elt).
+          Parameter to_seq : t -> Seq.t elt.
           Extract Inlined Constant to_seq => "Number_adjuncts.For_floats.Num.Pair.Map.Set.to_seq".
           (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
           Parameter print : Format.formatter -> t -> M unit.
@@ -4123,7 +4123,7 @@ Module For_floats.
         Parameter mapi : forall {A B : Type}, (key -> A -> M B) -> t A -> M (t B).
         Extract Inlined Constant mapi => "Number_adjuncts.For_floats.Num.Pair.Map.mapi".
         (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
-        Parameter to_seq : forall {A : Type}, t A -> M (Seq.t (key * A)).
+        Parameter to_seq : forall {A : Type}, t A -> Seq.t (key * A).
         Extract Inlined Constant to_seq => "Number_adjuncts.For_floats.Num.Pair.Map.to_seq".
         (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
         Parameter print_debug : forall {A : Type}, (Format.formatter -> A -> M unit) -> Format.formatter -> t A -> M unit.
@@ -4414,7 +4414,7 @@ Module For_int8s.
       Parameter of_list : list elt -> M t.
       Extract Inlined Constant of_list => "Number_adjuncts.For_int8s.Num.Set.of_list".
       (* container_types_intf.ml:120  val to_seq : t -> elt Seq.t *)
-      Parameter to_seq : t -> M (Seq.t elt).
+      Parameter to_seq : t -> Seq.t elt.
       Extract Inlined Constant to_seq => "Number_adjuncts.For_int8s.Num.Set.to_seq".
       (* container_types_intf.ml:122  val print : Format.formatter -> t -> unit *)
       Parameter print : Format.formatter -> t -> M unit.
@@ -4549,7 +4549,7 @@ Module For_int8s.
         Parameter of_list : list elt -> M t.
         Extract Inlined Constant of_list => "Number_adjuncts.For_int8s.Num.Map.Set.of_list".
         (* container_types_intf.ml:120  val to_seq : t -> elt Seq.t *)
-        Parameter to_seq : t -> M (Seq.t elt).
+        Parameter to_seq : t -> Seq.t elt.
         Extract Inlined Constant to_seq => "Number_adjuncts.For_int8s.Num.Map.Set.to_seq".
         (* container_types_intf.ml:122  val print : Format.formatter -> t -> unit *)
         Parameter print : Format.formatter -> t -> M unit.
@@ -4688,7 +4688,7 @@ Module For_int8s.
       Parameter mapi : forall {A B : Type}, (key -> A -> M B) -> t A -> M (t B).
       Extract Inlined Constant mapi => "Number_adjuncts.For_int8s.Num.Map.mapi".
       (* container_types_intf.ml:237  val to_seq : 'a t -> (key * 'a) Seq.t *)
-      Parameter to_seq : forall {A : Type}, t A -> M (Seq.t (key * A)).
+      Parameter to_seq : forall {A : Type}, t A -> Seq.t (key * A).
       Extract Inlined Constant to_seq => "Number_adjuncts.For_int8s.Num.Map.to_seq".
       (* container_types_intf.ml:239  val print_debug : (Format.formatter -> 'a -> unit) -> Format.formatter -> 'a t -> unit *)
       Parameter print_debug : forall {A : Type}, (Format.formatter -> A -> M unit) -> Format.formatter -> t A -> M unit.
@@ -4894,7 +4894,7 @@ Module For_int8s.
         Parameter of_list : list elt -> M t.
         Extract Inlined Constant of_list => "Number_adjuncts.For_int8s.Num.Pair.Set.of_list".
         (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
-        Parameter to_seq : t -> M (Seq.t elt).
+        Parameter to_seq : t -> Seq.t elt.
         Extract Inlined Constant to_seq => "Number_adjuncts.For_int8s.Num.Pair.Set.to_seq".
         (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
         Parameter print : Format.formatter -> t -> M unit.
@@ -5029,7 +5029,7 @@ Module For_int8s.
           Parameter of_list : list elt -> M t.
           Extract Inlined Constant of_list => "Number_adjuncts.For_int8s.Num.Pair.Map.Set.of_list".
           (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
-          Parameter to_seq : t -> M (Seq.t elt).
+          Parameter to_seq : t -> Seq.t elt.
           Extract Inlined Constant to_seq => "Number_adjuncts.For_int8s.Num.Pair.Map.Set.to_seq".
           (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
           Parameter print : Format.formatter -> t -> M unit.
@@ -5168,7 +5168,7 @@ Module For_int8s.
         Parameter mapi : forall {A B : Type}, (key -> A -> M B) -> t A -> M (t B).
         Extract Inlined Constant mapi => "Number_adjuncts.For_int8s.Num.Pair.Map.mapi".
         (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
-        Parameter to_seq : forall {A : Type}, t A -> M (Seq.t (key * A)).
+        Parameter to_seq : forall {A : Type}, t A -> Seq.t (key * A).
         Extract Inlined Constant to_seq => "Number_adjuncts.For_int8s.Num.Pair.Map.to_seq".
         (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
         Parameter print_debug : forall {A : Type}, (Format.formatter -> A -> M unit) -> Format.formatter -> t A -> M unit.
@@ -5486,7 +5486,7 @@ Module For_int16s.
       Parameter of_list : list elt -> M t.
       Extract Inlined Constant of_list => "Number_adjuncts.For_int16s.Num.Set.of_list".
       (* container_types_intf.ml:120  val to_seq : t -> elt Seq.t *)
-      Parameter to_seq : t -> M (Seq.t elt).
+      Parameter to_seq : t -> Seq.t elt.
       Extract Inlined Constant to_seq => "Number_adjuncts.For_int16s.Num.Set.to_seq".
       (* container_types_intf.ml:122  val print : Format.formatter -> t -> unit *)
       Parameter print : Format.formatter -> t -> M unit.
@@ -5621,7 +5621,7 @@ Module For_int16s.
         Parameter of_list : list elt -> M t.
         Extract Inlined Constant of_list => "Number_adjuncts.For_int16s.Num.Map.Set.of_list".
         (* container_types_intf.ml:120  val to_seq : t -> elt Seq.t *)
-        Parameter to_seq : t -> M (Seq.t elt).
+        Parameter to_seq : t -> Seq.t elt.
         Extract Inlined Constant to_seq => "Number_adjuncts.For_int16s.Num.Map.Set.to_seq".
         (* container_types_intf.ml:122  val print : Format.formatter -> t -> unit *)
         Parameter print : Format.formatter -> t -> M unit.
@@ -5760,7 +5760,7 @@ Module For_int16s.
       Parameter mapi : forall {A B : Type}, (key -> A -> M B) -> t A -> M (t B).
       Extract Inlined Constant mapi => "Number_adjuncts.For_int16s.Num.Map.mapi".
       (* container_types_intf.ml:237  val to_seq : 'a t -> (key * 'a) Seq.t *)
-      Parameter to_seq : forall {A : Type}, t A -> M (Seq.t (key * A)).
+      Parameter to_seq : forall {A : Type}, t A -> Seq.t (key * A).
       Extract Inlined Constant to_seq => "Number_adjuncts.For_int16s.Num.Map.to_seq".
       (* container_types_intf.ml:239  val print_debug : (Format.formatter -> 'a -> unit) -> Format.formatter -> 'a t -> unit *)
       Parameter print_debug : forall {A : Type}, (Format.formatter -> A -> M unit) -> Format.formatter -> t A -> M unit.
@@ -5966,7 +5966,7 @@ Module For_int16s.
         Parameter of_list : list elt -> M t.
         Extract Inlined Constant of_list => "Number_adjuncts.For_int16s.Num.Pair.Set.of_list".
         (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
-        Parameter to_seq : t -> M (Seq.t elt).
+        Parameter to_seq : t -> Seq.t elt.
         Extract Inlined Constant to_seq => "Number_adjuncts.For_int16s.Num.Pair.Set.to_seq".
         (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
         Parameter print : Format.formatter -> t -> M unit.
@@ -6101,7 +6101,7 @@ Module For_int16s.
           Parameter of_list : list elt -> M t.
           Extract Inlined Constant of_list => "Number_adjuncts.For_int16s.Num.Pair.Map.Set.of_list".
           (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
-          Parameter to_seq : t -> M (Seq.t elt).
+          Parameter to_seq : t -> Seq.t elt.
           Extract Inlined Constant to_seq => "Number_adjuncts.For_int16s.Num.Pair.Map.Set.to_seq".
           (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
           Parameter print : Format.formatter -> t -> M unit.
@@ -6240,7 +6240,7 @@ Module For_int16s.
         Parameter mapi : forall {A B : Type}, (key -> A -> M B) -> t A -> M (t B).
         Extract Inlined Constant mapi => "Number_adjuncts.For_int16s.Num.Pair.Map.mapi".
         (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
-        Parameter to_seq : forall {A : Type}, t A -> M (Seq.t (key * A)).
+        Parameter to_seq : forall {A : Type}, t A -> Seq.t (key * A).
         Extract Inlined Constant to_seq => "Number_adjuncts.For_int16s.Num.Pair.Map.to_seq".
         (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
         Parameter print_debug : forall {A : Type}, (Format.formatter -> A -> M unit) -> Format.formatter -> t A -> M unit.
@@ -6558,7 +6558,7 @@ Module For_int32s.
       Parameter of_list : list elt -> M t.
       Extract Inlined Constant of_list => "Number_adjuncts.For_int32s.Num.Set.of_list".
       (* container_types_intf.ml:120  val to_seq : t -> elt Seq.t *)
-      Parameter to_seq : t -> M (Seq.t elt).
+      Parameter to_seq : t -> Seq.t elt.
       Extract Inlined Constant to_seq => "Number_adjuncts.For_int32s.Num.Set.to_seq".
       (* container_types_intf.ml:122  val print : Format.formatter -> t -> unit *)
       Parameter print : Format.formatter -> t -> M unit.
@@ -6693,7 +6693,7 @@ Module For_int32s.
         Parameter of_list : list elt -> M t.
         Extract Inlined Constant of_list => "Number_adjuncts.For_int32s.Num.Map.Set.of_list".
         (* container_types_intf.ml:120  val to_seq : t -> elt Seq.t *)
-        Parameter to_seq : t -> M (Seq.t elt).
+        Parameter to_seq : t -> Seq.t elt.
         Extract Inlined Constant to_seq => "Number_adjuncts.For_int32s.Num.Map.Set.to_seq".
         (* container_types_intf.ml:122  val print : Format.formatter -> t -> unit *)
         Parameter print : Format.formatter -> t -> M unit.
@@ -6832,7 +6832,7 @@ Module For_int32s.
       Parameter mapi : forall {A B : Type}, (key -> A -> M B) -> t A -> M (t B).
       Extract Inlined Constant mapi => "Number_adjuncts.For_int32s.Num.Map.mapi".
       (* container_types_intf.ml:237  val to_seq : 'a t -> (key * 'a) Seq.t *)
-      Parameter to_seq : forall {A : Type}, t A -> M (Seq.t (key * A)).
+      Parameter to_seq : forall {A : Type}, t A -> Seq.t (key * A).
       Extract Inlined Constant to_seq => "Number_adjuncts.For_int32s.Num.Map.to_seq".
       (* container_types_intf.ml:239  val print_debug : (Format.formatter -> 'a -> unit) -> Format.formatter -> 'a t -> unit *)
       Parameter print_debug : forall {A : Type}, (Format.formatter -> A -> M unit) -> Format.formatter -> t A -> M unit.
@@ -7038,7 +7038,7 @@ Module For_int32s.
         Parameter of_list : list elt -> M t.
         Extract Inlined Constant of_list => "Number_adjuncts.For_int32s.Num.Pair.Set.of_list".
         (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
-        Parameter to_seq : t -> M (Seq.t elt).
+        Parameter to_seq : t -> Seq.t elt.
         Extract Inlined Constant to_seq => "Number_adjuncts.For_int32s.Num.Pair.Set.to_seq".
         (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
         Parameter print : Format.formatter -> t -> M unit.
@@ -7173,7 +7173,7 @@ Module For_int32s.
           Parameter of_list : list elt -> M t.
           Extract Inlined Constant of_list => "Number_adjuncts.For_int32s.Num.Pair.Map.Set.of_list".
           (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
-          Parameter to_seq : t -> M (Seq.t elt).
+          Parameter to_seq : t -> Seq.t elt.
           Extract Inlined Constant to_seq => "Number_adjuncts.For_int32s.Num.Pair.Map.Set.to_seq".
           (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
           Parameter print : Format.formatter -> t -> M unit.
@@ -7312,7 +7312,7 @@ Module For_int32s.
         Parameter mapi : forall {A B : Type}, (key -> A -> M B) -> t A -> M (t B).
         Extract Inlined Constant mapi => "Number_adjuncts.For_int32s.Num.Pair.Map.mapi".
         (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
-        Parameter to_seq : forall {A : Type}, t A -> M (Seq.t (key * A)).
+        Parameter to_seq : forall {A : Type}, t A -> Seq.t (key * A).
         Extract Inlined Constant to_seq => "Number_adjuncts.For_int32s.Num.Pair.Map.to_seq".
         (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
         Parameter print_debug : forall {A : Type}, (Format.formatter -> A -> M unit) -> Format.formatter -> t A -> M unit.
@@ -7642,7 +7642,7 @@ Module For_int64s.
       Parameter of_list : list elt -> M t.
       Extract Inlined Constant of_list => "Number_adjuncts.For_int64s.Num.Set.of_list".
       (* container_types_intf.ml:120  val to_seq : t -> elt Seq.t *)
-      Parameter to_seq : t -> M (Seq.t elt).
+      Parameter to_seq : t -> Seq.t elt.
       Extract Inlined Constant to_seq => "Number_adjuncts.For_int64s.Num.Set.to_seq".
       (* container_types_intf.ml:122  val print : Format.formatter -> t -> unit *)
       Parameter print : Format.formatter -> t -> M unit.
@@ -7777,7 +7777,7 @@ Module For_int64s.
         Parameter of_list : list elt -> M t.
         Extract Inlined Constant of_list => "Number_adjuncts.For_int64s.Num.Map.Set.of_list".
         (* container_types_intf.ml:120  val to_seq : t -> elt Seq.t *)
-        Parameter to_seq : t -> M (Seq.t elt).
+        Parameter to_seq : t -> Seq.t elt.
         Extract Inlined Constant to_seq => "Number_adjuncts.For_int64s.Num.Map.Set.to_seq".
         (* container_types_intf.ml:122  val print : Format.formatter -> t -> unit *)
         Parameter print : Format.formatter -> t -> M unit.
@@ -7916,7 +7916,7 @@ Module For_int64s.
       Parameter mapi : forall {A B : Type}, (key -> A -> M B) -> t A -> M (t B).
       Extract Inlined Constant mapi => "Number_adjuncts.For_int64s.Num.Map.mapi".
       (* container_types_intf.ml:237  val to_seq : 'a t -> (key * 'a) Seq.t *)
-      Parameter to_seq : forall {A : Type}, t A -> M (Seq.t (key * A)).
+      Parameter to_seq : forall {A : Type}, t A -> Seq.t (key * A).
       Extract Inlined Constant to_seq => "Number_adjuncts.For_int64s.Num.Map.to_seq".
       (* container_types_intf.ml:239  val print_debug : (Format.formatter -> 'a -> unit) -> Format.formatter -> 'a t -> unit *)
       Parameter print_debug : forall {A : Type}, (Format.formatter -> A -> M unit) -> Format.formatter -> t A -> M unit.
@@ -8122,7 +8122,7 @@ Module For_int64s.
         Parameter of_list : list elt -> M t.
         Extract Inlined Constant of_list => "Number_adjuncts.For_int64s.Num.Pair.Set.of_list".
         (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
-        Parameter to_seq : t -> M (Seq.t elt).
+        Parameter to_seq : t -> Seq.t elt.
         Extract Inlined Constant to_seq => "Number_adjuncts.For_int64s.Num.Pair.Set.to_seq".
         (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
         Parameter print : Format.formatter -> t -> M unit.
@@ -8257,7 +8257,7 @@ Module For_int64s.
           Parameter of_list : list elt -> M t.
           Extract Inlined Constant of_list => "Number_adjuncts.For_int64s.Num.Pair.Map.Set.of_list".
           (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
-          Parameter to_seq : t -> M (Seq.t elt).
+          Parameter to_seq : t -> Seq.t elt.
           Extract Inlined Constant to_seq => "Number_adjuncts.For_int64s.Num.Pair.Map.Set.to_seq".
           (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
           Parameter print : Format.formatter -> t -> M unit.
@@ -8396,7 +8396,7 @@ Module For_int64s.
         Parameter mapi : forall {A B : Type}, (key -> A -> M B) -> t A -> M (t B).
         Extract Inlined Constant mapi => "Number_adjuncts.For_int64s.Num.Pair.Map.mapi".
         (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
-        Parameter to_seq : forall {A : Type}, t A -> M (Seq.t (key * A)).
+        Parameter to_seq : forall {A : Type}, t A -> Seq.t (key * A).
         Extract Inlined Constant to_seq => "Number_adjuncts.For_int64s.Num.Pair.Map.to_seq".
         (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
         Parameter print_debug : forall {A : Type}, (Format.formatter -> A -> M unit) -> Format.formatter -> t A -> M unit.
@@ -8726,7 +8726,7 @@ Module For_nativeints.
       Parameter of_list : list elt -> M t.
       Extract Inlined Constant of_list => "Number_adjuncts.For_nativeints.Num.Set.of_list".
       (* container_types_intf.ml:120  val to_seq : t -> elt Seq.t *)
-      Parameter to_seq : t -> M (Seq.t elt).
+      Parameter to_seq : t -> Seq.t elt.
       Extract Inlined Constant to_seq => "Number_adjuncts.For_nativeints.Num.Set.to_seq".
       (* container_types_intf.ml:122  val print : Format.formatter -> t -> unit *)
       Parameter print : Format.formatter -> t -> M unit.
@@ -8861,7 +8861,7 @@ Module For_nativeints.
         Parameter of_list : list elt -> M t.
         Extract Inlined Constant of_list => "Number_adjuncts.For_nativeints.Num.Map.Set.of_list".
         (* container_types_intf.ml:120  val to_seq : t -> elt Seq.t *)
-        Parameter to_seq : t -> M (Seq.t elt).
+        Parameter to_seq : t -> Seq.t elt.
         Extract Inlined Constant to_seq => "Number_adjuncts.For_nativeints.Num.Map.Set.to_seq".
         (* container_types_intf.ml:122  val print : Format.formatter -> t -> unit *)
         Parameter print : Format.formatter -> t -> M unit.
@@ -9000,7 +9000,7 @@ Module For_nativeints.
       Parameter mapi : forall {A B : Type}, (key -> A -> M B) -> t A -> M (t B).
       Extract Inlined Constant mapi => "Number_adjuncts.For_nativeints.Num.Map.mapi".
       (* container_types_intf.ml:237  val to_seq : 'a t -> (key * 'a) Seq.t *)
-      Parameter to_seq : forall {A : Type}, t A -> M (Seq.t (key * A)).
+      Parameter to_seq : forall {A : Type}, t A -> Seq.t (key * A).
       Extract Inlined Constant to_seq => "Number_adjuncts.For_nativeints.Num.Map.to_seq".
       (* container_types_intf.ml:239  val print_debug : (Format.formatter -> 'a -> unit) -> Format.formatter -> 'a t -> unit *)
       Parameter print_debug : forall {A : Type}, (Format.formatter -> A -> M unit) -> Format.formatter -> t A -> M unit.
@@ -9206,7 +9206,7 @@ Module For_nativeints.
         Parameter of_list : list elt -> M t.
         Extract Inlined Constant of_list => "Number_adjuncts.For_nativeints.Num.Pair.Set.of_list".
         (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
-        Parameter to_seq : t -> M (Seq.t elt).
+        Parameter to_seq : t -> Seq.t elt.
         Extract Inlined Constant to_seq => "Number_adjuncts.For_nativeints.Num.Pair.Set.to_seq".
         (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
         Parameter print : Format.formatter -> t -> M unit.
@@ -9341,7 +9341,7 @@ Module For_nativeints.
           Parameter of_list : list elt -> M t.
           Extract Inlined Constant of_list => "Number_adjuncts.For_nativeints.Num.Pair.Map.Set.of_list".
           (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
-          Parameter to_seq : t -> M (Seq.t elt).
+          Parameter to_seq : t -> Seq.t elt.
           Extract Inlined Constant to_seq => "Number_adjuncts.For_nativeints.Num.Pair.Map.Set.to_seq".
           (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
           Parameter print : Format.formatter -> t -> M unit.
@@ -9480,7 +9480,7 @@ Module For_nativeints.
         Parameter mapi : forall {A B : Type}, (key -> A -> M B) -> t A -> M (t B).
         Extract Inlined Constant mapi => "Number_adjuncts.For_nativeints.Num.Pair.Map.mapi".
         (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
-        Parameter to_seq : forall {A : Type}, t A -> M (Seq.t (key * A)).
+        Parameter to_seq : forall {A : Type}, t A -> Seq.t (key * A).
         Extract Inlined Constant to_seq => "Number_adjuncts.For_nativeints.Num.Pair.Map.to_seq".
         (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
         Parameter print_debug : forall {A : Type}, (Format.formatter -> A -> M unit) -> Format.formatter -> t A -> M unit.

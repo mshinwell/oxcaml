@@ -87,7 +87,7 @@ Extract Inlined Constant function_slot_size => "Code_metadata.function_slot_size
 Definition create_type (A : Type) : Type := Code_id.t -> option Code_id.t -> Flambda_arity.t -> list Alloc_mode.For_types.t -> First_complex_local_param.t -> Flambda_arity.t -> Or_unknown_or_bottom.t Result_types.t -> Lambda.return_mode -> bool -> Inline_attribute.t -> Zero_alloc_attribute.t -> Poll_attribute.t -> Regalloc_attribute.t -> Regalloc_param_attribute.t -> bool -> bool -> bool -> Recursive.t -> Cost_metrics.t -> Inlining_arguments.t -> Debuginfo.t -> bool -> bool -> Function_decl_inlining_decision_type.t -> Inlining_history.Absolute.t -> Inlining_history.Relative.t -> Loopify_attribute.t -> M A.
 Extract Constant create_type "'a1" => "('a1) Code_metadata.create_type".
 (* code_metadata.mli:125  val createk : (t -> 'a) -> 'a create_type *)
-Parameter createk : forall {A : Type}, (t -> M A) -> M (create_type A).
+Parameter createk : forall {A : Type}, (t -> M A) -> create_type A.
 Extract Inlined Constant createk => "Code_metadata.createk".
 (* code_metadata.mli:133  val with_cost_metrics : Cost_metrics.t -> t -> t *)
 Parameter with_cost_metrics : Cost_metrics.t -> t -> M t.

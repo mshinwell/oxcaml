@@ -28,12 +28,6 @@ Module Definition_.
   (* PORT-GAP(type): the name of the field [typing_env] is taken in Rocq: abstract, with a maker for each constructor and one eliminator. *)
   Parameter descr_ : Type.
   Extract Inlined Constant descr_ => "Lifted_constant.Definition.descr".
-  Parameter mk_Code : Code_id.t -> descr_.
-  Extract Inlined Constant mk_Code => "(fun x__1 -> Lifted_constant.Definition.Code x__1)".
-  Parameter mk_Set_of_closures : Flambda2_types.Typing_env.t -> Function_slot.Lmap.t (Symbol.t * Flambda2_types.t) -> Variable_.Map.t Symbol_projection.t -> descr_.
-  Extract Inlined Constant mk_Set_of_closures => "(fun x__1 x__2 x__3 -> Lifted_constant.Definition.Set_of_closures { typing_env = x__1; closure_symbols_with_types = x__2; symbol_projections = x__3 })".
-  Parameter mk_Block_like : Symbol.t -> Flambda2_types.Typing_env.t -> Flambda2_types.t -> Variable_.Map.t Symbol_projection.t -> descr_.
-  Extract Inlined Constant mk_Block_like => "(fun x__1 x__2 x__3 x__4 -> Lifted_constant.Definition.Block_like { symbol = x__1; typing_env = x__2; ty = x__3; symbol_projections = x__4 })".
   Parameter match_descr_ : forall {Res : Type}, descr_ -> (Code_id.t -> M Res) -> (Flambda2_types.Typing_env.t -> Function_slot.Lmap.t (Symbol.t * Flambda2_types.t) -> Variable_.Map.t Symbol_projection.t -> M Res) -> (Symbol.t -> Flambda2_types.Typing_env.t -> Flambda2_types.t -> Variable_.Map.t Symbol_projection.t -> M Res) -> M Res.
   Extract Inlined Constant match_descr_ => "(fun x__0 f__1 f__2 f__3 -> match x__0 with Lifted_constant.Definition.Code x__1 -> f__1 x__1 | Lifted_constant.Definition.Set_of_closures { typing_env = x__1; closure_symbols_with_types = x__2; symbol_projections = x__3 } -> f__2 x__1 x__2 x__3 | Lifted_constant.Definition.Block_like { symbol = x__1; typing_env = x__2; ty = x__3; symbol_projections = x__4 } -> f__3 x__1 x__2 x__3 x__4)".
   (* lifted_constant.mli:40  type t *)

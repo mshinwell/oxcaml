@@ -62,18 +62,6 @@ Inductive static_const_or_code : Type :=
 | Code : Code0.t function_params_and_body -> static_const_or_code
 | Deleted_code : static_const_or_code
 | Static_const : decl.Static_const.t -> static_const_or_code.
-Parameter mk_Let : let_expr -> expr_descr.
-Extract Inlined Constant mk_Let => "(fun x__1 -> Flambda.Let x__1)".
-Parameter mk_Let_cont : let_cont_expr -> expr_descr.
-Extract Inlined Constant mk_Let_cont => "(fun x__1 -> Flambda.Let_cont x__1)".
-Parameter mk_Apply : Apply_expr.t -> expr_descr.
-Extract Inlined Constant mk_Apply => "(fun x__1 -> Flambda.Apply x__1)".
-Parameter mk_Apply_cont : Apply_cont_expr.t -> expr_descr.
-Extract Inlined Constant mk_Apply_cont => "(fun x__1 -> Flambda.Apply_cont x__1)".
-Parameter mk_Switch : Switch_expr.t -> expr_descr.
-Extract Inlined Constant mk_Switch => "(fun x__1 -> Flambda.Switch x__1)".
-Parameter mk_Invalid : string -> expr_descr.
-Extract Inlined Constant mk_Invalid => "(fun x__1 -> Flambda.Invalid { message = x__1 })".
 Parameter match_expr_descr : forall {Res : Type}, expr_descr -> (let_expr -> M Res) -> (let_cont_expr -> M Res) -> (Apply_expr.t -> M Res) -> (Apply_cont_expr.t -> M Res) -> (Switch_expr.t -> M Res) -> (string -> M Res) -> M Res.
 Extract Inlined Constant match_expr_descr => "(fun x__0 f__1 f__2 f__3 f__4 f__5 f__6 -> match x__0 with Flambda.Let x__1 -> f__1 x__1 | Flambda.Let_cont x__1 -> f__2 x__1 | Flambda.Apply x__1 -> f__3 x__1 | Flambda.Apply_cont x__1 -> f__4 x__1 | Flambda.Switch x__1 -> f__5 x__1 | Flambda.Invalid { message = x__1 } -> f__6 x__1)".
 Module Invalid.

@@ -27,5 +27,5 @@ From SimplifyPort.decl Require Apply_cont_expr Apply_cont_rewrite_id Flambda Sim
 Parameter simplify_apply_cont : Simplify_common.expr_simplifier Flambda.Apply_cont.t.
 Extract Inlined Constant simplify_apply_cont => "Simplify_apply_cont_expr.simplify_apply_cont".
 (* simplify_apply_cont_expr.mli:19  val rebuild_apply_cont : args:Simple.t list -> rewrite_id:Apply_cont_rewrite_id.t -> Apply_cont_expr.t Simplify_common.rebuild *)
-Parameter rebuild_apply_cont : list Simple.t -> Apply_cont_rewrite_id.t -> M (Simplify_common.rebuild Apply_cont_expr.t).
+Parameter rebuild_apply_cont : list Simple.t -> Apply_cont_rewrite_id.t -> Simplify_common.rebuild Apply_cont_expr.t.
 Extract Inlined Constant rebuild_apply_cont => "Simplify_apply_cont_expr.rebuild_apply_cont".

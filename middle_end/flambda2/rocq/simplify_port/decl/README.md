@@ -15,6 +15,11 @@ with the header of the interface that it follows, then names it and the commit.
     cd middle_end/flambda2/rocq/simplify_port
     tools/declgen/run.sh BUILD_ROOT          # every file of Simplify
     python3 tools/declgen/compile_all.py     # Rocq, one process at a time
+    python3 tools/declgen/check_realisations.py BUILD_ROOT   # OCaml
+
+The last one checks, with OCaml and the compiled interfaces, that every
+realisation string type-checks and that every constructor and field of a
+mirrored type is the compiler's.
 
 `BUILD_ROOT` is the `_build/default` of a dune build of the compiler at the
 commit of the sources (its `.cmt` and `.cmi` files are read; nothing is
@@ -40,7 +45,9 @@ OCaml name, Rocq name, kind, number of arguments, interface and line.
 
 - A function: `Parameter f : a -> b -> M c.` Arguments by place in the order
   of the interface; labels are dropped; every arrow, at any depth, has its
-  result in `M` (so a callback is `a -> M b`). Realised by its plain name.
+  result in `M` (so a callback is `a -> M b`), unless the result is an
+  abbreviation of a function type (`... -> Simplify_common.rebuild a`): the
+  `M` is then at the end of that one. Realised by its plain name.
 - An optional argument: by place, of type `option a`; the realisation is a
   closed function that passes it with `?l:`.
 - A function with a format (`Format.fprintf`): one declaration for each number
@@ -63,15 +70,18 @@ OCaml name, Rocq name, kind, number of arguments, interface and line.
   abstract type; two inline records of one module with a field of the same
   name; a type recursive with one declared after it): abstract, marked
   `PORT-GAP(type)`, with a pure maker `mk_C` for each constructor and one
-  eliminator `match_T` whose branches are in `M`.
+  eliminator `match_T` whose branches are in `M`. (No maker for a private
+  type: OCaml makes none outside its module. No eliminator for a GADT.)
 
 ## Names
 
 The compiler's, except: a word that Rocq reserves gets one `_` after it
-(`Variable_`, `Set_`, `Import_`, `at_`); the unit `Stdlib` is `Stdlib_`; a
-type with the name of a value or of a field of its module gets `_` (`descr_`:
-Rocq has one name space); a second declaration of a name in a module gets `_`.
-Type variables are capitals (`'a` is `A`). `INDEX.tsv` has every name.
+(`Variable_`, `Set_`, `Import_`, `at_`); the unit `Stdlib` is `Stdlib_`. Rocq
+has one name space where OCaml has several: a constructor or a field of a
+mirrored type always keeps its name (Rocq prints it); a value or a type of the
+same name in the module gets `_` (`descr_`), wherever it is declared, and so
+does a second declaration of a name. Type variables are capitals (`'a` is
+`A`). `INDEX.tsv` has every name.
 
 ## What the generator cannot translate, and what it does instead
 

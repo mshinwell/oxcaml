@@ -43,20 +43,6 @@ Module Effect.
   (* PORT-GAP(type): the name of the field [eff] is taken in Rocq: abstract, with a maker for each constructor and one eliminator. *)
   Parameter t : Type.
   Extract Inlined Constant t => "Call_kind.Effect.t".
-  Parameter mk_Perform : Simple.t -> t.
-  Extract Inlined Constant mk_Perform => "(fun x__1 -> Call_kind.Effect.Perform { eff = x__1 })".
-  Parameter mk_Reperform : Simple.t -> Simple.t -> Simple.t -> t.
-  Extract Inlined Constant mk_Reperform => "(fun x__1 x__2 x__3 -> Call_kind.Effect.Reperform { eff = x__1; cont = x__2; last_fiber = x__3 })".
-  Parameter mk_With_stack : Simple.t -> Simple.t -> Simple.t -> Simple.t -> Simple.t -> t.
-  Extract Inlined Constant mk_With_stack => "(fun x__1 x__2 x__3 x__4 x__5 -> Call_kind.Effect.With_stack { valuec = x__1; exnc = x__2; effc = x__3; f = x__4; arg = x__5 })".
-  Parameter mk_With_stack_preemptible : Simple.t -> Simple.t -> Simple.t -> Simple.t -> Simple.t -> Simple.t -> t.
-  Extract Inlined Constant mk_With_stack_preemptible => "(fun x__1 x__2 x__3 x__4 x__5 x__6 -> Call_kind.Effect.With_stack_preemptible { valuec = x__1; exnc = x__2; effc = x__3; handle_tick = x__4; f = x__5; arg = x__6 })".
-  Parameter mk_Continue : Simple.t -> Simple.t -> t.
-  Extract Inlined Constant mk_Continue => "(fun x__1 x__2 -> Call_kind.Effect.Continue { cont = x__1; value = x__2 })".
-  Parameter mk_Discontinue : Simple.t -> Simple.t -> t.
-  Extract Inlined Constant mk_Discontinue => "(fun x__1 x__2 -> Call_kind.Effect.Discontinue { cont = x__1; exn = x__2 })".
-  Parameter mk_Discontinue_with_backtrace : Simple.t -> Simple.t -> Simple.t -> t.
-  Extract Inlined Constant mk_Discontinue_with_backtrace => "(fun x__1 x__2 x__3 -> Call_kind.Effect.Discontinue_with_backtrace { cont = x__1; exn = x__2; bt = x__3 })".
   Parameter match_t : forall {Res : Type}, t -> (Simple.t -> M Res) -> (Simple.t -> Simple.t -> Simple.t -> M Res) -> (Simple.t -> Simple.t -> Simple.t -> Simple.t -> Simple.t -> M Res) -> (Simple.t -> Simple.t -> Simple.t -> Simple.t -> Simple.t -> Simple.t -> M Res) -> (Simple.t -> Simple.t -> M Res) -> (Simple.t -> Simple.t -> M Res) -> (Simple.t -> Simple.t -> Simple.t -> M Res) -> M Res.
   Extract Inlined Constant match_t => "(fun x__0 f__1 f__2 f__3 f__4 f__5 f__6 f__7 -> match x__0 with Call_kind.Effect.Perform { eff = x__1 } -> f__1 x__1 | Call_kind.Effect.Reperform { eff = x__1; cont = x__2; last_fiber = x__3 } -> f__2 x__1 x__2 x__3 | Call_kind.Effect.With_stack { valuec = x__1; exnc = x__2; effc = x__3; f = x__4; arg = x__5 } -> f__3 x__1 x__2 x__3 x__4 x__5 | Call_kind.Effect.With_stack_preemptible { valuec = x__1; exnc = x__2; effc = x__3; handle_tick = x__4; f = x__5; arg = x__6 } -> f__4 x__1 x__2 x__3 x__4 x__5 x__6 | Call_kind.Effect.Continue { cont = x__1; value = x__2 } -> f__5 x__1 x__2 | Call_kind.Effect.Discontinue { cont = x__1; exn = x__2 } -> f__6 x__1 x__2 | Call_kind.Effect.Discontinue_with_backtrace { cont = x__1; exn = x__2; bt = x__3 } -> f__7 x__1 x__2 x__3)".
   (* call_kind.mli:89  val perform : eff:Simple.t -> t *)

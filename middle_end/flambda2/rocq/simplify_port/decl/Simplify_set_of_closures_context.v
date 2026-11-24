@@ -48,7 +48,7 @@ Extract Inlined Constant closure_bound_names_inside_functions_all_sets => "Simpl
 Parameter closure_bound_names_inside_functions_exactly_one_set : t -> M (Function_slot.Map.t Bound_name.t).
 Extract Inlined Constant closure_bound_names_inside_functions_exactly_one_set => "Simplify_set_of_closures_context.closure_bound_names_inside_functions_exactly_one_set".
 (* simplify_set_of_closures_context.mli:54  val simplify_function_body : t -> Simplify_common.simplify_function_body *)
-Parameter simplify_function_body : t -> M Simplify_common.simplify_function_body.
+Parameter simplify_function_body : t -> Simplify_common.simplify_function_body.
 Extract Inlined Constant simplify_function_body => "Simplify_set_of_closures_context.simplify_function_body".
 (* simplify_set_of_closures_context.mli:56  val previously_free_depth_variables : t -> Variable.Set.t *)
 Parameter previously_free_depth_variables : t -> M Variable_.Set_.t.

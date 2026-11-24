@@ -21,7 +21,7 @@
    change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
-From SimplifyPort.decl Require Alloc_mode Apply_cont_rewrite_id Bound_name Bound_parameters Code_id Compilation_unit Continuation Continuation_use_kind Empty_array_kind Flambda_arity Flambda_kind Format Function_slot Int32 Int64 Name Name_mode Name_occurrences Numeric_types Or_bottom Or_unknown Or_unknown_or_bottom Rec_info_expr Reg_width_const Scope Simple Stdlib_ String_info Symbol Symbol_projection Tag Target_ocaml_int Target_system Targetint_32_64 Value_slot Variable_ Vector_types.
+From SimplifyPort.decl Require Alloc_mode Apply_cont_rewrite_id Bound_name Bound_parameters Code_id Compilation_unit Continuation Continuation_use_kind Empty_array_kind Flambda_arity Flambda_kind Format Function_slot Int32 Int64 Name Name_mode Name_occurrences Numeric_types Or_bottom Or_unknown Or_unknown_or_bottom Rec_info_expr Reg_width_const Scope Simple String_info Symbol Symbol_projection Tag Target_ocaml_int Target_system Targetint_32_64 Value_slot Variable_ Vector_types.
 
 (* flambda2_types.mli:20  type t *)
 Parameter t : Type.
@@ -690,10 +690,10 @@ Extract Inlined Constant meet_is_non_empty_naked_number_array => "Flambda2_types
 Parameter prove_is_immediates_array : Flambda2_types.Typing_env.t -> t -> M (proof_of_property unit).
 Extract Inlined Constant prove_is_immediates_array => "Flambda2_types.prove_is_immediates_array".
 (* flambda2_types.mli:828  val meet_is_immutable_array : Typing_env.t -> t -> (Flambda_kind.With_subkind.t Or_unknown_or_bottom.t * t array * Alloc_mode.For_types.t) meet_shortcut *)
-Parameter meet_is_immutable_array : Flambda2_types.Typing_env.t -> t -> M (meet_shortcut (tuple3 (Or_unknown_or_bottom.t Flambda_kind.With_subkind.t) (Stdlib_.array t) Alloc_mode.For_types.t)).
+Parameter meet_is_immutable_array : Flambda2_types.Typing_env.t -> t -> M (meet_shortcut (tuple3 (Or_unknown_or_bottom.t Flambda_kind.With_subkind.t) (array t) Alloc_mode.For_types.t)).
 Extract Inlined Constant meet_is_immutable_array => "Flambda2_types.meet_is_immutable_array".
 (* flambda2_types.mli:836  val prove_is_immutable_array : Typing_env.t -> t -> (Flambda_kind.With_subkind.t Or_unknown_or_bottom.t * t array * Alloc_mode.For_types.t) proof_of_property *)
-Parameter prove_is_immutable_array : Flambda2_types.Typing_env.t -> t -> M (proof_of_property (tuple3 (Or_unknown_or_bottom.t Flambda_kind.With_subkind.t) (Stdlib_.array t) Alloc_mode.For_types.t)).
+Parameter prove_is_immutable_array : Flambda2_types.Typing_env.t -> t -> M (proof_of_property (tuple3 (Or_unknown_or_bottom.t Flambda_kind.With_subkind.t) (array t) Alloc_mode.For_types.t)).
 Extract Inlined Constant prove_is_immutable_array => "Flambda2_types.prove_is_immutable_array".
 (* flambda2_types.mli:844  val meet_single_closures_entry : Typing_env.t -> t -> (Function_slot.t * Alloc_mode.For_types.t * Closures_entry.t * Function_type.t) meet_shortcut *)
 Parameter meet_single_closures_entry : Flambda2_types.Typing_env.t -> t -> M (meet_shortcut (tuple4 Function_slot.t Alloc_mode.For_types.t Flambda2_types.Closures_entry.t Flambda2_types.Function_type.t)).
@@ -762,54 +762,6 @@ Extract Inlined Constant prove_physical_equality => "Flambda2_types.prove_physic
 (* PORT-GAP(type): the name of the field [fields] is taken in Rocq: abstract, with a maker for each constructor and one eliminator. *)
 Parameter to_lift : Type.
 Extract Inlined Constant to_lift => "Flambda2_types.to_lift".
-Parameter mk_Immutable_block : Tag.Scannable.t -> bool -> Flambda_kind.Scannable_block_shape.t -> list Simple.t -> to_lift.
-Extract Inlined Constant mk_Immutable_block => "(fun x__1 x__2 x__3 x__4 -> Flambda2_types.Immutable_block { tag = x__1; is_unique = x__2; shape = x__3; fields = x__4 })".
-Parameter mk_Boxed_float32 : Numeric_types.Float32_by_bit_pattern.t -> to_lift.
-Extract Inlined Constant mk_Boxed_float32 => "(fun x__1 -> Flambda2_types.Boxed_float32 x__1)".
-Parameter mk_Boxed_float : Numeric_types.Float_by_bit_pattern.t -> to_lift.
-Extract Inlined Constant mk_Boxed_float => "(fun x__1 -> Flambda2_types.Boxed_float x__1)".
-Parameter mk_Boxed_int32 : Numeric_types.Int32.t -> to_lift.
-Extract Inlined Constant mk_Boxed_int32 => "(fun x__1 -> Flambda2_types.Boxed_int32 x__1)".
-Parameter mk_Boxed_int64 : Numeric_types.Int64.t -> to_lift.
-Extract Inlined Constant mk_Boxed_int64 => "(fun x__1 -> Flambda2_types.Boxed_int64 x__1)".
-Parameter mk_Boxed_nativeint : Targetint_32_64.t -> to_lift.
-Extract Inlined Constant mk_Boxed_nativeint => "(fun x__1 -> Flambda2_types.Boxed_nativeint x__1)".
-Parameter mk_Boxed_vec128 : Vector_types.Vec128.Bit_pattern.t -> to_lift.
-Extract Inlined Constant mk_Boxed_vec128 => "(fun x__1 -> Flambda2_types.Boxed_vec128 x__1)".
-Parameter mk_Boxed_vec256 : Vector_types.Vec256.Bit_pattern.t -> to_lift.
-Extract Inlined Constant mk_Boxed_vec256 => "(fun x__1 -> Flambda2_types.Boxed_vec256 x__1)".
-Parameter mk_Boxed_vec512 : Vector_types.Vec512.Bit_pattern.t -> to_lift.
-Extract Inlined Constant mk_Boxed_vec512 => "(fun x__1 -> Flambda2_types.Boxed_vec512 x__1)".
-Parameter mk_Boxed_mask : Vector_types.Mask.Bit_pattern.t -> to_lift.
-Extract Inlined Constant mk_Boxed_mask => "(fun x__1 -> Flambda2_types.Boxed_mask x__1)".
-Parameter mk_Immutable_float32_array : list Numeric_types.Float32_by_bit_pattern.t -> to_lift.
-Extract Inlined Constant mk_Immutable_float32_array => "(fun x__1 -> Flambda2_types.Immutable_float32_array { fields = x__1 })".
-Parameter mk_Immutable_float_array : list Numeric_types.Float_by_bit_pattern.t -> to_lift.
-Extract Inlined Constant mk_Immutable_float_array => "(fun x__1 -> Flambda2_types.Immutable_float_array { fields = x__1 })".
-Parameter mk_Immutable_int_array : list Target_ocaml_int.t -> to_lift.
-Extract Inlined Constant mk_Immutable_int_array => "(fun x__1 -> Flambda2_types.Immutable_int_array { fields = x__1 })".
-Parameter mk_Immutable_int8_array : list Numeric_types.Int8.t -> to_lift.
-Extract Inlined Constant mk_Immutable_int8_array => "(fun x__1 -> Flambda2_types.Immutable_int8_array { fields = x__1 })".
-Parameter mk_Immutable_int16_array : list Numeric_types.Int16.t -> to_lift.
-Extract Inlined Constant mk_Immutable_int16_array => "(fun x__1 -> Flambda2_types.Immutable_int16_array { fields = x__1 })".
-Parameter mk_Immutable_int32_array : list Int32.t -> to_lift.
-Extract Inlined Constant mk_Immutable_int32_array => "(fun x__1 -> Flambda2_types.Immutable_int32_array { fields = x__1 })".
-Parameter mk_Immutable_int64_array : list Int64.t -> to_lift.
-Extract Inlined Constant mk_Immutable_int64_array => "(fun x__1 -> Flambda2_types.Immutable_int64_array { fields = x__1 })".
-Parameter mk_Immutable_nativeint_array : list Targetint_32_64.t -> to_lift.
-Extract Inlined Constant mk_Immutable_nativeint_array => "(fun x__1 -> Flambda2_types.Immutable_nativeint_array { fields = x__1 })".
-Parameter mk_Immutable_vec128_array : list Vector_types.Vec128.Bit_pattern.t -> to_lift.
-Extract Inlined Constant mk_Immutable_vec128_array => "(fun x__1 -> Flambda2_types.Immutable_vec128_array { fields = x__1 })".
-Parameter mk_Immutable_vec256_array : list Vector_types.Vec256.Bit_pattern.t -> to_lift.
-Extract Inlined Constant mk_Immutable_vec256_array => "(fun x__1 -> Flambda2_types.Immutable_vec256_array { fields = x__1 })".
-Parameter mk_Immutable_vec512_array : list Vector_types.Vec512.Bit_pattern.t -> to_lift.
-Extract Inlined Constant mk_Immutable_vec512_array => "(fun x__1 -> Flambda2_types.Immutable_vec512_array { fields = x__1 })".
-Parameter mk_Immutable_mask_array : list Vector_types.Mask.Bit_pattern.t -> to_lift.
-Extract Inlined Constant mk_Immutable_mask_array => "(fun x__1 -> Flambda2_types.Immutable_mask_array { fields = x__1 })".
-Parameter mk_Immutable_value_array : list Simple.t -> to_lift.
-Extract Inlined Constant mk_Immutable_value_array => "(fun x__1 -> Flambda2_types.Immutable_value_array { fields = x__1 })".
-Parameter mk_Empty_array : Empty_array_kind.t -> to_lift.
-Extract Inlined Constant mk_Empty_array => "(fun x__1 -> Flambda2_types.Empty_array x__1)".
 Parameter match_to_lift : forall {Res : Type}, to_lift -> (Tag.Scannable.t -> bool -> Flambda_kind.Scannable_block_shape.t -> list Simple.t -> M Res) -> (Numeric_types.Float32_by_bit_pattern.t -> M Res) -> (Numeric_types.Float_by_bit_pattern.t -> M Res) -> (Numeric_types.Int32.t -> M Res) -> (Numeric_types.Int64.t -> M Res) -> (Targetint_32_64.t -> M Res) -> (Vector_types.Vec128.Bit_pattern.t -> M Res) -> (Vector_types.Vec256.Bit_pattern.t -> M Res) -> (Vector_types.Vec512.Bit_pattern.t -> M Res) -> (Vector_types.Mask.Bit_pattern.t -> M Res) -> (list Numeric_types.Float32_by_bit_pattern.t -> M Res) -> (list Numeric_types.Float_by_bit_pattern.t -> M Res) -> (list Target_ocaml_int.t -> M Res) -> (list Numeric_types.Int8.t -> M Res) -> (list Numeric_types.Int16.t -> M Res) -> (list Int32.t -> M Res) -> (list Int64.t -> M Res) -> (list Targetint_32_64.t -> M Res) -> (list Vector_types.Vec128.Bit_pattern.t -> M Res) -> (list Vector_types.Vec256.Bit_pattern.t -> M Res) -> (list Vector_types.Vec512.Bit_pattern.t -> M Res) -> (list Vector_types.Mask.Bit_pattern.t -> M Res) -> (list Simple.t -> M Res) -> (Empty_array_kind.t -> M Res) -> M Res.
 Extract Inlined Constant match_to_lift => "(fun x__0 f__1 f__2 f__3 f__4 f__5 f__6 f__7 f__8 f__9 f__10 f__11 f__12 f__13 f__14 f__15 f__16 f__17 f__18 f__19 f__20 f__21 f__22 f__23 f__24 -> match x__0 with Flambda2_types.Immutable_block { tag = x__1; is_unique = x__2; shape = x__3; fields = x__4 } -> f__1 x__1 x__2 x__3 x__4 | Flambda2_types.Boxed_float32 x__1 -> f__2 x__1 | Flambda2_types.Boxed_float x__1 -> f__3 x__1 | Flambda2_types.Boxed_int32 x__1 -> f__4 x__1 | Flambda2_types.Boxed_int64 x__1 -> f__5 x__1 | Flambda2_types.Boxed_nativeint x__1 -> f__6 x__1 | Flambda2_types.Boxed_vec128 x__1 -> f__7 x__1 | Flambda2_types.Boxed_vec256 x__1 -> f__8 x__1 | Flambda2_types.Boxed_vec512 x__1 -> f__9 x__1 | Flambda2_types.Boxed_mask x__1 -> f__10 x__1 | Flambda2_types.Immutable_float32_array { fields = x__1 } -> f__11 x__1 | Flambda2_types.Immutable_float_array { fields = x__1 } -> f__12 x__1 | Flambda2_types.Immutable_int_array { fields = x__1 } -> f__13 x__1 | Flambda2_types.Immutable_int8_array { fields = x__1 } -> f__14 x__1 | Flambda2_types.Immutable_int16_array { fields = x__1 } -> f__15 x__1 | Flambda2_types.Immutable_int32_array { fields = x__1 } -> f__16 x__1 | Flambda2_types.Immutable_int64_array { fields = x__1 } -> f__17 x__1 | Flambda2_types.Immutable_nativeint_array { fields = x__1 } -> f__18 x__1 | Flambda2_types.Immutable_vec128_array { fields = x__1 } -> f__19 x__1 | Flambda2_types.Immutable_vec256_array { fields = x__1 } -> f__20 x__1 | Flambda2_types.Immutable_vec512_array { fields = x__1 } -> f__21 x__1 | Flambda2_types.Immutable_mask_array { fields = x__1 } -> f__22 x__1 | Flambda2_types.Immutable_value_array { fields = x__1 } -> f__23 x__1 | Flambda2_types.Empty_array x__1 -> f__24 x__1)".
 (* flambda2_types.mli:978  type reification_result = private | Lift of to_lift | Simple of Simple.t | Cannot_reify | Invalid *)

@@ -21,7 +21,7 @@
    change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
-From SimplifyPort.decl Require Format Stdlib_ Tag Target_ocaml_int.
+From SimplifyPort.decl Require Format Tag Target_ocaml_int.
 
 Module Naked_number_kind.
   (* flambda_kind.mli:20  type t = ( * CR mshinwell: I think we should consider renaming [Naked_immediate] to [Naked_int] or (maybe better) [Naked_int31_63], to avoid confusion with [Lambda.Const_naked_immediate]. * ) | Naked_immediate | Naked_float32 | Naked_float | Naked_int8 | Naked_int16 | Naked_int32 | Naked_int64 | Naked_nativeint | Naked_vec128 | Naked_vec256 | Naked_vec512 | Naked_mask *)
@@ -121,13 +121,13 @@ Module Mixed_block_shape.
   Parameter t : Type.
   Extract Inlined Constant t => "Flambda_kind.Mixed_block_shape.t".
   (* flambda_kind.mli:114  val field_kinds : t -> kind array *)
-  Parameter field_kinds : t -> M (Stdlib_.array Flambda_kind.kind).
+  Parameter field_kinds : t -> M (array Flambda_kind.kind).
   Extract Inlined Constant field_kinds => "Flambda_kind.Mixed_block_shape.field_kinds".
   (* flambda_kind.mli:116  val value_prefix_size : t -> int *)
   Parameter value_prefix_size : t -> M int.
   Extract Inlined Constant value_prefix_size => "Flambda_kind.Mixed_block_shape.value_prefix_size".
   (* flambda_kind.mli:118  val flat_suffix : t -> flat_suffix_element array *)
-  Parameter flat_suffix : t -> M (Stdlib_.array Flambda_kind.flat_suffix_element).
+  Parameter flat_suffix : t -> M (array Flambda_kind.flat_suffix_element).
   Extract Inlined Constant flat_suffix => "Flambda_kind.Mixed_block_shape.flat_suffix".
   (* flambda_kind.mli:124  val equal : t -> t -> bool *)
   Parameter equal : t -> t -> M bool.

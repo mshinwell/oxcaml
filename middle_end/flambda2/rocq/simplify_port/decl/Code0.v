@@ -33,7 +33,7 @@ Extract Inlined Constant code_metadata => "Code0.code_metadata".
 Parameter create_with_metadata : forall {Function_params_and_body : Type}, (Format.formatter -> Function_params_and_body -> M unit) -> Function_params_and_body -> Name_occurrences.t -> Code_metadata.t -> M (t Function_params_and_body).
 Extract Inlined Constant create_with_metadata => "Code0.create_with_metadata".
 (* code0.mli:35  val create : print_function_params_and_body: (Format.formatter -> 'function_params_and_body -> unit) -> params_and_body:'function_params_and_body -> free_names_of_params_and_body:Name_occurrences.t -> 'function_params_and_body t Code_metadata.create_type *)
-Parameter create : forall {Function_params_and_body : Type}, (Format.formatter -> Function_params_and_body -> M unit) -> Function_params_and_body -> Name_occurrences.t -> M (Code_metadata.create_type (t Function_params_and_body)).
+Parameter create : forall {Function_params_and_body : Type}, (Format.formatter -> Function_params_and_body -> M unit) -> Function_params_and_body -> Name_occurrences.t -> Code_metadata.create_type (t Function_params_and_body).
 Extract Inlined Constant create => "Code0.create".
 (* code0.mli:57  val free_names : _ t -> Name_occurrences.t *)
 Parameter free_names : forall {A : Type}, t A -> M Name_occurrences.t.
