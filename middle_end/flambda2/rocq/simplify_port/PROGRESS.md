@@ -20,7 +20,7 @@ compiler's own definitions; alone: no interface).
 | `env/continuation_uses.ml` | 158 | 17 | 17 | loose:3 verbatim:1 papp:2 | yes | strict |
 | `env/continuation_uses_env.ml` | 167 | 16 | 16 | loose:2 verbatim:1 papp:2 record-order:1 | yes | strict |
 | `env/continuation_uses_env_intf.ml` | 39 | 0 | 0 | loose:1 | yes | alone |
-| `env/downwards_acc.ml` | 342 | 63 | 63 | loose:4 verbatim:2 decl:1 papp:1 record-order:1 | yes | strict |
+| `env/downwards_acc.ml` | 342 | 63 | 63 | loose:4 verbatim:2 papp:1 record-order:1 | yes | strict |
 | `env/downwards_env.ml` | 945 | 102 | 102 | loose:9 type:1 verbatim:4 papp:6 record-order:2 | yes | strict |
 | `env/one_continuation_use.ml` | 49 | 7 | 7 | loose:3 papp:1 | yes | strict |
 | `env/replay_history.ml` | 230 | 14 | 14 | loose:1 type:1 papp:1 | yes | strict |
@@ -46,10 +46,10 @@ compiler's own definitions; alone: no interface).
 | `named_rewrite.ml` | 48 | 2 | 2 | type:1 | yes | strict |
 | `non_constructed_code.ml` | 41 | 6 | 6 | verbatim:1 papp:4 | yes | strict |
 | `non_recursive_handler.ml` | 75 | 5 | 5 | loose:1 | yes | strict |
-| `number_adjuncts.ml` | 1035 | 2 | 2 | loose:3 verbatim:12 init:3 decl:2 | yes | strict |
+| `number_adjuncts.ml` | 1035 | 2 | 2 | loose:3 verbatim:12 init:3 | yes | strict |
 | `one_recursive_handler.ml` | 30 | 3 | 3 | none | yes | strict |
 | `original_handlers.ml` | 97 | 6 | 6 | loose:2 type:1 papp:1 | yes | strict |
-| `rebuilt_expr.ml` | 753 | 22 | 21 | loose:9 type:2 verbatim:1 init:2 decl:2 papp:1 record-order:1 | yes | strict |
+| `rebuilt_expr.ml` | 753 | 22 | 21 | loose:9 type:2 verbatim:1 init:2 decl:1 papp:1 record-order:1 | yes | strict |
 | `rebuilt_static_const.ml` | 522 | 44 | 44 | loose:5 type:2 init:2 papp:1 record-order:5 | yes | strict |
 | `simplified_expr.ml` | 185 | 9 | 9 | type:1 verbatim:1 | yes | strict |
 | `simplified_named.ml` | 100 | 6 | 6 | loose:1 type:1 | yes | strict |
@@ -87,7 +87,7 @@ compiler's own definitions; alone: no interface).
 | `unboxing/unboxers.ml` | 260 | 0 | 0 | loose:1 init:10 record-order:1 | yes | strict |
 | `unboxing/unboxing_epa.ml` | 553 | 15 | 15 | loose:1 type:2 verbatim:1 | yes | strict |
 | `unboxing/unboxing_types.ml` | 185 | 6 | 6 | type:1 verbatim:2 papp:4 | yes | strict |
-| **total: 78 files of 78** | 26900 | 930 | 926 | 445 marks | 78 | 78 |
+| **total: 78 files of 78** | 26900 | 930 | 926 | 441 marks | 78 | 78 |
 
 Gaps by kind, all files:
 
@@ -98,6 +98,6 @@ Gaps by kind, all files:
 - verbatim: 47
 - init: 22
 - order: 0
-- decl: 12
+- decl: 8
 - papp: 83
 - record-order: 23
