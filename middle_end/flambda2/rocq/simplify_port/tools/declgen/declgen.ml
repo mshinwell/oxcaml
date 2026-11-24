@@ -65,6 +65,42 @@ let units () =
   Hashtbl.iter (fun _ c -> add c) Tr.needed_types;
   SS.elements !s
 
+(* The last lines of the file of declarations [rocq].
+
+   In an extracted file Rocq writes [open U] for each file [U] of which it
+   prints a name, and then prints the names of [U] without [U.]. In OCaml
+   that [open] brings every name of the real module [U]: more than the
+   declarations have, so Rocq does not know of them. A name that Rocq
+   prints short, or a name in a realisation, could then mean something of
+   [U] instead (after [open Simple], [List] is [Simple.List]).
+
+   Rocq does not write [open U] when [U] has at its top a module with the
+   name of a file in use, and [U] is itself in use where it would be
+   opened. So each file ends with an empty module of its own name: no
+   extracted file opens a file of declarations, and Rocq prints each of
+   its names in full. *)
+let no_open ~local rocq =
+  let why =
+    if local
+    then
+      [ "(* Not in the file of Simplify: an empty module with the name of \
+         this file.";
+        "   With it Rocq's extraction writes no [open] of this file, which \
+         is not a";
+        "   module of OCaml, and prints each of its names in full. *)" ]
+    else
+      [ "(* Not in the interface: an empty module with the name of this \
+         file. With";
+        "   it Rocq's extraction does not open this file's module in the \
+         files that";
+        "   use it, and prints each of its names in full. So what the real \
+         module";
+        "   has, and these declarations do not have, hides no other name \
+         there. *)" ]
+  in
+  String.concat "\n"
+    (("" :: why) @ [Printf.sprintf "Module %s. End %s." rocq rocq; ""])
+
 let pass scanned =
   Decl_out.index := [];
   Decl_out.left := [];
@@ -210,6 +246,8 @@ let () =
              (String.concat " " (List.sort compare (List.map Sigs.unit_rocq deps))));
       Buffer.add_char b '\n';
       Buffer.add_string b body;
+      (* the file ends with a module of its own name: see [no_open] *)
+      Buffer.add_string b (no_open ~local:(is_local_unit u) rocq);
       write_file (Filename.concat out_dir (rocq ^ ".v")) (Buffer.contents b))
     results;
   (* what an earlier run wrote and this one does not *)
