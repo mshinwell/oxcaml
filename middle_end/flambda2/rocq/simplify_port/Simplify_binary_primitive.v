@@ -300,6 +300,17 @@ Module Type Pair_S.
   End Set_.
 End Pair_S.
 
+(* PORT-GAP(loose): not from the compiler's file: this functor, and the
+   three lines that use it. Where the compiler has [module Rhs =
+   Target_ocaml_int] or [module Result = Target_ocaml_int] inside a functor
+   (469, 600, 866), the port has [As_container_types_S Target_ocaml_int]:
+   the same module, with what [Container_types.S] names of it. Rocq takes a
+   module of decl/ that is named inside a functor body for a new module
+   with all its values; a local variable with the name of one of them
+   ([machine_width], in 90 places of the extracted file) would then be
+   printed with a number after it. *)
+Module As_container_types_S (X : Container_types.S) := X.
+
 (* 29-76. The type [op] has the name of a value of the module type: it gets
    one [_]. The arguments are by place. *)
 Module Type Binary_arith_like_sig.
@@ -972,7 +983,7 @@ Module Int_ops_for_binary_shift (I : A.Int_number_kind)
   <: Binary_arith_like_sig.
   (* 468-470 *)
   Module Lhs := I.Num.
-  Module Rhs := Target_ocaml_int.
+  Module Rhs := As_container_types_S Target_ocaml_int.
   Module Result := I.Num.
 
   (* 472 *)
@@ -1181,7 +1192,7 @@ Module Int_ops_for_binary_comp (I : A.Int_number_kind)
   (* 598-600 *)
   Module Lhs := I.Num.
   Module Rhs := I.Num.
-  Module Result := Target_ocaml_int.
+  Module Result := As_container_types_S Target_ocaml_int.
 
   (* 602 *)
   Definition op_ : Type := P.comparison_behaviour P.signed_or_unsigned.
@@ -1600,7 +1611,7 @@ Module Float_ops_for_binary_comp_gen (FP : Float_ops_for_binary_comp_gen_FP)
   Module F := FP.F.
   Module Lhs := F.
   Module Rhs := F.
-  Module Result := Target_ocaml_int.
+  Module Result := As_container_types_S Target_ocaml_int.
 
   (* 868 *)
   Definition op_ : Type := P.comparison_behaviour unit.

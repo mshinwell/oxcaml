@@ -247,6 +247,8 @@ module type Pair_S = sig
   end
 end
 
+module As_container_types_S = functor (X : Container_types.S) -> X
+
 module type Binary_arith_like_sig = sig
   module Lhs : Container_types.S
 
@@ -398,10 +400,10 @@ functor
       let kind = N.result_kind in
       let result_unknown =
        fun _ ->
-        let machine_width0 = Downwards_env.machine_width denv in
+        let machine_width = Downwards_env.machine_width denv in
         let dacc0 =
           Downwards_acc.add_variable dacc result_var
-            (N.unknown machine_width0 op0)
+            (N.unknown machine_width op0)
         in
         Simplify_primitive_result.create original_term false dacc0
       in
@@ -447,14 +449,14 @@ functor
                 | Possible_result.Simple simple ->
                   Flambda2_types.alias_type_of kind simple, Some simple
                 | Possible_result.Prim _ ->
-                  let machine_width0 = Downwards_env.machine_width denv in
-                  N.unknown machine_width0 op0, None
+                  let machine_width = Downwards_env.machine_width denv in
+                  N.unknown machine_width op0, None
                 | Possible_result.Exactly _ ->
-                  let machine_width0 = Downwards_env.machine_width denv in
-                  N.unknown machine_width0 op0, None)
+                  let machine_width = Downwards_env.machine_width denv in
+                  N.unknown machine_width op0, None)
               | None ->
-                let machine_width0 = Downwards_env.machine_width denv in
-                N.unknown machine_width0 op0, None
+                let machine_width = Downwards_env.machine_width denv in
+                N.unknown machine_width op0, None
           in
           let dacc0 = Downwards_acc.add_variable dacc result_var ty in
           match simple_opt with
@@ -490,10 +492,10 @@ functor
                       (fun pat ->
                         let i1, i2 = pat in
                         fun possible_results ->
-                          let machine_width0 =
+                          let machine_width =
                             Downwards_env.machine_width denv
                           in
-                          match N.op machine_width0 op0 i1 i2 with
+                          match N.op machine_width op0 i1 i2 with
                           | Some result ->
                             Possible_result.Set_.add
                               (Possible_result.Exactly result) possible_results
@@ -506,13 +508,13 @@ functor
               if N.ok_to_evaluate denv
               then
                 let () = assert (not (N.Lhs.Set_.is_empty nums1)) in
-                let machine_width0 = Downwards_env.machine_width denv in
+                let machine_width = Downwards_env.machine_width denv in
                 let possible_results =
                   N.Lhs.Set_.fold
                     (fun i possible_results ->
                       match possible_results with
                       | Some possible_results0 -> (
-                        match N.op_rhs_unknown machine_width0 op0 i with
+                        match N.op_rhs_unknown machine_width op0 i with
                         | Exactly result ->
                           Some
                             (Possible_result.Set_.add
@@ -552,11 +554,11 @@ functor
                               ->
                               Flambda_kind.Standard_int.Naked_nativeint
                           in
-                          let machine_width1 =
+                          let machine_width0 =
                             Downwards_env.machine_width denv
                           in
                           let zero0 =
-                            Simple.const_int_of_kind machine_width1
+                            Simple.const_int_of_kind machine_width0
                               (Flambda_kind.Standard_int.to_kind
                                  standard_int_kind0)
                               0
@@ -619,13 +621,13 @@ functor
               if N.ok_to_evaluate denv
               then
                 let () = assert (not (N.Rhs.Set_.is_empty nums2)) in
-                let machine_width0 = Downwards_env.machine_width denv in
+                let machine_width = Downwards_env.machine_width denv in
                 let possible_results =
                   N.Rhs.Set_.fold
                     (fun i possible_results ->
                       match possible_results with
                       | Some possible_results0 -> (
-                        match N.op_lhs_unknown machine_width0 op0 i with
+                        match N.op_lhs_unknown machine_width op0 i with
                         | Exactly result ->
                           Some
                             (Possible_result.Set_.add
@@ -665,11 +667,11 @@ functor
                               ->
                               Flambda_kind.Standard_int.Naked_nativeint
                           in
-                          let machine_width1 =
+                          let machine_width0 =
                             Downwards_env.machine_width denv
                           in
                           let zero0 =
-                            Simple.const_int_of_kind machine_width1
+                            Simple.const_int_of_kind machine_width0
                               (Flambda_kind.Standard_int.to_kind
                                  standard_int_kind0)
                               0
@@ -851,36 +853,36 @@ functor
         symmetric_op -> Num.t -> Num.t binary_arith_outcome_for_one_side_only
         coq_M **)
 
-    let symmetric_op_one_side_unknown machine_width0 op0 this_side =
+    let symmetric_op_one_side_unknown machine_width op0 this_side =
       match op0 with
       | Add ->
-        if Num.equal this_side (Num.zero machine_width0)
+        if Num.equal this_side (Num.zero machine_width)
         then The_other_side
         else Cannot_simplify
       | Mul ->
-        if Num.equal this_side (Num.zero machine_width0)
-        then Exactly (Num.zero machine_width0)
-        else if Num.equal this_side (Num.one machine_width0)
+        if Num.equal this_side (Num.zero machine_width)
+        then Exactly (Num.zero machine_width)
+        else if Num.equal this_side (Num.one machine_width)
         then The_other_side
-        else if Num.equal this_side (Num.minus_one machine_width0)
+        else if Num.equal this_side (Num.minus_one machine_width)
         then Negation_of_the_other_side
         else Cannot_simplify
       | And ->
-        if Num.equal this_side (Num.minus_one machine_width0)
+        if Num.equal this_side (Num.minus_one machine_width)
         then The_other_side
-        else if Num.equal this_side (Num.zero machine_width0)
-        then Exactly (Num.zero machine_width0)
+        else if Num.equal this_side (Num.zero machine_width)
+        then Exactly (Num.zero machine_width)
         else Cannot_simplify
       | Or ->
-        if Num.equal this_side (Num.minus_one machine_width0)
-        then Exactly (Num.minus_one machine_width0)
-        else if Num.equal this_side (Num.zero machine_width0)
+        if Num.equal this_side (Num.minus_one machine_width)
+        then Exactly (Num.minus_one machine_width)
+        else if Num.equal this_side (Num.zero machine_width)
         then The_other_side
         else Cannot_simplify
       | Xor ->
-        if Num.equal this_side (Num.zero machine_width0)
+        if Num.equal this_side (Num.zero machine_width)
         then The_other_side
-        else if Num.equal this_side (Num.minus_one machine_width0)
+        else if Num.equal this_side (Num.minus_one machine_width)
         then Bitwise_not_of_the_other_side I.standard_int_kind
         else Cannot_simplify
 
@@ -888,7 +890,7 @@ functor
         Flambda_primitive.binary_int_arith_op -> Num.t -> Num.t
         binary_arith_outcome_for_one_side_only coq_M **)
 
-    let op_lhs_unknown machine_width0 op0 rhs =
+    let op_lhs_unknown machine_width op0 rhs =
       (fun f__1 f__2 f__3 f__4 f__5 f__6 f__7 f__8 x__0 ->
         match (x__0 : Flambda_primitive.binary_int_arith_op) with
         | Flambda_primitive.Add -> f__1 ()
@@ -899,19 +901,19 @@ functor
         | Flambda_primitive.And -> f__6 ()
         | Flambda_primitive.Or -> f__7 ()
         | Flambda_primitive.Xor -> f__8 ())
-        (fun _ -> symmetric_op_one_side_unknown machine_width0 Add rhs)
+        (fun _ -> symmetric_op_one_side_unknown machine_width Add rhs)
         (fun _ ->
-          if Num.equal rhs (Num.zero machine_width0)
+          if Num.equal rhs (Num.zero machine_width)
           then The_other_side
           else Cannot_simplify)
-        (fun _ -> symmetric_op_one_side_unknown machine_width0 Mul rhs)
+        (fun _ -> symmetric_op_one_side_unknown machine_width Mul rhs)
         (fun signedness ->
-          if Num.equal rhs (Num.zero machine_width0)
+          if Num.equal rhs (Num.zero machine_width)
           then Invalid
-          else if Num.equal rhs (Num.one machine_width0)
+          else if Num.equal rhs (Num.one machine_width)
           then The_other_side
           else if
-            Num.equal rhs (Num.minus_one machine_width0)
+            Num.equal rhs (Num.minus_one machine_width)
             &&
             match signedness with
             | Scalar.Signedness.Signed -> true
@@ -919,28 +921,28 @@ functor
           then Negation_of_the_other_side
           else Cannot_simplify)
         (fun signedness ->
-          if Num.equal rhs (Num.zero machine_width0)
+          if Num.equal rhs (Num.zero machine_width)
           then Invalid
-          else if Num.equal rhs (Num.one machine_width0)
-          then Exactly (Num.zero machine_width0)
+          else if Num.equal rhs (Num.one machine_width)
+          then Exactly (Num.zero machine_width)
           else if
-            Num.equal rhs (Num.minus_one machine_width0)
+            Num.equal rhs (Num.minus_one machine_width)
             &&
             match signedness with
             | Scalar.Signedness.Signed -> true
             | Scalar.Signedness.Unsigned -> false
-          then Exactly (Num.zero machine_width0)
+          then Exactly (Num.zero machine_width)
           else Cannot_simplify)
-        (fun _ -> symmetric_op_one_side_unknown machine_width0 And rhs)
-        (fun _ -> symmetric_op_one_side_unknown machine_width0 Or rhs)
-        (fun _ -> symmetric_op_one_side_unknown machine_width0 Xor rhs)
+        (fun _ -> symmetric_op_one_side_unknown machine_width And rhs)
+        (fun _ -> symmetric_op_one_side_unknown machine_width Or rhs)
+        (fun _ -> symmetric_op_one_side_unknown machine_width Xor rhs)
         op0
 
     (** val op_rhs_unknown : Target_system.Machine_width.t ->
         Flambda_primitive.binary_int_arith_op -> Num.t -> Num.t
         binary_arith_outcome_for_one_side_only coq_M **)
 
-    let op_rhs_unknown machine_width0 op0 lhs =
+    let op_rhs_unknown machine_width op0 lhs =
       (fun f__1 f__2 f__3 f__4 f__5 f__6 f__7 f__8 x__0 ->
         match (x__0 : Flambda_primitive.binary_int_arith_op) with
         | Flambda_primitive.Add -> f__1 ()
@@ -951,12 +953,12 @@ functor
         | Flambda_primitive.And -> f__6 ()
         | Flambda_primitive.Or -> f__7 ()
         | Flambda_primitive.Xor -> f__8 ())
-        (fun _ -> symmetric_op_one_side_unknown machine_width0 Add lhs)
+        (fun _ -> symmetric_op_one_side_unknown machine_width Add lhs)
         (fun _ ->
-          if Num.equal lhs (Num.zero machine_width0)
+          if Num.equal lhs (Num.zero machine_width)
           then Negation_of_the_other_side
           else Cannot_simplify)
-        (fun _ -> symmetric_op_one_side_unknown machine_width0 Mul lhs)
+        (fun _ -> symmetric_op_one_side_unknown machine_width Mul lhs)
         (fun t0 ->
           match t0 with
           | Scalar.Signedness.Signed -> Cannot_simplify
@@ -965,9 +967,9 @@ functor
           match t0 with
           | Scalar.Signedness.Signed -> Cannot_simplify
           | Scalar.Signedness.Unsigned -> Cannot_simplify)
-        (fun _ -> symmetric_op_one_side_unknown machine_width0 And lhs)
-        (fun _ -> symmetric_op_one_side_unknown machine_width0 Or lhs)
-        (fun _ -> symmetric_op_one_side_unknown machine_width0 Xor lhs)
+        (fun _ -> symmetric_op_one_side_unknown machine_width And lhs)
+        (fun _ -> symmetric_op_one_side_unknown machine_width Or lhs)
+        (fun _ -> symmetric_op_one_side_unknown machine_width Xor lhs)
         op0
   end
 
@@ -1001,7 +1003,7 @@ functor
   ->
   struct
     module Lhs = I.Num
-    module Rhs = Target_ocaml_int
+    module Rhs = As_container_types_S (Target_ocaml_int)
     module Result = I.Num
 
     type op_ = Flambda_primitive.int_shift_op
@@ -1120,19 +1122,19 @@ functor
         Flambda_primitive.int_shift_op -> Target_ocaml_int.t -> Num.t
         binary_arith_outcome_for_one_side_only coq_M **)
 
-    let op_lhs_unknown machine_width0 op0 rhs =
+    let op_lhs_unknown machine_width op0 rhs =
       let rhs0 = rhs in
       match op0 with
       | Flambda_primitive.Lsl ->
-        if Target_ocaml_int.equal rhs0 (Target_ocaml_int.zero machine_width0)
+        if Target_ocaml_int.equal rhs0 (Target_ocaml_int.zero machine_width)
         then The_other_side
         else Cannot_simplify
       | Flambda_primitive.Lsr ->
-        if Target_ocaml_int.equal rhs0 (Target_ocaml_int.zero machine_width0)
+        if Target_ocaml_int.equal rhs0 (Target_ocaml_int.zero machine_width)
         then The_other_side
         else Cannot_simplify
       | Flambda_primitive.Asr ->
-        if Target_ocaml_int.equal rhs0 (Target_ocaml_int.zero machine_width0)
+        if Target_ocaml_int.equal rhs0 (Target_ocaml_int.zero machine_width)
         then The_other_side
         else Cannot_simplify
 
@@ -1140,21 +1142,21 @@ functor
         Flambda_primitive.int_shift_op -> Num.t -> Num.t
         binary_arith_outcome_for_one_side_only coq_M **)
 
-    let op_rhs_unknown machine_width0 op0 lhs =
+    let op_rhs_unknown machine_width op0 lhs =
       match op0 with
       | Flambda_primitive.Lsl ->
-        if Num.equal lhs (Num.zero machine_width0)
-        then Exactly (Num.zero machine_width0)
+        if Num.equal lhs (Num.zero machine_width)
+        then Exactly (Num.zero machine_width)
         else Cannot_simplify
       | Flambda_primitive.Lsr ->
-        if Num.equal lhs (Num.zero machine_width0)
-        then Exactly (Num.zero machine_width0)
+        if Num.equal lhs (Num.zero machine_width)
+        then Exactly (Num.zero machine_width)
         else Cannot_simplify
       | Flambda_primitive.Asr ->
-        if Num.equal lhs (Num.zero machine_width0)
-        then Exactly (Num.zero machine_width0)
-        else if Num.equal lhs (Num.minus_one machine_width0)
-        then Exactly (Num.minus_one machine_width0)
+        if Num.equal lhs (Num.zero machine_width)
+        then Exactly (Num.zero machine_width)
+        else if Num.equal lhs (Num.minus_one machine_width)
+        then Exactly (Num.minus_one machine_width)
         else Cannot_simplify
   end
 
@@ -1189,7 +1191,7 @@ functor
   struct
     module Lhs = I.Num
     module Rhs = I.Num
-    module Result = Target_ocaml_int
+    module Result = As_container_types_S (Target_ocaml_int)
 
     type op_ =
       Flambda_primitive.signed_or_unsigned
@@ -1220,13 +1222,13 @@ functor
     (** val unknown : Target_system.Machine_width.t -> op_ -> Flambda2_types.t
         coq_M **)
 
-    let unknown machine_width0 = function
+    let unknown machine_width = function
       | Flambda_primitive.Yielding_bool _ ->
         Flambda2_types.these_naked_immediates
-          (Target_ocaml_int.all_bools machine_width0)
+          (Target_ocaml_int.all_bools machine_width)
       | Flambda_primitive.Yielding_int_like_compare_functions _ ->
         Flambda2_types.these_naked_immediates
-          (Target_ocaml_int.zero_one_and_minus_one machine_width0)
+          (Target_ocaml_int.zero_one_and_minus_one machine_width)
 
     (** val these : Target_ocaml_int.Set.t -> (Flambda2_types.t * Simple.t
         option) coq_M **)
@@ -1260,10 +1262,10 @@ functor
         Flambda_primitive.comparison_behaviour -> Num.t -> Num.t ->
         Target_ocaml_int.t option coq_M **)
 
-    let op machine_width0 op0 n1 n2 =
+    let op machine_width op0 n1 n2 =
       match op0 with
       | Flambda_primitive.Yielding_bool op1 ->
-        let bool = fun b -> Target_ocaml_int.bool machine_width0 b in
+        let bool = fun b -> Target_ocaml_int.bool machine_width b in
         (fun f__1 f__2 f__3 f__4 f__5 f__6 x__0 ->
           match (x__0 : _ Flambda_primitive.comparison) with
           | Flambda_primitive.Eq -> f__1 ()
@@ -1299,7 +1301,7 @@ functor
         -> (
         match signed_or_unsigned with
         | Flambda_primitive.Signed ->
-          let int = fun i -> Target_ocaml_int.of_int machine_width0 i in
+          let int = fun i -> Target_ocaml_int.of_int machine_width i in
           let c = Num.compare n1 n2 in
           if c < 0
           then Some (int (-1))
@@ -1307,7 +1309,7 @@ functor
           then Some (int 0)
           else Some (int 1)
         | Flambda_primitive.Unsigned ->
-          let int = fun i -> Target_ocaml_int.of_int machine_width0 i in
+          let int = fun i -> Target_ocaml_int.of_int machine_width i in
           let c = Num.compare_unsigned n1 n2 in
           if c < 0
           then Some (int (-1))
@@ -1599,7 +1601,7 @@ functor
     module F = FP.F
     module Lhs = F
     module Rhs = F
-    module Result = Target_ocaml_int
+    module Result = As_container_types_S (Target_ocaml_int)
 
     type op_ = unit Flambda_primitive.comparison_behaviour
 
@@ -1628,14 +1630,14 @@ functor
     (** val unknown : Target_system.Machine_width.t -> op_ -> Flambda2_types.t
         coq_M **)
 
-    let unknown machine_width0 = function
+    let unknown machine_width = function
       | Flambda_primitive.Yielding_bool _ ->
         Flambda2_types.these_naked_immediates
-          (Target_ocaml_int.all_bools machine_width0)
+          (Target_ocaml_int.all_bools machine_width)
       | Flambda_primitive.Yielding_int_like_compare_functions u ->
         let () = u in
         Flambda2_types.these_naked_immediates
-          (Target_ocaml_int.zero_one_and_minus_one machine_width0)
+          (Target_ocaml_int.zero_one_and_minus_one machine_width)
 
     (** val these : Target_ocaml_int.Set.t -> (Flambda2_types.t * Simple.t
         option) coq_M **)
@@ -1664,11 +1666,11 @@ functor
     (** val op : Target_system.Machine_width.t -> op_ -> F.t -> F.t ->
         Target_ocaml_int.t option coq_M **)
 
-    let op machine_width0 op0 n1 n2 =
+    let op machine_width op0 n1 n2 =
       match op0 with
       | Flambda_primitive.Yielding_bool op1 ->
         let has_nan = F.is_any_nan n1 || F.is_any_nan n2 in
-        let bool = fun b -> Target_ocaml_int.bool machine_width0 b in
+        let bool = fun b -> Target_ocaml_int.bool machine_width b in
         (fun f__1 f__2 f__3 f__4 f__5 f__6 x__0 ->
           match (x__0 : _ Flambda_primitive.comparison) with
           | Flambda_primitive.Eq -> f__1 ()
@@ -1702,7 +1704,7 @@ functor
           op1
       | Flambda_primitive.Yielding_int_like_compare_functions u ->
         let () = u in
-        let int = fun i -> Target_ocaml_int.of_int machine_width0 i in
+        let int = fun i -> Target_ocaml_int.of_int machine_width i in
         let c = F.IEEE_semantics.compare n1 n2 in
         if c < 0
         then Some (int (-1))
@@ -1714,7 +1716,7 @@ functor
         unit Flambda_primitive.comparison -> Target_ocaml_int.t
         binary_arith_outcome_for_one_side_only coq_M **)
 
-    let result_of_comparison_with_nan machine_width0 op0 =
+    let result_of_comparison_with_nan machine_width op0 =
       (fun f__1 f__2 f__3 f__4 f__5 f__6 x__0 ->
         match (x__0 : _ Flambda_primitive.comparison) with
         | Flambda_primitive.Eq -> f__1 ()
@@ -1723,30 +1725,30 @@ functor
         | Flambda_primitive.Gt x__1 -> f__4 x__1
         | Flambda_primitive.Le x__1 -> f__5 x__1
         | Flambda_primitive.Ge x__1 -> f__6 x__1)
-        (fun _ -> Exactly (Target_ocaml_int.bool_false machine_width0))
-        (fun _ -> Exactly (Target_ocaml_int.bool_true machine_width0))
+        (fun _ -> Exactly (Target_ocaml_int.bool_false machine_width))
+        (fun _ -> Exactly (Target_ocaml_int.bool_true machine_width))
         (fun u ->
           let () = u in
-          Exactly (Target_ocaml_int.bool_false machine_width0))
+          Exactly (Target_ocaml_int.bool_false machine_width))
         (fun u ->
           let () = u in
-          Exactly (Target_ocaml_int.bool_false machine_width0))
+          Exactly (Target_ocaml_int.bool_false machine_width))
         (fun u ->
           let () = u in
-          Exactly (Target_ocaml_int.bool_false machine_width0))
+          Exactly (Target_ocaml_int.bool_false machine_width))
         (fun u ->
           let () = u in
-          Exactly (Target_ocaml_int.bool_false machine_width0))
+          Exactly (Target_ocaml_int.bool_false machine_width))
         op0
 
     (** val op_lhs_unknown : Target_system.Machine_width.t -> op_ -> F.t ->
         Target_ocaml_int.t binary_arith_outcome_for_one_side_only coq_M **)
 
-    let op_lhs_unknown machine_width0 op0 rhs =
+    let op_lhs_unknown machine_width op0 rhs =
       match op0 with
       | Flambda_primitive.Yielding_bool op1 ->
         if F.is_any_nan rhs
-        then result_of_comparison_with_nan machine_width0 op1
+        then result_of_comparison_with_nan machine_width op1
         else Cannot_simplify
       | Flambda_primitive.Yielding_int_like_compare_functions u ->
         let () = u in
@@ -1755,11 +1757,11 @@ functor
     (** val op_rhs_unknown : Target_system.Machine_width.t -> op_ -> F.t ->
         Target_ocaml_int.t binary_arith_outcome_for_one_side_only coq_M **)
 
-    let op_rhs_unknown machine_width0 op0 lhs =
+    let op_rhs_unknown machine_width op0 lhs =
       match op0 with
       | Flambda_primitive.Yielding_bool op1 ->
         if F.is_any_nan lhs
-        then result_of_comparison_with_nan machine_width0 op1
+        then result_of_comparison_with_nan machine_width op1
         else Cannot_simplify
       | Flambda_primitive.Yielding_int_like_compare_functions u ->
         let () = u in
@@ -1810,7 +1812,7 @@ module Binary_float32_comp = Binary_arith_like (Float32_ops_for_binary_comp)
 let simplify_phys_equal op0 dacc original_term _ _ arg1_ty _ arg2_ty result_var
     =
   let typing_env = Downwards_acc.typing_env dacc in
-  let machine_width0 = Downwards_env.machine_width (Downwards_acc.denv dacc) in
+  let machine_width = Downwards_env.machine_width (Downwards_acc.denv dacc) in
   match Flambda2_types.prove_physical_equality typing_env arg1_ty arg2_ty with
   | Flambda2_types.Proved bool ->
     let result =
@@ -1821,17 +1823,17 @@ let simplify_phys_equal op0 dacc original_term _ _ arg1_ty _ arg2_ty result_var
     let dacc0 =
       Downwards_acc.add_variable dacc result_var
         (Flambda2_types.this_naked_immediate
-           (Target_ocaml_int.bool machine_width0 result))
+           (Target_ocaml_int.bool machine_width result))
     in
     Simplify_primitive_result.create
       (Flambda.Named.create_simple
-         (Simple.untagged_const_bool machine_width0 result))
+         (Simple.untagged_const_bool machine_width result))
       false dacc0
   | Flambda2_types.Unknown ->
     let dacc0 =
       Downwards_acc.add_variable dacc result_var
         (Flambda2_types.these_naked_immediates
-           (Target_ocaml_int.all_bools machine_width0))
+           (Target_ocaml_int.all_bools machine_width))
     in
     Simplify_primitive_result.create original_term false dacc0
 
@@ -1915,14 +1917,13 @@ let simplify_array_load array_kind array_load_kind mutability dacc _ dbg array
           | Flambda2_types.Proved imms -> (
             match Target_ocaml_int.Set.get_singleton imms with
             | Some imm ->
-              let machine_width0 =
+              let machine_width =
                 Downwards_env.machine_width (Downwards_acc.denv dacc)
               in
               if
-                Target_ocaml_int.( < ) imm
-                  (Target_ocaml_int.zero machine_width0)
+                Target_ocaml_int.( < ) imm (Target_ocaml_int.zero machine_width)
                 || Target_ocaml_int.( >= ) imm
-                     (Target_ocaml_int.of_int machine_width0
+                     (Target_ocaml_int.of_int machine_width
                         (Array.length fields))
               then Simplify_primitive_result.create_invalid dacc
               else
