@@ -18,10 +18,7 @@
    that file. What is not from that file: the form (the monad, the
    temporaries [tmpN] and their order) is that of GUIDE.md. The file does
    not import Simplify_import, which the compiler's file does not open: its
-   abbreviation of a module is its own (and Simplify_import requires,
-   through decl/Downwards_env.v, the declarations of this very module,
-   which Rocq's extraction would then take for another file of the same
-   name). No proof. *)
+   abbreviation of a module is its own. No proof. *)
 
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Flambda_kind Flambda_primitive Format Simple
