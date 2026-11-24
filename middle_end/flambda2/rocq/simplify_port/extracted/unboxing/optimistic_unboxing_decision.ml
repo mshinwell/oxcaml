@@ -70,7 +70,7 @@ let make_optimistic_const_ctor _ =
 
 let make_optimistic_number_decision tenv param_type decider =
   match decider.Unboxers.prove_is_a_boxed_number tenv param_type with
-  | Flambda2_types.Proved u ->
+  | T.Proved u ->
     let () = u in
     let naked_number =
       Extra_param_and_args.create decider.Unboxers.param_name
@@ -78,7 +78,7 @@ let make_optimistic_number_decision tenv param_type decider =
         (K.naked_number decider.Unboxers.kind)
     in
     Some (U.Unbox (U.Number (decider.Unboxers.kind, naked_number)))
-  | Flambda2_types.Unknown -> None
+  | T.Unknown -> None
 
 (** val decide : TE.t -> T.t -> Unboxers.number_decider list -> U.decision
     option coq_M **)
@@ -107,10 +107,10 @@ let rec make_optimistic_decision depth recursive tenv param_type =
   let param_type_is_alias_to_symbol = T.is_alias_to_a_symbol param_type in
   let param_kind_is_not_value =
     match T.kind param_type with
-    | Flambda_kind.Value -> false
-    | Flambda_kind.Naked_number _ -> true
-    | Flambda_kind.Region -> true
-    | Flambda_kind.Rec_info -> true
+    | K.Value -> false
+    | K.Naked_number _ -> true
+    | K.Region -> true
+    | K.Rec_info -> true
   in
   if param_type_is_alias_to_symbol
   then U.Do_not_unbox U.Not_beneficial
@@ -146,7 +146,7 @@ let rec make_optimistic_decision depth recursive tenv param_type =
             | None -> U.Do_not_unbox U.All_fields_invalid
           else
             match Flambda2_types.prove_variant_like tenv param_type with
-            | Flambda2_types.Proved v -> (
+            | T.Proved v -> (
               let { Flambda2_types.const_ctors = const_ctors0;
                     Flambda2_types.non_const_ctors_with_sizes =
                       non_const_ctors_with_sizes0
@@ -256,7 +256,7 @@ let rec make_optimistic_decision depth recursive tenv param_type =
                          (function_slot, vars_within_closure))
                   else U.Do_not_unbox U.Incomplete_parameter_type
                 | T.Unknown -> U.Do_not_unbox U.Incomplete_parameter_type)
-            | Flambda2_types.Unknown -> (
+            | T.Unknown -> (
               match T.prove_single_closures_entry tenv param_type with
               | T.Proved t1 ->
                 let function_slot, _, closures_entry, _ = t1 in
@@ -276,7 +276,7 @@ let rec make_optimistic_decision depth recursive tenv param_type =
               | T.Unknown -> U.Do_not_unbox U.Incomplete_parameter_type))
         | T.Unknown -> (
           match Flambda2_types.prove_variant_like tenv param_type with
-          | Flambda2_types.Proved v -> (
+          | T.Proved v -> (
             let { Flambda2_types.const_ctors = const_ctors0;
                   Flambda2_types.non_const_ctors_with_sizes =
                     non_const_ctors_with_sizes0
@@ -386,7 +386,7 @@ let rec make_optimistic_decision depth recursive tenv param_type =
                        (function_slot, vars_within_closure))
                 else U.Do_not_unbox U.Incomplete_parameter_type
               | T.Unknown -> U.Do_not_unbox U.Incomplete_parameter_type)
-          | Flambda2_types.Unknown -> (
+          | T.Unknown -> (
             match T.prove_single_closures_entry tenv param_type with
             | T.Proved t0 ->
               let function_slot, _, closures_entry, _ = t0 in

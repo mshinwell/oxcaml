@@ -977,7 +977,7 @@ let simplify_direct_partial_application simplify_expr dacc apply0
               Function_decl_inlining_decision_type.Stub absolute_history
               relative_history Loopify_attribute.Never_loopify
           in
-          Flambda.Import.Static_const_or_code.create_code code
+          Static_const_or_code.create_code code
         in
         let function_decls =
           Function_declarations.create
@@ -1035,9 +1035,7 @@ let simplify_direct_partial_application simplify_expr dacc apply0
         let bound_static =
           Bound_static.singleton (Bound_static.Pattern.code code_id)
         in
-        let static_consts =
-          Flambda.Import.Static_const_group.create (code :: [])
-        in
+        let static_consts = Static_const_group.create (code :: []) in
         Expr.create_let
           (Let.create
              (Bound_pattern.static bound_static)

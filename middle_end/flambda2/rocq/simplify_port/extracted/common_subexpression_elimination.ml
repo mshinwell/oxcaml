@@ -371,8 +371,8 @@ let join_one_cse_equation machine_width cse_at_each_use prim bound_to_map =
             in
             let env_extension1 =
               match EP.to_primitive prim with
-              | Flambda_primitive.Nullary _ -> env_extension0
-              | Flambda_primitive.Unary (u, block) ->
+              | P.Nullary _ -> env_extension0
+              | P.Unary (u, block) ->
                 (fun f__1
                   f__2
                   f__3
@@ -406,61 +406,51 @@ let join_one_cse_equation machine_width cse_at_each_use prim bound_to_map =
                   f__31
                   x__0
                 ->
-                  match (x__0 : Flambda_primitive.unary_primitive) with
-                  | Flambda_primitive.Block_load
-                      { kind = x__1; mut = x__2; field = x__3 } ->
+                  match (x__0 : P.unary_primitive) with
+                  | P.Block_load { kind = x__1; mut = x__2; field = x__3 } ->
                     f__1 x__1 x__2 x__3
-                  | Flambda_primitive.Duplicate_block
-                      { kind = x__1; alloc_region = x__2 } ->
+                  | P.Duplicate_block { kind = x__1; alloc_region = x__2 } ->
                     f__2 x__1 x__2
-                  | Flambda_primitive.Duplicate_array
+                  | P.Duplicate_array
                       { kind = x__1;
                         source_mutability = x__2;
                         destination_mutability = x__3;
                         alloc_region = x__4
                       } ->
                     f__3 x__1 x__2 x__3 x__4
-                  | Flambda_primitive.Is_int { variant_only = x__1 } ->
-                    f__4 x__1
-                  | Flambda_primitive.Is_null -> f__5 ()
-                  | Flambda_primitive.Get_tag -> f__6 ()
-                  | Flambda_primitive.Array_length x__1 -> f__7 x__1
-                  | Flambda_primitive.Bigarray_length { dimension = x__1 } ->
-                    f__8 x__1
-                  | Flambda_primitive.String_length x__1 -> f__9 x__1
-                  | Flambda_primitive.Int_as_pointer x__1 -> f__10 x__1
-                  | Flambda_primitive.Opaque_identity
-                      { middle_end_only = x__1; kind = x__2 } ->
+                  | P.Is_int { variant_only = x__1 } -> f__4 x__1
+                  | P.Is_null -> f__5 ()
+                  | P.Get_tag -> f__6 ()
+                  | P.Array_length x__1 -> f__7 x__1
+                  | P.Bigarray_length { dimension = x__1 } -> f__8 x__1
+                  | P.String_length x__1 -> f__9 x__1
+                  | P.Int_as_pointer x__1 -> f__10 x__1
+                  | P.Opaque_identity { middle_end_only = x__1; kind = x__2 } ->
                     f__11 x__1 x__2
-                  | Flambda_primitive.Int_arith (x__1, x__2) -> f__12 x__1 x__2
-                  | Flambda_primitive.Float_arith (x__1, x__2) ->
-                    f__13 x__1 x__2
-                  | Flambda_primitive.Num_conv { src = x__1; dst = x__2 } ->
-                    f__14 x__1 x__2
-                  | Flambda_primitive.Boolean_not -> f__15 ()
-                  | Flambda_primitive.Reinterpret_64_bit_word x__1 -> f__16 x__1
-                  | Flambda_primitive.Reinterpret_boxed_vector -> f__17 ()
-                  | Flambda_primitive.Unbox_number x__1 -> f__18 x__1
-                  | Flambda_primitive.Box_number (x__1, x__2) -> f__19 x__1 x__2
-                  | Flambda_primitive.Untag_immediate -> f__20 ()
-                  | Flambda_primitive.Tag_immediate -> f__21 ()
-                  | Flambda_primitive.Project_function_slot
-                      { move_from = x__1; move_to = x__2 } ->
+                  | P.Int_arith (x__1, x__2) -> f__12 x__1 x__2
+                  | P.Float_arith (x__1, x__2) -> f__13 x__1 x__2
+                  | P.Num_conv { src = x__1; dst = x__2 } -> f__14 x__1 x__2
+                  | P.Boolean_not -> f__15 ()
+                  | P.Reinterpret_64_bit_word x__1 -> f__16 x__1
+                  | P.Reinterpret_boxed_vector -> f__17 ()
+                  | P.Unbox_number x__1 -> f__18 x__1
+                  | P.Box_number (x__1, x__2) -> f__19 x__1 x__2
+                  | P.Untag_immediate -> f__20 ()
+                  | P.Tag_immediate -> f__21 ()
+                  | P.Project_function_slot { move_from = x__1; move_to = x__2 }
+                    ->
                     f__22 x__1 x__2
-                  | Flambda_primitive.Project_value_slot
+                  | P.Project_value_slot
                       { project_from = x__1; value_slot = x__2 } ->
                     f__23 x__1 x__2
-                  | Flambda_primitive.Is_boxed_float -> f__24 ()
-                  | Flambda_primitive.Is_flat_float_array -> f__25 ()
-                  | Flambda_primitive.End_region { ghost = x__1 } -> f__26 x__1
-                  | Flambda_primitive.End_try_region { ghost = x__1 } ->
-                    f__27 x__1
-                  | Flambda_primitive.Obj_dup { alloc_region = x__1 } ->
-                    f__28 x__1
-                  | Flambda_primitive.Get_header -> f__29 ()
-                  | Flambda_primitive.Peek x__1 -> f__30 x__1
-                  | Flambda_primitive.Make_lazy
-                      { lazy_tag = x__1; alloc_region = x__2 } ->
+                  | P.Is_boxed_float -> f__24 ()
+                  | P.Is_flat_float_array -> f__25 ()
+                  | P.End_region { ghost = x__1 } -> f__26 x__1
+                  | P.End_try_region { ghost = x__1 } -> f__27 x__1
+                  | P.Obj_dup { alloc_region = x__1 } -> f__28 x__1
+                  | P.Get_header -> f__29 ()
+                  | P.Peek x__1 -> f__30 x__1
+                  | P.Make_lazy { lazy_tag = x__1; alloc_region = x__2 } ->
                     f__31 x__1 x__2)
                   (fun _ _ _ -> env_extension0)
                   (fun _ _ -> env_extension0)
@@ -500,10 +490,10 @@ let join_one_cse_equation machine_width cse_at_each_use prim bound_to_map =
                   (fun _ -> env_extension0)
                   (fun _ _ -> env_extension0)
                   u
-              | Flambda_primitive.Binary (_, _, _) -> env_extension0
-              | Flambda_primitive.Ternary (_, _, _, _) -> env_extension0
-              | Flambda_primitive.Quaternary (_, _, _, _, _) -> env_extension0
-              | Flambda_primitive.Variadic (_, _) -> env_extension0
+              | P.Binary (_, _, _) -> env_extension0
+              | P.Ternary (_, _, _, _) -> env_extension0
+              | P.Quaternary (_, _, _, _, _) -> env_extension0
+              | P.Variadic (_, _) -> env_extension0
             in
             let allowed0 =
               Name_occurrences.add_name allowed (Name.var var) NM.normal
@@ -538,8 +528,8 @@ let join_one_cse_equation machine_width cse_at_each_use prim bound_to_map =
         in
         let env_extension1 =
           match EP.to_primitive prim with
-          | Flambda_primitive.Nullary _ -> env_extension0
-          | Flambda_primitive.Unary (u, block) ->
+          | P.Nullary _ -> env_extension0
+          | P.Unary (u, block) ->
             (fun f__1
               f__2
               f__3
@@ -573,57 +563,50 @@ let join_one_cse_equation machine_width cse_at_each_use prim bound_to_map =
               f__31
               x__0
             ->
-              match (x__0 : Flambda_primitive.unary_primitive) with
-              | Flambda_primitive.Block_load
-                  { kind = x__1; mut = x__2; field = x__3 } ->
+              match (x__0 : P.unary_primitive) with
+              | P.Block_load { kind = x__1; mut = x__2; field = x__3 } ->
                 f__1 x__1 x__2 x__3
-              | Flambda_primitive.Duplicate_block
-                  { kind = x__1; alloc_region = x__2 } ->
+              | P.Duplicate_block { kind = x__1; alloc_region = x__2 } ->
                 f__2 x__1 x__2
-              | Flambda_primitive.Duplicate_array
+              | P.Duplicate_array
                   { kind = x__1;
                     source_mutability = x__2;
                     destination_mutability = x__3;
                     alloc_region = x__4
                   } ->
                 f__3 x__1 x__2 x__3 x__4
-              | Flambda_primitive.Is_int { variant_only = x__1 } -> f__4 x__1
-              | Flambda_primitive.Is_null -> f__5 ()
-              | Flambda_primitive.Get_tag -> f__6 ()
-              | Flambda_primitive.Array_length x__1 -> f__7 x__1
-              | Flambda_primitive.Bigarray_length { dimension = x__1 } ->
-                f__8 x__1
-              | Flambda_primitive.String_length x__1 -> f__9 x__1
-              | Flambda_primitive.Int_as_pointer x__1 -> f__10 x__1
-              | Flambda_primitive.Opaque_identity
-                  { middle_end_only = x__1; kind = x__2 } ->
+              | P.Is_int { variant_only = x__1 } -> f__4 x__1
+              | P.Is_null -> f__5 ()
+              | P.Get_tag -> f__6 ()
+              | P.Array_length x__1 -> f__7 x__1
+              | P.Bigarray_length { dimension = x__1 } -> f__8 x__1
+              | P.String_length x__1 -> f__9 x__1
+              | P.Int_as_pointer x__1 -> f__10 x__1
+              | P.Opaque_identity { middle_end_only = x__1; kind = x__2 } ->
                 f__11 x__1 x__2
-              | Flambda_primitive.Int_arith (x__1, x__2) -> f__12 x__1 x__2
-              | Flambda_primitive.Float_arith (x__1, x__2) -> f__13 x__1 x__2
-              | Flambda_primitive.Num_conv { src = x__1; dst = x__2 } ->
-                f__14 x__1 x__2
-              | Flambda_primitive.Boolean_not -> f__15 ()
-              | Flambda_primitive.Reinterpret_64_bit_word x__1 -> f__16 x__1
-              | Flambda_primitive.Reinterpret_boxed_vector -> f__17 ()
-              | Flambda_primitive.Unbox_number x__1 -> f__18 x__1
-              | Flambda_primitive.Box_number (x__1, x__2) -> f__19 x__1 x__2
-              | Flambda_primitive.Untag_immediate -> f__20 ()
-              | Flambda_primitive.Tag_immediate -> f__21 ()
-              | Flambda_primitive.Project_function_slot
-                  { move_from = x__1; move_to = x__2 } ->
+              | P.Int_arith (x__1, x__2) -> f__12 x__1 x__2
+              | P.Float_arith (x__1, x__2) -> f__13 x__1 x__2
+              | P.Num_conv { src = x__1; dst = x__2 } -> f__14 x__1 x__2
+              | P.Boolean_not -> f__15 ()
+              | P.Reinterpret_64_bit_word x__1 -> f__16 x__1
+              | P.Reinterpret_boxed_vector -> f__17 ()
+              | P.Unbox_number x__1 -> f__18 x__1
+              | P.Box_number (x__1, x__2) -> f__19 x__1 x__2
+              | P.Untag_immediate -> f__20 ()
+              | P.Tag_immediate -> f__21 ()
+              | P.Project_function_slot { move_from = x__1; move_to = x__2 } ->
                 f__22 x__1 x__2
-              | Flambda_primitive.Project_value_slot
-                  { project_from = x__1; value_slot = x__2 } ->
+              | P.Project_value_slot { project_from = x__1; value_slot = x__2 }
+                ->
                 f__23 x__1 x__2
-              | Flambda_primitive.Is_boxed_float -> f__24 ()
-              | Flambda_primitive.Is_flat_float_array -> f__25 ()
-              | Flambda_primitive.End_region { ghost = x__1 } -> f__26 x__1
-              | Flambda_primitive.End_try_region { ghost = x__1 } -> f__27 x__1
-              | Flambda_primitive.Obj_dup { alloc_region = x__1 } -> f__28 x__1
-              | Flambda_primitive.Get_header -> f__29 ()
-              | Flambda_primitive.Peek x__1 -> f__30 x__1
-              | Flambda_primitive.Make_lazy
-                  { lazy_tag = x__1; alloc_region = x__2 } ->
+              | P.Is_boxed_float -> f__24 ()
+              | P.Is_flat_float_array -> f__25 ()
+              | P.End_region { ghost = x__1 } -> f__26 x__1
+              | P.End_try_region { ghost = x__1 } -> f__27 x__1
+              | P.Obj_dup { alloc_region = x__1 } -> f__28 x__1
+              | P.Get_header -> f__29 ()
+              | P.Peek x__1 -> f__30 x__1
+              | P.Make_lazy { lazy_tag = x__1; alloc_region = x__2 } ->
                 f__31 x__1 x__2)
               (fun _ _ _ -> env_extension0)
               (fun _ _ -> env_extension0)
@@ -663,10 +646,10 @@ let join_one_cse_equation machine_width cse_at_each_use prim bound_to_map =
               (fun _ -> env_extension0)
               (fun _ _ -> env_extension0)
               u
-          | Flambda_primitive.Binary (_, _, _) -> env_extension0
-          | Flambda_primitive.Ternary (_, _, _, _) -> env_extension0
-          | Flambda_primitive.Quaternary (_, _, _, _, _) -> env_extension0
-          | Flambda_primitive.Variadic (_, _) -> env_extension0
+          | P.Binary (_, _, _) -> env_extension0
+          | P.Ternary (_, _, _, _) -> env_extension0
+          | P.Quaternary (_, _, _, _, _) -> env_extension0
+          | P.Variadic (_, _) -> env_extension0
         in
         let allowed0 =
           Name_occurrences.add_name allowed (Name.var var) NM.normal

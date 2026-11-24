@@ -55,7 +55,7 @@ let is_block t0 =
     | Set_of_closures_not_rebuilt { free_names = x__1; cost_metrics = x__2 } ->
       f__3 x__1 x__2
     | Code_not_rebuilt x__1 -> f__4 x__1)
-    (fun const _ _ -> Flambda.Static_const_or_code.is_block const)
+    (fun const _ _ -> Static_const_or_code.is_block const)
     (fun _ _ -> true)
     (fun _ _ -> false)
     (fun _ -> false)
@@ -73,7 +73,7 @@ let is_set_of_closures t0 =
     | Set_of_closures_not_rebuilt { free_names = x__1; cost_metrics = x__2 } ->
       f__3 x__1 x__2
     | Code_not_rebuilt x__1 -> f__4 x__1)
-    (fun const _ _ -> Flambda.Static_const_or_code.is_set_of_closures const)
+    (fun const _ _ -> Static_const_or_code.is_set_of_closures const)
     (fun _ _ -> false)
     (fun _ _ -> true)
     (fun _ -> false)
@@ -91,7 +91,7 @@ let is_code t0 =
     | Set_of_closures_not_rebuilt { free_names = x__1; cost_metrics = x__2 } ->
       f__3 x__1 x__2
     | Code_not_rebuilt x__1 -> f__4 x__1)
-    (fun const _ _ -> Flambda.Static_const_or_code.is_code const)
+    (fun const _ _ -> Static_const_or_code.is_code const)
     (fun _ _ -> false)
     (fun _ _ -> false)
     (fun _ -> true)
@@ -119,7 +119,7 @@ let cost_metrics t0 =
 
 let create_normal_non_code cost_metrics0 const =
   let free_names0 = Static_const.free_names const in
-  let const0 = Flambda.Static_const_or_code.create_static_const const in
+  let const0 = Static_const_or_code.create_static_const const in
   (fun (x__1, x__2, x__3) ->
     (Normal { const = x__1; free_names = x__2; cost_metrics = x__3 }
       : rebuilt_static_const))
@@ -161,7 +161,7 @@ let create_code are_rebuilding params_and_body free_names_of_params_and_body
             free_names_of_params_and_body code_metadata
         in
         let free_names0 = Code.free_names code in
-        let const = Flambda.Static_const_or_code.create_code code in
+        let const = Static_const_or_code.create_code code in
         ( (fun (x__1, x__2, x__3) ->
             (Normal { const = x__1; free_names = x__2; cost_metrics = x__3 }
               : rebuilt_static_const))
@@ -178,7 +178,7 @@ let create_code are_rebuilding params_and_body free_names_of_params_and_body
 
 let create_code' code =
   let free_names0 = Code.free_names code in
-  let const = Flambda.Static_const_or_code.create_code code in
+  let const = Static_const_or_code.create_code code in
   (fun (x__1, x__2, x__3) ->
     (Normal { const = x__1; free_names = x__2; cost_metrics = x__3 }
       : rebuilt_static_const))
@@ -196,10 +196,10 @@ let find_code_characteristics find_code_metadata code_id =
   }
 
 (** val create_set_of_closures : ART.t -> (Code_id.t -> Code_metadata.t coq_M)
-    -> Flambda.Set_of_closures.t -> t coq_M **)
+    -> Set_of_closures.t -> t coq_M **)
 
 let create_set_of_closures are_rebuilding find_code_metadata set =
-  let free_names0 = Flambda.Set_of_closures.free_names set in
+  let free_names0 = Set_of_closures.free_names set in
   let cost_metrics0 =
     Cost_metrics.set_of_closures
       (find_code_characteristics find_code_metadata)
@@ -215,7 +215,7 @@ let create_set_of_closures are_rebuilding find_code_metadata set =
     (fun (x__1, x__2, x__3) ->
       (Normal { const = x__1; free_names = x__2; cost_metrics = x__3 }
         : rebuilt_static_const))
-      ( Flambda.Static_const_or_code.create_static_const (SC.set_of_closures set),
+      ( Static_const_or_code.create_static_const (SC.set_of_closures set),
         free_names0,
         cost_metrics0 )
 
@@ -556,7 +556,7 @@ let create_immutable_string are_rebuilding str =
   else create_normal_non_code cost_metrics0 (SC.immutable_string str)
 
 (** val map_set_of_closures : t -> (Code_id.t -> Code_metadata.t coq_M) ->
-    (Flambda.Set_of_closures.t -> Flambda.Set_of_closures.t coq_M) -> t coq_M **)
+    (Set_of_closures.t -> Set_of_closures.t coq_M) -> t coq_M **)
 
 let map_set_of_closures t0 find_code_metadata f =
   (fun f__1 f__2 f__3 f__4 x__0 ->
@@ -581,11 +581,9 @@ let map_set_of_closures t0 find_code_metadata f =
               (find_code_characteristics find_code_metadata)
               set_of_closures0
           in
-          let free_names0 =
-            Flambda.Set_of_closures.free_names set_of_closures0
-          in
+          let free_names0 = Set_of_closures.free_names set_of_closures0 in
           let const1 =
-            Flambda.Static_const_or_code.create_static_const
+            Static_const_or_code.create_static_const
               (SC.set_of_closures set_of_closures0)
           in
           (fun (x__1, x__2, x__3) ->
@@ -645,7 +643,7 @@ let free_names t0 =
 
 let is_fully_static t0 = Name_occurrences.no_variables (free_names t0)
 
-(** val to_const : t -> Flambda.Static_const_or_code.t option coq_M **)
+(** val to_const : t -> Static_const_or_code.t option coq_M **)
 
 let to_const t0 =
   (fun f__1 f__2 f__3 f__4 x__0 ->
@@ -675,7 +673,7 @@ let print ppf t0 =
     | Set_of_closures_not_rebuilt { free_names = x__1; cost_metrics = x__2 } ->
       f__3 x__1 x__2
     | Code_not_rebuilt x__1 -> f__4 x__1)
-    (fun const _ _ -> Flambda.Static_const_or_code.print ppf const)
+    (fun const _ _ -> Static_const_or_code.print ppf const)
     (fun _ _ -> Format.fprintf ppf "Block_not_rebuilt")
     (fun _ _ -> Format.fprintf ppf "Set_of_closures_not_rebuilt")
     (fun code ->
@@ -689,7 +687,7 @@ let deleted_code =
   (fun (x__1, x__2, x__3) ->
     (Normal { const = x__1; free_names = x__2; cost_metrics = x__3 }
       : rebuilt_static_const))
-    ( Flambda.Static_const_or_code.deleted_code,
+    ( Static_const_or_code.deleted_code,
       Name_occurrences.empty,
       Cost_metrics.zero )
 
@@ -706,7 +704,7 @@ let make_code_deleted t0 if_code_id_is_member_of =
       f__3 x__1 x__2
     | Code_not_rebuilt x__1 -> f__4 x__1)
     (fun const _ _ ->
-      match Flambda.Static_const_or_code.to_code const with
+      match Static_const_or_code.to_code const with
       | Some code ->
         if Code_id.Set.mem (Code.code_id code) if_code_id_is_member_of
         then deleted_code
@@ -786,11 +784,11 @@ module Group = struct
       (fun cm const -> Cost_metrics.( + ) cm (cost_metrics const))
       Cost_metrics.zero (consts t0)
 
-  (** val to_named : t -> Flambda.Named.t coq_M **)
+  (** val to_named : t -> Named.t coq_M **)
 
   let to_named t0 =
-    Flambda.Named.create_static_consts
-      (Flambda.Static_const_group.create
+    Named.create_static_consts
+      (Static_const_group.create
          (ListLabels.map
             (fun const ->
               (fun f__1 f__2 f__3 f__4 x__0 ->
@@ -836,7 +834,7 @@ module Group = struct
                f__3 x__1 x__2
              | Code_not_rebuilt x__1 -> f__4 x__1)
              (fun const0 _ _ ->
-               match Flambda.Static_const_or_code.to_code const0 with
+               match Static_const_or_code.to_code const0 with
                | Some code -> Some (Code.code_id code, code)
                | None -> None)
              (fun _ _ -> None)
@@ -846,7 +844,7 @@ module Group = struct
          (consts t0))
 
   (** val function_params_and_body_for_code_not_rebuilt :
-      Flambda.Function_params_and_body.t lazy_t **)
+      Function_params_and_body.t lazy_t **)
 
   let function_params_and_body_for_code_not_rebuilt =
     lazy
@@ -883,7 +881,7 @@ module Group = struct
                     { free_names = x__1; cost_metrics = x__2 } ->
                   f__3 x__1 x__2
                 | Code_not_rebuilt x__1 -> f__4 x__1)
-                (fun const0 _ _ -> Flambda.Static_const_or_code.to_code const0)
+                (fun const0 _ _ -> Static_const_or_code.to_code const0)
                 (fun _ _ -> None)
                 (fun _ _ -> None)
                 (fun code ->

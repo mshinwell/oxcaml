@@ -37,9 +37,9 @@ let simplify_array_set array_kind array_set_kind dacc original_term dbg array
   | Or_bottom.Ok array_kind1 ->
     let () =
       match array_kind1 with
-      | Flambda_primitive.Array_kind.Immediates -> ()
-      | Flambda_primitive.Array_kind.Gc_ignorable_values -> ()
-      | Flambda_primitive.Array_kind.Values -> (
+      | P.Array_kind.Immediates -> ()
+      | P.Array_kind.Gc_ignorable_values -> ()
+      | P.Array_kind.Values -> (
         match array_set_kind with
         | P.Array_set_kind.Immediates ->
           Misc.fatal_errorf
@@ -126,19 +126,19 @@ let simplify_array_set array_kind array_set_kind dacc original_term dbg array
              array set kind %a (original array kind %a):@ %a"
             P.Array_kind.print array_kind1 P.Array_set_kind.print array_set_kind
             P.Array_kind.print orig_array_kind Named.print original_term)
-      | Flambda_primitive.Array_kind.Naked_floats -> ()
-      | Flambda_primitive.Array_kind.Naked_float32s -> ()
-      | Flambda_primitive.Array_kind.Naked_ints -> ()
-      | Flambda_primitive.Array_kind.Naked_int8s -> ()
-      | Flambda_primitive.Array_kind.Naked_int16s -> ()
-      | Flambda_primitive.Array_kind.Naked_int32s -> ()
-      | Flambda_primitive.Array_kind.Naked_int64s -> ()
-      | Flambda_primitive.Array_kind.Naked_nativeints -> ()
-      | Flambda_primitive.Array_kind.Naked_vec128s -> ()
-      | Flambda_primitive.Array_kind.Naked_vec256s -> ()
-      | Flambda_primitive.Array_kind.Naked_vec512s -> ()
-      | Flambda_primitive.Array_kind.Naked_masks -> ()
-      | Flambda_primitive.Array_kind.Unboxed_product _ -> ()
+      | P.Array_kind.Naked_floats -> ()
+      | P.Array_kind.Naked_float32s -> ()
+      | P.Array_kind.Naked_ints -> ()
+      | P.Array_kind.Naked_int8s -> ()
+      | P.Array_kind.Naked_int16s -> ()
+      | P.Array_kind.Naked_int32s -> ()
+      | P.Array_kind.Naked_int64s -> ()
+      | P.Array_kind.Naked_nativeints -> ()
+      | P.Array_kind.Naked_vec128s -> ()
+      | P.Array_kind.Naked_vec256s -> ()
+      | P.Array_kind.Naked_vec512s -> ()
+      | P.Array_kind.Naked_masks -> ()
+      | P.Array_kind.Unboxed_product _ -> ()
     in
     let named =
       Named.create_prim

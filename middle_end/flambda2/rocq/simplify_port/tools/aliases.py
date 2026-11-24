@@ -56,6 +56,18 @@ WHICH ABBREVIATIONS.
 In both cases P must name, perhaps through earlier abbreviations, a module
 that DECL_DIR declares outside module types and functors.
 
+WHERE ROCQ CHOOSES THE NAME (the type of a matched value, as decl/ wrote it:
+whole). The whole name of a declared constant or inductive type gets the
+abbreviation too, when (1) FILE.v writes that constant, or that type or a
+constructor of it, with exactly one abbreviation, (2) FILE.v never writes it
+whole, and (3) the abbreviation holds in the whole extracted file: it is
+one of Simplify_import and FILE.v binds no module or functor parameter of
+that name; or FILE.v makes it before its first definition and binds the
+name once. A module that FILE.v opens ([Import P.] before its first
+definition, with [open P] or [open! P] in its OCaml head) counts here as
+an abbreviation that is empty: a name of a module inside P is then written
+without P, if the file binds no module of that first name.
+
 THE TEXT. For a constant or an inductive type of that module, or of a module
 inside it: the text of DECL_DIR, in which each path that begins with the
 OCaml name of the module has [A] in the place of that beginning. (The OCaml
@@ -197,8 +209,10 @@ def respell(text, opath, spelling):
     def in_string(m):
         def one(t):
             p = t.group(0)
-            if p == opath or p.startswith(opath + "."):
+            if spelling and (p == opath or p.startswith(opath + ".")):
                 return spelling + p[len(opath):]
+            if not spelling and p.startswith(opath + "."):
+                return p[len(opath) + 1:]
             return p
 
         return re.sub(r"(?<![A-Za-z0-9_'.])%s" % OPATH, one, m.group(0))
@@ -230,7 +244,8 @@ def main():
     decl = Decl(decl_dir)
     logical = "SimplifyPort." + re.sub(r"\.v$", "", v_path).lstrip("./").replace("/", ".")
 
-    # (user prefix, OCaml spelling, declared module), in the order of scope
+    # (user prefix, OCaml spelling, declared module, line or None), in the
+    # order of scope
     found = []
 
     imports = False
@@ -249,7 +264,7 @@ def main():
             mod = resolve(target, env, decl)
             env[a] = mod
             if mod is not None and a not in head_binds:
-                found.append(("SimplifyPort.decl.Simplify_import." + a, a, mod))
+                found.append(("SimplifyPort.decl.Simplify_import." + a, a, mod, None))
         import_env = dict(env)
     else:
         import_env = {}
@@ -257,18 +272,31 @@ def main():
     # the file's own abbreviations, at its left margin and outside any module
     depth = 0
     env = dict(import_env) if imports else {}
-    for line in rocq.split("\n"):
+    bound = collections.Counter()  # every module name that the file binds
+    first_def = None  # the line of the first definition or module of the file
+    lines = rocq.split("\n")
+    for i, line in enumerate(lines):
+        if first_def is None and re.match(
+            r"(Definition|Fixpoint|Inductive|Record|Variant|Parameter|Axiom|Section|Notation|Extract)(?![A-Za-z0-9_'])", line
+        ):
+            first_def = i
         m = re.match(r"(\s*)Module\s+(Type\s+)?(%s)(.*)$" % NAME, line)
         if m:
             rest = m.group(4).strip()
+            bound[m.group(3)] += 1
+            for b in re.findall(r"\(\s*((?:%s\s+)*%s)\s*:" % (NAME, NAME), rest):
+                for x in b.split():
+                    bound[x] += 1
             m2 = re.match(r":=\s*([A-Za-z0-9_'.]+)\.$", rest)
             if m2 and not m.group(2):
                 if depth == 0 and m.group(1) == "":
                     mod = resolve(m2.group(1), env, decl)
                     env[m.group(3)] = mod
                     if mod is not None:
-                        found.append((logical + "." + m.group(3), m.group(3), mod))
+                        found.append((logical + "." + m.group(3), m.group(3), mod, i))
                 continue
+            if first_def is None:
+                first_def = i
             if ":=" in rest and rest.rstrip().endswith("."):
                 if depth == 0:
                     env[m.group(3)] = None
@@ -279,8 +307,10 @@ def main():
             continue
         if re.match(r"\s*End\s+%s\.\s*$" % NAME, line) and depth:
             depth -= 1
+    if first_def is None:
+        first_def = len(lines)
 
-    for prefix, spelling, mod in found:
+    for prefix, spelling, mod, _ in found:
         opath = decl.ocaml_path(mod)
         for sub in sorted(decl.constants):
             if sub[: len(mod)] != mod:
@@ -290,6 +320,73 @@ def main():
                     text = respell(text, opath, spelling)
                 ref = ".".join([prefix] + list(sub[len(mod):]) + [name])
                 print("%s %s => %s." % (kind, ref, text))
+
+    # WHERE ROCQ CHOOSES THE NAME: the whole name of a declared thing gets
+    # the abbreviation too, if the file writes that thing with one
+    # abbreviation only, never whole, and the abbreviation holds in the
+    # whole extracted file.
+    tokens = collections.Counter(
+        re.findall(r"(?<![A-Za-z0-9_'.])(%s(?:\.%s)+)" % (NAME, NAME), rocq)
+    )
+    everywhere = []
+    for prefix, spelling, mod, line in found:
+        if line is None:
+            ok = bound[spelling] == 0
+        else:
+            ok = line < first_def and bound[spelling] == 1
+        if ok:
+            everywhere.append((spelling, mod))
+    # a module that the file opens, in Rocq ([Import P.] before the first
+    # definition) and in the OCaml text of its head ([open P]): the empty
+    # abbreviation
+    head_opens = set()
+    for l in head:
+        m = re.match(r"open!?\s+(%s)\s*$" % OPATH, l)
+        if m:
+            head_opens.add(m.group(1))
+    for i, line in enumerate(lines[:first_def]):
+        m = re.match(r"Import\s+([A-Za-z0-9_'. ]+)\.\s*$", line)
+        if not m:
+            continue
+        for target in m.group(1).split():
+            mod = tuple(re.sub(r"^(SimplifyPort\.)?decl\.", "", target).split("."))
+            if mod in decl.modules and decl.ocaml_path(mod) in head_opens:
+                everywhere.append(("", mod))
+    for sub in sorted(decl.constants):
+        for kind, name, text in decl.constants[sub]:
+            names = [name]
+            if kind == "Extract Inductive":
+                for c in re.findall(r'"((?:[^"]|"")*)"', text)[1:]:
+                    if re.fullmatch(OPATH, c):
+                        names.append(c.split(".")[-1])
+            whole = ".".join(sub)
+            if any(tokens[whole + "." + n] or tokens["decl." + whole + "." + n] for n in names):
+                continue
+            used = set()
+            for spelling, mod in everywhere:
+                if sub[: len(mod)] != mod:
+                    continue
+                if spelling:
+                    short = ".".join([spelling] + list(sub[len(mod):]))
+                else:
+                    # an opened module: the name of a module inside it,
+                    # which nothing of the file may bind
+                    if len(sub) == len(mod):
+                        continue
+                    first = sub[len(mod)]
+                    if bound[first] or first in head_binds or first.endswith("_"):
+                        continue
+                    short = ".".join(sub[len(mod):])
+                if any(tokens[short + "." + n] for n in names):
+                    used.add((spelling, mod))
+            if len(used) != 1:
+                continue
+            spelling, mod = used.pop()
+            opath = decl.ocaml_path(mod)
+            if opath is None:
+                continue
+            ref = ".".join(["SimplifyPort.decl"] + list(sub) + [name])
+            print("%s %s => %s." % (kind, ref, respell(text, opath, spelling)))
 
 
 if __name__ == "__main__":

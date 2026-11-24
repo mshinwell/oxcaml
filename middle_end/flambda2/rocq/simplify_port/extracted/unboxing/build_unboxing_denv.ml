@@ -192,7 +192,7 @@ let rec denv_of_decision denv param_var = function
                        than naked_immediate.")
                   (fun t0 ctor_epa ->
                     match t0 with
-                    | Flambda_kind.Naked_number_kind.Naked_immediate ->
+                    | K.Naked_number_kind.Naked_immediate ->
                       let v =
                         VB.create
                           ctor_epa.Unboxing_types.Extra_param_and_args.param
@@ -209,47 +209,47 @@ let rec denv_of_decision denv param_var = function
                              ctor_epa.Unboxing_types.Extra_param_and_args.param)
                       in
                       denv4, ty
-                    | Flambda_kind.Naked_number_kind.Naked_float32 ->
+                    | K.Naked_number_kind.Naked_float32 ->
                       Misc.fatal_errorf
                         "Variant constant constructor unboxed with a kind \
                          other than naked_immediate."
-                    | Flambda_kind.Naked_number_kind.Naked_float ->
+                    | K.Naked_number_kind.Naked_float ->
                       Misc.fatal_errorf
                         "Variant constant constructor unboxed with a kind \
                          other than naked_immediate."
-                    | Flambda_kind.Naked_number_kind.Naked_int8 ->
+                    | K.Naked_number_kind.Naked_int8 ->
                       Misc.fatal_errorf
                         "Variant constant constructor unboxed with a kind \
                          other than naked_immediate."
-                    | Flambda_kind.Naked_number_kind.Naked_int16 ->
+                    | K.Naked_number_kind.Naked_int16 ->
                       Misc.fatal_errorf
                         "Variant constant constructor unboxed with a kind \
                          other than naked_immediate."
-                    | Flambda_kind.Naked_number_kind.Naked_int32 ->
+                    | K.Naked_number_kind.Naked_int32 ->
                       Misc.fatal_errorf
                         "Variant constant constructor unboxed with a kind \
                          other than naked_immediate."
-                    | Flambda_kind.Naked_number_kind.Naked_int64 ->
+                    | K.Naked_number_kind.Naked_int64 ->
                       Misc.fatal_errorf
                         "Variant constant constructor unboxed with a kind \
                          other than naked_immediate."
-                    | Flambda_kind.Naked_number_kind.Naked_nativeint ->
+                    | K.Naked_number_kind.Naked_nativeint ->
                       Misc.fatal_errorf
                         "Variant constant constructor unboxed with a kind \
                          other than naked_immediate."
-                    | Flambda_kind.Naked_number_kind.Naked_vec128 ->
+                    | K.Naked_number_kind.Naked_vec128 ->
                       Misc.fatal_errorf
                         "Variant constant constructor unboxed with a kind \
                          other than naked_immediate."
-                    | Flambda_kind.Naked_number_kind.Naked_vec256 ->
+                    | K.Naked_number_kind.Naked_vec256 ->
                       Misc.fatal_errorf
                         "Variant constant constructor unboxed with a kind \
                          other than naked_immediate."
-                    | Flambda_kind.Naked_number_kind.Naked_vec512 ->
+                    | K.Naked_number_kind.Naked_vec512 ->
                       Misc.fatal_errorf
                         "Variant constant constructor unboxed with a kind \
                          other than naked_immediate."
-                    | Flambda_kind.Naked_number_kind.Naked_mask ->
+                    | K.Naked_number_kind.Naked_mask ->
                       Misc.fatal_errorf
                         "Variant constant constructor unboxed with a kind \
                          other than naked_immediate.")
@@ -370,7 +370,7 @@ let rec denv_of_decision denv param_var = function
           vars_within_closure denv1)
       (fun t0 t1 ->
         match t0 with
-        | Flambda_kind.Naked_number_kind.Naked_immediate ->
+        | K.Naked_number_kind.Naked_immediate ->
           let { U.Extra_param_and_args.param = naked_immediate;
                 U.Extra_param_and_args.param_debug_uid = param_debug_uid0;
                 U.Extra_param_and_args.args = _
@@ -380,7 +380,7 @@ let rec denv_of_decision denv param_var = function
           let shape = T.tagged_immediate_alias_to naked_immediate in
           denv_of_number_decision K.naked_immediate shape param_var
             param_debug_uid0 naked_immediate denv
-        | Flambda_kind.Naked_number_kind.Naked_float32 ->
+        | K.Naked_number_kind.Naked_float32 ->
           let { U.Extra_param_and_args.param = naked_float32;
                 U.Extra_param_and_args.param_debug_uid = param_debug_uid0;
                 U.Extra_param_and_args.args = _
@@ -393,7 +393,7 @@ let rec denv_of_decision denv param_var = function
           in
           denv_of_number_decision K.naked_float32 shape param_var
             param_debug_uid0 naked_float32 denv
-        | Flambda_kind.Naked_number_kind.Naked_float ->
+        | K.Naked_number_kind.Naked_float ->
           let { U.Extra_param_and_args.param = naked_float;
                 U.Extra_param_and_args.param_debug_uid = param_debug_uid0;
                 U.Extra_param_and_args.args = _
@@ -405,7 +405,7 @@ let rec denv_of_decision denv param_var = function
           in
           denv_of_number_decision K.naked_float shape param_var param_debug_uid0
             naked_float denv
-        | Flambda_kind.Naked_number_kind.Naked_int8 ->
+        | K.Naked_number_kind.Naked_int8 ->
           let { U.Extra_param_and_args.param = naked_int8;
                 U.Extra_param_and_args.param_debug_uid = param_debug_uid0;
                 U.Extra_param_and_args.args = _
@@ -415,7 +415,7 @@ let rec denv_of_decision denv param_var = function
           let shape = T.any_naked_int8 in
           denv_of_number_decision K.naked_int8 shape param_var param_debug_uid0
             naked_int8 denv
-        | Flambda_kind.Naked_number_kind.Naked_int16 ->
+        | K.Naked_number_kind.Naked_int16 ->
           let { U.Extra_param_and_args.param = naked_int16;
                 U.Extra_param_and_args.param_debug_uid = param_debug_uid0;
                 U.Extra_param_and_args.args = _
@@ -425,7 +425,7 @@ let rec denv_of_decision denv param_var = function
           let shape = T.any_naked_int16 in
           denv_of_number_decision K.naked_int16 shape param_var param_debug_uid0
             naked_int16 denv
-        | Flambda_kind.Naked_number_kind.Naked_int32 ->
+        | K.Naked_number_kind.Naked_int32 ->
           let { U.Extra_param_and_args.param = naked_int32;
                 U.Extra_param_and_args.param_debug_uid = param_debug_uid0;
                 U.Extra_param_and_args.args = _
@@ -437,7 +437,7 @@ let rec denv_of_decision denv param_var = function
           in
           denv_of_number_decision K.naked_int32 shape param_var param_debug_uid0
             naked_int32 denv
-        | Flambda_kind.Naked_number_kind.Naked_int64 ->
+        | K.Naked_number_kind.Naked_int64 ->
           let { U.Extra_param_and_args.param = naked_int64;
                 U.Extra_param_and_args.param_debug_uid = param_debug_uid0;
                 U.Extra_param_and_args.args = _
@@ -449,7 +449,7 @@ let rec denv_of_decision denv param_var = function
           in
           denv_of_number_decision K.naked_int64 shape param_var param_debug_uid0
             naked_int64 denv
-        | Flambda_kind.Naked_number_kind.Naked_nativeint ->
+        | K.Naked_number_kind.Naked_nativeint ->
           let { U.Extra_param_and_args.param = naked_nativeint;
                 U.Extra_param_and_args.param_debug_uid = param_debug_uid0;
                 U.Extra_param_and_args.args = _
@@ -462,7 +462,7 @@ let rec denv_of_decision denv param_var = function
           in
           denv_of_number_decision K.naked_nativeint shape param_var
             param_debug_uid0 naked_nativeint denv
-        | Flambda_kind.Naked_number_kind.Naked_vec128 ->
+        | K.Naked_number_kind.Naked_vec128 ->
           let { U.Extra_param_and_args.param = naked_vec128;
                 U.Extra_param_and_args.param_debug_uid = param_debug_uid0;
                 U.Extra_param_and_args.args = _
@@ -475,7 +475,7 @@ let rec denv_of_decision denv param_var = function
           in
           denv_of_number_decision K.naked_vec128 shape param_var
             param_debug_uid0 naked_vec128 denv
-        | Flambda_kind.Naked_number_kind.Naked_vec256 ->
+        | K.Naked_number_kind.Naked_vec256 ->
           let { U.Extra_param_and_args.param = naked_vec256;
                 U.Extra_param_and_args.param_debug_uid = param_debug_uid0;
                 U.Extra_param_and_args.args = _
@@ -488,7 +488,7 @@ let rec denv_of_decision denv param_var = function
           in
           denv_of_number_decision K.naked_vec256 shape param_var
             param_debug_uid0 naked_vec256 denv
-        | Flambda_kind.Naked_number_kind.Naked_vec512 ->
+        | K.Naked_number_kind.Naked_vec512 ->
           let { U.Extra_param_and_args.param = naked_vec512;
                 U.Extra_param_and_args.param_debug_uid = param_debug_uid0;
                 U.Extra_param_and_args.args = _
@@ -501,7 +501,7 @@ let rec denv_of_decision denv param_var = function
           in
           denv_of_number_decision K.naked_vec512 shape param_var
             param_debug_uid0 naked_vec512 denv
-        | Flambda_kind.Naked_number_kind.Naked_mask ->
+        | K.Naked_number_kind.Naked_mask ->
           let { U.Extra_param_and_args.param = naked_mask;
                 U.Extra_param_and_args.param_debug_uid = param_debug_uid0;
                 U.Extra_param_and_args.args = _

@@ -278,9 +278,9 @@ let simplified_terminator simplified_terminator0 =
       Removed_operations.zero,
       false )
 
-(** val simplified_apply : (_) Flambda_arity.t option -> Flambda.Import.Apply.t
-    -> Apply_cont_rewrite_id.t option -> Apply_cont_rewrite_id.t -> bool -> t
-    coq_M **)
+(** val simplified_apply : (_) Flambda_arity.t option -> Apply.t ->
+    Apply_cont_rewrite_id.t option -> Apply_cont_rewrite_id.t -> bool -> t coq_M
+    **)
 
 let simplified_apply result_arity apply use_id exn_cont_use_id is_cold =
   let result_arity0 =
@@ -300,7 +300,7 @@ let simplified_apply result_arity apply use_id exn_cont_use_id is_cold =
             : simplified_apply))
           (apply, use_id, exn_cont_use_id, result_arity0, is_cold)))
 
-(** val simplified_apply_cont : Flambda.Import.Apply_cont.t -> Simple.t list ->
+(** val simplified_apply_cont : Apply_cont.t -> Simple.t list ->
     Apply_cont_rewrite_id.t -> t coq_M **)
 
 let simplified_apply_cont apply_cont args rewrite_id =

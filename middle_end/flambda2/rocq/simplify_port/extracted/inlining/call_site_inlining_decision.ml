@@ -31,10 +31,9 @@ module UA = Upwards_acc
 module UE = Upwards_env
 module FT = Flambda2_types.Function_type
 
-(** val speculative_inlining : DA.t -> Flambda.Import.Apply.t -> FT.t ->
-    Flambda.Import.Expr.t Simplify_common.expr_simplifier -> Simplified_expr.t
-    Simplify_common.rebuild -> [ `Complex ] Flambda_arity.t -> Cost_metrics.t
-    coq_M **)
+(** val speculative_inlining : DA.t -> Apply.t -> FT.t -> Expr.t
+    Simplify_common.expr_simplifier -> Simplified_expr.t Simplify_common.rebuild
+    -> [ `Complex ] Flambda_arity.t -> Cost_metrics.t coq_M **)
 
 let speculative_inlining dacc apply function_type simplify_expr rebuild_expr
     return_arity =
@@ -55,13 +54,13 @@ let speculative_inlining dacc apply function_type simplify_expr rebuild_expr
     simplify_expr dacc2 expr (fun dacc3 expr0 -> expr0, dacc3)
   in
   let _, uacc =
-    let exn_continuation = Flambda.Import.Apply.exn_continuation apply in
+    let exn_continuation = Apply.exn_continuation apply in
     let dacc4 =
       DA.map_flow_acc dacc3 (Flow.Acc.exit_continuation dummy_toplevel_cont)
     in
     let data_flow = DA.flow_acc dacc4 in
     let function_return_cont =
-      match Flambda.Import.Apply.continuation apply with
+      match Apply.continuation apply with
       | Apply_expr.Result_continuation.Return cont -> cont
       | Apply_expr.Result_continuation.Never_returns ->
         (fun x__1 x__2 x__3 -> Continuation.create ?sort:x__1 ?name:x__2 x__3)
@@ -89,7 +88,7 @@ let speculative_inlining dacc apply function_type simplify_expr rebuild_expr
            (Flambda_kind.With_subkind.any_value :: []))
     in
     let uenv0 =
-      match Flambda.Import.Apply.continuation apply with
+      match Apply.continuation apply with
       | Apply_expr.Result_continuation.Return return_continuation ->
         UE.add_function_return_or_exn_continuation uenv return_continuation
           false
@@ -126,8 +125,8 @@ let argument_types_useful__ =
   Oxcaml_args.Extra_options.symbol __LOC__ "argument-types-useful" Coarse
     ["coarse", Coarse; "fine", Fine]
 
-(** val argument_types_useful : DA.t -> Flambda.Import.Apply.t ->
-    Code_metadata.t -> bool coq_M **)
+(** val argument_types_useful : DA.t -> Apply.t -> Code_metadata.t -> bool coq_M
+    **)
 
 let argument_types_useful dacc apply code_metadata =
   if
@@ -146,7 +145,7 @@ let argument_types_useful dacc apply code_metadata =
               let ty = TE.find typing_env name None in
               not (T.is_unknown_maybe_null typing_env ty))
             (fun _ -> true))
-        (Flambda.Import.Apply.args apply)
+        (Apply.args apply)
     | Fine ->
       let arity = Code_metadata.params_arity code_metadata in
       List.exists2
@@ -170,7 +169,7 @@ let argument_types_useful dacc apply code_metadata =
                         Flambda_kind.With_subkind.Nullable.Non_nullable))
               | None -> true))
         (Flambda_arity.unarize arity)
-        (Flambda.Import.Apply.args apply)
+        (Apply.args apply)
 
 (** val inlining_does_decrease_code_size : Code_metadata.t -> Cost_metrics.t ->
     bool coq_M **)
@@ -182,10 +181,10 @@ let inlining_does_decrease_code_size code_metadata cost_metrics =
   let inlined_code_size = Cost_metrics.size cost_metrics in
   not (Code_size.( <= ) original_code_size inlined_code_size)
 
-(** val might_inline : DA.t -> Flambda.Import.Apply.t -> Code_metadata.t -> FT.t
-    -> Flambda.Import.Expr.t Simplify_common.expr_simplifier ->
-    Simplified_expr.t Simplify_common.rebuild -> [ `Complex ] Flambda_arity.t ->
-    Call_site_inlining_decision_type.t coq_M **)
+(** val might_inline : DA.t -> Apply.t -> Code_metadata.t -> FT.t -> Expr.t
+    Simplify_common.expr_simplifier -> Simplified_expr.t Simplify_common.rebuild
+    -> [ `Complex ] Flambda_arity.t -> Call_site_inlining_decision_type.t coq_M
+    **)
 
 let might_inline dacc apply code_metadata function_type simplify_expr
     rebuild_expr return_arity =
@@ -466,7 +465,7 @@ let might_inline dacc apply code_metadata function_type simplify_expr
           let inlining_args =
             Inlining_arguments.combine
               (DE.inlining_arguments denv)
-              (Flambda.Import.Apply.inlining_arguments apply)
+              (Apply.inlining_arguments apply)
           in
           let evaluated_to = Cost_metrics.evaluate inlining_args cost_metrics in
           let threshold = Inlining_arguments.threshold inlining_args in
@@ -500,19 +499,18 @@ let might_inline dacc apply code_metadata function_type simplify_expr
 let get_rec_info dacc function_type =
   let rec_info = FT.rec_info function_type in
   (fun f__1 f__2 f__3 x__0 ->
-    match (x__0 : _ Flambda2_types.meet_shortcut) with
-    | Flambda2_types.Known_result x__1 -> f__1 x__1
-    | Flambda2_types.Need_meet -> f__2 ()
-    | Flambda2_types.Invalid -> f__3 ())
+    match (x__0 : _ T.meet_shortcut) with
+    | T.Known_result x__1 -> f__1 x__1
+    | T.Need_meet -> f__2 ()
+    | T.Invalid -> f__3 ())
     (fun rec_info0 -> rec_info0)
     (fun _ -> Rec_info_expr.unknown)
     (fun _ -> Rec_info_expr.do_not_inline)
     (Flambda2_types.meet_rec_info (DA.typing_env dacc) rec_info)
 
-(** val make_decision0 : DA.t -> Flambda.Import.Expr.t
-    Simplify_common.expr_simplifier -> Simplified_expr.t Simplify_common.rebuild
-    -> FT.t -> Flambda.Import.Apply.t -> [ `Complex ] Flambda_arity.t ->
-    Call_site_inlining_decision_type.t coq_M **)
+(** val make_decision0 : DA.t -> Expr.t Simplify_common.expr_simplifier ->
+    Simplified_expr.t Simplify_common.rebuild -> FT.t -> Apply.t -> [ `Complex ]
+    Flambda_arity.t -> Call_site_inlining_decision_type.t coq_M **)
 
 let make_decision0 dacc simplify_expr rebuild_expr function_type apply
     return_arity =
@@ -534,7 +532,7 @@ let make_decision0 dacc simplify_expr rebuild_expr function_type apply
     decision
   in
   let rec_info = get_rec_info dacc function_type in
-  let inlined = Flambda.Import.Apply.inlined apply in
+  let inlined = Apply.inlined apply in
   match inlined with
   | Inlined_attribute.Always_inlined _ ->
     Port_monad.match_exn
@@ -577,9 +575,7 @@ let make_decision0 dacc simplify_expr rebuild_expr function_type apply
             inline_if_code_present
               Call_site_inlining_decision_type.Continue_unrolling
         | None -> (
-          let apply_inlining_state =
-            Flambda.Import.Apply.inlining_state apply
-          in
+          let apply_inlining_state = Apply.inlining_state apply in
           let recursive = Code_metadata.recursive code_metadata in
           if Inlining_state.is_depth_exceeded apply_inlining_state
           then
@@ -691,9 +687,7 @@ let make_decision0 dacc simplify_expr rebuild_expr function_type apply
             inline_if_code_present
               Call_site_inlining_decision_type.Continue_unrolling
         | None -> (
-          let apply_inlining_state =
-            Flambda.Import.Apply.inlining_state apply
-          in
+          let apply_inlining_state = Apply.inlining_state apply in
           let recursive = Code_metadata.recursive code_metadata in
           if Inlining_state.is_depth_exceeded apply_inlining_state
           then
@@ -811,9 +805,7 @@ let make_decision0 dacc simplify_expr rebuild_expr function_type apply
             inline_if_code_present
               Call_site_inlining_decision_type.Continue_unrolling
         | None -> (
-          let apply_inlining_state =
-            Flambda.Import.Apply.inlining_state apply
-          in
+          let apply_inlining_state = Apply.inlining_state apply in
           let recursive = Code_metadata.recursive code_metadata in
           if Inlining_state.is_depth_exceeded apply_inlining_state
           then
@@ -925,9 +917,7 @@ let make_decision0 dacc simplify_expr rebuild_expr function_type apply
             inline_if_code_present
               Call_site_inlining_decision_type.Continue_unrolling
         | None -> (
-          let apply_inlining_state =
-            Flambda.Import.Apply.inlining_state apply
-          in
+          let apply_inlining_state = Apply.inlining_state apply in
           let recursive = Code_metadata.recursive code_metadata in
           if Inlining_state.is_depth_exceeded apply_inlining_state
           then
@@ -999,10 +989,9 @@ let make_decision0 dacc simplify_expr rebuild_expr function_type apply
               inline_if_code_present
                 Call_site_inlining_decision_type.Attribute_always))
 
-(** val make_decision : DA.t -> Flambda.Import.Expr.t
-    Simplify_common.expr_simplifier -> Simplified_expr.t Simplify_common.rebuild
-    -> FT.t -> Flambda.Import.Apply.t -> [ `Complex ] Flambda_arity.t ->
-    Call_site_inlining_decision_type.t coq_M **)
+(** val make_decision : DA.t -> Expr.t Simplify_common.expr_simplifier ->
+    Simplified_expr.t Simplify_common.rebuild -> FT.t -> Apply.t -> [ `Complex ]
+    Flambda_arity.t -> Call_site_inlining_decision_type.t coq_M **)
 
 let make_decision dacc simplify_expr rebuild_expr function_type apply
     return_arity =

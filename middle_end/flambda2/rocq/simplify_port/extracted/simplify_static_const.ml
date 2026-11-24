@@ -95,9 +95,8 @@ let simplify_static_const_block_type machine_width tag fields shape is_mutable =
     T.immutable_block machine_width true tag0 shape0 Alloc_mode.For_types.heap
       fields
 
-(** val simplify_static_const_of_kind_value : DA.t ->
-    Flambda.Import.Static_const.t -> Symbol.t -> (Rebuilt_static_const.t * DA.t)
-    coq_M **)
+(** val simplify_static_const_of_kind_value : DA.t -> Static_const.t -> Symbol.t
+    -> (Rebuilt_static_const.t * DA.t) coq_M **)
 
 let simplify_static_const_of_kind_value dacc static_const result_sym =
   let bind_result_sym =
@@ -115,9 +114,9 @@ let simplify_static_const_of_kind_value dacc static_const result_sym =
     let fields_with_tys =
       let fields_with_kinds =
         match shape with
-        | Flambda_kind.Scannable_block_shape.Value_only ->
+        | K.Scannable_block_shape.Value_only ->
           List.map (fun field -> field, K.value) fields
-        | Flambda_kind.Scannable_block_shape.Mixed_record shape0 ->
+        | K.Scannable_block_shape.Mixed_record shape0 ->
           List.combine fields
             (Array.to_list (K.Mixed_block_shape.field_kinds shape0))
       in
@@ -328,28 +327,24 @@ let simplify_static_const_of_kind_value dacc static_const result_sym =
         str,
       dacc0 )
 
-(** val simplify_static_consts : DA.t -> Bound_static.t ->
-    Flambda.Import.Static_const_group.t ->
-    Simplify_common.simplify_function_body -> (Bound_static.t,
+(** val simplify_static_consts : DA.t -> Bound_static.t -> Static_const_group.t
+    -> Simplify_common.simplify_function_body -> (Bound_static.t,
     Rebuilt_static_const.Group.t, DA.t) Port_monad.tuple3 coq_M **)
 
 let simplify_static_consts dacc bound_static static_consts
     simplify_function_body =
   let bound_static_list = Bound_static.to_list bound_static in
-  let static_consts_list =
-    Flambda.Import.Static_const_group.to_list static_consts
-  in
+  let static_consts_list = Static_const_group.to_list static_consts in
   let () =
     if List.compare_lengths bound_static_list static_consts_list <> 0
     then
       Misc.fatal_errorf "Bound symbols don't match static constants:@ %a@ =@ %a"
-        Bound_static.print bound_static Flambda.Import.Static_const_group.print
-        static_consts
+        Bound_static.print bound_static Static_const_group.print static_consts
     else ()
   in
   let dacc0 =
-    Flambda.Import.Static_const_group.match_against_bound_static static_consts
-      bound_static dacc
+    Static_const_group.match_against_bound_static static_consts bound_static
+      dacc
       (fun dacc0 _ _ -> dacc0)
       (fun dacc0 _ -> dacc0)
       (fun dacc0 closure_symbols _ ->
@@ -360,9 +355,7 @@ let simplify_static_consts dacc bound_static static_consts
           closure_symbols dacc0)
       (fun dacc0 _ _ -> dacc0)
   in
-  let all_code =
-    Flambda.Import.Static_const_group.pieces_of_code static_consts
-  in
+  let all_code = Static_const_group.pieces_of_code static_consts in
   let dacc1 =
     let old_code_ids =
       Code_id.Map.fold
@@ -381,8 +374,8 @@ let simplify_static_consts dacc bound_static static_consts
     DA.add_code_ids_never_simplified dacc0 old_code_ids
   in
   let bound_static', static_consts', dacc2 =
-    Flambda.Import.Static_const_group.match_against_bound_static static_consts
-      bound_static ([], [], dacc1)
+    Static_const_group.match_against_bound_static static_consts bound_static
+      ([], [], dacc1)
       (fun pat ->
         let bound_static0, static_consts0, dacc2 = pat in
         fun code_id code ->
@@ -404,10 +397,7 @@ let simplify_static_consts dacc bound_static static_consts
               in
               match Rebuilt_static_const.to_const static_const with
               | Some static_const_or_code -> (
-                match
-                  Flambda.Import.Static_const_or_code.to_code
-                    static_const_or_code
-                with
+                match Static_const_or_code.to_code static_const_or_code with
                 | Some code0 -> code0, static_const, dacc_after_function0
                 | None -> assert false)
               | None -> code, Rebuilt_static_const.create_code' code, dacc3
@@ -434,8 +424,8 @@ let simplify_static_consts dacc bound_static static_consts
   let bound_static'0 = Bound_static.create bound_static' in
   let static_consts'0 = Rebuilt_static_const.Group.create static_consts' in
   let closure_bound_names_all_sets, all_sets_of_closures_and_symbols =
-    Flambda.Import.Static_const_group.match_against_bound_static static_consts
-      bound_static ([], [])
+    Static_const_group.match_against_bound_static static_consts bound_static
+      ([], [])
       (fun acc _ _ -> acc)
       (fun acc _ -> acc)
       (fun pat ->

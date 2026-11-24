@@ -292,10 +292,8 @@ Simplifys do not treat alike. Never commit that tree.
 WHERE THE EXTRACTED TEXT IS NOT THE COMPILER'S (directives alone cannot):
 no labels; `let () = e in` for `e;`; a variable that is bound again gets a
 number (`dacc0`, `dacc1`), also one with the name of a field of a record
-that the file defines; a constructor in a pattern under another pattern,
-and a name that a text of `decl/` holds besides its own, have the whole
-module name (`Flambda_kind.Boxable_number.Naked_float32`) even where the
-file writes the short one; the cases of a match are in the order of the type;
+that the file defines; a name that a text of `decl/` holds besides its own
+has the whole module name; the cases of a match are in the order of the type;
 `a :: []` for `[a]`; an optional argument is the applied text `(fun x__1
 x__2 -> F.f ?l:x__1 x__2) None a`; a match on a variant with an inline
 record, and the building of such a constructor, are applied functions (`(fun
@@ -327,12 +325,21 @@ of `Simplify_import`, when the file says `Require Import Simplify_import`
 and its OCaml head says `open! Simplify_import` (one of them is left out
 if the OCaml head binds a module of that name); and those that the file
 makes at its left margin, outside any module. In both, the module must be
-one that `decl/` declares outside functors and module types. What it
-cannot reach: the name that Rocq itself chooses for the type of a match
-(the type of the matched value as `decl/` wrote it, whole), and an
-abbreviation that is only OCaml text in the head of the file (Rocq does not
-know it: the names stay whole). An abbreviation made inside a module of
-the file is not handled either.
+one that `decl/` declares outside functors and module types.
+WHERE ROCQ CHOOSES THE NAME ITSELF (the type of a matched value, which it
+takes as `decl/` wrote it: whole), the whole name gets the abbreviation
+too, if the file writes that type and its constructors with ONE
+abbreviation and never whole, and the abbreviation holds in the whole
+extracted file (one of `Simplify_import` that the file does not bind again;
+or one that the file makes before its first definition and binds once). So
+write a type's constructors in one way in a file. A module that the file
+opens (`Import Flambda.Import_.` before the first definition, `open!
+Flambda.Import` in the OCaml head) counts as an abbreviation that is empty:
+`Named.create_simple` is printed so.
+What the tool cannot reach: an abbreviation that is only OCaml text in the
+head of the file (Rocq does not know it: the names stay whole; make it
+Rocq's `Module A := P.`); one made inside a module of the file; a name
+inside a Rocq functor; a name that a text of `decl/` holds besides its own.
 
 KNOWN PROBLEMS OF THE EXTRACTION (the human has put them off; none is
 checked by a tool, but the first in part). In the identity build `M A` is

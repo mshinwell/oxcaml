@@ -58,7 +58,7 @@ let create_empty dacc0 =
   { dacc = dacc0; bindings_to_place = []; was_lifted_set_of_closures = false }
 
 (** val create_have_lifted_set_of_closures : Downwards_acc.t -> (Bound_var.t *
-    Symbol.t) list -> Flambda.Import.Named.t -> t coq_M **)
+    Symbol.t) list -> Named.t -> t coq_M **)
 
 let create_have_lifted_set_of_closures dacc0 bound_vars_to_symbols
     original_defining_expr =
@@ -70,7 +70,7 @@ let create_have_lifted_set_of_closures dacc0 bound_vars_to_symbols
           let var, sym = pat in
           let simplified_defining_expr =
             Simplified_named.create machine_width
-              (Flambda.Import.Named.create_simple (Simple.symbol sym))
+              (Named.create_simple (Simple.symbol sym))
           in
           let let_bound = Bound_pattern.singleton var in
           (fun (x__1, x__2, x__3) ->

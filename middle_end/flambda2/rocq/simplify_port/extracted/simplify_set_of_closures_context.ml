@@ -337,10 +337,10 @@ let compute_and_erase_depth_variables typing_env denv_inside_functions
                             (Name.var var) None
                         in
                         match T.kind ty0 with
-                        | Flambda_kind.Value -> free_depth_variables
-                        | Flambda_kind.Naked_number _ -> free_depth_variables
-                        | Flambda_kind.Region -> free_depth_variables
-                        | Flambda_kind.Rec_info ->
+                        | K.Value -> free_depth_variables
+                        | K.Naked_number _ -> free_depth_variables
+                        | K.Region -> free_depth_variables
+                        | K.Rec_info ->
                           Variable.Set.add var free_depth_variables))
                   value_slot_types))
            value_slot_types_all_sets)

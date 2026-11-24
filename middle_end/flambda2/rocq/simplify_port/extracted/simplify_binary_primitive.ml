@@ -720,13 +720,13 @@ functor
 
     let result_kind = Flambda_kind.Standard_int_or_float.to_kind arg_kind
 
-    (** val prover_lhs : Flambda2_types.Typing_env.t -> Flambda2_types.t ->
-        I.Num.Set_.t Flambda2_types.meet_shortcut coq_M **)
+    (** val prover_lhs : T.Typing_env.t -> T.t -> I.Num.Set_.t T.meet_shortcut
+        coq_M **)
 
     let prover_lhs = I.unboxed_prover
 
-    (** val prover_rhs : Flambda2_types.Typing_env.t -> Flambda2_types.t ->
-        I.Num.Set_.t Flambda2_types.meet_shortcut coq_M **)
+    (** val prover_rhs : T.Typing_env.t -> T.t -> I.Num.Set_.t T.meet_shortcut
+        coq_M **)
 
     let prover_rhs = I.unboxed_prover
 
@@ -755,7 +755,7 @@ functor
       in
       ty, simple_opt
 
-    (** val term : I.Num.t -> Flambda.Named.t coq_M **)
+    (** val term : I.Num.t -> Named.t coq_M **)
 
     let term = I.term_unboxed
 
@@ -977,8 +977,8 @@ functor
 
     let ok_to_evaluate _ = true
 
-    (** val prover_lhs : Flambda2_types.Typing_env.t -> Flambda2_types.t ->
-        I.Num.Set_.t Flambda2_types.meet_shortcut coq_M **)
+    (** val prover_lhs : T.Typing_env.t -> T.t -> I.Num.Set_.t T.meet_shortcut
+        coq_M **)
 
     let prover_lhs = I.unboxed_prover
 
@@ -1012,7 +1012,7 @@ functor
       in
       ty, simple_opt
 
-    (** val term : I.Num.t -> Flambda.Named.t coq_M **)
+    (** val term : I.Num.t -> Named.t coq_M **)
 
     let term = I.term_unboxed
 
@@ -1153,13 +1153,13 @@ functor
 
     let ok_to_evaluate _ = true
 
-    (** val prover_lhs : Flambda2_types.Typing_env.t -> Flambda2_types.t ->
-        I.Num.Set_.t Flambda2_types.meet_shortcut coq_M **)
+    (** val prover_lhs : T.Typing_env.t -> T.t -> I.Num.Set_.t T.meet_shortcut
+        coq_M **)
 
     let prover_lhs = I.unboxed_prover
 
-    (** val prover_rhs : Flambda2_types.Typing_env.t -> Flambda2_types.t ->
-        I.Num.Set_.t Flambda2_types.meet_shortcut coq_M **)
+    (** val prover_rhs : T.Typing_env.t -> T.t -> I.Num.Set_.t T.meet_shortcut
+        coq_M **)
 
     let prover_rhs = I.unboxed_prover
 
@@ -1460,8 +1460,7 @@ module Float_ops_for_binary_arith_FP = struct
 
   let these = T.these_naked_floats
 
-  (** val const : Numeric_types.Float_by_bit_pattern.t -> Reg_width_const.t
-      coq_M **)
+  (** val const : Numeric_types.Float_by_bit_pattern.t -> Const.t coq_M **)
 
   let const = Reg_width_const.naked_float
 end
@@ -1497,8 +1496,7 @@ module Float32_ops_for_binary_arith_FP = struct
 
   let these = T.these_naked_float32s
 
-  (** val const : Numeric_types.Float32_by_bit_pattern.t -> Reg_width_const.t
-      coq_M **)
+  (** val const : Numeric_types.Float32_by_bit_pattern.t -> Const.t coq_M **)
 
   let const = Reg_width_const.naked_float32
 end
@@ -1934,51 +1932,39 @@ let simplify_binary_primitive0 dacc original_prim prim arg1 arg1_ty arg2 arg2_ty
       (fun op0 -> simplify_phys_equal op0)
       (fun kind op0 ->
         match kind with
-        | Flambda_kind.Standard_int.Tagged_immediate ->
+        | K.Standard_int.Tagged_immediate ->
           Binary_int_arith_tagged_immediate.simplify op0
-        | Flambda_kind.Standard_int.Naked_immediate ->
+        | K.Standard_int.Naked_immediate ->
           Binary_int_arith_naked_immediate.simplify op0
-        | Flambda_kind.Standard_int.Naked_int8 ->
-          Binary_int_arith_int8.simplify op0
-        | Flambda_kind.Standard_int.Naked_int16 ->
-          Binary_int_arith_int16.simplify op0
-        | Flambda_kind.Standard_int.Naked_int32 ->
-          Binary_int_arith_int32.simplify op0
-        | Flambda_kind.Standard_int.Naked_int64 ->
-          Binary_int_arith_int64.simplify op0
-        | Flambda_kind.Standard_int.Naked_nativeint ->
+        | K.Standard_int.Naked_int8 -> Binary_int_arith_int8.simplify op0
+        | K.Standard_int.Naked_int16 -> Binary_int_arith_int16.simplify op0
+        | K.Standard_int.Naked_int32 -> Binary_int_arith_int32.simplify op0
+        | K.Standard_int.Naked_int64 -> Binary_int_arith_int64.simplify op0
+        | K.Standard_int.Naked_nativeint ->
           Binary_int_arith_nativeint.simplify op0)
       (fun kind op0 ->
         match kind with
-        | Flambda_kind.Standard_int.Tagged_immediate ->
+        | K.Standard_int.Tagged_immediate ->
           Binary_int_shift_tagged_immediate.simplify op0
-        | Flambda_kind.Standard_int.Naked_immediate ->
+        | K.Standard_int.Naked_immediate ->
           Binary_int_shift_naked_immediate.simplify op0
-        | Flambda_kind.Standard_int.Naked_int8 ->
-          Binary_int_shift_int8.simplify op0
-        | Flambda_kind.Standard_int.Naked_int16 ->
-          Binary_int_shift_int16.simplify op0
-        | Flambda_kind.Standard_int.Naked_int32 ->
-          Binary_int_shift_int32.simplify op0
-        | Flambda_kind.Standard_int.Naked_int64 ->
-          Binary_int_shift_int64.simplify op0
-        | Flambda_kind.Standard_int.Naked_nativeint ->
+        | K.Standard_int.Naked_int8 -> Binary_int_shift_int8.simplify op0
+        | K.Standard_int.Naked_int16 -> Binary_int_shift_int16.simplify op0
+        | K.Standard_int.Naked_int32 -> Binary_int_shift_int32.simplify op0
+        | K.Standard_int.Naked_int64 -> Binary_int_shift_int64.simplify op0
+        | K.Standard_int.Naked_nativeint ->
           Binary_int_shift_nativeint.simplify op0)
       (fun kind op0 ->
         match kind with
-        | Flambda_kind.Standard_int.Tagged_immediate ->
+        | K.Standard_int.Tagged_immediate ->
           Binary_int_comp_tagged_immediate.simplify op0
-        | Flambda_kind.Standard_int.Naked_immediate ->
+        | K.Standard_int.Naked_immediate ->
           Binary_int_comp_naked_immediate.simplify op0
-        | Flambda_kind.Standard_int.Naked_int8 ->
-          Binary_int_comp_int8.simplify op0
-        | Flambda_kind.Standard_int.Naked_int16 ->
-          Binary_int_comp_int16.simplify op0
-        | Flambda_kind.Standard_int.Naked_int32 ->
-          Binary_int_comp_int32.simplify op0
-        | Flambda_kind.Standard_int.Naked_int64 ->
-          Binary_int_comp_int64.simplify op0
-        | Flambda_kind.Standard_int.Naked_nativeint ->
+        | K.Standard_int.Naked_int8 -> Binary_int_comp_int8.simplify op0
+        | K.Standard_int.Naked_int16 -> Binary_int_comp_int16.simplify op0
+        | K.Standard_int.Naked_int32 -> Binary_int_comp_int32.simplify op0
+        | K.Standard_int.Naked_int64 -> Binary_int_comp_int64.simplify op0
+        | K.Standard_int.Naked_nativeint ->
           Binary_int_comp_nativeint.simplify op0)
       (fun f op0 ->
         match f with
@@ -2091,7 +2077,7 @@ let recover_comparison_primitive dacc prim arg1 arg2 =
       match c with
       | P.Yielding_bool op0 -> (
         match kind with
-        | Flambda_kind.Standard_int.Tagged_immediate ->
+        | K.Standard_int.Tagged_immediate ->
           let swapped_op =
             (fun f__1 f__2 f__3 f__4 f__5 f__6 x__0 ->
               match (x__0 : _ P.comparison) with
@@ -2110,12 +2096,12 @@ let recover_comparison_primitive dacc prim arg1 arg2 =
               op0
           in
           try_both_directions op0 swapped_op
-        | Flambda_kind.Standard_int.Naked_immediate -> None
-        | Flambda_kind.Standard_int.Naked_int8 -> None
-        | Flambda_kind.Standard_int.Naked_int16 -> None
-        | Flambda_kind.Standard_int.Naked_int32 -> None
-        | Flambda_kind.Standard_int.Naked_int64 -> None
-        | Flambda_kind.Standard_int.Naked_nativeint -> None)
+        | K.Standard_int.Naked_immediate -> None
+        | K.Standard_int.Naked_int8 -> None
+        | K.Standard_int.Naked_int16 -> None
+        | K.Standard_int.Naked_int32 -> None
+        | K.Standard_int.Naked_int64 -> None
+        | K.Standard_int.Naked_nativeint -> None)
       | P.Yielding_int_like_compare_functions _ -> None)
     (fun _ _ -> None)
     (fun _ _ -> None)

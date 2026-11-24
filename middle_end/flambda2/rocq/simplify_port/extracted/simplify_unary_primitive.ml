@@ -1143,15 +1143,15 @@ let simplify_obj_dup alloc_region dbg dacc original_term arg arg_ty result_var =
           (fun contents ->
             let boxer =
               match boxable_number with
-              | Flambda_kind.Boxable_number.Naked_float32 -> T.box_float32
-              | Flambda_kind.Boxable_number.Naked_float -> T.box_float
-              | Flambda_kind.Boxable_number.Naked_int32 -> T.box_int32
-              | Flambda_kind.Boxable_number.Naked_int64 -> T.box_int64
-              | Flambda_kind.Boxable_number.Naked_nativeint -> T.box_nativeint
-              | Flambda_kind.Boxable_number.Naked_vec128 -> T.box_vec128
-              | Flambda_kind.Boxable_number.Naked_vec256 -> T.box_vec256
-              | Flambda_kind.Boxable_number.Naked_vec512 -> T.box_vec512
-              | Flambda_kind.Boxable_number.Naked_mask -> T.box_mask
+              | K.Boxable_number.Naked_float32 -> T.box_float32
+              | K.Boxable_number.Naked_float -> T.box_float
+              | K.Boxable_number.Naked_int32 -> T.box_int32
+              | K.Boxable_number.Naked_int64 -> T.box_int64
+              | K.Boxable_number.Naked_nativeint -> T.box_nativeint
+              | K.Boxable_number.Naked_vec128 -> T.box_vec128
+              | K.Boxable_number.Naked_vec256 -> T.box_vec256
+              | K.Boxable_number.Naked_vec512 -> T.box_vec512
+              | K.Boxable_number.Naked_mask -> T.box_mask
             in
             let ty = boxer contents_ty Alloc_mode.For_types.heap in
             let dacc0 = DA.add_variable dacc result_var ty in
@@ -1211,15 +1211,15 @@ let simplify_obj_dup alloc_region dbg dacc original_term arg arg_ty result_var =
           (fun contents ->
             let boxer =
               match boxable_number with
-              | Flambda_kind.Boxable_number.Naked_float32 -> T.box_float32
-              | Flambda_kind.Boxable_number.Naked_float -> T.box_float
-              | Flambda_kind.Boxable_number.Naked_int32 -> T.box_int32
-              | Flambda_kind.Boxable_number.Naked_int64 -> T.box_int64
-              | Flambda_kind.Boxable_number.Naked_nativeint -> T.box_nativeint
-              | Flambda_kind.Boxable_number.Naked_vec128 -> T.box_vec128
-              | Flambda_kind.Boxable_number.Naked_vec256 -> T.box_vec256
-              | Flambda_kind.Boxable_number.Naked_vec512 -> T.box_vec512
-              | Flambda_kind.Boxable_number.Naked_mask -> T.box_mask
+              | K.Boxable_number.Naked_float32 -> T.box_float32
+              | K.Boxable_number.Naked_float -> T.box_float
+              | K.Boxable_number.Naked_int32 -> T.box_int32
+              | K.Boxable_number.Naked_int64 -> T.box_int64
+              | K.Boxable_number.Naked_nativeint -> T.box_nativeint
+              | K.Boxable_number.Naked_vec128 -> T.box_vec128
+              | K.Boxable_number.Naked_vec256 -> T.box_vec256
+              | K.Boxable_number.Naked_vec512 -> T.box_vec512
+              | K.Boxable_number.Naked_mask -> T.box_mask
             in
             let ty = boxer contents_ty Alloc_mode.For_types.heap in
             let dacc0 = DA.add_variable dacc result_var ty in
@@ -1343,13 +1343,13 @@ let simplify_immutable_block_load0 access_kind field min_name_mode dacc
                     (fun _ _ _ shape0 ->
                       let () =
                         match shape_from_type with
-                        | Flambda_kind.Block_shape.Scannable t1 -> (
+                        | K.Block_shape.Scannable t1 -> (
                           match t1 with
-                          | Flambda_kind.Scannable_block_shape.Value_only ->
+                          | K.Scannable_block_shape.Value_only ->
                             Misc.fatal_error
                               "Block access kind disagrees with block shape \
                                from type"
-                          | Flambda_kind.Scannable_block_shape.Mixed_record
+                          | K.Scannable_block_shape.Mixed_record
                               shape_from_type0 ->
                             if K.Mixed_block_shape.equal shape0 shape_from_type0
                             then ()
@@ -1357,7 +1357,7 @@ let simplify_immutable_block_load0 access_kind field min_name_mode dacc
                               Misc.fatal_error
                                 "Block access kind disagrees with block shape \
                                  from type")
-                        | Flambda_kind.Block_shape.Float_record ->
+                        | K.Block_shape.Float_record ->
                           Misc.fatal_error
                             "Block access kind disagrees with block shape from \
                              type"
@@ -1566,19 +1566,15 @@ let simplify_unary_primitive dacc original_prim prim arg arg_ty dbg result_var =
       (fun _ kind dacc0 -> simplify_opaque_identity dacc0 kind)
       (fun kind op ->
         match kind with
-        | Flambda_kind.Standard_int.Tagged_immediate ->
+        | K.Standard_int.Tagged_immediate ->
           Unary_int_arith_tagged_immediate.simplify op
-        | Flambda_kind.Standard_int.Naked_immediate ->
+        | K.Standard_int.Naked_immediate ->
           Unary_int_arith_naked_immediate.simplify op
-        | Flambda_kind.Standard_int.Naked_int8 ->
-          Unary_int_arith_naked_int8.simplify op
-        | Flambda_kind.Standard_int.Naked_int16 ->
-          Unary_int_arith_naked_int16.simplify op
-        | Flambda_kind.Standard_int.Naked_int32 ->
-          Unary_int_arith_naked_int32.simplify op
-        | Flambda_kind.Standard_int.Naked_int64 ->
-          Unary_int_arith_naked_int64.simplify op
-        | Flambda_kind.Standard_int.Naked_nativeint ->
+        | K.Standard_int.Naked_int8 -> Unary_int_arith_naked_int8.simplify op
+        | K.Standard_int.Naked_int16 -> Unary_int_arith_naked_int16.simplify op
+        | K.Standard_int.Naked_int32 -> Unary_int_arith_naked_int32.simplify op
+        | K.Standard_int.Naked_int64 -> Unary_int_arith_naked_int64.simplify op
+        | K.Standard_int.Naked_nativeint ->
           Unary_int_arith_naked_nativeint.simplify op)
       (fun f op ->
         match f with
@@ -1586,23 +1582,23 @@ let simplify_unary_primitive dacc original_prim prim arg arg_ty dbg result_var =
         | P.Float64 -> simplify_float_arith_op op)
       (fun src dst ->
         match src with
-        | Flambda_kind.Standard_int_or_float.Tagged_immediate ->
+        | K.Standard_int_or_float.Tagged_immediate ->
           Simplify_int_conv_tagged_immediate.simplify dst
-        | Flambda_kind.Standard_int_or_float.Naked_immediate ->
+        | K.Standard_int_or_float.Naked_immediate ->
           Simplify_int_conv_naked_immediate.simplify dst
-        | Flambda_kind.Standard_int_or_float.Naked_float32 ->
+        | K.Standard_int_or_float.Naked_float32 ->
           Simplify_int_conv_naked_float32.simplify dst
-        | Flambda_kind.Standard_int_or_float.Naked_float ->
+        | K.Standard_int_or_float.Naked_float ->
           Simplify_int_conv_naked_float.simplify dst
-        | Flambda_kind.Standard_int_or_float.Naked_int8 ->
+        | K.Standard_int_or_float.Naked_int8 ->
           Simplify_int_conv_naked_int8.simplify dst
-        | Flambda_kind.Standard_int_or_float.Naked_int16 ->
+        | K.Standard_int_or_float.Naked_int16 ->
           Simplify_int_conv_naked_int16.simplify dst
-        | Flambda_kind.Standard_int_or_float.Naked_int32 ->
+        | K.Standard_int_or_float.Naked_int32 ->
           Simplify_int_conv_naked_int32.simplify dst
-        | Flambda_kind.Standard_int_or_float.Naked_int64 ->
+        | K.Standard_int_or_float.Naked_int64 ->
           Simplify_int_conv_naked_int64.simplify dst
-        | Flambda_kind.Standard_int_or_float.Naked_nativeint ->
+        | K.Standard_int_or_float.Naked_nativeint ->
           Simplify_int_conv_naked_nativeint.simplify dst)
       (fun _ -> simplify_boolean_not)
       (fun reinterpret -> simplify_reinterpret_64_bit_word reinterpret)

@@ -152,167 +152,167 @@ let simplify_comparison dbg dacc cont tagged_prim float_prim boxed_int_prim a b
     match b0 with
     | T.Boxed (_, t0, _) -> (
       match t0 with
-      | Flambda_kind.Boxable_number.Naked_float32 -> (
+      | K.Boxable_number.Naked_float32 -> (
         match m0 with
         | T.Proved b1 -> (
           match b1 with
           | T.Boxed (_, t3, _) -> (
             match t3 with
-            | Flambda_kind.Boxable_number.Naked_float32 ->
+            | K.Boxable_number.Naked_float32 ->
               simplify_comparison_of_boxed_numbers dbg dacc
                 K.Boxable_number.Naked_float32
                 (float_prim Flambda_primitive.Float32)
                 cont a b
-            | Flambda_kind.Boxable_number.Naked_float ->
+            | K.Boxable_number.Naked_float ->
               (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown
-            | Flambda_kind.Boxable_number.Naked_int32 ->
+            | K.Boxable_number.Naked_int32 ->
               (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown
-            | Flambda_kind.Boxable_number.Naked_int64 ->
+            | K.Boxable_number.Naked_int64 ->
               (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown
-            | Flambda_kind.Boxable_number.Naked_nativeint ->
+            | K.Boxable_number.Naked_nativeint ->
               (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown
-            | Flambda_kind.Boxable_number.Naked_vec128 ->
+            | K.Boxable_number.Naked_vec128 ->
               (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown
-            | Flambda_kind.Boxable_number.Naked_vec256 ->
+            | K.Boxable_number.Naked_vec256 ->
               (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown
-            | Flambda_kind.Boxable_number.Naked_vec512 ->
+            | K.Boxable_number.Naked_vec512 ->
               (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown
-            | Flambda_kind.Boxable_number.Naked_mask ->
+            | K.Boxable_number.Naked_mask ->
               (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown
             )
           | T.Tagged_immediate ->
             (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown)
         | T.Unknown ->
           (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown)
-      | Flambda_kind.Boxable_number.Naked_float -> (
+      | K.Boxable_number.Naked_float -> (
         match m0 with
         | T.Proved b1 -> (
           match b1 with
           | T.Boxed (_, t3, _) -> (
             match t3 with
-            | Flambda_kind.Boxable_number.Naked_float32 ->
+            | K.Boxable_number.Naked_float32 ->
               (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown
-            | Flambda_kind.Boxable_number.Naked_float ->
+            | K.Boxable_number.Naked_float ->
               simplify_comparison_of_boxed_numbers dbg dacc
                 K.Boxable_number.Naked_float
                 (float_prim Flambda_primitive.Float64)
                 cont a b
-            | Flambda_kind.Boxable_number.Naked_int32 ->
+            | K.Boxable_number.Naked_int32 ->
               (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown
-            | Flambda_kind.Boxable_number.Naked_int64 ->
+            | K.Boxable_number.Naked_int64 ->
               (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown
-            | Flambda_kind.Boxable_number.Naked_nativeint ->
+            | K.Boxable_number.Naked_nativeint ->
               (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown
-            | Flambda_kind.Boxable_number.Naked_vec128 ->
+            | K.Boxable_number.Naked_vec128 ->
               (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown
-            | Flambda_kind.Boxable_number.Naked_vec256 ->
+            | K.Boxable_number.Naked_vec256 ->
               (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown
-            | Flambda_kind.Boxable_number.Naked_vec512 ->
+            | K.Boxable_number.Naked_vec512 ->
               (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown
-            | Flambda_kind.Boxable_number.Naked_mask ->
+            | K.Boxable_number.Naked_mask ->
               (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown
             )
           | T.Tagged_immediate ->
             (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown)
         | T.Unknown ->
           (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown)
-      | Flambda_kind.Boxable_number.Naked_int32 -> (
+      | K.Boxable_number.Naked_int32 -> (
         match m0 with
         | T.Proved b1 -> (
           match b1 with
           | T.Boxed (_, t3, _) -> (
             match t3 with
-            | Flambda_kind.Boxable_number.Naked_float32 ->
+            | K.Boxable_number.Naked_float32 ->
               (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown
-            | Flambda_kind.Boxable_number.Naked_float ->
+            | K.Boxable_number.Naked_float ->
               (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown
-            | Flambda_kind.Boxable_number.Naked_int32 ->
+            | K.Boxable_number.Naked_int32 ->
               simplify_comparison_of_boxed_numbers dbg dacc
                 K.Boxable_number.Naked_int32
                 (boxed_int_prim K.Standard_int.Naked_int32)
                 cont a b
-            | Flambda_kind.Boxable_number.Naked_int64 ->
+            | K.Boxable_number.Naked_int64 ->
               (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown
-            | Flambda_kind.Boxable_number.Naked_nativeint ->
+            | K.Boxable_number.Naked_nativeint ->
               (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown
-            | Flambda_kind.Boxable_number.Naked_vec128 ->
+            | K.Boxable_number.Naked_vec128 ->
               (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown
-            | Flambda_kind.Boxable_number.Naked_vec256 ->
+            | K.Boxable_number.Naked_vec256 ->
               (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown
-            | Flambda_kind.Boxable_number.Naked_vec512 ->
+            | K.Boxable_number.Naked_vec512 ->
               (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown
-            | Flambda_kind.Boxable_number.Naked_mask ->
+            | K.Boxable_number.Naked_mask ->
               (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown
             )
           | T.Tagged_immediate ->
             (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown)
         | T.Unknown ->
           (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown)
-      | Flambda_kind.Boxable_number.Naked_int64 -> (
+      | K.Boxable_number.Naked_int64 -> (
         match m0 with
         | T.Proved b1 -> (
           match b1 with
           | T.Boxed (_, t3, _) -> (
             match t3 with
-            | Flambda_kind.Boxable_number.Naked_float32 ->
+            | K.Boxable_number.Naked_float32 ->
               (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown
-            | Flambda_kind.Boxable_number.Naked_float ->
+            | K.Boxable_number.Naked_float ->
               (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown
-            | Flambda_kind.Boxable_number.Naked_int32 ->
+            | K.Boxable_number.Naked_int32 ->
               (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown
-            | Flambda_kind.Boxable_number.Naked_int64 ->
+            | K.Boxable_number.Naked_int64 ->
               simplify_comparison_of_boxed_numbers dbg dacc
                 K.Boxable_number.Naked_int64
                 (boxed_int_prim K.Standard_int.Naked_int64)
                 cont a b
-            | Flambda_kind.Boxable_number.Naked_nativeint ->
+            | K.Boxable_number.Naked_nativeint ->
               (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown
-            | Flambda_kind.Boxable_number.Naked_vec128 ->
+            | K.Boxable_number.Naked_vec128 ->
               (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown
-            | Flambda_kind.Boxable_number.Naked_vec256 ->
+            | K.Boxable_number.Naked_vec256 ->
               (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown
-            | Flambda_kind.Boxable_number.Naked_vec512 ->
+            | K.Boxable_number.Naked_vec512 ->
               (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown
-            | Flambda_kind.Boxable_number.Naked_mask ->
+            | K.Boxable_number.Naked_mask ->
               (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown
             )
           | T.Tagged_immediate ->
             (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown)
         | T.Unknown ->
           (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown)
-      | Flambda_kind.Boxable_number.Naked_nativeint -> (
+      | K.Boxable_number.Naked_nativeint -> (
         match m0 with
         | T.Proved b1 -> (
           match b1 with
           | T.Boxed (_, t3, _) -> (
             match t3 with
-            | Flambda_kind.Boxable_number.Naked_float32 ->
+            | K.Boxable_number.Naked_float32 ->
               (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown
-            | Flambda_kind.Boxable_number.Naked_float ->
+            | K.Boxable_number.Naked_float ->
               (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown
-            | Flambda_kind.Boxable_number.Naked_int32 ->
+            | K.Boxable_number.Naked_int32 ->
               (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown
-            | Flambda_kind.Boxable_number.Naked_int64 ->
+            | K.Boxable_number.Naked_int64 ->
               (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown
-            | Flambda_kind.Boxable_number.Naked_nativeint ->
+            | K.Boxable_number.Naked_nativeint ->
               simplify_comparison_of_boxed_numbers dbg dacc
                 K.Boxable_number.Naked_nativeint
                 (boxed_int_prim K.Standard_int.Naked_nativeint)
                 cont a b
-            | Flambda_kind.Boxable_number.Naked_vec128 ->
+            | K.Boxable_number.Naked_vec128 ->
               (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown
-            | Flambda_kind.Boxable_number.Naked_vec256 ->
+            | K.Boxable_number.Naked_vec256 ->
               (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown
-            | Flambda_kind.Boxable_number.Naked_vec512 ->
+            | K.Boxable_number.Naked_vec512 ->
               (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown
-            | Flambda_kind.Boxable_number.Naked_mask ->
+            | K.Boxable_number.Naked_mask ->
               (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown
             )
           | T.Tagged_immediate ->
             (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown)
         | T.Unknown ->
           (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown)
-      | Flambda_kind.Boxable_number.Naked_vec128 -> (
+      | K.Boxable_number.Naked_vec128 -> (
         match m0 with
         | T.Proved b1 -> (
           match b1 with
@@ -322,7 +322,7 @@ let simplify_comparison dbg dacc cont tagged_prim float_prim boxed_int_prim a b
             (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown)
         | T.Unknown ->
           (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown)
-      | Flambda_kind.Boxable_number.Naked_vec256 -> (
+      | K.Boxable_number.Naked_vec256 -> (
         match m0 with
         | T.Proved b1 -> (
           match b1 with
@@ -332,7 +332,7 @@ let simplify_comparison dbg dacc cont tagged_prim float_prim boxed_int_prim a b
             (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown)
         | T.Unknown ->
           (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown)
-      | Flambda_kind.Boxable_number.Naked_vec512 -> (
+      | K.Boxable_number.Naked_vec512 -> (
         match m0 with
         | T.Proved b1 -> (
           match b1 with
@@ -342,7 +342,7 @@ let simplify_comparison dbg dacc cont tagged_prim float_prim boxed_int_prim a b
             (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown)
         | T.Unknown ->
           (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown)
-      | Flambda_kind.Boxable_number.Naked_mask -> (
+      | K.Boxable_number.Naked_mask -> (
         match m0 with
         | T.Proved b1 -> (
           match b1 with

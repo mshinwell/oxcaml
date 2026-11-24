@@ -39,12 +39,12 @@ let depth c = c.depth
 let structural_hash c = c.structural_hash
 
 type t =
-  { expr : Flambda.Import.Expr.t;
+  { expr : Expr.t;
     is_cold : bool;
     contents_hash : contents_hash_ Or_null.t
   }
 
-(** val expr : t -> Flambda.Import.Expr.t **)
+(** val expr : t -> Expr.t **)
 
 let expr t0 = t0.expr
 
@@ -64,8 +64,7 @@ let mark_as_cold t0 = (fun t is_cold -> { t with is_cold }) t0 true
 
 let max_hash_depth = 32
 
-(** val create : contents_hash_ option -> bool -> Flambda.Import.Expr.t -> t
-    coq_M **)
+(** val create : contents_hash_ option -> bool -> Expr.t -> t coq_M **)
 
 let create contents_hash0 is_cold0 expr0 =
   let contents_hash1 =
@@ -81,7 +80,7 @@ let create contents_hash0 is_cold0 expr0 =
 
 type rebuilt_expr = t
 
-(** val to_expr : t -> ART.t -> Flambda.Import.Expr.t coq_M **)
+(** val to_expr : t -> ART.t -> Expr.t coq_M **)
 
 let to_expr t0 are_rebuilding =
   if ART.do_not_rebuild_terms are_rebuilding
@@ -93,9 +92,9 @@ let to_expr t0 are_rebuilding =
 
 (** val descr : t -> Flambda.expr_descr coq_M **)
 
-let descr t0 = Flambda.Import.Expr.descr t0.expr
+let descr t0 = Expr.descr t0.expr
 
-(** val to_apply_cont : t -> Flambda.Import.Apply_cont.t option coq_M **)
+(** val to_apply_cont : t -> Apply_cont.t option coq_M **)
 
 let to_apply_cont t0 =
   (fun f__1 f__2 f__3 f__4 f__5 f__6 x__0 ->
@@ -142,7 +141,7 @@ let can_be_removed_as_invalid t0 are_rebuilding =
 let print are_rebuilding ppf t0 =
   if ART.do_not_rebuild_terms are_rebuilding
   then Format.fprintf ppf "<unavailable, terms not being rebuilt>"
-  else Flambda.Import.Expr.print ppf t0.expr
+  else Expr.print ppf t0.expr
 
 (** val term_not_rebuilt : t **)
 
@@ -160,7 +159,7 @@ let contents_hash_simple simple =
       Hashtbl.hash (1, Symbol.hash symbol, has_coercion))
     (fun const -> Hashtbl.hash (0, Reg_width_const.hash const))
 
-(** val create_let : ART.t -> Bound_pattern.t -> Flambda.Import.Named.t -> t ->
+(** val create_let : ART.t -> Bound_pattern.t -> Named.t -> t ->
     Name_occurrences.t -> t coq_M **)
 
 let create_let are_rebuilding bound_vars defining_expr body free_names_of_body =
@@ -193,22 +192,22 @@ let create_let are_rebuilding bound_vars defining_expr body free_names_of_body =
         | Flambda.Rec_info _ -> None)
     in
     create contents_hash0 body.is_cold
-      (Flambda.Import.Expr.create_let
-         (Flambda.Import.Let.create bound_vars defining_expr body.expr
+      (Expr.create_let
+         (Let.create bound_vars defining_expr body.expr
             (Or_unknown.Known free_names_of_body)))
 
-(** val create_apply : ART.t -> bool -> Flambda.Import.Apply.t -> t coq_M **)
+(** val create_apply : ART.t -> bool -> Apply.t -> t coq_M **)
 
 let create_apply are_rebuilding is_cold0 apply =
   if ART.do_not_rebuild_terms are_rebuilding
   then term_not_rebuilt
-  else create None is_cold0 (Flambda.Import.Expr.create_apply apply)
+  else create None is_cold0 (Expr.create_apply apply)
 
-(** val create_apply_cont : bool -> Flambda.Import.Apply_cont.t -> t coq_M **)
+(** val create_apply_cont : bool -> Apply_cont.t -> t coq_M **)
 
 let create_apply_cont is_cold0 apply_cont =
   let contents_hash0 =
-    match Flambda.Import.Apply_cont.trap_action apply_cont with
+    match Apply_cont.trap_action apply_cont with
     | Some _ -> None
     | None ->
       Some
@@ -216,14 +215,11 @@ let create_apply_cont is_cold0 apply_cont =
           structural_hash =
             Hashtbl.hash
               ( 0,
-                Continuation.hash
-                  (Flambda.Import.Apply_cont.continuation apply_cont),
-                List.map contents_hash_simple
-                  (Flambda.Import.Apply_cont.args apply_cont) )
+                Continuation.hash (Apply_cont.continuation apply_cont),
+                List.map contents_hash_simple (Apply_cont.args apply_cont) )
         }
   in
-  create contents_hash0 is_cold0
-    (Flambda.Import.Expr.create_apply_cont apply_cont)
+  create contents_hash0 is_cold0 (Expr.create_apply_cont apply_cont)
 
 module Function_params_and_body = struct
   type t = Flambda.Import.Function_params_and_body.t
@@ -336,7 +332,7 @@ let create_non_recursive_let_cont are_rebuilding cont handler0 body
       Continuation_handler.to_continuation_handler body.is_cold handler0
     in
     create None body.is_cold
-      (Flambda.Import.Let_cont.create_non_recursive cont handler1 body.expr
+      (Let_cont.create_non_recursive cont handler1 body.expr
          (Or_unknown.Known free_names_of_body))
 
 (** val create_non_recursive_let_cont' : ART.t -> Continuation.t ->
@@ -351,7 +347,7 @@ let create_non_recursive_let_cont' are_rebuilding cont handler0 body
       Continuation_handler.to_continuation_handler body.is_cold handler0
     in
     create None body.is_cold
-      (Flambda.Import.Let_cont.create_non_recursive' cont handler1 body.expr
+      (Let_cont.create_non_recursive' cont handler1 body.expr
          (Or_unknown.Known num_free_occurrences_of_cont_in_body)
          is_applied_with_traps)
 
@@ -367,8 +363,7 @@ let create_non_recursive_let_cont_without_free_names are_rebuilding cont
       Continuation_handler.to_continuation_handler body.is_cold handler0
     in
     create None body.is_cold
-      (Flambda.Import.Let_cont.create_non_recursive cont handler1 body.expr
-         Or_unknown.Unknown)
+      (Let_cont.create_non_recursive cont handler1 body.expr Or_unknown.Unknown)
 
 (** val create_recursive_let_cont : ART.t -> Bound_parameters.t ->
     Continuation_handler.t Continuation.Lmap.t -> t -> t coq_M **)
@@ -383,25 +378,22 @@ let create_recursive_let_cont are_rebuilding invariant_params handlers body =
         handlers
     in
     create None body.is_cold
-      (Flambda.Import.Let_cont.create_recursive invariant_params handlers0
-         body.expr)
+      (Let_cont.create_recursive invariant_params handlers0 body.expr)
 
 (** val create_switch : ART.t -> bool -> Switch_expr.t -> t coq_M **)
 
 let create_switch are_rebuilding is_cold0 switch =
   if ART.do_not_rebuild_terms are_rebuilding
   then term_not_rebuilt
-  else create None is_cold0 (Flambda.Import.Expr.create_switch switch)
+  else create None is_cold0 (Expr.create_switch switch)
 
 (** val create_invalid : Flambda.Invalid.t -> t coq_M **)
 
-let create_invalid reason =
-  create None true (Flambda.Import.Expr.create_invalid reason)
+let create_invalid reason = create None true (Expr.create_invalid reason)
 
-(** val bind_no_simplification : ART.t -> (Bound_var.t, Code_size.t,
-    Flambda.Import.Named.t) Port_monad.tuple3 list -> t -> Cost_metrics.t ->
-    Name_occurrences.t -> (t, Cost_metrics.t, Name_occurrences.t)
-    Port_monad.tuple3 coq_M **)
+(** val bind_no_simplification : ART.t -> (Bound_var.t, Code_size.t, Named.t)
+    Port_monad.tuple3 list -> t -> Cost_metrics.t -> Name_occurrences.t -> (t,
+    Cost_metrics.t, Name_occurrences.t) Port_monad.tuple3 coq_M **)
 
 let bind_no_simplification are_rebuilding bindings body cost_metrics_of_body
     free_names_of_body =
@@ -416,7 +408,7 @@ let bind_no_simplification are_rebuilding bindings body cost_metrics_of_body
       in
       let free_names0 =
         Name_occurrences.union
-          (Flambda.Import.Named.free_names defining_expr)
+          (Named.free_names defining_expr)
           (Name_occurrences.remove_var free_names (Bound_var.var var))
       in
       let is_phantom = Name_mode.is_phantom (Bound_var.name_mode var) in
@@ -667,8 +659,7 @@ module Matching_for_unique_handler = struct
       (Flambda_primitive.args prim1)
       (Flambda_primitive.args prim2)
 
-  (** val match_named : matching_env -> Flambda.Import.Named.t ->
-      Flambda.Import.Named.t -> unit coq_M **)
+  (** val match_named : matching_env -> Named.t -> Named.t -> unit coq_M **)
 
   let match_named env named1 named2 =
     match named1 with
@@ -690,12 +681,11 @@ module Matching_for_unique_handler = struct
     | Flambda.Static_consts _ -> fail ()
     | Flambda.Rec_info _ -> fail ()
 
-  (** val match_expr : matching_env -> Flambda.Import.Expr.t ->
-      Flambda.Import.Expr.t -> unit coq_M **)
+  (** val match_expr : matching_env -> Expr.t -> Expr.t -> unit coq_M **)
 
   let rec match_expr env t1 t2 =
-    let descr2 = Flambda.Import.Expr.descr t2 in
-    let descr1 = Flambda.Import.Expr.descr t1 in
+    let descr2 = Expr.descr t2 in
+    let descr1 = Expr.descr t1 in
     (fun f__1 f__2 f__3 f__4 f__5 f__6 x__0 ->
       match (x__0 : Flambda.expr_descr) with
       | Flambda.Let x__1 -> f__1 x__1
@@ -742,23 +732,22 @@ module Matching_for_unique_handler = struct
       (fun _ -> fail ())
       descr1
 
-  (** val match_let_expr : matching_env -> Flambda.Import.Let.t ->
-      Flambda.Import.Let.t -> unit coq_M **)
+  (** val match_let_expr : matching_env -> Let.t -> Let.t -> unit coq_M **)
 
   and match_let_expr env let_expr1 let_expr2 =
     let () =
       match_named env
-        (Flambda.Import.Let.defining_expr let_expr1)
-        (Flambda.Import.Let.defining_expr let_expr2)
+        (Let.defining_expr let_expr1)
+        (Let.defining_expr let_expr2)
     in
-    Flambda.Import.Let.pattern_match let_expr1 (fun bound_pattern1 body1 ->
-        Flambda.Import.Let.pattern_match let_expr2 (fun bound_pattern2 body2 ->
+    Let.pattern_match let_expr1 (fun bound_pattern1 body1 ->
+        Let.pattern_match let_expr2 (fun bound_pattern2 body2 ->
             match bound_pattern1 with
             | Bound_pattern.Singleton bound_var1 -> (
               match bound_pattern2 with
               | Bound_pattern.Singleton bound_var2 ->
                 let body3 =
-                  Flambda.Import.Expr.apply_renaming body2
+                  Expr.apply_renaming body2
                     (Renaming.add_variable Renaming.empty
                        (Bound_var.var bound_var2) (Bound_var.var bound_var1))
                 in
@@ -768,12 +757,12 @@ module Matching_for_unique_handler = struct
             | Bound_pattern.Set_of_closures _ -> fail ()
             | Bound_pattern.Static _ -> fail ()))
 
-  (** val match_apply_cont : matching_env -> Flambda.Import.Apply_cont.t ->
-      Flambda.Import.Apply_cont.t -> unit coq_M **)
+  (** val match_apply_cont : matching_env -> Apply_cont.t -> Apply_cont.t ->
+      unit coq_M **)
 
   and match_apply_cont env apply_cont1 apply_cont2 =
-    let trap_action2 = Flambda.Import.Apply_cont.trap_action apply_cont2 in
-    let trap_action1 = Flambda.Import.Apply_cont.trap_action apply_cont1 in
+    let trap_action2 = Apply_cont.trap_action apply_cont2 in
+    let trap_action1 = Apply_cont.trap_action apply_cont1 in
     match trap_action1 with
     | Some _ -> fail ()
     | None -> (
@@ -782,16 +771,15 @@ module Matching_for_unique_handler = struct
       | None ->
         let () =
           fail_if_not_equal Continuation.equal
-            (Flambda.Import.Apply_cont.continuation apply_cont1)
-            (Flambda.Import.Apply_cont.continuation apply_cont2)
+            (Apply_cont.continuation apply_cont1)
+            (Apply_cont.continuation apply_cont2)
         in
         match_simples env
-          (Flambda.Import.Apply_cont.args apply_cont1)
-          (Flambda.Import.Apply_cont.args apply_cont2))
+          (Apply_cont.args apply_cont1)
+          (Apply_cont.args apply_cont2))
 
-  (** val match_permutable_continuation_handler : Bound_parameters.t ->
-      Flambda.Import.Expr.t -> Bound_parameters.t -> Flambda.Import.Expr.t ->
-      Simple.t list coq_M **)
+  (** val match_permutable_continuation_handler : Bound_parameters.t -> Expr.t
+      -> Bound_parameters.t -> Expr.t -> Simple.t list coq_M **)
 
   let match_permutable_continuation_handler params3 handler1 params4 handler2 =
     let permutation = Match_permutable_parameters.create params3 params4 in
@@ -820,8 +808,7 @@ module Matching_for_unique_handler = struct
       (Bound_parameters.to_list params4)
 
   (** val match_non_recursive_continuation_handler : bool -> Bound_parameters.t
-      -> Flambda.Import.Expr.t -> Bound_parameters.t -> Flambda.Import.Expr.t ->
-      Simple.t list coq_M **)
+      -> Expr.t -> Bound_parameters.t -> Expr.t -> Simple.t list coq_M **)
 
   let match_non_recursive_continuation_handler is_exn_handler0 params3 handler1
       params4 handler2 =
@@ -841,7 +828,7 @@ module Matching_for_unique_handler = struct
               (Bound_parameter.kind exn2)
           in
           let handler3 =
-            Flambda.Import.Expr.apply_renaming handler2
+            Expr.apply_renaming handler2
               (Renaming.add_variable Renaming.empty (Bound_parameter.var exn2)
                  (Bound_parameter.var exn1))
           in
@@ -854,9 +841,8 @@ module Matching_for_unique_handler = struct
     else match_permutable_continuation_handler params3 handler1 params4 handler2
 end
 
-(** val match_continuation_handler : bool -> Bound_parameters.t ->
-    Flambda.Import.Expr.t -> Bound_parameters.t -> Flambda.Import.Expr.t ->
-    Simple.t list option coq_M **)
+(** val match_continuation_handler : bool -> Bound_parameters.t -> Expr.t ->
+    Bound_parameters.t -> Expr.t -> Simple.t list option coq_M **)
 
 let match_continuation_handler is_exn_handler0 params3 handler1 params4 handler2
     =
@@ -871,7 +857,7 @@ let match_continuation_handler is_exn_handler0 params3 handler1 params4 handler2
 module Unique_continuation_handlers = struct
   type 'a entry =
     { params : Bound_parameters.t;
-      handler : Flambda.Import.Expr.t;
+      handler : Expr.t;
       is_exn_handler : bool;
       payload : 'a
     }
@@ -880,7 +866,7 @@ module Unique_continuation_handlers = struct
 
   let params e = e.params
 
-  (** val handler : 'a1 entry -> Flambda.Import.Expr.t **)
+  (** val handler : 'a1 entry -> Expr.t **)
 
   let handler e = e.handler
 

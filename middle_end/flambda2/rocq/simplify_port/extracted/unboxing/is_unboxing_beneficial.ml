@@ -151,48 +151,48 @@ let rec filter_non_beneficial_decisions decision =
         else U.Do_not_unbox U.Not_beneficial)
       (fun t0 epa ->
         match t0 with
-        | Flambda_kind.Naked_number_kind.Naked_immediate -> decision
-        | Flambda_kind.Naked_number_kind.Naked_float32 ->
+        | K.Naked_number_kind.Naked_immediate -> decision
+        | K.Naked_number_kind.Naked_float32 ->
           if is_unboxing_beneficial_for_epa epa
           then decision
           else U.Do_not_unbox U.Not_beneficial
-        | Flambda_kind.Naked_number_kind.Naked_float ->
+        | K.Naked_number_kind.Naked_float ->
           if is_unboxing_beneficial_for_epa epa
           then decision
           else U.Do_not_unbox U.Not_beneficial
-        | Flambda_kind.Naked_number_kind.Naked_int8 ->
+        | K.Naked_number_kind.Naked_int8 ->
           if is_unboxing_beneficial_for_epa epa
           then decision
           else U.Do_not_unbox U.Not_beneficial
-        | Flambda_kind.Naked_number_kind.Naked_int16 ->
+        | K.Naked_number_kind.Naked_int16 ->
           if is_unboxing_beneficial_for_epa epa
           then decision
           else U.Do_not_unbox U.Not_beneficial
-        | Flambda_kind.Naked_number_kind.Naked_int32 ->
+        | K.Naked_number_kind.Naked_int32 ->
           if is_unboxing_beneficial_for_epa epa
           then decision
           else U.Do_not_unbox U.Not_beneficial
-        | Flambda_kind.Naked_number_kind.Naked_int64 ->
+        | K.Naked_number_kind.Naked_int64 ->
           if is_unboxing_beneficial_for_epa epa
           then decision
           else U.Do_not_unbox U.Not_beneficial
-        | Flambda_kind.Naked_number_kind.Naked_nativeint ->
+        | K.Naked_number_kind.Naked_nativeint ->
           if is_unboxing_beneficial_for_epa epa
           then decision
           else U.Do_not_unbox U.Not_beneficial
-        | Flambda_kind.Naked_number_kind.Naked_vec128 ->
+        | K.Naked_number_kind.Naked_vec128 ->
           if is_unboxing_beneficial_for_epa epa
           then decision
           else U.Do_not_unbox U.Not_beneficial
-        | Flambda_kind.Naked_number_kind.Naked_vec256 ->
+        | K.Naked_number_kind.Naked_vec256 ->
           if is_unboxing_beneficial_for_epa epa
           then decision
           else U.Do_not_unbox U.Not_beneficial
-        | Flambda_kind.Naked_number_kind.Naked_vec512 ->
+        | K.Naked_number_kind.Naked_vec512 ->
           if is_unboxing_beneficial_for_epa epa
           then decision
           else U.Do_not_unbox U.Not_beneficial
-        | Flambda_kind.Naked_number_kind.Naked_mask ->
+        | K.Naked_number_kind.Naked_mask ->
           if is_unboxing_beneficial_for_epa epa
           then decision
           else U.Do_not_unbox U.Not_beneficial)

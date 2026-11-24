@@ -1059,8 +1059,7 @@ let merge_inlined_debuginfo_and_forward_inlined_attribute t0 from_apply_expr
 let add_inlined_debuginfo t0 dbg =
   Inlined_debuginfo.rewrite t0.inlined_debuginfo dbg
 
-(** val enter_inlined_apply : Code.t -> Flambda.Import.Apply.t -> bool -> t -> t
-    coq_M **)
+(** val enter_inlined_apply : Code.t -> Apply.t -> bool -> t -> t coq_M **)
 
 let enter_inlined_apply called_code apply was_inline_always t0 =
   let arguments =
@@ -1068,8 +1067,7 @@ let enter_inlined_apply called_code apply was_inline_always t0 =
     let arguments0 =
       Inlining_arguments.combine arguments (Code.inlining_arguments called_code)
     in
-    Inlining_arguments.combine arguments0
-      (Flambda.Import.Apply.inlining_arguments apply)
+    Inlining_arguments.combine arguments0 (Apply.inlining_arguments apply)
   in
   let inlining_state0 =
     let is_stub = Code.stub called_code in
@@ -1084,12 +1082,11 @@ let enter_inlined_apply called_code apply was_inline_always t0 =
       (Inlining_state.increment_depth t0.inlining_state is_stub increment)
   in
   let inlined_debuginfo0 =
-    Inlined_debuginfo.create (Code.code_id called_code)
-      (Flambda.Import.Apply.dbg apply)
+    Inlined_debuginfo.create (Code.code_id called_code) (Apply.dbg apply)
   in
   let inlined_attribute_to_forward0 =
     inlined_attribute_to_forward_through_inlined_apply t0 inlined_debuginfo0
-      (Flambda.Import.Apply.inlined apply)
+      (Apply.inlined apply)
   in
   (fun t
     inlined_debuginfo
@@ -1104,10 +1101,9 @@ let enter_inlined_apply called_code apply was_inline_always t0 =
       inlining_history_tracker
     })
     t0 inlined_debuginfo0 inlined_attribute_to_forward0 inlining_state0
-    (Inlining_history.Tracker.enter_inlined_apply
-       (Flambda.Import.Apply.dbg apply)
+    (Inlining_history.Tracker.enter_inlined_apply (Apply.dbg apply)
        (Code.absolute_history called_code)
-       (Flambda.Import.Apply.relative_history apply)
+       (Apply.relative_history apply)
        t0.inlining_history_tracker)
 
 (** val generate_phantom_lets : t -> bool coq_M **)
