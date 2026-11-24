@@ -18,11 +18,7 @@
    at commit ecc5c0d968c892b4312065caef0f19ffffa042a9, function by function
    under the compiler's names; the numbers in the comments are the lines of
    that file. What is not from that file: the form (the monad, the
-   temporaries [tmpN] and their order) is that of GUIDE.md; the
-   declarations, marked PORT-GAP(decl), of what the compiler's file names
-   only through the parameter of a functor ([P.Src.Set.fold]) and decl/
-   does not declare, after middle_end/flambda2/numbers/numeric_types.mli
-   and middle_end/flambda2/algorithms/container_types_intf.ml; and the form
+   temporaries [tmpN] and their order) is that of GUIDE.md; and the form
    of the four functors of the file, which is that of GUIDE.md, section 4:
    each is a Rocq [Module] with a [Section] whose variables are the
    operations that the functor uses of its parameter, and each instance is
@@ -59,104 +55,6 @@ Parameter int64_2L : Stdlib_.int64.
 Extract Inlined Constant int64_2L => "2L".
 Parameter int64_1L : Stdlib_.int64.
 Extract Inlined Constant int64_1L => "1L".
-
-(* PORT-GAP(decl): the operations on sets that the compiler's file names
-   only through the parameter of a functor ([P.Result_num.Set.add],
-   [P.Src.Set.fold], [F.Set.map], [F.IEEE_semantics.abs]), for the modules
-   that the file gives to its functors. *)
-Parameter Float32_Set_empty : Numeric_types.Float32_by_bit_pattern.Set_.t.
-Extract Inlined Constant Float32_Set_empty => "Numeric_types.Float32_by_bit_pattern.Set.empty".
-Parameter Float32_Set_add :
-  Numeric_types.Float32_by_bit_pattern.t ->
-  Numeric_types.Float32_by_bit_pattern.Set_.t ->
-  M Numeric_types.Float32_by_bit_pattern.Set_.t.
-Extract Inlined Constant Float32_Set_add => "Numeric_types.Float32_by_bit_pattern.Set.add".
-Parameter Float32_Set_is_empty :
-  Numeric_types.Float32_by_bit_pattern.Set_.t -> M bool.
-Extract Inlined Constant Float32_Set_is_empty => "Numeric_types.Float32_by_bit_pattern.Set.is_empty".
-Parameter Float32_Set_map :
-  (Numeric_types.Float32_by_bit_pattern.t ->
-   M Numeric_types.Float32_by_bit_pattern.t) ->
-  Numeric_types.Float32_by_bit_pattern.Set_.t ->
-  M Numeric_types.Float32_by_bit_pattern.Set_.t.
-Extract Inlined Constant Float32_Set_map => "Numeric_types.Float32_by_bit_pattern.Set.map".
-Parameter Float32_IEEE_semantics_abs :
-  Numeric_types.Float32_by_bit_pattern.t ->
-  M Numeric_types.Float32_by_bit_pattern.t.
-Extract Inlined Constant Float32_IEEE_semantics_abs => "Numeric_types.Float32_by_bit_pattern.IEEE_semantics.abs".
-Parameter Float32_IEEE_semantics_neg :
-  Numeric_types.Float32_by_bit_pattern.t ->
-  M Numeric_types.Float32_by_bit_pattern.t.
-Extract Inlined Constant Float32_IEEE_semantics_neg => "Numeric_types.Float32_by_bit_pattern.IEEE_semantics.neg".
-
-Parameter Float_Set_empty : Numeric_types.Float_by_bit_pattern.Set_.t.
-Extract Inlined Constant Float_Set_empty => "Numeric_types.Float_by_bit_pattern.Set.empty".
-Parameter Float_Set_add :
-  Numeric_types.Float_by_bit_pattern.t ->
-  Numeric_types.Float_by_bit_pattern.Set_.t ->
-  M Numeric_types.Float_by_bit_pattern.Set_.t.
-Extract Inlined Constant Float_Set_add => "Numeric_types.Float_by_bit_pattern.Set.add".
-Parameter Float_Set_fold :
-  forall {A : Type},
-  (Numeric_types.Float_by_bit_pattern.t -> A -> M A) ->
-  Numeric_types.Float_by_bit_pattern.Set_.t -> A -> M A.
-Extract Inlined Constant Float_Set_fold => "Numeric_types.Float_by_bit_pattern.Set.fold".
-Parameter Float_Set_is_empty :
-  Numeric_types.Float_by_bit_pattern.Set_.t -> M bool.
-Extract Inlined Constant Float_Set_is_empty => "Numeric_types.Float_by_bit_pattern.Set.is_empty".
-Parameter Float_Set_map :
-  (Numeric_types.Float_by_bit_pattern.t ->
-   M Numeric_types.Float_by_bit_pattern.t) ->
-  Numeric_types.Float_by_bit_pattern.Set_.t ->
-  M Numeric_types.Float_by_bit_pattern.Set_.t.
-Extract Inlined Constant Float_Set_map => "Numeric_types.Float_by_bit_pattern.Set.map".
-Parameter Float_IEEE_semantics_abs :
-  Numeric_types.Float_by_bit_pattern.t ->
-  M Numeric_types.Float_by_bit_pattern.t.
-Extract Inlined Constant Float_IEEE_semantics_abs => "Numeric_types.Float_by_bit_pattern.IEEE_semantics.abs".
-Parameter Float_IEEE_semantics_neg :
-  Numeric_types.Float_by_bit_pattern.t ->
-  M Numeric_types.Float_by_bit_pattern.t.
-Extract Inlined Constant Float_IEEE_semantics_neg => "Numeric_types.Float_by_bit_pattern.IEEE_semantics.neg".
-
-Parameter Int8_Set_empty : Numeric_types.Int8.Set_.t.
-Extract Inlined Constant Int8_Set_empty => "Numeric_types.Int8.Set.empty".
-Parameter Int8_Set_add :
-  Numeric_types.Int8.t -> Numeric_types.Int8.Set_.t ->
-  M Numeric_types.Int8.Set_.t.
-Extract Inlined Constant Int8_Set_add => "Numeric_types.Int8.Set.add".
-
-Parameter Int16_Set_empty : Numeric_types.Int16.Set_.t.
-Extract Inlined Constant Int16_Set_empty => "Numeric_types.Int16.Set.empty".
-Parameter Int16_Set_add :
-  Numeric_types.Int16.t -> Numeric_types.Int16.Set_.t ->
-  M Numeric_types.Int16.Set_.t.
-Extract Inlined Constant Int16_Set_add => "Numeric_types.Int16.Set.add".
-
-Parameter Int32_Set_empty : Numeric_types.Int32.Set_.t.
-Extract Inlined Constant Int32_Set_empty => "Numeric_types.Int32.Set.empty".
-Parameter Int32_Set_add :
-  Numeric_types.Int32.t -> Numeric_types.Int32.Set_.t ->
-  M Numeric_types.Int32.Set_.t.
-Extract Inlined Constant Int32_Set_add => "Numeric_types.Int32.Set.add".
-
-Parameter Int64_Set_empty : Numeric_types.Int64.Set_.t.
-Extract Inlined Constant Int64_Set_empty => "Numeric_types.Int64.Set.empty".
-Parameter Int64_Set_add :
-  Numeric_types.Int64.t -> Numeric_types.Int64.Set_.t ->
-  M Numeric_types.Int64.Set_.t.
-Extract Inlined Constant Int64_Set_add => "Numeric_types.Int64.Set.add".
-Parameter Int64_Set_fold :
-  forall {A : Type},
-  (Numeric_types.Int64.t -> A -> M A) -> Numeric_types.Int64.Set_.t -> A ->
-  M A.
-Extract Inlined Constant Int64_Set_fold => "Numeric_types.Int64.Set.fold".
-
-Parameter Targetint_32_64_Set_empty : Targetint_32_64.Set_.t.
-Extract Inlined Constant Targetint_32_64_Set_empty => "Targetint_32_64.Set.empty".
-Parameter Targetint_32_64_Set_add :
-  Targetint_32_64.t -> Targetint_32_64.Set_.t -> M Targetint_32_64.Set_.t.
-Extract Inlined Constant Targetint_32_64_Set_add => "Targetint_32_64.Set.add".
 
 (* 24-30 *)
 Definition get_my_alloc_region (dacc : DA.t) : M Variable_.t :=
@@ -767,27 +665,27 @@ Module Make_simplify_int_conv.
               (fun t => N_Num_to_immediate t machine_width)
               T.these_naked_immediates dacc original_term result_var is_
           | K.Standard_int_or_float.Naked_float32 =>
-            for_kind N_Num_Set_fold_to_float32s Float32_Set_add
-              Float32_Set_empty N_Num_to_naked_float32 T.these_naked_float32s
+            for_kind N_Num_Set_fold_to_float32s Float32.Set_.add
+              Float32.Set_.empty N_Num_to_naked_float32 T.these_naked_float32s
               dacc original_term result_var is_
           | K.Standard_int_or_float.Naked_float =>
-            for_kind N_Num_Set_fold_to_floats Float_Set_add Float_Set_empty
+            for_kind N_Num_Set_fold_to_floats Float.Set_.add Float.Set_.empty
               N_Num_to_naked_float T.these_naked_floats dacc original_term
               result_var is_
           | K.Standard_int_or_float.Naked_int8 =>
-            for_kind N_Num_Set_fold_to_int8s Int8_Set_add Int8_Set_empty
-              N_Num_to_naked_int8 T.these_naked_int8s dacc original_term
-              result_var is_
+            for_kind N_Num_Set_fold_to_int8s Numeric_types.Int8.Set_.add
+              Numeric_types.Int8.Set_.empty N_Num_to_naked_int8
+              T.these_naked_int8s dacc original_term result_var is_
           | K.Standard_int_or_float.Naked_int16 =>
-            for_kind N_Num_Set_fold_to_int16s Int16_Set_add Int16_Set_empty
-              N_Num_to_naked_int16 T.these_naked_int16s dacc original_term
-              result_var is_
+            for_kind N_Num_Set_fold_to_int16s Numeric_types.Int16.Set_.add
+              Numeric_types.Int16.Set_.empty N_Num_to_naked_int16
+              T.these_naked_int16s dacc original_term result_var is_
           | K.Standard_int_or_float.Naked_int32 =>
-            for_kind N_Num_Set_fold_to_int32s Int32_Set_add Int32_Set_empty
+            for_kind N_Num_Set_fold_to_int32s Int32.Set_.add Int32.Set_.empty
               N_Num_to_naked_int32 T.these_naked_int32s dacc original_term
               result_var is_
           | K.Standard_int_or_float.Naked_int64 =>
-            for_kind N_Num_Set_fold_to_int64s Int64_Set_add Int64_Set_empty
+            for_kind N_Num_Set_fold_to_int64s Int64.Set_.add Int64.Set_.empty
               N_Num_to_naked_int64 T.these_naked_int64s dacc original_term
               result_var is_
           | K.Standard_int_or_float.Naked_nativeint =>
@@ -795,8 +693,8 @@ Module Make_simplify_int_conv.
               let! tmp1 := DA.denv dacc in
               DE.machine_width tmp1
             in
-            for_kind N_Num_Set_fold_to_nativeints Targetint_32_64_Set_add
-              Targetint_32_64_Set_empty
+            for_kind N_Num_Set_fold_to_nativeints Targetint_32_64.Set_.add
+              Targetint_32_64.Set_.empty
               (fun n => N_Num_to_naked_nativeint n machine_width)
               T.these_naked_nativeints dacc original_term result_var is_
           end
@@ -1072,8 +970,8 @@ End Make_simplify_reinterpret_64_bit_word.
    any_dst = T.any_naked_float end], is the arguments of the function. *)
 Module Simplify_reinterpret_unboxed_int64_as_unboxed_float64.
   Definition simplify :=
-    Make_simplify_reinterpret_64_bit_word.simplify Int64_Set_fold
-      Float_Set_add Float_Set_empty T.meet_naked_int64s
+    Make_simplify_reinterpret_64_bit_word.simplify Int64.Set_.fold
+      Float.Set_.add Float.Set_.empty T.meet_naked_int64s
       (fun (_ : Target_system.Machine_width.t) => Float.of_bits)
       T.these_naked_floats T.any_naked_float.
 End Simplify_reinterpret_unboxed_int64_as_unboxed_float64.
@@ -1084,8 +982,8 @@ End Simplify_reinterpret_unboxed_int64_as_unboxed_float64.
    T.any_naked_int64]. *)
 Module Simplify_reinterpret_unboxed_float64_as_unboxed_int64.
   Definition simplify :=
-    Make_simplify_reinterpret_64_bit_word.simplify Float_Set_fold
-      Int64_Set_add Int64_Set_empty T.meet_naked_floats
+    Make_simplify_reinterpret_64_bit_word.simplify Float.Set_.fold
+      Int64.Set_.add Int64.Set_.empty T.meet_naked_floats
       (fun (_ : Target_system.Machine_width.t) => Float.to_bits)
       T.these_naked_int64s T.any_naked_int64.
 End Simplify_reinterpret_unboxed_float64_as_unboxed_int64.
@@ -1097,7 +995,7 @@ End Simplify_reinterpret_unboxed_float64_as_unboxed_int64.
    any_dst = T.any_tagged_immediate]. *)
 Module Simplify_reinterpret_unboxed_int64_as_tagged_int63.
   Definition simplify :=
-    Make_simplify_reinterpret_64_bit_word.simplify Int64_Set_fold
+    Make_simplify_reinterpret_64_bit_word.simplify Int64.Set_.fold
       Target_ocaml_int.Set_.add Target_ocaml_int.Set_.empty
       T.meet_naked_int64s
       (* This primitive is logical OR with 1 on machine words, but here, we
@@ -1117,7 +1015,7 @@ End Simplify_reinterpret_unboxed_int64_as_tagged_int63.
 Module Simplify_reinterpret_tagged_int63_as_unboxed_int64.
   Definition simplify :=
     Make_simplify_reinterpret_64_bit_word.simplify Target_ocaml_int.Set_.fold
-      Int64_Set_add Int64_Set_empty T.meet_equals_tagged_immediates
+      Int64.Set_.add Int64.Set_.empty T.meet_equals_tagged_immediates
       (* This primitive is the identity on machine words, but as above, we
          are working in the tagged world. *)
       (fun (_ : Target_system.Machine_width.t) i =>
@@ -1207,8 +1105,8 @@ End Make_simplify_float_arith_op.
    kind = K.naked_float end], is the arguments of the function. *)
 Module Simplify_float_arith_op.
   Definition simplify :=
-    Make_simplify_float_arith_op.simplify Float_Set_is_empty Float_Set_map
-      Float_IEEE_semantics_abs Float_IEEE_semantics_neg T.meet_naked_floats
+    Make_simplify_float_arith_op.simplify Float.Set_.is_empty Float.Set_.map
+      Float.IEEE_semantics.abs Float.IEEE_semantics.neg T.meet_naked_floats
       T.these_naked_floats K.naked_float.
 End Simplify_float_arith_op.
 
@@ -1217,8 +1115,8 @@ End Simplify_float_arith_op.
    K.naked_float32]. *)
 Module Simplify_float32_arith_op.
   Definition simplify :=
-    Make_simplify_float_arith_op.simplify Float32_Set_is_empty
-      Float32_Set_map Float32_IEEE_semantics_abs Float32_IEEE_semantics_neg
+    Make_simplify_float_arith_op.simplify Float32.Set_.is_empty
+      Float32.Set_.map Float32.IEEE_semantics.abs Float32.IEEE_semantics.neg
       T.meet_naked_float32s T.these_naked_float32s K.naked_float32.
 End Simplify_float32_arith_op.
 
