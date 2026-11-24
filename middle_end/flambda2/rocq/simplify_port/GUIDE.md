@@ -103,9 +103,10 @@ recursion: `with`. A local `let rec`: Rocq's own `let f := fix f (fuel :
 Port_monad.fuel) ... := recursive! fuel in ... in` (not `let&`). A caller
 outside the recursion: `let_fuel! fuel in f fuel ...`. In the identity build
 the fuel is a proposition, which the extraction erases: the extracted code
-is the compiler's `let rec`. HUMAN: what Rocq says of a function then holds
-of the OCaml runs for which the fuel was enough; there is no axiom in the
-real build.
+is the compiler's `let rec`. HUMAN: there is no axiom in the real build; a
+statement of Rocq about a function can only be about runs for which the
+fuel was enough, and that it holds of the OCAML code is NOT established now
+(section 7).
 
 ## 4. Types
 
@@ -213,11 +214,13 @@ Rocq's extraction takes every term for a pure one:
    (`let* _ := (f x : M True)`).
 6. The realisation strings of `decl/` are texts: a string that is not a
    function or constructor (a call) would run wherever Rocq puts it.
-7. A variable named `program_branch_N` is always inlined. Do not use
-   `Program`.
+7. A variable named `program_branch_N` that is used once may be inlined
+   even where an ordinary `let` is kept. Do not use `Program`.
 8. The identity build is NOT a model: its `fatal_error : forall A, string ->
    A` is a parameter, its fuel never ends. Nothing is proved in it;
-   statements are about `monad/real`, and hold of OCaml only for runs with
-   enough fuel and under the assumptions on order and partial application.
+   statements are about `monad/real`. That the extracted OCaml does what
+   `monad/real` says is not established: it needs enough fuel, the
+   assumptions on order and partial application, AND an answer to the
+   problems 1 to 7.
 9. `int` is `Z`: no overflow in Rocq. Physical equality and the contents of
    references are parameters; the printing of a fatal error is not modelled.
