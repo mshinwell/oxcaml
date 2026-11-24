@@ -63,6 +63,17 @@ Definition empty (required_names : Name.Set_.t) : M Dominator_graph.t :=
 
 (* Adding new nodes *)
 
+(* PORT-GAP(update): 43, 74, 155, [{ t with graph }]. *)
+Definition update_graph (t : Dominator_graph.t) (graph : G.directed_graph)
+    : Dominator_graph.t :=
+  {| Dominator_graph.required_names := t.(Dominator_graph.required_names);
+     Dominator_graph.params_kind := t.(Dominator_graph.params_kind);
+     Dominator_graph.graph := graph;
+     Dominator_graph.dominator_roots := t.(Dominator_graph.dominator_roots)
+  |}.
+Extract Inlined Constant update_graph =>
+  "(fun t x__1 -> { t with graph = x__1 })".
+
 (* 37-43 *)
 Definition add_node_aux (t : Dominator_graph.t) (simple : Simple.t)
     : M Dominator_graph.t :=
@@ -75,12 +86,7 @@ Definition add_node_aux (t : Dominator_graph.t) (simple : Simple.t)
         end)
       t.(Dominator_graph.graph)
   in
-  ret
-    {| Dominator_graph.required_names := t.(Dominator_graph.required_names);
-       Dominator_graph.params_kind := t.(Dominator_graph.params_kind);
-       Dominator_graph.graph := graph;
-       Dominator_graph.dominator_roots := t.(Dominator_graph.dominator_roots)
-    |}.
+  ret (update_graph t graph).
 
 (* 45-49 *)
 Definition add_node (t : Dominator_graph.t) (simple : Simple.t)
@@ -93,6 +99,17 @@ Definition add_node (t : Dominator_graph.t) (simple : Simple.t)
 
 (* Adding roots *)
 
+(* PORT-GAP(update): 57-59, [{ t with dominator_roots }]. *)
+Definition update_dominator_roots (t : Dominator_graph.t)
+    (dominator_roots : Simple.Set_.t) : Dominator_graph.t :=
+  {| Dominator_graph.required_names := t.(Dominator_graph.required_names);
+     Dominator_graph.params_kind := t.(Dominator_graph.params_kind);
+     Dominator_graph.graph := t.(Dominator_graph.graph);
+     Dominator_graph.dominator_roots := dominator_roots
+  |}.
+Extract Inlined Constant update_dominator_roots =>
+  "(fun t x__1 -> { t with dominator_roots = x__1 })".
+
 (* 53-59 *)
 Definition add_root (var : Variable_.t) (t : Dominator_graph.t)
     : M Dominator_graph.t :=
@@ -103,12 +120,7 @@ Definition add_root (var : Variable_.t) (t : Dominator_graph.t)
   else
     let! tmp1 := Simple.var var in
     let! tmp2 := Simple.Set_.add tmp1 t.(Dominator_graph.dominator_roots) in
-    ret
-      {| Dominator_graph.required_names := t.(Dominator_graph.required_names);
-         Dominator_graph.params_kind := t.(Dominator_graph.params_kind);
-         Dominator_graph.graph := t.(Dominator_graph.graph);
-         Dominator_graph.dominator_roots := tmp2
-      |}.
+    ret (update_dominator_roots t tmp2).
 
 (* Adding edges *)
 
@@ -134,15 +146,21 @@ Definition add_edge (src : Variable_.t) (dst : Simple.t)
           end)
         t.(Dominator_graph.graph)
     in
-    ret
-      {| Dominator_graph.required_names := t.(Dominator_graph.required_names);
-         Dominator_graph.params_kind := t.(Dominator_graph.params_kind);
-         Dominator_graph.graph := graph;
-         Dominator_graph.dominator_roots :=
-           t.(Dominator_graph.dominator_roots)
-      |}.
+    ret (update_graph t graph).
 
 (* Import continuation info into the graph *)
+
+(* PORT-GAP(update): 88, [{ t with params_kind }]. *)
+Definition update_params_kind (t : Dominator_graph.t)
+    (params_kind : Variable_.Map.t Flambda_kind.With_subkind.t)
+    : Dominator_graph.t :=
+  {| Dominator_graph.required_names := t.(Dominator_graph.required_names);
+     Dominator_graph.params_kind := params_kind;
+     Dominator_graph.graph := t.(Dominator_graph.graph);
+     Dominator_graph.dominator_roots := t.(Dominator_graph.dominator_roots)
+  |}.
+Extract Inlined Constant update_params_kind =>
+  "(fun t x__1 -> { t with params_kind = x__1 })".
 
 (* 78-131 *)
 Definition add_continuation_info
@@ -166,14 +184,7 @@ Definition add_continuation_info
           let! tmp2 := Bound_parameter.kind bp in
           Variable_.Map.add var tmp2 t.(Dominator_graph.params_kind)
         in
-        ret
-          {| Dominator_graph.required_names :=
-               t.(Dominator_graph.required_names);
-             Dominator_graph.params_kind := params_kind;
-             Dominator_graph.graph := t.(Dominator_graph.graph);
-             Dominator_graph.dominator_roots :=
-               t.(Dominator_graph.dominator_roots)
-          |})
+        ret (update_params_kind t params_kind))
       t tmp1
   in
   (* 92-96 *)
@@ -264,14 +275,7 @@ Definition create (required_names : Name.Set_.t)
               end)
             t.(Dominator_graph.graph)
         in
-        ret
-          {| Dominator_graph.required_names :=
-               t.(Dominator_graph.required_names);
-             Dominator_graph.params_kind := t.(Dominator_graph.params_kind);
-             Dominator_graph.graph := graph;
-             Dominator_graph.dominator_roots :=
-               t.(Dominator_graph.dominator_roots)
-          |})
+        ret (update_graph t graph))
       all_simples t
   in
   ret t.
