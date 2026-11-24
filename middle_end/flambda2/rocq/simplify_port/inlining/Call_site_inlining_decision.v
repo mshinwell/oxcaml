@@ -552,6 +552,20 @@ Definition make_decision0 (dacc : DA.t)
               Call_site_inlining_decision_type.Continue_unrolling
         | None =>
           (* 381-456 *)
+          (* lmaurer: This seems semantically dodgy: If we really think of a
+             free depth variable as [Unknown], then we shouldn't be
+             considering inlining here, because we don't _know_ that we're
+             not unrolling. The behavior is what we want, though (and is
+             consistent with FLambda 1): If there's a free depth variable,
+             that means this is an internal recursive call, which means we
+             consider unrolling if [@unrolled] appears. If it's known that
+             the unrolling depth is zero, that means we're inlining into
+             another function and we're done unrolling, so we immediately
+             stop inlining.
+
+             So this seems to be working for the moment, but I wonder what
+             are the ramifications of treating unknown-ness as an observable
+             property this way. Are we relying on monotonicity somewhere? *)
           let* apply_inlining_state := Apply.inlining_state apply in
           let* recursive := Code_metadata.recursive code_metadata in
           let! tmp1 := Inlining_state.is_depth_exceeded apply_inlining_state in
