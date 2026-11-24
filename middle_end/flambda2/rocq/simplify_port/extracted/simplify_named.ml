@@ -23,44 +23,37 @@
 open! Simplify_import
 open Port_monad
 
-(** val create_lifted_constant : (Downwards_acc.t * Lifted_constant.t list) ->
-    Bound_static.Pattern.t -> Rebuilt_static_const.t -> (Downwards_acc.t *
-    Lifted_constant.t list) coq_M **)
+(** val create_lifted_constant : (DA.t * LC.t list) -> Bound_static.Pattern.t ->
+    Rebuilt_static_const.t -> (DA.t * LC.t list) coq_M **)
 
 let create_lifted_constant acc pat static_const =
   let dacc0, lifted_constants = acc in
   match pat with
   | Bound_static.Pattern.Code code_id ->
-    let lifted_constant = Lifted_constant.create_code code_id static_const in
+    let lifted_constant = LC.create_code code_id static_const in
     dacc0, lifted_constant :: lifted_constants
   | Bound_static.Pattern.Set_of_closures closure_symbols ->
     let closure_symbols_with_types =
       Function_slot.Lmap.map
         (fun symbol ->
           let typ =
-            Flambda2_types.Typing_env.find
-              (Downwards_acc.typing_env dacc0)
-              (Name.symbol symbol) (Some Flambda_kind.value)
+            TE.find (DA.typing_env dacc0) (Name.symbol symbol) (Some K.value)
           in
           symbol, typ)
         closure_symbols
     in
     let lifted_constant =
-      Lifted_constant.create_set_of_closures
-        (Downwards_acc.typing_env dacc0)
-        closure_symbols_with_types Variable.Map.empty static_const
+      LC.create_set_of_closures (DA.typing_env dacc0) closure_symbols_with_types
+        Variable.Map.empty static_const
     in
     dacc0, lifted_constant :: lifted_constants
   | Bound_static.Pattern.Block_like symbol ->
     let typ =
-      Flambda2_types.Typing_env.find
-        (Downwards_acc.typing_env dacc0)
-        (Name.symbol symbol) (Some Flambda_kind.value)
+      TE.find (DA.typing_env dacc0) (Name.symbol symbol) (Some K.value)
     in
     let lifted_constant =
-      Lifted_constant.create_block_like symbol Variable.Map.empty static_const
-        (Downwards_acc.typing_env dacc0)
-        typ
+      LC.create_block_like symbol Variable.Map.empty static_const
+        (DA.typing_env dacc0) typ
     in
     let dacc1 =
       match Rebuilt_static_const.to_const static_const with
@@ -69,34 +62,30 @@ let create_lifted_constant acc pat static_const =
         | Flambda.Code _ -> dacc0
         | Flambda.Deleted_code -> dacc0
         | Flambda.Static_const static_const0 ->
-          Downwards_acc.consider_constant_for_sharing dacc0 symbol static_const0
-        )
+          DA.consider_constant_for_sharing dacc0 symbol static_const0)
       | None -> dacc0
     in
     dacc1, lifted_constant :: lifted_constants
 
-(** val simplify_named0 : Downwards_acc.t -> Bound_pattern.t -> Flambda.Named.t
-    -> Simplify_common.simplify_function_body -> Simplify_named_result.t
+(** val simplify_named0 : DA.t -> Bound_pattern.t -> Named.t ->
+    Simplify_common.simplify_function_body -> Simplify_named_result.t
     Or_invalid.t Simplified_named.or_rewritten coq_M **)
 
 let simplify_named0 dacc0 bound_pattern named0 simplify_function_body =
   let ok = fun result -> Simplified_named.Simplified (Or_invalid.Ok result) in
   let invalid = Simplified_named.Simplified Or_invalid.Invalid in
-  let machine_width = Downwards_env.machine_width (Downwards_acc.denv dacc0) in
+  let machine_width = DE.machine_width (DA.denv dacc0) in
   match named0 with
   | Flambda.Simple simple ->
     let bound_var = Bound_pattern.must_be_singleton bound_pattern in
     let min_name_mode = Bound_var.name_mode bound_var in
-    let ty, new_simple =
-      Simplify_simple.simplify_simple dacc0 simple min_name_mode
-    in
-    let dacc1 = Downwards_acc.add_variable dacc0 bound_var ty in
+    let ty, new_simple = S.simplify_simple dacc0 simple min_name_mode in
+    let dacc1 = DA.add_variable dacc0 bound_var ty in
     let defining_expr =
       if simple == new_simple
       then Simplified_named.create machine_width named0
       else
-        Simplified_named.create machine_width
-          (Flambda.Named.create_simple new_simple)
+        Simplified_named.create machine_width (Named.create_simple new_simple)
     in
     ok
       (Simplify_named_result.create dacc1
@@ -113,18 +102,16 @@ let simplify_named0 dacc0 bound_pattern named0 simplify_function_body =
     then
       let min_name_mode = Bound_pattern.name_mode bound_pattern in
       let defining_expr =
-        Flambda.Named.create_prim
-          (Flambda_primitive.map_args
-             (fun simple ->
-               snd (Simplify_simple.simplify_simple dacc0 simple min_name_mode))
+        Named.create_prim
+          (P.map_args
+             (fun simple -> snd (S.simplify_simple dacc0 simple min_name_mode))
              prim)
           dbg
       in
       let bound_var = Bound_pattern.must_be_singleton bound_pattern in
       let dacc1 =
-        Downwards_acc.map_denv dacc0 (fun denv ->
-            Downwards_env.define_variable denv bound_var
-              (Flambda_primitive.result_kind' prim))
+        DA.map_denv dacc0 (fun denv ->
+            DE.define_variable denv bound_var (P.result_kind' prim))
       in
       ok
         (Simplify_named_result.create dacc1
@@ -141,13 +128,11 @@ let simplify_named0 dacc0 bound_pattern named0 simplify_function_body =
     else
       let bound_var = Bound_pattern.must_be_singleton bound_pattern in
       let dacc1 =
-        Downwards_acc.map_denv dacc0
-          (Downwards_env.map_specialization_cost
+        DA.map_denv dacc0
+          (DE.map_specialization_cost
              (Specialization_cost.add_prim bound_var prim))
       in
-      let dbg0 =
-        Downwards_env.add_inlined_debuginfo (Downwards_acc.denv dacc1) dbg
-      in
+      let dbg0 = DE.add_inlined_debuginfo (DA.denv dacc1) dbg in
       match Simplify_primitive.simplify_primitive dacc1 prim dbg0 bound_var with
       | Simplified_named.Simplified t -> (
         let { Simplify_primitive_result.simplified_named = simplified_named0;
@@ -162,15 +147,12 @@ let simplify_named0 dacc0 bound_pattern named0 simplify_function_body =
             if
               Flambda_features.check_invariants ()
               && not
-                   ((fun x__1 x__2 x__3 ->
-                      Flambda2_types.Typing_env.mem ?min_name_mode:x__1 x__2
-                        x__3)
-                      None
-                      (Downwards_acc.typing_env dacc2)
+                   ((fun x__1 x__2 x__3 -> TE.mem ?min_name_mode:x__1 x__2 x__3)
+                      None (DA.typing_env dacc2)
                       (Name.var (Bound_var.var bound_var)))
             then
               Misc.fatal_errorf "Primitive %a = %a did not yield a result var"
-                Bound_var.print bound_var Flambda_primitive.print prim
+                Bound_var.print bound_var P.print prim
             else ()
           in
           if not try_reify0
@@ -187,13 +169,12 @@ let simplify_named0 dacc0 bound_pattern named0 simplify_function_body =
                     (bound_pattern, simplified_named1, Some named0)))
           else
             let allow_lifting =
-              Flambda_primitive.only_generative_effects prim
+              P.only_generative_effects prim
               && Name_mode.is_normal (Bound_var.name_mode bound_var)
             in
             let defining_expr, dacc3 =
               Reification.try_to_reify dacc2 dbg0 simplified_named1 bound_var
-                (Flambda_primitive.result_kind' prim)
-                allow_lifting
+                (P.result_kind' prim) allow_lifting
             in
             let result =
               Or_invalid.map defining_expr (fun defining_expr0 ->
@@ -218,15 +199,13 @@ let simplify_named0 dacc0 bound_pattern named0 simplify_function_body =
     let bound_static = Bound_pattern.must_be_static bound_pattern in
     let binds_symbols = Bound_static.binds_symbols bound_static in
     let () =
-      if
-        binds_symbols
-        && not (Downwards_env.at_unit_toplevel (Downwards_acc.denv dacc0))
+      if binds_symbols && not (DE.at_unit_toplevel (DA.denv dacc0))
       then
         Misc.fatal_errorf
           "[Let] binding symbols is only allowed at the toplevel of \
            compilation units (not even at the toplevel of function bodies):@ \
            %a@ =@ %a"
-          Bound_pattern.print bound_pattern Flambda.Named.print named0
+          Bound_pattern.print bound_pattern Named.print named0
       else ()
     in
     let bound_static0, static_consts0, dacc1 =
@@ -243,7 +222,7 @@ let simplify_named0 dacc0 bound_pattern named0 simplify_function_body =
                %tContext is:%t simplifying 'let symbol' binding of@ %a@ with \
                downwards accumulator:@ %a\n"
               Flambda_colours.error Flambda_colours.pop Bound_static.print
-              bound_static Downwards_acc.print dacc0
+              bound_static DA.print dacc0
           in
           Printexc.raise_with_backtrace
             (Port_monad.exn_make Port_monad.fatal_error_exception ())
@@ -256,11 +235,9 @@ let simplify_named0 dacc0 bound_pattern named0 simplify_function_body =
     in
     let dacc3 =
       (fun x__1 x__2 x__3 ->
-        Downwards_acc.add_to_lifted_constant_accumulator ?also_add_to_env:x__1
-          x__2 x__3)
+        DA.add_to_lifted_constant_accumulator ?also_add_to_env:x__1 x__2 x__3)
         None dacc2
-        (Lifted_constant_state.singleton
-           (Lifted_constant.concat lifted_constants))
+        (LCS.singleton (LC.concat lifted_constants))
     in
     ok (Simplify_named_result.create_empty dacc3)
   | Flambda.Rec_info rec_info_expr ->
@@ -268,17 +245,15 @@ let simplify_named0 dacc0 bound_pattern named0 simplify_function_body =
     let new_rec_info_expr =
       Simplify_rec_info_expr.simplify_rec_info_expr dacc0 rec_info_expr
     in
-    let ty = Flambda2_types.this_rec_info new_rec_info_expr in
-    let dacc1 = Downwards_acc.add_variable dacc0 bound_var ty in
-    let machine_width0 =
-      Downwards_env.machine_width (Downwards_acc.denv dacc1)
-    in
+    let ty = T.this_rec_info new_rec_info_expr in
+    let dacc1 = DA.add_variable dacc0 bound_var ty in
+    let machine_width0 = DE.machine_width (DA.denv dacc1) in
     let defining_expr =
       if rec_info_expr == new_rec_info_expr
       then Simplified_named.create machine_width0 named0
       else
         Simplified_named.create machine_width0
-          (Flambda.Named.create_rec_info new_rec_info_expr)
+          (Named.create_rec_info new_rec_info_expr)
     in
     ok
       (Simplify_named_result.create dacc1
@@ -291,8 +266,8 @@ let simplify_named0 dacc0 bound_pattern named0 simplify_function_body =
               : Simplified_named.binding_to_place))
             (bound_pattern, defining_expr, Some named0)))
 
-(** val removed_operations : Name_mode.t -> Flambda.Named.t -> Downwards_acc.t
-    -> Simplify_named_result.t Or_invalid.t -> Removed_operations.t coq_M **)
+(** val removed_operations : Name_mode.t -> Named.t -> DA.t ->
+    Simplify_named_result.t Or_invalid.t -> Removed_operations.t coq_M **)
 
 let removed_operations min_name_mode original dacc0 result =
   let zero = Removed_operations.zero in
@@ -329,12 +304,10 @@ let removed_operations min_name_mode original dacc0 result =
                     Flambda_primitive.compare_primitive_application
                       (fun original_simple rewritten_simple ->
                         let _, original_simple0 =
-                          Simplify_simple.simplify_simple dacc0 original_simple
-                            min_name_mode
+                          S.simplify_simple dacc0 original_simple min_name_mode
                         in
                         let _, rewritten_simple0 =
-                          Simplify_simple.simplify_simple dacc0 rewritten_simple
-                            min_name_mode
+                          S.simplify_simple dacc0 rewritten_simple min_name_mode
                         in
                         Simple.compare original_simple0 rewritten_simple0)
                       original_prim rewritten_prim
@@ -357,8 +330,8 @@ let removed_operations min_name_mode original dacc0 result =
     | Flambda.Rec_info _ -> zero)
   | Or_invalid.Invalid -> zero
 
-(** val simplify_named : Downwards_acc.t -> Bound_pattern.t -> Flambda.Named.t
-    -> Simplify_common.simplify_function_body -> (Simplify_named_result.t
+(** val simplify_named : DA.t -> Bound_pattern.t -> Named.t ->
+    Simplify_common.simplify_function_body -> (Simplify_named_result.t
     Or_invalid.t * Removed_operations.t) Simplified_named.or_rewritten coq_M **)
 
 let simplify_named dacc0 bound_pattern named0 simplify_function_body =
@@ -373,7 +346,7 @@ let simplify_named dacc0 bound_pattern named0 simplify_function_body =
            %tContext is:%t simplifying [Let] binding@ %a =@ %a@ with downwards \
            accumulator:@ %a\n"
           Flambda_colours.error Flambda_colours.pop Bound_pattern.print
-          bound_pattern Flambda.Named.print named0 Downwards_acc.print dacc0
+          bound_pattern Named.print named0 DA.print dacc0
       in
       Printexc.raise_with_backtrace
         (Port_monad.exn_make Port_monad.fatal_error_exception ())

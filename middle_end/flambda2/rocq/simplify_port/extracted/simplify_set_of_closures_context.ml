@@ -25,9 +25,9 @@ open! Simplify_import
 open Port_monad
 
 type t =
-  { dacc_prior_to_sets : Downwards_acc.t;
+  { dacc_prior_to_sets : DA.t;
     simplify_function_body : Simplify_common.simplify_function_body;
-    dacc_inside_functions : Downwards_acc.t;
+    dacc_inside_functions : DA.t;
     closure_bound_names_inside_functions_all_sets :
       Bound_name.t Function_slot.Map.t list;
     old_to_new_code_ids_all_sets : Code_id.t Code_id.Map.t;
@@ -35,7 +35,7 @@ type t =
     single_set_of_size_one : bool
   }
 
-(** val dacc_prior_to_sets : t -> Downwards_acc.t **)
+(** val dacc_prior_to_sets : t -> DA.t **)
 
 let dacc_prior_to_sets t0 = t0.dacc_prior_to_sets
 
@@ -43,7 +43,7 @@ let dacc_prior_to_sets t0 = t0.dacc_prior_to_sets
 
 let simplify_function_body t0 = t0.simplify_function_body
 
-(** val dacc_inside_functions : t -> Downwards_acc.t **)
+(** val dacc_inside_functions : t -> DA.t **)
 
 let dacc_inside_functions t0 = t0.dacc_inside_functions
 
@@ -65,25 +65,23 @@ let previously_free_depth_variables t0 = t0.previously_free_depth_variables
 
 let single_set_of_size_one t0 = t0.single_set_of_size_one
 
-(** val function_decl_type : Code_id.t option -> Flambda2_types.t -> Code_id.t
-    -> Flambda2_types.Function_type.t Or_unknown.t coq_M **)
+(** val function_decl_type : Code_id.t option -> T.t -> Code_id.t ->
+    T.Function_type.t Or_unknown.t coq_M **)
 
 let function_decl_type new_code_id rec_info old_code_id =
   let code_id = Option.value new_code_id old_code_id in
-  Or_unknown.Known (Flambda2_types.Function_type.create code_id rec_info)
+  Or_unknown.Known (T.Function_type.create code_id rec_info)
 
-(** val create_for_static_stub : Downwards_acc.t -> Code.t Code_id.Map.t ->
+(** val create_for_static_stub : DA.t -> Code.t Code_id.Map.t ->
     Simplify_common.simplify_function_body -> t coq_M **)
 
 let create_for_static_stub dacc all_code simplify_function_body0 =
   let dacc_inside_functions0 =
-    Downwards_acc.map_denv dacc (fun denv ->
+    DA.map_denv dacc (fun denv ->
         Code_id.Map.fold
-          (fun code_id code denv0 ->
-            Downwards_env.define_code denv0 code_id code)
+          (fun code_id code denv0 -> DE.define_code denv0 code_id code)
           all_code
-          (Downwards_env.enter_stub_function
-             (Downwards_env.enter_set_of_closures denv)))
+          (DE.enter_stub_function (DE.enter_set_of_closures denv)))
   in
   { dacc_prior_to_sets = dacc;
     simplify_function_body = simplify_function_body0;
@@ -105,25 +103,23 @@ let closure_bound_names_inside_functions_exactly_one_set t0 =
     | [] -> closure_bound_names_inside
     | _ :: _ -> Misc.fatal_error "Only one set of closures was expected")
 
-(** val stub_can_be_simplified : Downwards_env.t -> bool coq_M **)
+(** val stub_can_be_simplified : DE.t -> bool coq_M **)
 
 let stub_can_be_simplified denv =
   Flambda_features.simplify_stubs ()
-  && Inlining_state.stub_depth (Downwards_env.get_inlining_state denv) = 0
+  && Inlining_state.stub_depth (DE.get_inlining_state denv) = 0
 
-(** val function_can_be_simplified : Downwards_env.t -> Code_or_metadata.t ->
-    bool coq_M **)
+(** val function_can_be_simplified : DE.t -> Code_or_metadata.t -> bool coq_M **)
 
 let function_can_be_simplified denv code =
   Code_or_metadata.code_present code
   && ((not (Code_metadata.stub (Code_or_metadata.code_metadata code)))
      || stub_can_be_simplified denv)
 
-(** val compute_closure_types_inside_functions : Downwards_env.t ->
-    (Flambda.Set_of_closures.t * Alloc_mode.For_types.t) list -> Bound_name.t
-    Function_slot.Map.t list -> Flambda2_types.t Value_slot.Map.t list ->
-    Code_id.t Code_id.Map.t -> (Bound_name.t Function_slot.Map.t list *
-    Flambda2_types.t Function_slot.Map.t list) coq_M **)
+(** val compute_closure_types_inside_functions : DE.t -> (Set_of_closures.t *
+    Alloc_mode.For_types.t) list -> Bound_name.t Function_slot.Map.t list -> T.t
+    Value_slot.Map.t list -> Code_id.t Code_id.Map.t -> (Bound_name.t
+    Function_slot.Map.t list * T.t Function_slot.Map.t list) coq_M **)
 
 let compute_closure_types_inside_functions denv all_sets_of_closures
     closure_bound_names_all_sets value_slot_types_inside_functions_all_sets
@@ -133,8 +129,7 @@ let compute_closure_types_inside_functions denv all_sets_of_closures
       (fun closure_bound_names_inside ->
         Function_slot.Map.map
           (fun name ->
-            Flambda2_types.alias_type_of Flambda_kind.value
-              (Simple.name (Bound_name.name name)))
+            T.alias_type_of K.value (Simple.name (Bound_name.name name)))
           closure_bound_names_inside)
       closure_bound_names_all_sets
   in
@@ -146,9 +141,7 @@ let compute_closure_types_inside_functions denv all_sets_of_closures
           let closure_types_via_aliases, value_slot_types_inside_function =
             pat0
           in
-          let function_decls =
-            Flambda.Set_of_closures.function_decls set_of_closures
-          in
+          let function_decls = Set_of_closures.function_decls set_of_closures in
           let all_function_slots_in_set =
             Function_slot.Map.mapi
               (fun function_slot old_code_id ->
@@ -166,7 +159,7 @@ let compute_closure_types_inside_functions denv all_sets_of_closures
                   (fun _ _ -> Or_unknown.Unknown)
                   (fun old_code_id0 _ ->
                     Port_monad.match_exn
-                      (fun _ -> Downwards_env.find_code_exn denv old_code_id0)
+                      (fun _ -> DE.find_code_exn denv old_code_id0)
                       Port_monad.not_found
                       (fun _ -> Or_unknown.Unknown)
                       (fun code_or_metadata ->
@@ -177,9 +170,7 @@ let compute_closure_types_inside_functions denv all_sets_of_closures
                               old_to_new_code_ids_all_sets0
                           else old_code_id0
                         in
-                        let rec_info =
-                          Flambda2_types.unknown Flambda_kind.rec_info
-                        in
+                        let rec_info = T.unknown K.rec_info in
                         let code_metadata =
                           Code_or_metadata.code_metadata code_or_metadata
                         in
@@ -188,25 +179,25 @@ let compute_closure_types_inside_functions denv all_sets_of_closures
                             (Code_metadata.dbg code_metadata)
                             (Code_metadata.relative_history code_metadata)
                             (Function_slot.name function_slot)
-                            (Downwards_env.inlining_history_tracker denv)
+                            (DE.inlining_history_tracker denv)
                         in
                         let () =
                           Inlining_report.record_decision_at_function_definition
                             absolute_history code_metadata
                             Inlining_report.Pass.Before_simplify
-                            (Downwards_env.are_rebuilding_terms denv)
+                            (DE.are_rebuilding_terms denv)
                             (Code_metadata.inlining_decision code_metadata)
                         in
                         function_decl_type (Some new_code_id) rec_info
                           old_code_id0))
                   old_code_id)
-              (Flambda.Function_declarations.funs function_decls)
+              (Function_declarations.funs function_decls)
           in
           Function_slot.Map.mapi
             (fun function_slot _ ->
-              Flambda2_types.exactly_this_closure function_slot
-                all_function_slots_in_set closure_types_via_aliases
-                value_slot_types_inside_function alloc_mode)
+              T.exactly_this_closure function_slot all_function_slots_in_set
+                closure_types_via_aliases value_slot_types_inside_function
+                alloc_mode)
             all_function_slots_in_set)
       all_sets_of_closures
       (List.combine closure_types_via_aliases_all_sets
@@ -214,9 +205,8 @@ let compute_closure_types_inside_functions denv all_sets_of_closures
   in
   closure_bound_names_all_sets, closure_types_inside_functions
 
-(** val bind_closure_types_inside_functions : Downwards_env.t -> Bound_name.t
-    Function_slot.Map.t list -> Flambda2_types.t Function_slot.Map.t list ->
-    Downwards_env.t coq_M **)
+(** val bind_closure_types_inside_functions : DE.t -> Bound_name.t
+    Function_slot.Map.t list -> T.t Function_slot.Map.t list -> DE.t coq_M **)
 
 let bind_closure_types_inside_functions denv_inside_functions
     closure_bound_names_inside_functions_all_sets0
@@ -230,9 +220,9 @@ let bind_closure_types_inside_functions denv_inside_functions
             let in_types = not (Bound_name.is_symbol bound_name) in
             let bound_name0 =
               Bound_name.create name
-                (if in_types then Name_mode.in_types else Name_mode.normal)
+                (if in_types then NM.in_types else NM.normal)
             in
-            Downwards_env.define_name denv0 bound_name0 Flambda_kind.value)
+            DE.define_name denv0 bound_name0 K.value)
           closure_bound_names_inside denv)
       denv_inside_functions closure_bound_names_inside_functions_all_sets0
   in
@@ -254,24 +244,21 @@ let bind_closure_types_inside_functions denv_inside_functions
                 (Function_slot.Map.print Bound_name.print)
                 closure_bound_names_inside_functions_one_set)
             (fun bound_name ->
-              Downwards_env.add_equation_on_name denv0
+              DE.add_equation_on_name denv0
                 (Bound_name.name bound_name)
                 closure_type))
         closure_types_inside_functions_one_set denv)
     denv_inside_functions0 closure_bound_names_inside_functions_all_sets0
     closure_types_inside_functions_all_sets
 
-(** val compute_old_to_new_code_ids_all_sets : Downwards_env.t ->
-    (Flambda.Set_of_closures.t * Alloc_mode.For_types.t) list -> Code_id.t
-    Code_id.Map.t coq_M **)
+(** val compute_old_to_new_code_ids_all_sets : DE.t -> (Set_of_closures.t *
+    Alloc_mode.For_types.t) list -> Code_id.t Code_id.Map.t coq_M **)
 
 let compute_old_to_new_code_ids_all_sets denv all_sets_of_closures =
   List.fold_left
     (fun old_to_new_code_ids_all_sets0 pat ->
       let set_of_closures, _ = pat in
-      let function_decls =
-        Flambda.Set_of_closures.function_decls set_of_closures
-      in
+      let function_decls = Set_of_closures.function_decls set_of_closures in
       Function_slot.Map.fold
         (fun _ old_code_id old_to_new_code_ids ->
           (fun f__1 f__2 x__0 ->
@@ -288,7 +275,7 @@ let compute_old_to_new_code_ids_all_sets denv all_sets_of_closures =
             (fun old_code_id0 _ ->
               let code =
                 Port_monad.try_with
-                  (fun _ -> Downwards_env.find_code_exn denv old_code_id0)
+                  (fun _ -> DE.find_code_exn denv old_code_id0)
                   Port_monad.not_found
                   (fun _ ->
                     Misc.fatal_errorf "Missing code for %a" Code_id.print
@@ -300,18 +287,18 @@ let compute_old_to_new_code_ids_all_sets denv all_sets_of_closures =
                 Code_id.Map.add old_code_id0 new_code_id old_to_new_code_ids
               else old_to_new_code_ids)
             old_code_id)
-        (Flambda.Function_declarations.funs function_decls)
+        (Function_declarations.funs function_decls)
         old_to_new_code_ids_all_sets0)
     Code_id.Map.empty all_sets_of_closures
 
-(** val bind_existing_code_to_new_code_ids : Downwards_env.t -> Code_id.t
-    Code_id.Map.t -> Downwards_env.t coq_M **)
+(** val bind_existing_code_to_new_code_ids : DE.t -> Code_id.t Code_id.Map.t ->
+    DE.t coq_M **)
 
 let bind_existing_code_to_new_code_ids denv old_to_new_code_ids_all_sets0 =
   Code_id.Map.fold
     (fun old_code_id new_code_id denv0 ->
       Port_monad.match_exn
-        (fun _ -> Downwards_env.find_code_exn denv0 old_code_id)
+        (fun _ -> DE.find_code_exn denv0 old_code_id)
         Port_monad.not_found
         (fun _ -> denv0)
         (fun code ->
@@ -322,13 +309,12 @@ let bind_existing_code_to_new_code_ids denv old_to_new_code_ids_all_sets0 =
                 (Code.with_newer_version_of (Some old_code_id)
                    (Code_or_metadata.get_code code))
             in
-            Downwards_env.define_code denv0 new_code_id code0
+            DE.define_code denv0 new_code_id code0
           else denv0))
     old_to_new_code_ids_all_sets0 denv
 
-(** val compute_and_erase_depth_variables : Flambda2_types.Typing_env.t ->
-    Downwards_env.t -> Flambda2_types.t Value_slot.Map.t list ->
-    (Downwards_env.t * Variable.Set.t) coq_M **)
+(** val compute_and_erase_depth_variables : TE.t -> DE.t -> T.t Value_slot.Map.t
+    list -> (DE.t * Variable.Set.t) coq_M **)
 
 let compute_and_erase_depth_variables typing_env denv_inside_functions
     value_slot_types_all_sets =
@@ -342,18 +328,15 @@ let compute_and_erase_depth_variables typing_env denv_inside_functions
              Value_slot.Map.data
                (Value_slot.Map.mapi
                   (fun _ ty ->
-                    let vars =
-                      Flambda2_types.Typing_env.free_names_transitive typing_env
-                        ty
-                    in
-                    Name_occurrences.fold_variables vars Variable.Set.empty
+                    let vars = TE.free_names_transitive typing_env ty in
+                    NO.fold_variables vars Variable.Set.empty
                       (fun free_depth_variables var ->
                         let ty0 =
-                          Flambda2_types.Typing_env.find
-                            (Downwards_env.typing_env denv_inside_functions)
+                          TE.find
+                            (DE.typing_env denv_inside_functions)
                             (Name.var var) None
                         in
-                        match Flambda2_types.kind ty0 with
+                        match T.kind ty0 with
                         | Flambda_kind.Value -> free_depth_variables
                         | Flambda_kind.Naked_number _ -> free_depth_variables
                         | Flambda_kind.Region -> free_depth_variables
@@ -366,27 +349,25 @@ let compute_and_erase_depth_variables typing_env denv_inside_functions
       Variable.Set.fold
         (fun dv env_inside_functions ->
           let name = Name.var dv in
-          Downwards_env.add_equation_on_name env_inside_functions name
-            (Flambda2_types.this_rec_info Rec_info_expr.do_not_inline))
+          DE.add_equation_on_name env_inside_functions name
+            (T.this_rec_info Rec_info_expr.do_not_inline))
         free_depth_variables denv_inside_functions
     in
     denv_inside_functions0, free_depth_variables
 
-(** val create : Downwards_acc.t -> Simplify_common.simplify_function_body ->
-    (Flambda.Set_of_closures.t * Alloc_mode.For_types.t) list -> Bound_name.t
-    Function_slot.Map.t list -> Flambda2_types.t Value_slot.Map.t list -> t
-    coq_M **)
+(** val create : DA.t -> Simplify_common.simplify_function_body ->
+    (Set_of_closures.t * Alloc_mode.For_types.t) list -> Bound_name.t
+    Function_slot.Map.t list -> T.t Value_slot.Map.t list -> t coq_M **)
 
 let create dacc_prior_to_sets0 simplify_function_body0 all_sets_of_closures
     closure_bound_names_all_sets value_slot_types_all_sets =
-  let denv = Downwards_acc.denv dacc_prior_to_sets0 in
+  let denv = DA.denv dacc_prior_to_sets0 in
   let denv_inside_functions =
-    Downwards_env.set_rebuild_terms (Downwards_env.enter_set_of_closures denv)
+    DE.set_rebuild_terms (DE.enter_set_of_closures denv)
   in
   let denv_inside_functions0, previously_free_depth_variables0 =
-    compute_and_erase_depth_variables
-      (Downwards_env.typing_env denv)
-      denv_inside_functions value_slot_types_all_sets
+    compute_and_erase_depth_variables (DE.typing_env denv) denv_inside_functions
+      value_slot_types_all_sets
   in
   let old_to_new_code_ids_all_sets0 =
     compute_old_to_new_code_ids_all_sets denv all_sets_of_closures
@@ -398,7 +379,7 @@ let create dacc_prior_to_sets0 simplify_function_body0 all_sets_of_closures
       old_to_new_code_ids_all_sets0
   in
   let dacc_inside_functions0 =
-    Downwards_acc.with_denv dacc_prior_to_sets0
+    DA.with_denv dacc_prior_to_sets0
       (bind_closure_types_inside_functions
          (bind_existing_code_to_new_code_ids denv_inside_functions0
             old_to_new_code_ids_all_sets0)
@@ -413,8 +394,8 @@ let create dacc_prior_to_sets0 simplify_function_body0 all_sets_of_closures
       match l with
       | [] ->
         Function_slot.Lmap.is_singleton
-          (Flambda.Function_declarations.funs_in_order
-             (Flambda.Set_of_closures.function_decls set_of_closures))
+          (Function_declarations.funs_in_order
+             (Set_of_closures.function_decls set_of_closures))
       | _ :: _ -> false)
   in
   { dacc_prior_to_sets = dacc_prior_to_sets0;

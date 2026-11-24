@@ -81,10 +81,10 @@ let create contents_hash0 is_cold0 expr0 =
 
 type rebuilt_expr = t
 
-(** val to_expr : t -> Are_rebuilding_terms.t -> Flambda.Import.Expr.t coq_M **)
+(** val to_expr : t -> ART.t -> Flambda.Import.Expr.t coq_M **)
 
 let to_expr t0 are_rebuilding =
-  if Are_rebuilding_terms.do_not_rebuild_terms are_rebuilding
+  if ART.do_not_rebuild_terms are_rebuilding
   then
     Misc.fatal_error
       "Cannot ask [Rebuilt_expr] for the built expression when \
@@ -114,10 +114,10 @@ let to_apply_cont t0 =
     (fun _ -> None)
     (descr t0)
 
-(** val can_be_removed_as_invalid : t -> Are_rebuilding_terms.t -> bool coq_M **)
+(** val can_be_removed_as_invalid : t -> ART.t -> bool coq_M **)
 
 let can_be_removed_as_invalid t0 are_rebuilding =
-  if Are_rebuilding_terms.do_not_rebuild_terms are_rebuilding
+  if ART.do_not_rebuild_terms are_rebuilding
   then false
   else
     (fun f__1 f__2 f__3 f__4 f__5 f__6 x__0 ->
@@ -137,10 +137,10 @@ let can_be_removed_as_invalid t0 are_rebuilding =
         if Flambda_features.Debug.keep_invalid_handlers () then false else true)
       (descr t0)
 
-(** val print : Are_rebuilding_terms.t -> Format.formatter -> t -> unit coq_M **)
+(** val print : ART.t -> Format.formatter -> t -> unit coq_M **)
 
 let print are_rebuilding ppf t0 =
-  if Are_rebuilding_terms.do_not_rebuild_terms are_rebuilding
+  if ART.do_not_rebuild_terms are_rebuilding
   then Format.fprintf ppf "<unavailable, terms not being rebuilt>"
   else Flambda.Import.Expr.print ppf t0.expr
 
@@ -160,11 +160,11 @@ let contents_hash_simple simple =
       Hashtbl.hash (1, Symbol.hash symbol, has_coercion))
     (fun const -> Hashtbl.hash (0, Reg_width_const.hash const))
 
-(** val create_let : Are_rebuilding_terms.t -> Bound_pattern.t ->
-    Flambda.Import.Named.t -> t -> Name_occurrences.t -> t coq_M **)
+(** val create_let : ART.t -> Bound_pattern.t -> Flambda.Import.Named.t -> t ->
+    Name_occurrences.t -> t coq_M **)
 
 let create_let are_rebuilding bound_vars defining_expr body free_names_of_body =
-  if Are_rebuilding_terms.do_not_rebuild_terms are_rebuilding
+  if ART.do_not_rebuild_terms are_rebuilding
   then term_not_rebuilt
   else
     let contents_hash0 =
@@ -197,11 +197,10 @@ let create_let are_rebuilding bound_vars defining_expr body free_names_of_body =
          (Flambda.Import.Let.create bound_vars defining_expr body.expr
             (Or_unknown.Known free_names_of_body)))
 
-(** val create_apply : Are_rebuilding_terms.t -> bool -> Flambda.Import.Apply.t
-    -> t coq_M **)
+(** val create_apply : ART.t -> bool -> Flambda.Import.Apply.t -> t coq_M **)
 
 let create_apply are_rebuilding is_cold0 apply =
-  if Are_rebuilding_terms.do_not_rebuild_terms are_rebuilding
+  if ART.do_not_rebuild_terms are_rebuilding
   then term_not_rebuilt
   else create None is_cold0 (Flambda.Import.Expr.create_apply apply)
 
@@ -239,11 +238,11 @@ module Function_params_and_body = struct
       exn_continuation params0 body.expr (Or_unknown.Known free_names_of_body)
       my_closure my_alloc_mode my_depth
 
-  (** val to_function_params_and_body : t -> Are_rebuilding_terms.t ->
+  (** val to_function_params_and_body : t -> ART.t ->
       Flambda.Import.Function_params_and_body.t coq_M **)
 
   let to_function_params_and_body t0 are_rebuilding =
-    if Are_rebuilding_terms.do_not_rebuild_terms are_rebuilding
+    if ART.do_not_rebuild_terms are_rebuilding
     then
       Misc.fatal_error
         "Cannot ask for function params and body when not rebuilding terms"
@@ -302,12 +301,12 @@ module Continuation_handler = struct
     Flambda.Import.Continuation_handler.print cont recursive ppf
       (to_continuation_handler false ch)
 
-  (** val create : Are_rebuilding_terms.t -> Bound_parameters.t -> rebuilt_expr
-      -> Name_occurrences.t -> bool -> bool -> t coq_M **)
+  (** val create : ART.t -> Bound_parameters.t -> rebuilt_expr ->
+      Name_occurrences.t -> bool -> bool -> t coq_M **)
 
   let create are_rebuilding params0 handler0 free_names_of_handler
       is_exn_handler0 is_cold0 =
-    if Are_rebuilding_terms.do_not_rebuild_terms are_rebuilding
+    if ART.do_not_rebuild_terms are_rebuilding
     then Continuation_handler_not_rebuilt
     else
       (fun (x__1, x__2, x__3, x__4, x__5) ->
@@ -325,12 +324,12 @@ module Continuation_handler = struct
           is_cold0 )
 end
 
-(** val create_non_recursive_let_cont : Are_rebuilding_terms.t -> Continuation.t
-    -> Continuation_handler.t -> t -> Name_occurrences.t -> t coq_M **)
+(** val create_non_recursive_let_cont : ART.t -> Continuation.t ->
+    Continuation_handler.t -> t -> Name_occurrences.t -> t coq_M **)
 
 let create_non_recursive_let_cont are_rebuilding cont handler0 body
     free_names_of_body =
-  if Are_rebuilding_terms.do_not_rebuild_terms are_rebuilding
+  if ART.do_not_rebuild_terms are_rebuilding
   then term_not_rebuilt
   else
     let handler1 =
@@ -340,13 +339,12 @@ let create_non_recursive_let_cont are_rebuilding cont handler0 body
       (Flambda.Import.Let_cont.create_non_recursive cont handler1 body.expr
          (Or_unknown.Known free_names_of_body))
 
-(** val create_non_recursive_let_cont' : Are_rebuilding_terms.t ->
-    Continuation.t -> Continuation_handler.t -> t -> Num_occurrences.t -> bool
-    -> t coq_M **)
+(** val create_non_recursive_let_cont' : ART.t -> Continuation.t ->
+    Continuation_handler.t -> t -> Num_occurrences.t -> bool -> t coq_M **)
 
 let create_non_recursive_let_cont' are_rebuilding cont handler0 body
     num_free_occurrences_of_cont_in_body is_applied_with_traps =
-  if Are_rebuilding_terms.do_not_rebuild_terms are_rebuilding
+  if ART.do_not_rebuild_terms are_rebuilding
   then term_not_rebuilt
   else
     let handler1 =
@@ -357,13 +355,12 @@ let create_non_recursive_let_cont' are_rebuilding cont handler0 body
          (Or_unknown.Known num_free_occurrences_of_cont_in_body)
          is_applied_with_traps)
 
-(** val create_non_recursive_let_cont_without_free_names :
-    Are_rebuilding_terms.t -> Continuation.t -> Continuation_handler.t -> t -> t
-    coq_M **)
+(** val create_non_recursive_let_cont_without_free_names : ART.t ->
+    Continuation.t -> Continuation_handler.t -> t -> t coq_M **)
 
 let create_non_recursive_let_cont_without_free_names are_rebuilding cont
     handler0 body =
-  if Are_rebuilding_terms.do_not_rebuild_terms are_rebuilding
+  if ART.do_not_rebuild_terms are_rebuilding
   then term_not_rebuilt
   else
     let handler1 =
@@ -373,11 +370,11 @@ let create_non_recursive_let_cont_without_free_names are_rebuilding cont
       (Flambda.Import.Let_cont.create_non_recursive cont handler1 body.expr
          Or_unknown.Unknown)
 
-(** val create_recursive_let_cont : Are_rebuilding_terms.t -> Bound_parameters.t
-    -> Continuation_handler.t Continuation.Lmap.t -> t -> t coq_M **)
+(** val create_recursive_let_cont : ART.t -> Bound_parameters.t ->
+    Continuation_handler.t Continuation.Lmap.t -> t -> t coq_M **)
 
 let create_recursive_let_cont are_rebuilding invariant_params handlers body =
-  if Are_rebuilding_terms.do_not_rebuild_terms are_rebuilding
+  if ART.do_not_rebuild_terms are_rebuilding
   then term_not_rebuilt
   else
     let handlers0 =
@@ -389,11 +386,10 @@ let create_recursive_let_cont are_rebuilding invariant_params handlers body =
       (Flambda.Import.Let_cont.create_recursive invariant_params handlers0
          body.expr)
 
-(** val create_switch : Are_rebuilding_terms.t -> bool -> Switch_expr.t -> t
-    coq_M **)
+(** val create_switch : ART.t -> bool -> Switch_expr.t -> t coq_M **)
 
 let create_switch are_rebuilding is_cold0 switch =
-  if Are_rebuilding_terms.do_not_rebuild_terms are_rebuilding
+  if ART.do_not_rebuild_terms are_rebuilding
   then term_not_rebuilt
   else create None is_cold0 (Flambda.Import.Expr.create_switch switch)
 
@@ -402,10 +398,10 @@ let create_switch are_rebuilding is_cold0 switch =
 let create_invalid reason =
   create None true (Flambda.Import.Expr.create_invalid reason)
 
-(** val bind_no_simplification : Are_rebuilding_terms.t -> (Bound_var.t,
-    Code_size.t, Flambda.Import.Named.t) Port_monad.tuple3 list -> t ->
-    Cost_metrics.t -> Name_occurrences.t -> (t, Cost_metrics.t,
-    Name_occurrences.t) Port_monad.tuple3 coq_M **)
+(** val bind_no_simplification : ART.t -> (Bound_var.t, Code_size.t,
+    Flambda.Import.Named.t) Port_monad.tuple3 list -> t -> Cost_metrics.t ->
+    Name_occurrences.t -> (t, Cost_metrics.t, Name_occurrences.t)
+    Port_monad.tuple3 coq_M **)
 
 let bind_no_simplification are_rebuilding bindings body cost_metrics_of_body
     free_names_of_body =
@@ -906,12 +902,12 @@ module Unique_continuation_handlers = struct
 
   let empty = { hash_map = Numeric_types.Int.Map.empty }
 
-  (** val contents_hash : Are_rebuilding_terms.t -> rebuilt_expr -> bool ->
-      Name_occurrences.t -> int Or_null.t coq_M **)
+  (** val contents_hash : ART.t -> rebuilt_expr -> bool -> Name_occurrences.t ->
+      int Or_null.t coq_M **)
 
   let contents_hash are_rebuilding handler0 is_exn_handler0
       free_names_without_params =
-    if Are_rebuilding_terms.do_not_rebuild_terms are_rebuilding
+    if ART.do_not_rebuild_terms are_rebuilding
     then Or_null.null
     else
       match handler0.contents_hash with
@@ -924,8 +920,8 @@ module Unique_continuation_handlers = struct
                 (depth0, structural_hash0, Bool.hash is_exn_handler0))
              (fun hash var -> Hashtbl.hash (hash, Variable.hash var)))
 
-  (** val add : Are_rebuilding_terms.t -> Bound_parameters.t -> rebuilt_expr ->
-      bool -> Name_occurrences.t -> 'a1 -> 'a1 t -> 'a1 t coq_M **)
+  (** val add : ART.t -> Bound_parameters.t -> rebuilt_expr -> bool ->
+      Name_occurrences.t -> 'a1 -> 'a1 t -> 'a1 t coq_M **)
 
   let add are_rebuilding params0 handler0 is_exn_handler0
       free_names_without_params value t0 =
@@ -951,9 +947,8 @@ module Unique_continuation_handlers = struct
           Numeric_types.Int.Map.add hash (entry0 :: entries) t0.hash_map
       }
 
-  (** val find_opt : Are_rebuilding_terms.t -> Bound_parameters.t ->
-      rebuilt_expr -> bool -> Name_occurrences.t -> 'a1 t -> ('a1 * Simple.t
-      list) option coq_M **)
+  (** val find_opt : ART.t -> Bound_parameters.t -> rebuilt_expr -> bool ->
+      Name_occurrences.t -> 'a1 t -> ('a1 * Simple.t list) option coq_M **)
 
   let find_opt are_rebuilding params0 handler0 is_exn_handler0
       free_names_without_params t0 =

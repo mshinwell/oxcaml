@@ -82,8 +82,8 @@ type on_unknown =
   | Leave_unevaluated
   | Assume_value of Rec_info_expr.t
 
-(** val simplify_rec_info_expr0 : Downwards_env.t -> Rec_info_expr.t ->
-    on_unknown -> Rec_info_expr.t coq_M **)
+(** val simplify_rec_info_expr0 : DE.t -> Rec_info_expr.t -> on_unknown ->
+    Rec_info_expr.t coq_M **)
 
 let rec simplify_rec_info_expr0 denv orig on_unknown0 =
   (fun f__1 f__2 f__3 f__4 x__0 ->
@@ -97,16 +97,12 @@ let rec simplify_rec_info_expr0 denv orig on_unknown0 =
     (fun dv ->
       let normal_case =
        fun _ ->
-        let ty =
-          Flambda2_types.Typing_env.find
-            (Downwards_env.typing_env denv)
-            (Name.var dv) (Some Flambda_kind.rec_info)
-        in
+        let ty = TE.find (DE.typing_env denv) (Name.var dv) (Some K.rec_info) in
         (fun f__1 f__2 f__3 x__0 ->
-          match (x__0 : _ Flambda2_types.meet_shortcut) with
-          | Flambda2_types.Known_result x__1 -> f__1 x__1
-          | Flambda2_types.Need_meet -> f__2 ()
-          | Flambda2_types.Invalid -> f__3 ())
+          match (x__0 : _ T.meet_shortcut) with
+          | T.Known_result x__1 -> f__1 x__1
+          | T.Need_meet -> f__2 ()
+          | T.Invalid -> f__3 ())
           (fun rec_info_expr ->
             simplify_rec_info_expr0 denv rec_info_expr on_unknown0)
           (fun _ ->
@@ -117,17 +113,16 @@ let rec simplify_rec_info_expr0 denv orig on_unknown0 =
             match on_unknown0 with
             | Leave_unevaluated -> orig
             | Assume_value value -> value)
-          (Flambda2_types.meet_rec_info (Downwards_env.typing_env denv) ty)
+          (T.meet_rec_info (DE.typing_env denv) ty)
       in
       if Flambda_features.erase_in_types_depth_variables ()
       then
         Port_monad.match_exn
           (fun _ ->
             (fun x__1 x__2 x__3 x__4 ->
-              Flambda2_types.Typing_env.get_canonical_simple_exn x__1
-                ?min_name_mode:x__2 ?name_mode_of_existing_simple:x__3 x__4)
-              (Downwards_env.typing_env denv)
-              (Some Name_mode.normal) None (Simple.var dv))
+              TE.get_canonical_simple_exn x__1 ?min_name_mode:x__2
+                ?name_mode_of_existing_simple:x__3 x__4)
+              (DE.typing_env denv) (Some Name_mode.normal) None (Simple.var dv))
           Port_monad.not_found
           (fun _ -> Rec_info_expr.do_not_inline)
           (fun _ -> normal_case ())
@@ -172,13 +167,12 @@ let rec simplify_rec_info_expr0 denv orig on_unknown0 =
         new_ri)
     orig
 
-(** val simplify_rec_info_expr : Downwards_acc.t -> Rec_info_expr.t ->
-    Rec_info_expr.t coq_M **)
+(** val simplify_rec_info_expr : DA.t -> Rec_info_expr.t -> Rec_info_expr.t
+    coq_M **)
 
 let simplify_rec_info_expr dacc rec_info_expr =
   let ans =
-    simplify_rec_info_expr0 (Downwards_acc.denv dacc) rec_info_expr
-      Leave_unevaluated
+    simplify_rec_info_expr0 (DA.denv dacc) rec_info_expr Leave_unevaluated
   in
   ans
 
@@ -203,7 +197,7 @@ module Evaluated_rec_info_expr = struct
     Rec_info_expr.print ppf (Rec_info_expr.const depth0 unrolling0)
 end
 
-(** val evaluate_rec_info_expr : Downwards_acc.t -> Rec_info_expr.t ->
+(** val evaluate_rec_info_expr : DA.t -> Rec_info_expr.t ->
     Evaluated_rec_info_expr.t coq_M **)
 
 let evaluate_rec_info_expr dacc rec_info_expr =
@@ -220,18 +214,17 @@ let evaluate_rec_info_expr dacc rec_info_expr =
       })
     (fun _ ->
       Misc.fatal_errorf "Unable to evaluate@ %a@ with@ dacc@ %a"
-        Rec_info_expr.print rec_info_expr Downwards_acc.print dacc)
+        Rec_info_expr.print rec_info_expr DA.print dacc)
     (fun _ ->
       Misc.fatal_errorf "Unable to evaluate@ %a@ with@ dacc@ %a"
-        Rec_info_expr.print rec_info_expr Downwards_acc.print dacc)
+        Rec_info_expr.print rec_info_expr DA.print dacc)
     (fun _ _ ->
       Misc.fatal_errorf "Unable to evaluate@ %a@ with@ dacc@ %a"
-        Rec_info_expr.print rec_info_expr Downwards_acc.print dacc)
-    (simplify_rec_info_expr0 (Downwards_acc.denv dacc) rec_info_expr
+        Rec_info_expr.print rec_info_expr DA.print dacc)
+    (simplify_rec_info_expr0 (DA.denv dacc) rec_info_expr
        (Assume_value Rec_info_expr.unknown))
 
-(** val depth_may_exceed : Downwards_acc.t -> Rec_info_expr.t -> int -> bool
-    coq_M **)
+(** val depth_may_exceed : DA.t -> Rec_info_expr.t -> int -> bool coq_M **)
 
 let depth_may_exceed dacc rec_info_expr bound =
   let { Evaluated_rec_info_expr.depth = depth0;
@@ -241,8 +234,8 @@ let depth_may_exceed dacc rec_info_expr bound =
   in
   Or_infinity.compare Int.compare depth0 (Or_infinity.Finite bound) > 0
 
-(** val known_remaining_unrolling_depth : Downwards_acc.t -> Rec_info_expr.t ->
-    int option coq_M **)
+(** val known_remaining_unrolling_depth : DA.t -> Rec_info_expr.t -> int option
+    coq_M **)
 
 let known_remaining_unrolling_depth dacc rec_info_expr =
   let { Evaluated_rec_info_expr.depth = _;
@@ -262,7 +255,7 @@ let known_remaining_unrolling_depth dacc rec_info_expr =
     (fun _ -> None)
     unrolling0
 
-(** val can_unroll : Downwards_acc.t -> Rec_info_expr.t -> bool coq_M **)
+(** val can_unroll : DA.t -> Rec_info_expr.t -> bool coq_M **)
 
 let can_unroll dacc rec_info_expr =
   let { Evaluated_rec_info_expr.depth = _;

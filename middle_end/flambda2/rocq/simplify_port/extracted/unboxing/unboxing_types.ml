@@ -36,9 +36,7 @@ module Extra_param_and_args = struct
   type t =
     { param : Variable.t;
       param_debug_uid : Flambda_debug_uid.t;
-      args :
-        Continuation_extra_params_and_args.Extra_arg.t
-        Apply_cont_rewrite_id.Map.t
+      args : EPA.Extra_arg.t Apply_cont_rewrite_id.Map.t
     }
 
   (** val param : t -> Variable.t **)
@@ -49,8 +47,7 @@ module Extra_param_and_args = struct
 
   let param_debug_uid t0 = t0.param_debug_uid
 
-  (** val args : t -> Continuation_extra_params_and_args.Extra_arg.t
-      Apply_cont_rewrite_id.Map.t **)
+  (** val args : t -> EPA.Extra_arg.t Apply_cont_rewrite_id.Map.t **)
 
   let args t0 = t0.args
 
@@ -64,8 +61,8 @@ module Extra_param_and_args = struct
       args = Apply_cont_rewrite_id.Map.empty
     }
 
-  (** val update_param_args : t -> Apply_cont_rewrite_id.t ->
-      Continuation_extra_params_and_args.Extra_arg.t -> t coq_M **)
+  (** val update_param_args : t -> Apply_cont_rewrite_id.t -> EPA.Extra_arg.t ->
+      t coq_M **)
 
   let update_param_args t0 rewrite_id extra_arg =
     let () = assert (not (Apply_cont_rewrite_id.Map.mem rewrite_id t0.args)) in
@@ -116,12 +113,12 @@ and decision =
   | Do_not_unbox of do_not_unbox_reason
 
 type decisions_ =
-  { decisions : (Bound_parameter.t * decision) list;
+  { decisions : (BP.t * decision) list;
     rewrite_ids_seen : Apply_cont_rewrite_id.Set.t;
     rewrites_ids_known_as_invalid : Apply_cont_rewrite_id.Set.t
   }
 
-(** val decisions : decisions_ -> (Bound_parameter.t * decision) list **)
+(** val decisions : decisions_ -> (BP.t * decision) list **)
 
 let decisions d = d.decisions
 
@@ -169,8 +166,7 @@ let rec print_decision ppf = function
         Format.fprintf ppf
           "@[<v 1>(unique_tag_and_size@ @[<h>(static_tag %a)@]@ @[<h>(shape \
            %a)@]@ @[<hv 2>(fields@ %a)@])@]"
-          Tag.print tag Flambda_kind.Block_shape.print shape
-          print_fields_decisions fields)
+          Tag.print tag K.Block_shape.print shape print_fields_decisions fields)
       (fun tag const_ctors fields_by_tag ->
         Format.fprintf ppf
           "@[<v 2>(variant@ @[<hov>(tag %a)@]@ @[<hv 2>(const_ctors@ %a)@]@ \
@@ -250,8 +246,8 @@ let print ppf pat =
   let aux =
    fun ppf0 pat0 ->
     let param0, decision = pat0 in
-    Format.fprintf ppf0 "@[<hov 1>(%a@ %a)@]" Bound_parameter.print param0
-      print_decision decision
+    Format.fprintf ppf0 "@[<hov 1>(%a@ %a)@]" BP.print param0 print_decision
+      decision
   in
   Format.fprintf ppf
     "@[<hov 1>(@[<hov 1>(decisions@ %a)@]@ @[<hov 1>(rewrite_ids_seen@ %a)@]@ \

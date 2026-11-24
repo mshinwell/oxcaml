@@ -29,10 +29,10 @@ module VB = Bound_var
 
 (** val make_inlined_body : Simple.t option -> Code_id.t -> int option ->
     Bound_parameter.t list -> Simple.List.t -> Variable.t ->
-    Alloc_mode.For_applications.t -> Variable.t -> Rec_info_expr.t ->
-    Flambda.Expr.t -> Continuation.t -> Continuation.t -> Continuation.t ->
-    Flambda.Apply.Result_continuation.t -> Alloc_mode.For_applications.t ->
-    Flambda.Expr.t coq_M **)
+    Alloc_mode.For_applications.t -> Variable.t -> Rec_info_expr.t -> Expr.t ->
+    Continuation.t -> Continuation.t -> Continuation.t ->
+    Apply.Result_continuation.t -> Alloc_mode.For_applications.t -> Expr.t coq_M
+    **)
 
 let make_inlined_body callee called_code_id unroll_to params args my_closure
     my_alloc_mode my_depth rec_info body exn_continuation return_continuation
@@ -72,13 +72,12 @@ let make_inlined_body callee called_code_id unroll_to params args my_closure
     in
     ListLabels.fold_left2
       (fun expr param arg ->
-        let param_var, param_uid = Bound_parameter.var_and_uid param in
+        let param_var, param_uid = BP.var_and_uid param in
         let var = Bound_var.create param_var param_uid Name_mode.normal in
-        Flambda.Expr.create_let
-          (Flambda.Let.create
+        Expr.create_let
+          (Let.create
              (Bound_pattern.singleton var)
-             (Flambda.Named.create_simple arg)
-             expr Or_unknown.Unknown))
+             (Named.create_simple arg) expr Or_unknown.Unknown))
       body0 (List.rev params0) (List.rev args0)
   in
   let bind_depth =
@@ -86,51 +85,50 @@ let make_inlined_body callee called_code_id unroll_to params args my_closure
     let my_depth_duid = Flambda_debug_uid.none in
     let bound =
       Bound_pattern.singleton
-        (Bound_var.create my_depth0 my_depth_duid Name_mode.normal)
+        (VB.create my_depth0 my_depth_duid Name_mode.normal)
     in
-    Flambda.Expr.create_let
-      (Flambda.Let.create bound
-         (Flambda.Named.create_rec_info rec_info1)
+    Expr.create_let
+      (Let.create bound
+         (Named.create_rec_info rec_info1)
          body0 Or_unknown.Unknown)
   in
   Inlining_helpers.make_inlined_body callee0 called_code_id region_inlined_into
     params args my_closure0 my_alloc_mode my_depth rec_info0 body
     exn_continuation return_continuation apply_exn_continuation
-    apply_return_continuation bind_params bind_depth Flambda.Expr.apply_renaming
+    apply_return_continuation bind_params bind_depth Expr.apply_renaming
 
 (** val wrap_inlined_body_for_exn_extra_args : (Simple.t *
     Flambda_kind.With_subkind.t) list -> Exn_continuation.t ->
-    Flambda.Apply.Result_continuation.t -> (_) Flambda_arity.t -> (unit ->
-    Continuation.t -> Flambda.Apply.Result_continuation.t -> Flambda.Expr.t
-    coq_M) -> Flambda.Expr.t coq_M **)
+    Apply.Result_continuation.t -> (_) Flambda_arity.t -> (unit ->
+    Continuation.t -> Apply.Result_continuation.t -> Expr.t coq_M) -> Expr.t
+    coq_M **)
 
 let wrap_inlined_body_for_exn_extra_args extra_args apply_exn_continuation
     apply_return_continuation result_arity make_inlined_body0 =
   let apply_cont_create =
    fun _ trap_action cont args dbg ->
-    Flambda.Expr.create_apply_cont
+    Expr.create_apply_cont
       ((fun x__1 x__2 x__3 x__4 ->
-         Flambda.Apply_cont.create ?trap_action:x__1 x__2 x__3 x__4)
+         Apply_cont.create ?trap_action:x__1 x__2 x__3 x__4)
          (Some trap_action) cont args dbg)
   in
   let let_cont_create =
    fun _ cont handler_params handler body is_exn_handler is_cold ->
     let handler0 =
-      Flambda.Continuation_handler.create handler_params (handler ())
-        Or_unknown.Unknown is_exn_handler is_cold
+      Continuation_handler.create handler_params (handler ()) Or_unknown.Unknown
+        is_exn_handler is_cold
     in
-    Flambda.Let_cont.create_non_recursive cont handler0 (body ())
-      Or_unknown.Unknown
+    Let_cont.create_non_recursive cont handler0 (body ()) Or_unknown.Unknown
   in
   Inlining_helpers.wrap_inlined_body_for_exn_extra_args () extra_args
     apply_exn_continuation apply_return_continuation result_arity
     make_inlined_body0 apply_cont_create let_cont_create
 
-(** val inline : Downwards_acc.t -> Flambda.Apply.t -> int option -> bool ->
-    Flambda2_types.Function_type.t -> (Downwards_acc.t * Flambda.Expr.t) coq_M **)
+(** val inline : DA.t -> Apply.t -> int option -> bool -> FT.t -> (DA.t *
+    Expr.t) coq_M **)
 
 let inline dacc apply unroll_to was_inline_always function_decl =
-  let callee = Flambda.Apply.callee apply in
+  let callee = Apply.callee apply in
   let () =
     (fun f__1 f__2 f__3 f__4 x__0 ->
       match (x__0 : Call_kind.t) with
@@ -157,38 +155,33 @@ let inline dacc apply unroll_to was_inline_always function_decl =
         Misc.fatal_error
           "Trying to call [Inlining_transforms.inline] on something other than \
            an OCaml function call.")
-      (Flambda.Apply.call_kind apply)
+      (Apply.call_kind apply)
   in
-  let region_inlined_into = Flambda.Apply.return_mode apply in
-  let args = Flambda.Apply.args apply in
-  let apply_return_continuation = Flambda.Apply.continuation apply in
-  let apply_exn_continuation = Flambda.Apply.exn_continuation apply in
-  let denv = Downwards_acc.denv dacc in
+  let region_inlined_into = Apply.return_mode apply in
+  let args = Apply.args apply in
+  let apply_return_continuation = Apply.continuation apply in
+  let apply_exn_continuation = Apply.exn_continuation apply in
+  let denv = DA.denv dacc in
   let code_or_metadata =
     Port_monad.try_with
-      (fun _ ->
-        Downwards_env.find_code_exn denv
-          (Flambda2_types.Function_type.code_id function_decl))
+      (fun _ -> DE.find_code_exn denv (FT.code_id function_decl))
       Port_monad.not_found
       (fun _ ->
         Misc.fatal_errorf
           "Trying to inline %a but could not find its code or metadata"
-          Code_id.print
-          (Flambda2_types.Function_type.code_id function_decl))
+          Code_id.print (FT.code_id function_decl))
   in
   let code = Code_or_metadata.get_code code_or_metadata in
   let rec_info =
     (fun f__1 f__2 f__3 x__0 ->
-      match (x__0 : _ Flambda2_types.meet_shortcut) with
-      | Flambda2_types.Known_result x__1 -> f__1 x__1
-      | Flambda2_types.Need_meet -> f__2 ()
-      | Flambda2_types.Invalid -> f__3 ())
+      match (x__0 : _ T.meet_shortcut) with
+      | T.Known_result x__1 -> f__1 x__1
+      | T.Need_meet -> f__2 ()
+      | T.Invalid -> f__3 ())
       (fun rec_info -> rec_info)
       (fun _ -> Rec_info_expr.unknown)
       (fun _ -> Rec_info_expr.do_not_inline)
-      (Flambda2_types.meet_rec_info
-         (Downwards_env.typing_env denv)
-         (Flambda2_types.Function_type.rec_info function_decl))
+      (T.meet_rec_info (DE.typing_env denv) (FT.rec_info function_decl))
   in
   let result_mode = Code.result_mode code in
   (fun f__1 f__2 x__0 ->
@@ -202,15 +195,13 @@ let inline dacc apply unroll_to was_inline_always function_decl =
       match result_mode with
       | Lambda.Maybe_alloc_stack ->
         ( dacc,
-          Flambda.Expr.create_invalid
+          Expr.create_invalid
             (Flambda.Invalid.Calling_local_returning_closure_with_normal_apply
                apply) )
       | Lambda.Not_alloc_stack ->
-        let denv0 =
-          Downwards_env.enter_inlined_apply code apply was_inline_always denv
-        in
+        let denv0 = DE.enter_inlined_apply code apply was_inline_always denv in
         let params_and_body = Code.params_and_body code in
-        Flambda.Function_params_and_body.pattern_match params_and_body
+        Function_params_and_body.pattern_match params_and_body
           (fun
             return_continuation
             exn_continuation
@@ -244,15 +235,13 @@ let inline dacc apply unroll_to was_inline_always function_decl =
                   apply_exn_continuation apply_return_continuation
                   (Code.result_arity code) make_inlined_body0
             in
-            Downwards_acc.with_denv dacc denv0, expr))
+            DA.with_denv dacc denv0, expr))
     (fun _ _ _ ->
       match result_mode with
       | Lambda.Maybe_alloc_stack ->
-        let denv0 =
-          Downwards_env.enter_inlined_apply code apply was_inline_always denv
-        in
+        let denv0 = DE.enter_inlined_apply code apply was_inline_always denv in
         let params_and_body = Code.params_and_body code in
-        Flambda.Function_params_and_body.pattern_match params_and_body
+        Function_params_and_body.pattern_match params_and_body
           (fun
             return_continuation
             exn_continuation
@@ -286,13 +275,11 @@ let inline dacc apply unroll_to was_inline_always function_decl =
                   apply_exn_continuation apply_return_continuation
                   (Code.result_arity code) make_inlined_body0
             in
-            Downwards_acc.with_denv dacc denv0, expr)
+            DA.with_denv dacc denv0, expr)
       | Lambda.Not_alloc_stack ->
-        let denv0 =
-          Downwards_env.enter_inlined_apply code apply was_inline_always denv
-        in
+        let denv0 = DE.enter_inlined_apply code apply was_inline_always denv in
         let params_and_body = Code.params_and_body code in
-        Flambda.Function_params_and_body.pattern_match params_and_body
+        Function_params_and_body.pattern_match params_and_body
           (fun
             return_continuation
             exn_continuation
@@ -326,5 +313,5 @@ let inline dacc apply unroll_to was_inline_always function_decl =
                   apply_exn_continuation apply_return_continuation
                   (Code.result_arity code) make_inlined_body0
             in
-            Downwards_acc.with_denv dacc denv0, expr))
+            DA.with_denv dacc denv0, expr))
     region_inlined_into

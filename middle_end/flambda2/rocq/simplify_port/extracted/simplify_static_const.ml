@@ -24,13 +24,13 @@ open! Flambda.Import
 open! Simplify_import
 open Port_monad
 
-(** val simplify_field_of_block : Downwards_acc.t -> (Simple.With_debuginfo.t *
-    Flambda_kind.t) -> (Simple.With_debuginfo.t * Flambda2_types.t) coq_M **)
+(** val simplify_field_of_block : DA.t -> (Simple.With_debuginfo.t * K.t) ->
+    (Simple.With_debuginfo.t * T.t) coq_M **)
 
 let simplify_field_of_block dacc = function
   | field, expected_kind ->
     let ty, simple =
-      Simplify_simple.simplify_simple dacc
+      S.simplify_simple dacc
         (Simple.With_debuginfo.simple field)
         Name_mode.normal
     in
@@ -38,329 +38,300 @@ let simplify_field_of_block dacc = function
       Simple.With_debuginfo.create simple (Simple.With_debuginfo.dbg field)
     in
     let () =
-      if not (Flambda_kind.equal (Flambda2_types.kind ty) expected_kind)
+      if not (K.equal (T.kind ty) expected_kind)
       then
         Misc.fatal_errorf
           "Kind %a specified for a field of a static block, but the field has \
            type:@ %a"
-          Flambda_kind.print expected_kind Flambda2_types.print ty
+          K.print expected_kind T.print ty
       else ()
     in
     field0, ty
 
-(** val simplify_or_variable : Downwards_acc.t -> ('a1 -> Flambda2_types.t
-    coq_M) -> 'a1 Or_variable.t -> Flambda_kind.t -> ('a1 Or_variable.t *
-    Flambda2_types.t) coq_M **)
+(** val simplify_or_variable : DA.t -> ('a1 -> T.t coq_M) -> 'a1 Or_variable.t
+    -> K.t -> ('a1 Or_variable.t * T.t) coq_M **)
 
 let simplify_or_variable dacc type_for_const or_variable kind =
-  let denv = Downwards_acc.denv dacc in
+  let denv = DA.denv dacc in
   match or_variable with
   | Or_variable.Const const -> or_variable, type_for_const const
   | Or_variable.Var (var, _) ->
-    ( or_variable,
-      Flambda2_types.Typing_env.find
-        (Downwards_env.typing_env denv)
-        (Name.var var) (Some kind) )
+    or_variable, TE.find (DE.typing_env denv) (Name.var var) (Some kind)
 
-(** val rebuild_naked_number_array : Downwards_acc.t -> (Flambda2_types.t ->
-    Downwards_acc.t coq_M) -> Flambda_kind.With_subkind.t -> ('a1 ->
-    Flambda2_types.t coq_M) -> (Are_rebuilding_terms.t -> 'a1 Or_variable.t list
-    -> Rebuilt_static_const.t coq_M) -> 'a1 Or_variable.t list ->
-    (Rebuilt_static_const.t * Downwards_acc.t) coq_M **)
+(** val rebuild_naked_number_array : DA.t -> (T.t -> DA.t coq_M) -> KS.t -> ('a1
+    -> T.t coq_M) -> (Are_rebuilding_terms.t -> 'a1 Or_variable.t list -> RSC.t
+    coq_M) -> 'a1 Or_variable.t list -> (RSC.t * DA.t) coq_M **)
 
 let rebuild_naked_number_array dacc bind_result_sym kind type_creator creator
     fields =
   let fields0, field_tys =
-    let kind0 = Flambda_kind.With_subkind.kind kind in
+    let kind0 = KS.kind kind in
     List.split
       (List.map
          (fun field -> simplify_or_variable dacc type_creator field kind0)
          fields)
   in
   let dacc0 =
-    let machine_width = Downwards_env.machine_width (Downwards_acc.denv dacc) in
+    let machine_width = DE.machine_width (DA.denv dacc) in
     bind_result_sym
-      (Flambda2_types.immutable_array (Or_unknown_or_bottom.Ok kind) field_tys
+      (T.immutable_array (Or_unknown_or_bottom.Ok kind) field_tys
          Alloc_mode.For_types.heap machine_width)
   in
-  creator (Downwards_acc.are_rebuilding_terms dacc0) fields0, dacc0
+  creator (DA.are_rebuilding_terms dacc0) fields0, dacc0
 
 (** val simplify_static_const_block_type : Target_system.Machine_width.t ->
-    Tag.Scannable.t -> Flambda2_types.t list ->
-    Flambda_kind.Scannable_block_shape.t -> Mutability.t -> Flambda2_types.t
-    coq_M **)
+    Tag.Scannable.t -> T.t list -> K.Scannable_block_shape.t -> Mutability.t ->
+    T.t coq_M **)
 
 let simplify_static_const_block_type machine_width tag fields shape is_mutable =
   let tag0 = Tag.Scannable.to_tag tag in
-  let shape0 = Flambda_kind.Block_shape.Scannable shape in
+  let shape0 = K.Block_shape.Scannable shape in
   match is_mutable with
-  | Mutability.Mutable -> Flambda2_types.mutable_block Alloc_mode.For_types.heap
+  | Mutability.Mutable -> T.mutable_block Alloc_mode.For_types.heap
   | Mutability.Immutable ->
-    Flambda2_types.immutable_block machine_width false tag0 shape0
-      Alloc_mode.For_types.heap fields
+    T.immutable_block machine_width false tag0 shape0 Alloc_mode.For_types.heap
+      fields
   | Mutability.Immutable_unique ->
-    Flambda2_types.immutable_block machine_width true tag0 shape0
-      Alloc_mode.For_types.heap fields
+    T.immutable_block machine_width true tag0 shape0 Alloc_mode.For_types.heap
+      fields
 
-(** val simplify_static_const_of_kind_value : Downwards_acc.t ->
-    Flambda.Import.Static_const.t -> Symbol.t -> (Rebuilt_static_const.t *
-    Downwards_acc.t) coq_M **)
+(** val simplify_static_const_of_kind_value : DA.t ->
+    Flambda.Import.Static_const.t -> Symbol.t -> (Rebuilt_static_const.t * DA.t)
+    coq_M **)
 
 let simplify_static_const_of_kind_value dacc static_const result_sym =
   let bind_result_sym =
    fun typ ->
-    Downwards_acc.map_denv dacc (fun denv ->
-        let denv0 =
-          Downwards_env.define_symbol denv result_sym Flambda_kind.value
-        in
-        Downwards_env.add_equation_on_symbol denv0 result_sym typ)
+    DA.map_denv dacc (fun denv ->
+        let denv0 = DE.define_symbol denv result_sym K.value in
+        DE.add_equation_on_symbol denv0 result_sym typ)
   in
   match static_const with
   | Static_const.Set_of_closures _ ->
     Misc.fatal_errorf
       "[Set_of_closures] values cannot be bound by a [Block_like] binding:@ %a"
-      Static_const.print static_const
+      SC.print static_const
   | Static_const.Block (tag, is_mutable, shape, fields) ->
     let fields_with_tys =
       let fields_with_kinds =
         match shape with
         | Flambda_kind.Scannable_block_shape.Value_only ->
-          List.map (fun field -> field, Flambda_kind.value) fields
+          List.map (fun field -> field, K.value) fields
         | Flambda_kind.Scannable_block_shape.Mixed_record shape0 ->
           List.combine fields
-            (Array.to_list (Flambda_kind.Mixed_block_shape.field_kinds shape0))
+            (Array.to_list (K.Mixed_block_shape.field_kinds shape0))
       in
       List.map (simplify_field_of_block dacc) fields_with_kinds
     in
     let fields0, field_tys = List.split fields_with_tys in
     let ty =
       simplify_static_const_block_type
-        (Downwards_env.machine_width (Downwards_acc.denv dacc))
+        (DE.machine_width (DA.denv dacc))
         tag field_tys shape is_mutable
     in
     let dacc0 = bind_result_sym ty in
     ( Rebuilt_static_const.create_block
-        (Downwards_acc.are_rebuilding_terms dacc0)
+        (DA.are_rebuilding_terms dacc0)
         tag is_mutable shape fields0,
       dacc0 )
   | Static_const.Boxed_float32 or_var ->
     let or_var0, ty =
       simplify_or_variable dacc
-        (fun f -> Flambda2_types.this_boxed_float32 f Alloc_mode.For_types.heap)
-        or_var Flambda_kind.value
+        (fun f -> T.this_boxed_float32 f Alloc_mode.For_types.heap)
+        or_var K.value
     in
     let dacc0 = bind_result_sym ty in
     ( Rebuilt_static_const.create_boxed_float32
-        (Downwards_acc.are_rebuilding_terms dacc0)
-        (Downwards_env.machine_width (Downwards_acc.denv dacc0))
+        (DA.are_rebuilding_terms dacc0)
+        (DE.machine_width (DA.denv dacc0))
         or_var0,
       dacc0 )
   | Static_const.Boxed_float or_var ->
     let or_var0, ty =
       simplify_or_variable dacc
-        (fun f -> Flambda2_types.this_boxed_float f Alloc_mode.For_types.heap)
-        or_var Flambda_kind.value
+        (fun f -> T.this_boxed_float f Alloc_mode.For_types.heap)
+        or_var K.value
     in
     let dacc0 = bind_result_sym ty in
     ( Rebuilt_static_const.create_boxed_float
-        (Downwards_acc.are_rebuilding_terms dacc0)
-        (Downwards_env.machine_width (Downwards_acc.denv dacc0))
+        (DA.are_rebuilding_terms dacc0)
+        (DE.machine_width (DA.denv dacc0))
         or_var0,
       dacc0 )
   | Static_const.Boxed_int32 or_var ->
     let or_var0, ty =
       simplify_or_variable dacc
-        (fun f -> Flambda2_types.this_boxed_int32 f Alloc_mode.For_types.heap)
-        or_var Flambda_kind.value
+        (fun f -> T.this_boxed_int32 f Alloc_mode.For_types.heap)
+        or_var K.value
     in
     let dacc0 = bind_result_sym ty in
     ( Rebuilt_static_const.create_boxed_int32
-        (Downwards_acc.are_rebuilding_terms dacc0)
-        (Downwards_env.machine_width (Downwards_acc.denv dacc0))
+        (DA.are_rebuilding_terms dacc0)
+        (DE.machine_width (DA.denv dacc0))
         or_var0,
       dacc0 )
   | Static_const.Boxed_int64 or_var ->
     let or_var0, ty =
       simplify_or_variable dacc
-        (fun f -> Flambda2_types.this_boxed_int64 f Alloc_mode.For_types.heap)
-        or_var Flambda_kind.value
+        (fun f -> T.this_boxed_int64 f Alloc_mode.For_types.heap)
+        or_var K.value
     in
     let dacc0 = bind_result_sym ty in
     ( Rebuilt_static_const.create_boxed_int64
-        (Downwards_acc.are_rebuilding_terms dacc0)
-        (Downwards_env.machine_width (Downwards_acc.denv dacc0))
+        (DA.are_rebuilding_terms dacc0)
+        (DE.machine_width (DA.denv dacc0))
         or_var0,
       dacc0 )
   | Static_const.Boxed_nativeint or_var ->
     let or_var0, ty =
       simplify_or_variable dacc
-        (fun f ->
-          Flambda2_types.this_boxed_nativeint f Alloc_mode.For_types.heap)
-        or_var Flambda_kind.value
+        (fun f -> T.this_boxed_nativeint f Alloc_mode.For_types.heap)
+        or_var K.value
     in
     let dacc0 = bind_result_sym ty in
     ( Rebuilt_static_const.create_boxed_nativeint
-        (Downwards_acc.are_rebuilding_terms dacc0)
-        (Downwards_env.machine_width (Downwards_acc.denv dacc0))
+        (DA.are_rebuilding_terms dacc0)
+        (DE.machine_width (DA.denv dacc0))
         or_var0,
       dacc0 )
   | Static_const.Boxed_vec128 or_var ->
     let or_var0, ty =
       simplify_or_variable dacc
-        (fun f -> Flambda2_types.this_boxed_vec128 f Alloc_mode.For_types.heap)
-        or_var Flambda_kind.value
+        (fun f -> T.this_boxed_vec128 f Alloc_mode.For_types.heap)
+        or_var K.value
     in
     let dacc0 = bind_result_sym ty in
     ( Rebuilt_static_const.create_boxed_vec128
-        (Downwards_acc.are_rebuilding_terms dacc0)
-        (Downwards_env.machine_width (Downwards_acc.denv dacc0))
+        (DA.are_rebuilding_terms dacc0)
+        (DE.machine_width (DA.denv dacc0))
         or_var0,
       dacc0 )
   | Static_const.Boxed_vec256 or_var ->
     let or_var0, ty =
       simplify_or_variable dacc
-        (fun f -> Flambda2_types.this_boxed_vec256 f Alloc_mode.For_types.heap)
-        or_var Flambda_kind.value
+        (fun f -> T.this_boxed_vec256 f Alloc_mode.For_types.heap)
+        or_var K.value
     in
     let dacc0 = bind_result_sym ty in
     ( Rebuilt_static_const.create_boxed_vec256
-        (Downwards_acc.are_rebuilding_terms dacc0)
-        (Downwards_env.machine_width (Downwards_acc.denv dacc0))
+        (DA.are_rebuilding_terms dacc0)
+        (DE.machine_width (DA.denv dacc0))
         or_var0,
       dacc0 )
   | Static_const.Boxed_vec512 or_var ->
     let or_var0, ty =
       simplify_or_variable dacc
-        (fun f -> Flambda2_types.this_boxed_vec512 f Alloc_mode.For_types.heap)
-        or_var Flambda_kind.value
+        (fun f -> T.this_boxed_vec512 f Alloc_mode.For_types.heap)
+        or_var K.value
     in
     let dacc0 = bind_result_sym ty in
     ( Rebuilt_static_const.create_boxed_vec512
-        (Downwards_acc.are_rebuilding_terms dacc0)
-        (Downwards_env.machine_width (Downwards_acc.denv dacc0))
+        (DA.are_rebuilding_terms dacc0)
+        (DE.machine_width (DA.denv dacc0))
         or_var0,
       dacc0 )
   | Static_const.Boxed_mask or_var ->
     let or_var0, ty =
       simplify_or_variable dacc
-        (fun f -> Flambda2_types.this_boxed_mask f Alloc_mode.For_types.heap)
-        or_var Flambda_kind.value
+        (fun f -> T.this_boxed_mask f Alloc_mode.For_types.heap)
+        or_var K.value
     in
     let dacc0 = bind_result_sym ty in
     ( Rebuilt_static_const.create_boxed_mask
-        (Downwards_acc.are_rebuilding_terms dacc0)
-        (Downwards_env.machine_width (Downwards_acc.denv dacc0))
+        (DA.are_rebuilding_terms dacc0)
+        (DE.machine_width (DA.denv dacc0))
         or_var0,
       dacc0 )
   | Static_const.Immutable_float_block fields ->
     let fields_with_tys =
       List.map
         (fun field ->
-          simplify_or_variable dacc Flambda2_types.this_naked_float field
-            Flambda_kind.naked_float)
+          simplify_or_variable dacc T.this_naked_float field K.naked_float)
         fields
     in
     let fields0, _ = List.split fields_with_tys in
-    let dacc0 = bind_result_sym Flambda2_types.any_value in
+    let dacc0 = bind_result_sym T.any_value in
     ( Rebuilt_static_const.create_immutable_float_block
-        (Downwards_acc.are_rebuilding_terms dacc0)
+        (DA.are_rebuilding_terms dacc0)
         fields0,
       dacc0 )
   | Static_const.Immutable_float_array fields ->
-    rebuild_naked_number_array dacc bind_result_sym
-      Flambda_kind.With_subkind.naked_float Flambda2_types.this_naked_float
-      Rebuilt_static_const.create_immutable_float_array fields
+    rebuild_naked_number_array dacc bind_result_sym KS.naked_float
+      T.this_naked_float RSC.create_immutable_float_array fields
   | Static_const.Immutable_float32_array fields ->
-    rebuild_naked_number_array dacc bind_result_sym
-      Flambda_kind.With_subkind.naked_float32 Flambda2_types.this_naked_float32
-      Rebuilt_static_const.create_immutable_float32_array fields
+    rebuild_naked_number_array dacc bind_result_sym KS.naked_float32
+      T.this_naked_float32 RSC.create_immutable_float32_array fields
   | Static_const.Immutable_int_array fields ->
-    rebuild_naked_number_array dacc bind_result_sym
-      Flambda_kind.With_subkind.naked_immediate
-      Flambda2_types.this_naked_immediate
-      Rebuilt_static_const.create_immutable_int_array fields
+    rebuild_naked_number_array dacc bind_result_sym KS.naked_immediate
+      T.this_naked_immediate RSC.create_immutable_int_array fields
   | Static_const.Immutable_int8_array fields ->
-    rebuild_naked_number_array dacc bind_result_sym
-      Flambda_kind.With_subkind.naked_int8 Flambda2_types.this_naked_int8
-      Rebuilt_static_const.create_immutable_int8_array fields
+    rebuild_naked_number_array dacc bind_result_sym KS.naked_int8
+      T.this_naked_int8 RSC.create_immutable_int8_array fields
   | Static_const.Immutable_int16_array fields ->
-    rebuild_naked_number_array dacc bind_result_sym
-      Flambda_kind.With_subkind.naked_int16 Flambda2_types.this_naked_int16
-      Rebuilt_static_const.create_immutable_int16_array fields
+    rebuild_naked_number_array dacc bind_result_sym KS.naked_int16
+      T.this_naked_int16 RSC.create_immutable_int16_array fields
   | Static_const.Immutable_int32_array fields ->
-    rebuild_naked_number_array dacc bind_result_sym
-      Flambda_kind.With_subkind.naked_int32 Flambda2_types.this_naked_int32
-      Rebuilt_static_const.create_immutable_int32_array fields
+    rebuild_naked_number_array dacc bind_result_sym KS.naked_int32
+      T.this_naked_int32 RSC.create_immutable_int32_array fields
   | Static_const.Immutable_int64_array fields ->
-    rebuild_naked_number_array dacc bind_result_sym
-      Flambda_kind.With_subkind.naked_int64 Flambda2_types.this_naked_int64
-      Rebuilt_static_const.create_immutable_int64_array fields
+    rebuild_naked_number_array dacc bind_result_sym KS.naked_int64
+      T.this_naked_int64 RSC.create_immutable_int64_array fields
   | Static_const.Immutable_nativeint_array fields ->
-    rebuild_naked_number_array dacc bind_result_sym
-      Flambda_kind.With_subkind.naked_nativeint
-      Flambda2_types.this_naked_nativeint
-      Rebuilt_static_const.create_immutable_nativeint_array fields
+    rebuild_naked_number_array dacc bind_result_sym KS.naked_nativeint
+      T.this_naked_nativeint RSC.create_immutable_nativeint_array fields
   | Static_const.Immutable_vec128_array fields ->
-    rebuild_naked_number_array dacc bind_result_sym
-      Flambda_kind.With_subkind.naked_vec128 Flambda2_types.this_naked_vec128
-      Rebuilt_static_const.create_immutable_vec128_array fields
+    rebuild_naked_number_array dacc bind_result_sym KS.naked_vec128
+      T.this_naked_vec128 RSC.create_immutable_vec128_array fields
   | Static_const.Immutable_vec256_array fields ->
-    rebuild_naked_number_array dacc bind_result_sym
-      Flambda_kind.With_subkind.naked_vec256 Flambda2_types.this_naked_vec256
-      Rebuilt_static_const.create_immutable_vec256_array fields
+    rebuild_naked_number_array dacc bind_result_sym KS.naked_vec256
+      T.this_naked_vec256 RSC.create_immutable_vec256_array fields
   | Static_const.Immutable_vec512_array fields ->
-    rebuild_naked_number_array dacc bind_result_sym
-      Flambda_kind.With_subkind.naked_vec512 Flambda2_types.this_naked_vec512
-      Rebuilt_static_const.create_immutable_vec512_array fields
+    rebuild_naked_number_array dacc bind_result_sym KS.naked_vec512
+      T.this_naked_vec512 RSC.create_immutable_vec512_array fields
   | Static_const.Immutable_mask_array fields ->
-    rebuild_naked_number_array dacc bind_result_sym
-      Flambda_kind.With_subkind.naked_mask Flambda2_types.this_naked_mask
-      Rebuilt_static_const.create_immutable_mask_array fields
+    rebuild_naked_number_array dacc bind_result_sym KS.naked_mask
+      T.this_naked_mask RSC.create_immutable_mask_array fields
   | Static_const.Immutable_value_array fields ->
     let fields_with_tys =
       List.map
-        (fun field -> simplify_field_of_block dacc (field, Flambda_kind.value))
+        (fun field -> simplify_field_of_block dacc (field, K.value))
         fields
     in
     let fields0, field_tys = List.split fields_with_tys in
     let dacc0 =
-      let machine_width =
-        Downwards_env.machine_width (Downwards_acc.denv dacc)
-      in
+      let machine_width = DE.machine_width (DA.denv dacc) in
       bind_result_sym
-        (Flambda2_types.immutable_array
-           (Or_unknown_or_bottom.Ok Flambda_kind.With_subkind.any_value)
-           field_tys Alloc_mode.For_types.heap machine_width)
+        (T.immutable_array (Or_unknown_or_bottom.Ok KS.any_value) field_tys
+           Alloc_mode.For_types.heap machine_width)
     in
     ( Rebuilt_static_const.create_immutable_value_array
-        (Downwards_acc.are_rebuilding_terms dacc0)
+        (DA.are_rebuilding_terms dacc0)
         fields0,
       dacc0 )
   | Static_const.Empty_array array_kind ->
     let dacc0 =
       bind_result_sym
-        (Flambda2_types.array_of_length Or_unknown_or_bottom.Bottom
-           (Flambda2_types.this_tagged_immediate
-              (Target_ocaml_int.zero
-                 (Downwards_env.machine_width (Downwards_acc.denv dacc))))
+        (T.array_of_length Or_unknown_or_bottom.Bottom
+           (T.this_tagged_immediate
+              (Target_ocaml_int.zero (DE.machine_width (DA.denv dacc))))
            Alloc_mode.For_types.heap)
     in
     ( Rebuilt_static_const.create_empty_array
-        (Downwards_acc.are_rebuilding_terms dacc0)
+        (DA.are_rebuilding_terms dacc0)
         array_kind,
       dacc0 )
   | Static_const.Immutable_string str ->
-    let ty = Flambda2_types.this_immutable_string str in
+    let ty = T.this_immutable_string str in
     let dacc0 = bind_result_sym ty in
     ( Rebuilt_static_const.create_immutable_string
-        (Downwards_acc.are_rebuilding_terms dacc0)
+        (DA.are_rebuilding_terms dacc0)
         str,
       dacc0 )
 
-(** val simplify_static_consts : Downwards_acc.t -> Bound_static.t ->
+(** val simplify_static_consts : DA.t -> Bound_static.t ->
     Flambda.Import.Static_const_group.t ->
     Simplify_common.simplify_function_body -> (Bound_static.t,
-    Rebuilt_static_const.Group.t, Downwards_acc.t) Port_monad.tuple3 coq_M **)
+    Rebuilt_static_const.Group.t, DA.t) Port_monad.tuple3 coq_M **)
 
 let simplify_static_consts dacc bound_static static_consts
     simplify_function_body =
@@ -384,9 +355,8 @@ let simplify_static_consts dacc bound_static static_consts
       (fun dacc0 closure_symbols _ ->
         Function_slot.Lmap.fold
           (fun _ closure_symbol dacc1 ->
-            Downwards_acc.with_denv dacc1
-              (Downwards_env.define_symbol (Downwards_acc.denv dacc1)
-                 closure_symbol Flambda_kind.value))
+            DA.with_denv dacc1
+              (DE.define_symbol (DA.denv dacc1) closure_symbol K.value))
           closure_symbols dacc0)
       (fun dacc0 _ _ -> dacc0)
   in
@@ -408,7 +378,7 @@ let simplify_static_consts dacc bound_static static_consts
               else Code_id.Set.add code_id old_code_ids)
         all_code Code_id.Set.empty
     in
-    Downwards_acc.add_code_ids_never_simplified dacc0 old_code_ids
+    DA.add_code_ids_never_simplified dacc0 old_code_ids
   in
   let bound_static', static_consts', dacc2 =
     Flambda.Import.Static_const_group.match_against_bound_static static_consts
@@ -420,7 +390,7 @@ let simplify_static_consts dacc bound_static static_consts
             if Code.stub code && not (Flambda_features.simplify_stubs ())
             then
               let dacc3, prior_lifted_constants =
-                Downwards_acc.get_and_clear_lifted_constants dacc2
+                DA.get_and_clear_lifted_constants dacc2
               in
               let static_const, dacc_after_function =
                 Simplify_set_of_closures.simplify_static_stub_function dacc3
@@ -428,8 +398,8 @@ let simplify_static_consts dacc bound_static static_consts
               in
               let dacc_after_function0 =
                 (fun x__1 x__2 x__3 ->
-                  Downwards_acc.add_to_lifted_constant_accumulator
-                    ?also_add_to_env:x__1 x__2 x__3)
+                  DA.add_to_lifted_constant_accumulator ?also_add_to_env:x__1
+                    x__2 x__3)
                   None dacc_after_function prior_lifted_constants
               in
               match Rebuilt_static_const.to_const static_const with
@@ -444,8 +414,7 @@ let simplify_static_consts dacc bound_static static_consts
             else code, Rebuilt_static_const.create_code' code, dacc2
           in
           let dacc4 =
-            Downwards_acc.map_denv dacc3 (fun denv ->
-                Downwards_env.define_code denv code_id code0)
+            DA.map_denv dacc3 (fun denv -> DE.define_code denv code_id code0)
           in
           ( Bound_static.Pattern.code code_id :: bound_static0,
             static_const :: static_consts0,

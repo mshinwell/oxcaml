@@ -567,30 +567,29 @@ let apply_projection t0 proj =
             let field_kind =
               Flambda_kind.With_subkind.kind (Symbol_projection.kind proj)
             in
-            Flambda2_types.meet_block_field_simple typing_env0 Name_mode.normal
-              field_kind ty index)
+            T.meet_block_field_simple typing_env0 Name_mode.normal field_kind ty
+              index)
           (fun _ value_slot ->
-            Flambda2_types.meet_project_value_slot_simple typing_env0
-              Name_mode.normal ty value_slot)
+            T.meet_project_value_slot_simple typing_env0 Name_mode.normal ty
+              value_slot)
           (Symbol_projection.projection proj)
       in
       (fun f__1 f__2 f__3 x__0 ->
-        match (x__0 : _ Flambda2_types.meet_shortcut) with
-        | Flambda2_types.Known_result x__1 -> f__1 x__1
-        | Flambda2_types.Need_meet -> f__2 ()
-        | Flambda2_types.Invalid -> f__3 ())
+        match (x__0 : _ T.meet_shortcut) with
+        | T.Known_result x__1 -> f__1 x__1
+        | T.Need_meet -> f__2 ()
+        | T.Invalid -> f__3 ())
         (fun simple -> Some simple)
         (fun _ ->
           Misc.fatal_errorf
             "Symbol projection@ %a@ produced [Need_meet]:@ type is@ %a@ in \
              env:@ %a"
-            Symbol_projection.print proj Flambda2_types.print ty
-            Flambda2_types.Typing_env.print typing_env0)
+            Symbol_projection.print proj T.print ty T.Typing_env.print
+            typing_env0)
         (fun _ ->
           Misc.fatal_errorf
             "Symbol projection@ %a@ produced [Invalid],@ environment is:@ %a"
-            Symbol_projection.print proj Flambda2_types.Typing_env.print
-            typing_env0)
+            Symbol_projection.print proj T.Typing_env.print typing_env0)
         meet_shortcut0
     | _ :: _ ->
       Misc.fatal_errorf

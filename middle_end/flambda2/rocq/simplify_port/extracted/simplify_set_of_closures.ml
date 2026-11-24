@@ -24,31 +24,30 @@ open! Simplify_import
 open Port_monad
 module C = Simplify_set_of_closures_context
 
-(** val dacc_inside_function : Simplify_set_of_closures_context.t ->
-    Downwards_acc.t -> Bound_parameters.t -> Variable.t ->
-    Alloc_mode.For_applications.t -> Variable.t -> Function_slot.t option ->
+(** val dacc_inside_function : C.t -> DA.t -> Bound_parameters.t -> Variable.t
+    -> Alloc_mode.For_applications.t -> Variable.t -> Function_slot.t option ->
     Bound_name.t Function_slot.Map.t -> Inlining_arguments.t ->
     Inlining_history.Absolute.t -> Code_id.t -> Continuation.t -> Continuation.t
-    -> Loopify_state.t -> Code_metadata.t -> Downwards_acc.t coq_M **)
+    -> Loopify_state.t -> Code_metadata.t -> DA.t coq_M **)
 
 let dacc_inside_function context outer_dacc0 params0 my_closure my_alloc_mode
     my_depth function_slot_opt closure_bound_names_inside_function
     inlining_arguments absolute_history code_id0 return_continuation
     exn_continuation loopify_state code_metadata =
-  let dacc0 = Simplify_set_of_closures_context.dacc_inside_functions context in
+  let dacc0 = C.dacc_inside_functions context in
   let alloc_modes = Code_metadata.param_modes code_metadata in
   let denv =
-    Downwards_env.set_inlining_history_tracker
+    DE.set_inlining_history_tracker
       (Inlining_history.Tracker.inside_function absolute_history)
-      (Downwards_env.set_inlining_arguments inlining_arguments
+      (DE.set_inlining_arguments inlining_arguments
          ((fun x__1 x__2 x__3 x__4 x__5 ->
-            Downwards_env.add_parameters_with_unknown_types x__1
-              ?alloc_modes:x__2 ?name_mode:x__3 x__4 x__5)
-            false (Some alloc_modes) None (Downwards_acc.denv dacc0) params0))
+            DE.add_parameters_with_unknown_types x__1 ?alloc_modes:x__2
+              ?name_mode:x__3 x__4 x__5)
+            false (Some alloc_modes) None (DA.denv dacc0) params0))
   in
   let denv0 =
     if Code_metadata.stub code_metadata
-    then Downwards_env.enter_stub_function denv
+    then DE.enter_stub_function denv
     else denv
   in
   let my_closure_duid = Flambda_debug_uid.none in
@@ -69,13 +68,13 @@ let dacc_inside_function context outer_dacc0 params0 my_closure my_alloc_mode
             closure_bound_names_inside_function)
         (fun name ->
           let name0 = Bound_name.name name in
-          Downwards_env.add_variable denv0
-            (Bound_var.create my_closure my_closure_duid Name_mode.normal)
-            (Flambda2_types.alias_type_of Flambda_kind.value (Simple.name name0)))
+          DE.add_variable denv0
+            (Bound_var.create my_closure my_closure_duid NM.normal)
+            (T.alias_type_of K.value (Simple.name name0)))
     | None ->
-      Downwards_env.add_variable denv0
-        (Bound_var.create my_closure my_closure_duid Name_mode.normal)
-        (Flambda2_types.unknown Flambda_kind.value)
+      DE.add_variable denv0
+        (Bound_var.create my_closure my_closure_duid NM.normal)
+        (T.unknown K.value)
   in
   let denv2 =
     (fun f__1 f__2 x__0 ->
@@ -90,119 +89,98 @@ let dacc_inside_function context outer_dacc0 params0 my_closure my_alloc_mode
         let my_alloc_region0 =
           Bound_var.create my_alloc_region my_alloc_region_duid Name_mode.normal
         in
-        Downwards_env.add_variable denv1 my_alloc_region0
-          (Flambda2_types.unknown Flambda_kind.region))
+        DE.add_variable denv1 my_alloc_region0 (T.unknown K.region))
       (fun my_alloc_region my_region my_ghost_region ->
         let my_alloc_region_duid = Flambda_debug_uid.none in
         let my_alloc_region0 =
           Bound_var.create my_alloc_region my_alloc_region_duid Name_mode.normal
         in
         let denv2 =
-          Downwards_env.add_variable denv1 my_alloc_region0
-            (Flambda2_types.unknown Flambda_kind.region)
+          DE.add_variable denv1 my_alloc_region0 (T.unknown K.region)
         in
         let my_region_duid = Flambda_debug_uid.none in
         let my_region0 =
           Bound_var.create my_region my_region_duid Name_mode.normal
         in
-        let denv3 =
-          Downwards_env.add_variable denv2 my_region0
-            (Flambda2_types.unknown Flambda_kind.region)
-        in
+        let denv3 = DE.add_variable denv2 my_region0 (T.unknown K.region) in
         let my_ghost_region_duid = Flambda_debug_uid.none in
         let my_ghost_region0 =
           Bound_var.create my_ghost_region my_ghost_region_duid Name_mode.normal
         in
-        Downwards_env.add_variable denv3 my_ghost_region0
-          (Flambda2_types.unknown Flambda_kind.region))
+        DE.add_variable denv3 my_ghost_region0 (T.unknown K.region))
       my_alloc_mode
   in
   let my_depth_duid = Flambda_debug_uid.none in
   let denv3 =
     let my_depth0 = Bound_var.create my_depth my_depth_duid Name_mode.normal in
-    Downwards_env.add_variable denv2 my_depth0
-      (Flambda2_types.unknown Flambda_kind.rec_info)
+    DE.add_variable denv2 my_depth0 (T.unknown K.rec_info)
   in
   let denv4 =
-    Downwards_env.increment_continuation_scope
-      (Downwards_env.set_loopify_state loopify_state
-         (Downwards_env.enter_closure code_id0 return_continuation
-            exn_continuation my_closure
+    DE.increment_continuation_scope
+      (DE.set_loopify_state loopify_state
+         (DE.enter_closure code_id0 return_continuation exn_continuation
+            my_closure
             (Alloc_mode.For_applications.alloc_region my_alloc_mode)
             ((fun x__1 x__2 x__3 ->
-               Downwards_env.add_lifted_constant_state
-                 ?maybe_already_defined:x__1 x__2 x__3)
+               DE.add_lifted_constant_state ?maybe_already_defined:x__1 x__2
+                 x__3)
                (Some ()) denv3
-               (Downwards_acc.get_lifted_constants outer_dacc0))))
+               (DA.get_lifted_constants outer_dacc0))))
   in
   let denv5 =
-    if Code_metadata.cold code_metadata
-    then Downwards_env.mark_as_cold denv4
-    else denv4
+    if Code_metadata.cold code_metadata then DE.mark_as_cold denv4 else denv4
   in
-  let dacc1 = Downwards_acc.with_denv dacc0 denv5 in
-  let code_ids_to_remember = Downwards_acc.code_ids_to_remember outer_dacc0 in
-  let code_ids_to_never_delete =
-    Downwards_acc.code_ids_to_never_delete outer_dacc0
-  in
-  let code_ids_never_simplified =
-    Downwards_acc.code_ids_never_simplified outer_dacc0
-  in
-  let used_value_slots = Downwards_acc.used_value_slots outer_dacc0 in
-  let shareable_constants = Downwards_acc.shareable_constants outer_dacc0 in
-  let slot_offsets = Downwards_acc.slot_offsets outer_dacc0 in
-  Downwards_acc.reset_continuation_lifting_budget
-    (Downwards_acc.with_slot_offsets
-       (Downwards_acc.with_shareable_constants
-          (Downwards_acc.with_used_value_slots
-             (Downwards_acc.with_code_ids_never_simplified
-                (Downwards_acc.with_code_ids_to_never_delete
-                   (Downwards_acc.with_code_ids_to_remember dacc1
-                      code_ids_to_remember)
+  let dacc1 = DA.with_denv dacc0 denv5 in
+  let code_ids_to_remember = DA.code_ids_to_remember outer_dacc0 in
+  let code_ids_to_never_delete = DA.code_ids_to_never_delete outer_dacc0 in
+  let code_ids_never_simplified = DA.code_ids_never_simplified outer_dacc0 in
+  let used_value_slots = DA.used_value_slots outer_dacc0 in
+  let shareable_constants = DA.shareable_constants outer_dacc0 in
+  let slot_offsets = DA.slot_offsets outer_dacc0 in
+  DA.reset_continuation_lifting_budget
+    (DA.with_slot_offsets
+       (DA.with_shareable_constants
+          (DA.with_used_value_slots
+             (DA.with_code_ids_never_simplified
+                (DA.with_code_ids_to_never_delete
+                   (DA.with_code_ids_to_remember dacc1 code_ids_to_remember)
                    code_ids_to_never_delete)
                 code_ids_never_simplified)
              used_value_slots)
           shareable_constants)
        slot_offsets)
 
-(** val extract_accumulators_from_function : Downwards_acc.t -> Downwards_acc.t
-    -> Upwards_acc.t -> (Downwards_acc.t * Lifted_constant_state.t) coq_M **)
+(** val extract_accumulators_from_function : DA.t -> DA.t -> UA.t -> (DA.t *
+    LCS.t) coq_M **)
 
 let extract_accumulators_from_function outer_dacc0 dacc_after_body0
     uacc_after_upwards_traversal0 =
   let lifted_consts_this_function =
-    Upwards_acc.lifted_constants uacc_after_upwards_traversal0
+    UA.lifted_constants uacc_after_upwards_traversal0
   in
-  let code_ids_to_remember =
-    Downwards_acc.code_ids_to_remember dacc_after_body0
-  in
-  let code_ids_to_never_delete =
-    Downwards_acc.code_ids_to_never_delete dacc_after_body0
-  in
+  let code_ids_to_remember = DA.code_ids_to_remember dacc_after_body0 in
+  let code_ids_to_never_delete = DA.code_ids_to_never_delete dacc_after_body0 in
   let code_ids_never_simplified =
-    Downwards_acc.code_ids_never_simplified dacc_after_body0
+    DA.code_ids_never_simplified dacc_after_body0
   in
-  let used_value_slots =
-    Upwards_acc.used_value_slots uacc_after_upwards_traversal0
-  in
+  let used_value_slots = UA.used_value_slots uacc_after_upwards_traversal0 in
   let shareable_constants =
-    Upwards_acc.shareable_constants uacc_after_upwards_traversal0
+    UA.shareable_constants uacc_after_upwards_traversal0
   in
-  let slot_offsets = Downwards_acc.slot_offsets dacc_after_body0 in
+  let slot_offsets = DA.slot_offsets dacc_after_body0 in
   let code_age_relation =
-    Flambda2_types.Typing_env.code_age_relation
-      (Downwards_acc.typing_env dacc_after_body0)
+    TE.code_age_relation (DA.typing_env dacc_after_body0)
   in
   let outer_dacc1 =
-    Downwards_acc.with_code_age_relation
-      (Downwards_acc.with_slot_offsets
-         (Downwards_acc.with_shareable_constants
-            (Downwards_acc.with_used_value_slots
-               (Downwards_acc.with_code_ids_never_simplified
-                  (Downwards_acc.with_code_ids_to_never_delete
-                     (Downwards_acc.with_code_ids_to_remember
+    DA.with_code_age_relation
+      (DA.with_slot_offsets
+         (DA.with_shareable_constants
+            (DA.with_used_value_slots
+               (DA.with_code_ids_never_simplified
+                  (DA.with_code_ids_to_never_delete
+                     (DA.with_code_ids_to_remember
                         ((fun x__1 x__2 x__3 ->
-                           Downwards_acc.add_to_lifted_constant_accumulator
+                           DA.add_to_lifted_constant_accumulator
                              ?also_add_to_env:x__1 x__2 x__3)
                            (Some ()) outer_dacc0 lifted_consts_this_function)
                         code_ids_to_remember)
@@ -219,13 +197,13 @@ type simplify_function_body_result =
   { params : Bound_parameters.t;
     params_and_body : Rebuilt_expr.Function_params_and_body.t;
     body_is_cold : bool;
-    dacc_at_function_entry : Downwards_acc.t;
-    dacc_after_body : Downwards_acc.t;
-    free_names_of_code : Name_occurrences.t;
+    dacc_at_function_entry : DA.t;
+    dacc_after_body : DA.t;
+    free_names_of_code : NO.t;
     return_cont_uses : Continuation_uses.t option;
     is_my_closure_used : bool;
     recursive : Recursive.t;
-    uacc_after_upwards_traversal : Upwards_acc.t
+    uacc_after_upwards_traversal : UA.t
   }
 
 (** val params : simplify_function_body_result -> Bound_parameters.t **)
@@ -241,17 +219,15 @@ let params_and_body s = s.params_and_body
 
 let body_is_cold s = s.body_is_cold
 
-(** val dacc_at_function_entry : simplify_function_body_result ->
-    Downwards_acc.t **)
+(** val dacc_at_function_entry : simplify_function_body_result -> DA.t **)
 
 let dacc_at_function_entry s = s.dacc_at_function_entry
 
-(** val dacc_after_body : simplify_function_body_result -> Downwards_acc.t **)
+(** val dacc_after_body : simplify_function_body_result -> DA.t **)
 
 let dacc_after_body s = s.dacc_after_body
 
-(** val free_names_of_code : simplify_function_body_result -> Name_occurrences.t
-    **)
+(** val free_names_of_code : simplify_function_body_result -> NO.t **)
 
 let free_names_of_code s = s.free_names_of_code
 
@@ -268,17 +244,15 @@ let is_my_closure_used s = s.is_my_closure_used
 
 let recursive s = s.recursive
 
-(** val uacc_after_upwards_traversal : simplify_function_body_result ->
-    Upwards_acc.t **)
+(** val uacc_after_upwards_traversal : simplify_function_body_result -> UA.t **)
 
 let uacc_after_upwards_traversal s = s.uacc_after_upwards_traversal
 
-(** val simplify_function_body : Simplify_set_of_closures_context.t ->
-    Downwards_acc.t -> Function_slot.t option -> Bound_name.t
-    Function_slot.Map.t -> Inlining_arguments.t -> Inlining_history.Absolute.t
-    -> Code_id.t -> Code.t -> Continuation.t -> Continuation.t ->
-    Bound_parameters.t -> Flambda.Expr.t -> Variable.t -> bool Or_unknown.t ->
-    Alloc_mode.For_applications.t -> Variable.t -> Name_occurrences.t
+(** val simplify_function_body : C.t -> DA.t -> Function_slot.t option ->
+    Bound_name.t Function_slot.Map.t -> Inlining_arguments.t ->
+    Inlining_history.Absolute.t -> Code_id.t -> Code.t -> Continuation.t ->
+    Continuation.t -> Bound_parameters.t -> Expr.t -> Variable.t -> bool
+    Or_unknown.t -> Alloc_mode.For_applications.t -> Variable.t -> NO.t
     Or_unknown.t -> simplify_function_body_result coq_M **)
 
 let simplify_function_body context outer_dacc0 function_slot_opt
@@ -301,15 +275,13 @@ let simplify_function_body context outer_dacc0 function_slot_opt
   in
   let dacc0 = dacc_at_function_entry0 in
   let () =
-    if not (Downwards_acc.no_lifted_constants dacc0)
+    if not (DA.no_lifted_constants dacc0)
     then
       Misc.fatal_errorf "Did not expect lifted constants in [dacc]:@ %a"
-        Downwards_acc.print dacc0
+        DA.print dacc0
     else ()
   in
-  let () =
-    assert (not (Downwards_env.at_unit_toplevel (Downwards_acc.denv dacc0)))
-  in
+  let () = assert (not (DE.at_unit_toplevel (DA.denv dacc0))) in
   let my_alloc_region_duid = Flambda_debug_uid.none in
   let my_region_duid = Flambda_debug_uid.none in
   let my_ghost_region_duid = Flambda_debug_uid.none in
@@ -338,9 +310,8 @@ let simplify_function_body context outer_dacc0 function_slot_opt
   let my_depth_duid = Flambda_debug_uid.none in
   Port_monad.match_exn
     (fun _ ->
-      Simplify_set_of_closures_context.simplify_function_body context dacc0 body
-        return_continuation (Code.result_arity code0) exn_continuation
-        loopify_state params0
+      C.simplify_function_body context dacc0 body return_continuation
+        (Code.result_arity code0) exn_continuation loopify_state params0
         (Bound_parameters.create
            ([ Bound_parameter.create my_closure
                 Flambda_kind.With_subkind.any_value my_closure_duid;
@@ -362,34 +333,30 @@ let simplify_function_body context outer_dacc0 function_slot_opt
              None Function_slot.print)
           function_slot_opt Bound_parameters.print params0 Continuation.print
           return_continuation Continuation.print exn_continuation Variable.print
-          my_closure Flambda.Expr.print body Downwards_acc.print dacc0
+          my_closure Expr.print body DA.print dacc0
       in
       Printexc.raise_with_backtrace
         (Port_monad.exn_make Port_monad.fatal_error_exception ())
         bt)
     (fun pat ->
       let body0, uacc = pat in
-      let dacc_after_body0 = Upwards_acc.creation_dacc uacc in
+      let dacc_after_body0 = UA.creation_dacc uacc in
       let return_cont_uses0 =
-        Continuation_uses_env.get_continuation_uses
-          (Downwards_acc.continuation_uses_env dacc_after_body0)
+        CUE.get_continuation_uses
+          (DA.continuation_uses_env dacc_after_body0)
           return_continuation
       in
-      let free_names_of_body = Upwards_acc.name_occurrences uacc in
-      let body_is_cold0 = Rebuilt_expr.is_cold body0 in
+      let free_names_of_body = UA.name_occurrences uacc in
+      let body_is_cold0 = RE.is_cold body0 in
       let params_and_body0 =
-        Rebuilt_expr.Function_params_and_body.create return_continuation
-          exn_continuation params0 body0 free_names_of_body my_closure
-          my_alloc_mode my_depth
+        RE.Function_params_and_body.create return_continuation exn_continuation
+          params0 body0 free_names_of_body my_closure my_alloc_mode my_depth
       in
-      let is_my_closure_used0 =
-        Name_occurrences.mem_var free_names_of_body my_closure
-      in
+      let is_my_closure_used0 = NO.mem_var free_names_of_body my_closure in
       let previously_free_depth_variables =
-        Name_occurrences.create_variables
-          (Simplify_set_of_closures_context.previously_free_depth_variables
-             context)
-          Name_mode.normal
+        NO.create_variables
+          (C.previously_free_depth_variables context)
+          NM.normal
       in
       let recursive0 =
         if Name_occurrences.mem_var free_names_of_body my_depth
@@ -397,14 +364,14 @@ let simplify_function_body context outer_dacc0 function_slot_opt
         else Recursive.Non_recursive
       in
       let free_names_of_code0 =
-        Name_occurrences.diff
-          (Name_occurrences.diff
-             (Name_occurrences.remove_var
-                (Name_occurrences.diff
-                   (Name_occurrences.remove_var
-                      (Name_occurrences.remove_continuation
-                         (Name_occurrences.remove_continuation
-                            free_names_of_body return_continuation)
+        NO.diff
+          (NO.diff
+             (NO.remove_var
+                (NO.diff
+                   (NO.remove_var
+                      (NO.remove_continuation
+                         (NO.remove_continuation free_names_of_body
+                            return_continuation)
                          exn_continuation)
                       my_closure)
                    (Alloc_mode.For_applications.free_names my_alloc_mode))
@@ -415,19 +382,19 @@ let simplify_function_body context outer_dacc0 function_slot_opt
       let () =
         if
           not
-            (Name_occurrences.no_variables free_names_of_code0
-            && Name_occurrences.no_continuations free_names_of_code0)
+            (NO.no_variables free_names_of_code0
+            && NO.no_continuations free_names_of_code0)
         then
           Misc.fatal_errorf
             "Unexpected free name(s):@ %a@ in:@ \n\
              %a@ \n\
              Simplified version:@ fun %a %a %a %a ->@ \n\
             \  %a"
-            Name_occurrences.print free_names_of_code0 Code_id.print code_id0
+            NO.print free_names_of_code0 Code_id.print code_id0
             Bound_parameters.print params0 Variable.print my_closure
             Alloc_mode.For_applications.print my_alloc_mode Variable.print
             my_depth
-            (Rebuilt_expr.print (Upwards_acc.are_rebuilding_terms uacc))
+            (RE.print (UA.are_rebuilding_terms uacc))
             body0
         else ()
       in
@@ -444,9 +411,8 @@ let simplify_function_body context outer_dacc0 function_slot_opt
       })
 
 (** val compute_result_types : bool -> bool -> Continuation_uses.t option ->
-    Downwards_acc.t -> Downwards_acc.t -> Bound_parameters.t ->
-    Lifted_constant_state.t -> Bound_parameters.t -> Result_types.t
-    Or_unknown_or_bottom.t coq_M **)
+    DA.t -> DA.t -> Bound_parameters.t -> LCS.t -> Bound_parameters.t ->
+    Result_types.t Or_unknown_or_bottom.t coq_M **)
 
 let compute_result_types is_a_functor is_opaque return_cont_uses0
     dacc_after_body0 dacc_at_function_entry0 return_cont_params
@@ -460,16 +426,16 @@ let compute_result_types is_a_functor is_opaque return_cont_uses0
   then
     match return_cont_uses0 with
     | Some uses ->
-      let env_at_fork = Downwards_acc.denv dacc_at_function_entry0 in
+      let env_at_fork = DA.denv dacc_at_function_entry0 in
       let join =
         (fun x__1 x__2 x__3 x__4 x__5 x__6 x__7 x__8 ->
           Join_points.compute_handler_env ?replay:x__1 ?cut_after:x__2 x__3 x__4
             x__5 x__6 x__7 x__8)
           None
-          (Some (Scope.prev (Downwards_env.get_continuation_scope env_at_fork)))
+          (Some (Scope.prev (DE.get_continuation_scope env_at_fork)))
           (Continuation_uses.get_uses uses)
           false env_at_fork lifted_consts_this_function return_cont_params
-          Continuation_extra_params_and_args.empty
+          EPA.empty
       in
       let bound_params_and_results =
         Bound_parameters.append params0 return_cont_params
@@ -477,30 +443,23 @@ let compute_result_types is_a_functor is_opaque return_cont_uses0
       let params_and_results =
         Bound_parameters.var_set bound_params_and_results
       in
-      let typing_env = Downwards_env.typing_env join.Join_points.handler_env in
+      let typing_env = DE.typing_env join.Join_points.handler_env in
       let typing_env0 =
-        Flambda2_types.Typing_env.with_code_age_relation typing_env
-          (Flambda2_types.Typing_env.code_age_relation
-             (Downwards_acc.typing_env dacc_after_body0))
+        TE.with_code_age_relation typing_env
+          (TE.code_age_relation (DA.typing_env dacc_after_body0))
       in
       let results_and_types =
         List.map
           (fun result_or_param ->
-            let name = Bound_parameter.name result_or_param in
-            let kind =
-              Flambda_kind.With_subkind.kind
-                (Bound_parameter.kind result_or_param)
-            in
-            let ty =
-              Flambda2_types.Typing_env.find typing_env0 name (Some kind)
-            in
+            let name = BP.name result_or_param in
+            let kind = K.With_subkind.kind (BP.kind result_or_param) in
+            let ty = TE.find typing_env0 name (Some kind) in
             name, ty)
           (Bound_parameters.to_list bound_params_and_results)
       in
       let env_extension =
-        Flambda2_types.make_suitable_for_environment typing_env0
-          (Flambda2_types.All_variables_except params_and_results)
-          results_and_types
+        T.make_suitable_for_environment typing_env0
+          (T.All_variables_except params_and_results) results_and_types
       in
       Or_unknown_or_bottom.Ok
         (Result_types.create params0 return_cont_params env_extension)
@@ -517,7 +476,7 @@ type rebuilt_code =
 type simplify_function_result =
   { code_id : Code_id.t;
     code : (rebuilt_code * Rebuilt_static_const.t) option;
-    outer_dacc : Downwards_acc.t;
+    outer_dacc : DA.t;
     should_resimplify : bool
   }
 
@@ -530,7 +489,7 @@ let code_id s = s.code_id
 
 let code s = s.code
 
-(** val outer_dacc : simplify_function_result -> Downwards_acc.t **)
+(** val outer_dacc : simplify_function_result -> DA.t **)
 
 let outer_dacc s = s.outer_dacc
 
@@ -538,27 +497,22 @@ let outer_dacc s = s.outer_dacc
 
 let should_resimplify s = s.should_resimplify
 
-(** val simplify_function0 : Simplify_set_of_closures_context.t ->
-    Downwards_acc.t -> Function_slot.t option -> Code_id.t -> Code.t ->
-    Bound_name.t Function_slot.Map.t -> simplify_function_result coq_M **)
+(** val simplify_function0 : C.t -> DA.t -> Function_slot.t option -> Code_id.t
+    -> Code.t -> Bound_name.t Function_slot.Map.t -> simplify_function_result
+    coq_M **)
 
 let simplify_function0 context outer_dacc0 function_slot_opt code_id0 code0
     closure_bound_names_inside_function =
   let original_outer_dacc = outer_dacc0 in
-  let denv_prior_to_sets =
-    Downwards_acc.denv
-      (Simplify_set_of_closures_context.dacc_prior_to_sets context)
-  in
-  let inlining_arguments_from_denv =
-    Downwards_env.inlining_arguments denv_prior_to_sets
-  in
+  let denv_prior_to_sets = DA.denv (C.dacc_prior_to_sets context) in
+  let inlining_arguments_from_denv = DE.inlining_arguments denv_prior_to_sets in
   let absolute_history, relative_history =
     Inlining_history.Tracker.fundecl (Code.dbg code0)
       (Code.relative_history code0)
       (match function_slot_opt with
       | Some function_slot -> Function_slot.name function_slot
       | None -> Code_id.name code_id0)
-      (Downwards_env.inlining_history_tracker denv_prior_to_sets)
+      (DE.inlining_history_tracker denv_prior_to_sets)
   in
   let inlining_arguments =
     Inlining_arguments.combine inlining_arguments_from_denv
@@ -574,10 +528,10 @@ let simplify_function0 context outer_dacc0 function_slot_opt code_id0 code0
                Variable.create ?user_visible:x__1 x__2 x__3)
                None
                ("result" ^ string_of_int i)
-               (Flambda_kind.With_subkind.kind kind_with_subkind)
+               (KS.kind kind_with_subkind)
            in
            let result_var_duid = Flambda_debug_uid.none in
-           Bound_parameter.create result_var kind_with_subkind result_var_duid)
+           BP.create result_var kind_with_subkind result_var_duid)
          (Flambda_arity.unarize result_arity))
   in
   let { params = params0;
@@ -591,25 +545,23 @@ let simplify_function0 context outer_dacc0 function_slot_opt code_id0 code0
         recursive = recursive0;
         uacc_after_upwards_traversal = uacc_after_upwards_traversal0
       } =
-    Flambda.Function_params_and_body.pattern_match
+    Function_params_and_body.pattern_match
       (Code.params_and_body code0)
       (simplify_function_body context outer_dacc0 function_slot_opt
          closure_bound_names_inside_function inlining_arguments absolute_history
          code_id0 code0)
   in
-  let should_resimplify0 =
-    Upwards_acc.resimplify uacc_after_upwards_traversal0
-  in
+  let should_resimplify0 = UA.resimplify uacc_after_upwards_traversal0 in
   let outer_dacc1, lifted_consts_this_function =
     extract_accumulators_from_function outer_dacc0 dacc_after_body0
       uacc_after_upwards_traversal0
   in
-  let cost_metrics0 = Upwards_acc.cost_metrics uacc_after_upwards_traversal0 in
+  let cost_metrics0 = UA.cost_metrics uacc_after_upwards_traversal0 in
   let old_code_id = code_id0 in
   let code_id1, newer_version_of =
     match
       Code_id.Map.find_or_null old_code_id
-        (Simplify_set_of_closures_context.old_to_new_code_ids_all_sets context)
+        (C.old_to_new_code_ids_all_sets context)
     with
     | Or_null.Null -> old_code_id, None
     | Or_null.This new_code_id -> new_code_id, Some old_code_id
@@ -625,7 +577,7 @@ let simplify_function0 context outer_dacc0 function_slot_opt code_id0 code0
         (Code_metadata.with_cost_metrics cost_metrics0
            (Code.code_metadata code0))
         Inlining_report.Pass.After_simplify
-        (Downwards_acc.are_rebuilding_terms dacc_after_body0)
+        (DA.are_rebuilding_terms dacc_after_body0)
         decision
     in
     decision
@@ -638,13 +590,12 @@ let simplify_function0 context outer_dacc0 function_slot_opt code_id0 code0
       lifted_consts_this_function params0
   in
   let outer_dacc2 =
-    match Upwards_acc.slot_offsets uacc_after_upwards_traversal0 with
+    match UA.slot_offsets uacc_after_upwards_traversal0 with
     | Or_unknown.Known offsets ->
       let slot_offsets =
-        Code_id.Map.add code_id1 offsets
-          (Downwards_acc.slot_offsets outer_dacc1)
+        Code_id.Map.add code_id1 offsets (DA.slot_offsets outer_dacc1)
       in
-      Downwards_acc.with_slot_offsets outer_dacc1 slot_offsets
+      DA.with_slot_offsets outer_dacc1 slot_offsets
     | Or_unknown.Unknown -> outer_dacc1
   in
   let loopify =
@@ -658,14 +609,10 @@ let simplify_function0 context outer_dacc0 function_slot_opt code_id0 code0
       Loopify_attribute.Never_loopify
   in
   let code_const, new_code =
-    let dbg =
-      Downwards_env.add_inlined_debuginfo
-        (Downwards_acc.denv outer_dacc2)
-        (Code.dbg code0)
-    in
+    let dbg = DE.add_inlined_debuginfo (DA.denv outer_dacc2) (Code.dbg code0) in
     let cold = Code.cold code0 || body_is_cold0 in
     Rebuilt_static_const.create_code
-      (Downwards_acc.are_rebuilding_terms dacc_after_body0)
+      (DA.are_rebuilding_terms dacc_after_body0)
       params_and_body0 free_names_of_code0 code_id1 newer_version_of
       (Code.params_arity code0) (Code.param_modes code0)
       (Code.first_complex_local_param code0)
@@ -680,7 +627,7 @@ let simplify_function0 context outer_dacc0 function_slot_opt code_id0 code0
       absolute_history relative_history loopify
   in
   let code1 =
-    let are_rebuilding = Downwards_acc.are_rebuilding_terms dacc_after_body0 in
+    let are_rebuilding = DA.are_rebuilding_terms dacc_after_body0 in
     match new_code with
     | Some new_code0 ->
       let () = assert (Are_rebuilding_terms.do_rebuild_terms are_rebuilding) in
@@ -692,9 +639,7 @@ let simplify_function0 context outer_dacc0 function_slot_opt code_id0 code0
       Not_rebuilding
   in
   let old_code_was_simplified =
-    not
-      (Code_id.Set.mem old_code_id
-         (Downwards_acc.code_ids_never_simplified outer_dacc2))
+    not (Code_id.Set.mem old_code_id (DA.code_ids_never_simplified outer_dacc2))
   in
   let zero_improvements =
     let removed_ops = Cost_metrics.removed cost_metrics0 in
@@ -702,7 +647,7 @@ let simplify_function0 context outer_dacc0 function_slot_opt code_id0 code0
   in
   if
     old_code_was_simplified && (not should_resimplify0)
-    && Simplify_set_of_closures_context.single_set_of_size_one context
+    && C.single_set_of_size_one context
     && zero_improvements
   then
     { code_id = old_code_id;
@@ -717,20 +662,17 @@ let simplify_function0 context outer_dacc0 function_slot_opt code_id0 code0
       should_resimplify = should_resimplify0
     }
 
-(** val introduce_code : Downwards_acc.t -> Code_id.t -> Rebuilt_static_const.t
-    -> Downwards_acc.t coq_M **)
+(** val introduce_code : DA.t -> Code_id.t -> Rebuilt_static_const.t -> DA.t
+    coq_M **)
 
 let introduce_code dacc0 code_id0 code_const =
-  let code0 = Lifted_constant.create_code code_id0 code_const in
+  let code0 = LC.create_code code_id0 code_const in
   (fun x__1 x__2 x__3 ->
-    Downwards_acc.add_to_lifted_constant_accumulator ?also_add_to_env:x__1 x__2
-      x__3)
-    (Some ()) dacc0
-    (Lifted_constant_state.singleton code0)
+    DA.add_to_lifted_constant_accumulator ?also_add_to_env:x__1 x__2 x__3)
+    (Some ()) dacc0 (LCS.singleton code0)
 
-(** val simplify_function : Simplify_set_of_closures_context.t ->
-    Downwards_acc.t -> Function_slot.t -> Code_id.t -> Bound_name.t
-    Function_slot.Map.t -> (Code_id.t, Downwards_acc.t, Code_id.Set.t)
+(** val simplify_function : C.t -> DA.t -> Function_slot.t -> Code_id.t ->
+    Bound_name.t Function_slot.Map.t -> (Code_id.t, DA.t, Code_id.Set.t)
     Port_monad.tuple3 coq_M **)
 
 let simplify_function context outer_dacc0 function_slot code_id0
@@ -738,10 +680,7 @@ let simplify_function context outer_dacc0 function_slot code_id0
   let code_or_metadata =
     Port_monad.try_with
       (fun _ ->
-        Downwards_env.find_code_exn
-          (Downwards_acc.denv
-             (Simplify_set_of_closures_context.dacc_prior_to_sets context))
-          code_id0)
+        DE.find_code_exn (DA.denv (C.dacc_prior_to_sets context)) code_id0)
       Port_monad.not_found
       (fun _ ->
         Misc.fatal_errorf "Trying to simplify function %a but it has no code"
@@ -752,8 +691,7 @@ let simplify_function context outer_dacc0 function_slot code_id0
     | Code_or_metadata.View.Code_present code0 ->
       if
         (not (Code.stub code0))
-        || Simplify_set_of_closures_context.stub_can_be_simplified
-             (Downwards_acc.denv outer_dacc0)
+        || C.stub_can_be_simplified (DA.denv outer_dacc0)
       then
         let rec run outer_dacc1 code1 count =
           let { code_id = code_id1;
@@ -849,31 +787,28 @@ let set_of_closures s = s.set_of_closures
 
 let dacc s = s.dacc
 
-(** val simplify_set_of_closures0 : Downwards_acc.t ->
-    Simplify_set_of_closures_context.t -> Flambda.Set_of_closures.t ->
+(** val simplify_set_of_closures0 : DA.t -> C.t -> Set_of_closures.t ->
     Alloc_mode.For_types.t -> Bound_name.t Function_slot.Map.t -> Bound_name.t
-    Function_slot.Map.t -> Simple.t Value_slot.Map.t -> Flambda2_types.t
-    Value_slot.Map.t -> simplify_set_of_closures0_result coq_M **)
+    Function_slot.Map.t -> Simple.t Value_slot.Map.t -> T.t Value_slot.Map.t ->
+    simplify_set_of_closures0_result coq_M **)
 
 let simplify_set_of_closures0 outer_dacc0 context set_of_closures0 alloc_mode
     closure_bound_names closure_bound_names_inside value_slots0
     value_slot_types0 =
-  let dacc0 = Simplify_set_of_closures_context.dacc_prior_to_sets context in
-  let function_decls =
-    Flambda.Set_of_closures.function_decls set_of_closures0
-  in
+  let dacc0 = C.dacc_prior_to_sets context in
+  let function_decls = Set_of_closures.function_decls set_of_closures0 in
   let dbg =
-    Downwards_env.add_inlined_debuginfo (Downwards_acc.denv dacc0)
-      (Flambda.Set_of_closures.debuginfo set_of_closures0)
+    DE.add_inlined_debuginfo (DA.denv dacc0)
+      (Set_of_closures.debuginfo set_of_closures0)
   in
   let all_function_decls_in_set =
-    Flambda.Function_declarations.funs_in_order function_decls
+    Function_declarations.funs_in_order function_decls
   in
   let () =
-    if not (Downwards_acc.no_lifted_constants dacc0)
+    if not (DA.no_lifted_constants dacc0)
     then
       Misc.fatal_errorf "Did not expect lifted constants in [dacc]:@ %a"
-        Downwards_acc.print dacc0
+        DA.print dacc0
     else ()
   in
   let t0, all_function_decls_in_set0 =
@@ -905,12 +840,9 @@ let simplify_set_of_closures0 outer_dacc0 context set_of_closures0 alloc_mode
                   closure_bound_names_inside
               in
               let function_type =
-                let rec_info =
-                  Flambda2_types.this_rec_info Rec_info_expr.initial
-                in
+                let rec_info = T.this_rec_info Rec_info_expr.initial in
                 (fun x__1 x__2 x__3 ->
-                  Simplify_set_of_closures_context.function_decl_type
-                    ?new_code_id:x__1 x__2 x__3)
+                  C.function_decl_type ?new_code_id:x__1 x__2 x__3)
                   None rec_info code_id0
               in
               let fun_types0 =
@@ -950,19 +882,16 @@ let simplify_set_of_closures0 outer_dacc0 context set_of_closures0 alloc_mode
       all_function_decls_in_set0 Code_id.Set.empty
   in
   let dacc1 =
-    Downwards_acc.add_code_ids_to_remember outer_dacc1
-      code_ids_to_remember_this_set
+    DA.add_code_ids_to_remember outer_dacc1 code_ids_to_remember_this_set
   in
   let dacc2 =
-    Downwards_acc.add_code_ids_to_never_delete dacc1
-      code_ids_to_never_delete_this_set
+    DA.add_code_ids_to_never_delete dacc1 code_ids_to_never_delete_this_set
   in
   let closure_types_by_bound_name =
     let closure_types_via_aliases =
       Function_slot.Map.map
         (fun name ->
-          Flambda2_types.alias_type_of Flambda_kind.value
-            (Simple.name (Bound_name.name name)))
+          T.alias_type_of K.value (Simple.name (Bound_name.name name)))
         closure_bound_names
     in
     Function_slot.Map.fold
@@ -975,54 +904,51 @@ let simplify_set_of_closures0 outer_dacc0 context set_of_closures0 alloc_mode
               Function_slot.print function_slot)
           (fun bound_name ->
             let closure_type =
-              Flambda2_types.exactly_this_closure function_slot fun_types
+              T.exactly_this_closure function_slot fun_types
                 closure_types_via_aliases value_slot_types0 alloc_mode
             in
             (bound_name, closure_type) :: closure_types))
       fun_types []
   in
   let dacc3 =
-    Downwards_acc.map_denv dacc2 (fun denv ->
+    DA.map_denv dacc2 (fun denv ->
         let denv_with_defined_symbols =
           List.fold_left
             (fun denv0 pat ->
               let bound_name, _ = pat in
-              Downwards_env.define_name_if_undefined denv0 bound_name
-                Flambda_kind.value)
+              DE.define_name_if_undefined denv0 bound_name K.value)
             denv closure_types_by_bound_name
         in
         List.fold_left
           (fun denv0 pat ->
             let bound_name, closure_type = pat in
-            Downwards_env.add_equation_on_name denv0
+            DE.add_equation_on_name denv0
               (Bound_name.name bound_name)
               closure_type)
           denv_with_defined_symbols closure_types_by_bound_name)
   in
   let set_of_closures1 =
-    Flambda.Set_of_closures.create value_slots0 dbg
-      (Flambda.Function_declarations.create all_function_decls_in_set0)
+    Set_of_closures.create value_slots0 dbg
+      (Function_declarations.create all_function_decls_in_set0)
   in
   { set_of_closures = set_of_closures1; dacc = dacc3 }
 
-(** val simplify_and_lift_set_of_closures : Downwards_acc.t -> Function_slot.t
-    Variable_.Map.t -> Bound_var.t Function_slot.Map.t ->
-    Flambda.Set_of_closures.t -> Alloc_mode.For_allocations.t -> Simple.t
-    Value_slot.Map.t -> Symbol_projection.t Variable_.Map.t ->
+(** val simplify_and_lift_set_of_closures : DA.t -> Function_slot.t
+    Variable_.Map.t -> Bound_var.t Function_slot.Map.t -> Set_of_closures.t ->
+    Alloc_mode.For_allocations.t -> Simple.t Value_slot.Map.t ->
+    Symbol_projection.t Variable_.Map.t ->
     Simplify_common.simplify_function_body -> Simplify_named_result.t coq_M **)
 
 let simplify_and_lift_set_of_closures dacc0 closure_bound_vars_inverse
     closure_bound_vars set_of_closures0 alloc_mode value_slots0
     symbol_projections0 simplify_function_body0 =
-  let function_decls =
-    Flambda.Set_of_closures.function_decls set_of_closures0
-  in
+  let function_decls = Set_of_closures.function_decls set_of_closures0 in
   let closure_symbols =
     Function_slot.Lmap.mapi
       (fun function_slot _ ->
         let name = Function_slot.canonical_name function_slot in
         Symbol.manufacture (Current_unit.get_cu_exn ()) name)
-      (Flambda.Function_declarations.funs_in_order function_decls)
+      (Function_declarations.funs_in_order function_decls)
   in
   let closure_symbols_map =
     Function_slot.Map.of_list (Function_slot.Lmap.bindings closure_symbols)
@@ -1042,11 +968,8 @@ let simplify_and_lift_set_of_closures dacc0 closure_bound_vars_inverse
                   Variable.Map.find_or_null var closure_bound_vars_inverse
                 with
                 | Or_null.Null ->
-                  let () =
-                    assert (
-                      Downwards_env.mem_variable (Downwards_acc.denv dacc0) var)
-                  in
-                  Flambda2_types.alias_type_of kind in_slot
+                  let () = assert (DE.mem_variable (DA.denv dacc0) var) in
+                  T.alias_type_of kind in_slot
                 | Or_null.This function_slot ->
                   let closure_symbol =
                     Function_slot.Map.find function_slot closure_symbols_map
@@ -1054,20 +977,19 @@ let simplify_and_lift_set_of_closures dacc0 closure_bound_vars_inverse
                   let simple =
                     Simple.with_coercion (Simple.symbol closure_symbol) coercion
                   in
-                  Flambda2_types.alias_type_of kind simple)
-              (fun _ -> Flambda2_types.alias_type_of kind in_slot))
-          (fun _ -> Flambda2_types.alias_type_of kind in_slot))
+                  T.alias_type_of kind simple)
+              (fun _ -> T.alias_type_of kind in_slot))
+          (fun _ -> T.alias_type_of kind in_slot))
       value_slots0
   in
   let context =
-    Simplify_set_of_closures_context.create dacc0 simplify_function_body0
+    C.create dacc0 simplify_function_body0
       ((set_of_closures0, Alloc_mode.For_allocations.as_type alloc_mode) :: [])
       (closure_bound_names :: [])
       (value_slot_types0 :: [])
   in
   let closure_bound_names_inside =
-    Simplify_set_of_closures_context
-    .closure_bound_names_inside_functions_exactly_one_set context
+    C.closure_bound_names_inside_functions_exactly_one_set context
   in
   let { set_of_closures = set_of_closures1; dacc = dacc1 } =
     simplify_set_of_closures0 dacc0 context set_of_closures0
@@ -1083,38 +1005,36 @@ let simplify_and_lift_set_of_closures dacc0 closure_bound_vars_inverse
       Symbol.Set.cardinal closure_symbols_set
       = Function_slot.Map.cardinal closure_symbols_map)
   in
-  let denv = Downwards_acc.denv dacc1 in
+  let denv = DA.denv dacc1 in
   let closure_symbols_with_types =
     Function_slot.Lmap.map
       (fun symbol ->
-        let typ = Downwards_env.find_symbol denv symbol in
+        let typ = DE.find_symbol denv symbol in
         symbol, typ)
       closure_symbols
   in
   let find_code_metadata =
    fun code_id0 ->
-    let env = Downwards_acc.denv dacc1 in
+    let env = DA.denv dacc1 in
     Code_or_metadata.code_metadata
       (Port_monad.try_with
-         (fun _ -> Downwards_env.find_code_exn env code_id0)
+         (fun _ -> DE.find_code_exn env code_id0)
          Port_monad.not_found
          (fun _ ->
            Misc.fatal_errorf "Could not find code for %a" Code_id.print code_id0))
   in
   let set_of_closures_lifted_constant =
-    Lifted_constant.create_set_of_closures
-      (Downwards_env.typing_env denv)
-      closure_symbols_with_types symbol_projections0
+    LC.create_set_of_closures (DE.typing_env denv) closure_symbols_with_types
+      symbol_projections0
       (Rebuilt_static_const.create_set_of_closures
-         (Downwards_env.are_rebuilding_terms denv)
+         (DE.are_rebuilding_terms denv)
          find_code_metadata set_of_closures1)
   in
   let dacc2 =
     (fun x__1 x__2 x__3 ->
-      Downwards_acc.add_to_lifted_constant_accumulator ?also_add_to_env:x__1
-        x__2 x__3)
+      DA.add_to_lifted_constant_accumulator ?also_add_to_env:x__1 x__2 x__3)
       (Some ()) dacc1
-      (Lifted_constant_state.singleton set_of_closures_lifted_constant)
+      (LCS.singleton set_of_closures_lifted_constant)
   in
   let denv0, bindings =
     List.fold_left_map
@@ -1129,31 +1049,28 @@ let simplify_and_lift_set_of_closures dacc0 closure_bound_vars_inverse
           (fun bound_var ->
             let denv1 =
               let simple = Simple.symbol closure_symbol in
-              let typ =
-                Flambda2_types.alias_type_of Flambda_kind.value simple
-              in
-              Downwards_env.add_variable denv0 bound_var typ
+              let typ = T.alias_type_of K.value simple in
+              DE.add_variable denv0 bound_var typ
             in
             let binding = bound_var, closure_symbol in
             denv1, binding))
-      (Downwards_acc.denv dacc2)
+      (DA.denv dacc2)
       (Function_slot.Lmap.bindings closure_symbols)
   in
   let denv1 =
-    Downwards_env.map_specialization_cost
+    DE.map_specialization_cost
       (Specialization_cost.add_lifted_set_of_closures set_of_closures1)
       denv0
   in
   Simplify_named_result.create_have_lifted_set_of_closures
-    (Downwards_acc.with_denv dacc2 denv1)
-    bindings
-    (Flambda.Named.create_set_of_closures alloc_mode set_of_closures1)
+    (DA.with_denv dacc2 denv1) bindings
+    (Named.create_set_of_closures alloc_mode set_of_closures1)
 
-(** val simplify_non_lifted_set_of_closures0 : Downwards_acc.t ->
-    Bound_pattern.t -> Bound_var.t Function_slot.Map.t ->
-    Flambda.Set_of_closures.t -> Alloc_mode.For_allocations.t -> Simple.t
-    Value_slot.Map.t -> Flambda2_types.t Value_slot.Map.t ->
-    Simplify_common.simplify_function_body -> Simplify_named_result.t coq_M **)
+(** val simplify_non_lifted_set_of_closures0 : DA.t -> Bound_pattern.t ->
+    Bound_var.t Function_slot.Map.t -> Set_of_closures.t ->
+    Alloc_mode.For_allocations.t -> Simple.t Value_slot.Map.t -> T.t
+    Value_slot.Map.t -> Simplify_common.simplify_function_body ->
+    Simplify_named_result.t coq_M **)
 
 let simplify_non_lifted_set_of_closures0 dacc0 bound_vars closure_bound_vars
     set_of_closures0 alloc_mode value_slots0 value_slot_types0
@@ -1162,18 +1079,17 @@ let simplify_non_lifted_set_of_closures0 dacc0 bound_vars closure_bound_vars
     Function_slot.Map.map Bound_name.create_var closure_bound_vars
   in
   let function_declarations_in_order =
-    Flambda.Function_declarations.funs_in_order
-      (Flambda.Set_of_closures.function_decls set_of_closures0)
+    Function_declarations.funs_in_order
+      (Set_of_closures.function_decls set_of_closures0)
   in
   let context =
-    Simplify_set_of_closures_context.create dacc0 simplify_function_body0
+    C.create dacc0 simplify_function_body0
       ((set_of_closures0, Alloc_mode.For_allocations.as_type alloc_mode) :: [])
       (closure_bound_names :: [])
       (value_slot_types0 :: [])
   in
   let closure_bound_names_inside =
-    Simplify_set_of_closures_context
-    .closure_bound_names_inside_functions_exactly_one_set context
+    C.closure_bound_names_inside_functions_exactly_one_set context
   in
   let { set_of_closures = set_of_closures1; dacc = dacc1 } =
     if Name_mode.is_normal (Bound_pattern.name_mode bound_vars)
@@ -1184,9 +1100,9 @@ let simplify_non_lifted_set_of_closures0 dacc0 bound_vars closure_bound_vars
         value_slot_types0
     else
       let dacc1 =
-        Downwards_acc.map_denv dacc0 (fun denv ->
+        DA.map_denv dacc0 (fun denv ->
             Bound_pattern.fold_all_bound_vars bound_vars denv (fun denv0 var ->
-                Downwards_env.define_variable denv0 var Flambda_kind.value))
+                DE.define_variable denv0 var K.value))
       in
       let set_of_closures1 =
         let value_slots1 =
@@ -1195,7 +1111,7 @@ let simplify_non_lifted_set_of_closures0 dacc0 bound_vars closure_bound_vars
               snd
                 (Simplify_simple.simplify_simple dacc1 simple
                    (Bound_pattern.name_mode bound_vars)))
-            (Flambda.Set_of_closures.value_slots set_of_closures0)
+            (Set_of_closures.value_slots set_of_closures0)
         in
         let function_decls =
           Function_slot.Lmap.map
@@ -1215,9 +1131,7 @@ let simplify_non_lifted_set_of_closures0 dacc0 bound_vars closure_bound_vars
                   let code_metadata =
                     Code_or_metadata.code_metadata
                       (Port_monad.try_with
-                         (fun _ ->
-                           Downwards_env.find_code_exn
-                             (Downwards_acc.denv dacc1) code_id0)
+                         (fun _ -> DE.find_code_exn (DA.denv dacc1) code_id0)
                          Port_monad.not_found
                          (fun _ ->
                            Misc.fatal_errorf "Could not find code for %a"
@@ -1236,25 +1150,23 @@ let simplify_non_lifted_set_of_closures0 dacc0 bound_vars closure_bound_vars
             function_declarations_in_order
         in
         let dbg =
-          Downwards_env.add_inlined_debuginfo (Downwards_acc.denv dacc1)
-            (Flambda.Set_of_closures.debuginfo set_of_closures0)
+          DE.add_inlined_debuginfo (DA.denv dacc1)
+            (Set_of_closures.debuginfo set_of_closures0)
         in
-        Flambda.Set_of_closures.create value_slots1 dbg
-          (Flambda.Function_declarations.create function_decls)
+        Set_of_closures.create value_slots1 dbg
+          (Function_declarations.create function_decls)
       in
       { set_of_closures = set_of_closures1; dacc = dacc1 }
   in
   let defining_expr =
-    let named =
-      Flambda.Named.create_set_of_closures alloc_mode set_of_closures1
-    in
+    let named = Named.create_set_of_closures alloc_mode set_of_closures1 in
     let find_code_characteristics =
      fun code_id0 ->
       let env = Downwards_acc.denv dacc1 in
       let code_metadata =
         Code_or_metadata.code_metadata
           (Port_monad.try_with
-             (fun _ -> Downwards_env.find_code_exn env code_id0)
+             (fun _ -> DE.find_code_exn env code_id0)
              Port_monad.not_found
              (fun _ ->
                Misc.fatal_errorf "Could not find code for %a" Code_id.print
@@ -1268,16 +1180,13 @@ let simplify_non_lifted_set_of_closures0 dacc0 bound_vars closure_bound_vars
         Cost_metrics.function_slot_size = function_slot_size0
       }
     in
-    let machine_width =
-      Downwards_env.machine_width (Downwards_acc.denv dacc1)
-    in
+    let machine_width = DE.machine_width (DA.denv dacc1) in
     Simplified_named.create_with_known_free_names machine_width
-      find_code_characteristics named
-      (Flambda.Named.free_names named)
+      find_code_characteristics named (Named.free_names named)
   in
   let dacc2 =
-    Downwards_acc.map_denv dacc1
-      (Downwards_env.map_specialization_cost
+    DA.map_denv dacc1
+      (DE.map_specialization_cost
          (Specialization_cost.add_set_of_closures set_of_closures1))
   in
   Simplify_named_result.create dacc2
@@ -1290,13 +1199,12 @@ let simplify_non_lifted_set_of_closures0 dacc0 bound_vars closure_bound_vars
          : Simplified_named.binding_to_place))
        ( bound_vars,
          defining_expr,
-         Some (Flambda.Named.create_set_of_closures alloc_mode set_of_closures1)
-       ))
+         Some (Named.create_set_of_closures alloc_mode set_of_closures1) ))
 
 type lifting_decision_result =
   { can_lift : bool;
     value_slots : Simple.t Value_slot.Map.t;
-    value_slot_types : Flambda2_types.t Value_slot.Map.t;
+    value_slot_types : T.t Value_slot.Map.t;
     symbol_projections : Symbol_projection.t Variable_.Map.t
   }
 
@@ -1308,8 +1216,7 @@ let can_lift l = l.can_lift
 
 let value_slots l = l.value_slots
 
-(** val value_slot_types : lifting_decision_result -> Flambda2_types.t
-    Value_slot.Map.t **)
+(** val value_slot_types : lifting_decision_result -> T.t Value_slot.Map.t **)
 
 let value_slot_types l = l.value_slot_types
 
@@ -1318,8 +1225,8 @@ let value_slot_types l = l.value_slot_types
 
 let symbol_projections l = l.symbol_projections
 
-(** val type_value_slots_and_make_lifting_decision_for_one_set : Downwards_acc.t
-    -> Name_mode.t -> Flambda.Set_of_closures.t -> Alloc_mode.For_types.t ->
+(** val type_value_slots_and_make_lifting_decision_for_one_set : DA.t ->
+    Name_mode.t -> Set_of_closures.t -> Alloc_mode.For_types.t ->
     lifting_decision_result coq_M **)
 
 let type_value_slots_and_make_lifting_decision_for_one_set dacc0
@@ -1330,16 +1237,12 @@ let type_value_slots_and_make_lifting_decision_for_one_set dacc0
         let value_slots0, value_slot_types0, symbol_projections0 = pat in
         let env_entry0, ty, symbol_projections1 =
           let ty, simple =
-            Simplify_simple.simplify_simple dacc0 env_entry
-              name_mode_of_bound_vars
+            S.simplify_simple dacc0 env_entry name_mode_of_bound_vars
           in
           let symbol_projections1 =
             Simple.pattern_match' simple
               (fun var _ ->
-                match
-                  Downwards_env.find_symbol_projection
-                    (Downwards_acc.denv dacc0) var
-                with
+                match DE.find_symbol_projection (DA.denv dacc0) var with
                 | Some proj -> Variable.Map.add var proj symbol_projections0
                 | None -> symbol_projections0)
               (fun _ _ -> symbol_projections0)
@@ -1354,39 +1257,35 @@ let type_value_slots_and_make_lifting_decision_for_one_set dacc0
           Value_slot.Map.add value_slot ty value_slot_types0
         in
         value_slots1, value_slot_types1, symbol_projections1)
-      (Flambda.Set_of_closures.value_slots set_of_closures0)
+      (Set_of_closures.value_slots set_of_closures0)
       (Value_slot.Map.empty, Value_slot.Map.empty, Variable.Map.empty)
   in
   let can_lift_coercion =
-   fun coercion -> Name_occurrences.no_variables (Coercion.free_names coercion)
+   fun coercion -> NO.no_variables (Coercion.free_names coercion)
   in
   let variable_permits_lifting =
    fun var ->
     Variable.Map.mem var symbol_projections0
-    || Downwards_env.is_defined_at_toplevel (Downwards_acc.denv dacc0) var
+    || DE.is_defined_at_toplevel (DA.denv dacc0) var
        &&
        match alloc_mode with
        | Alloc_mode.For_types.Heap -> true
        | Alloc_mode.For_types.Local -> (
          match
-           Flambda2_types.never_holds_locally_allocated_values
-             (Downwards_acc.typing_env dacc0)
-             var
+           T.never_holds_locally_allocated_values (DA.typing_env dacc0) var
          with
-         | Flambda2_types.Proved u ->
+         | T.Proved u ->
            let () = u in
            true
-         | Flambda2_types.Unknown -> false)
+         | T.Unknown -> false)
        | Alloc_mode.For_types.Heap_or_local -> (
          match
-           Flambda2_types.never_holds_locally_allocated_values
-             (Downwards_acc.typing_env dacc0)
-             var
+           T.never_holds_locally_allocated_values (DA.typing_env dacc0) var
          with
-         | Flambda2_types.Proved u ->
+         | T.Proved u ->
            let () = u in
            true
-         | Flambda2_types.Unknown -> false)
+         | T.Unknown -> false)
   in
   let value_slot_permits_lifting =
    fun _ simple ->
@@ -1406,8 +1305,8 @@ let type_value_slots_and_make_lifting_decision_for_one_set dacc0
     symbol_projections = symbol_projections0
   }
 
-(** val simplify_non_lifted_set_of_closures : Downwards_acc.t -> Bound_pattern.t
-    -> Flambda.Set_of_closures.t -> Alloc_mode.For_allocations.t ->
+(** val simplify_non_lifted_set_of_closures : DA.t -> Bound_pattern.t ->
+    Set_of_closures.t -> Alloc_mode.For_allocations.t ->
     Simplify_common.simplify_function_body -> Simplify_named_result.t coq_M **)
 
 let simplify_non_lifted_set_of_closures dacc0 bound_vars set_of_closures0
@@ -1424,8 +1323,8 @@ let simplify_non_lifted_set_of_closures dacc0 bound_vars set_of_closures0
               closure_bound_vars_inverse ))
       (Function_slot.Map.empty, Variable.Map.empty)
       (Function_slot.Lmap.keys
-         (Flambda.Function_declarations.funs_in_order
-            (Flambda.Set_of_closures.function_decls set_of_closures0)))
+         (Function_declarations.funs_in_order
+            (Set_of_closures.function_decls set_of_closures0)))
       closure_bound_vars
   in
   let { can_lift = can_lift0;
@@ -1447,12 +1346,11 @@ let simplify_non_lifted_set_of_closures dacc0 bound_vars set_of_closures0
       set_of_closures0 alloc_mode value_slots0 value_slot_types0
       simplify_function_body0
 
-(** val simplify_lifted_set_of_closures0 : Downwards_acc.t ->
-    Simplify_set_of_closures_context.t -> Symbol.t Function_slot.Lmap.t ->
-    Bound_name.t Function_slot.Map.t -> Simple.t Value_slot.Map.t ->
-    Flambda2_types.t Value_slot.Map.t -> Flambda.Set_of_closures.t ->
-    (Bound_static.Pattern.t, Rebuilt_static_const.t, Downwards_acc.t)
-    Port_monad.tuple3 coq_M **)
+(** val simplify_lifted_set_of_closures0 : DA.t -> C.t -> Symbol.t
+    Function_slot.Lmap.t -> Bound_name.t Function_slot.Map.t -> Simple.t
+    Value_slot.Map.t -> T.t Value_slot.Map.t -> Set_of_closures.t ->
+    (Bound_static.Pattern.t, Rebuilt_static_const.t, DA.t) Port_monad.tuple3
+    coq_M **)
 
 let simplify_lifted_set_of_closures0 dacc0 context closure_symbols
     closure_bound_names_inside value_slots0 value_slot_types0 set_of_closures0 =
@@ -1468,7 +1366,7 @@ let simplify_lifted_set_of_closures0 dacc0 context closure_symbols
   in
   let find_code_metadata =
    fun code_id0 ->
-    let env = Downwards_acc.denv dacc1 in
+    let env = DA.denv dacc1 in
     Code_or_metadata.code_metadata
       (Port_monad.try_with
          (fun _ -> Downwards_env.find_code_exn env code_id0)
@@ -1481,12 +1379,12 @@ let simplify_lifted_set_of_closures0 dacc0 context closure_symbols
   in
   let set_of_closures_static_const =
     Rebuilt_static_const.create_set_of_closures
-      (Downwards_acc.are_rebuilding_terms dacc1)
+      (DA.are_rebuilding_terms dacc1)
       find_code_metadata set_of_closures1
   in
   let dacc2 =
-    Downwards_acc.map_denv dacc1
-      (Downwards_env.map_specialization_cost
+    DA.map_denv dacc1
+      (DE.map_specialization_cost
          (Specialization_cost.add_lifted_set_of_closures set_of_closures1))
   in
   set_of_closures_pattern, set_of_closures_static_const, dacc2
@@ -1511,11 +1409,11 @@ module List_ = struct
         | a3 :: l6 -> fold_left3 f (f accu a1 a2 a3) l4 l5 l6))
 end
 
-(** val simplify_lifted_sets_of_closures : Downwards_acc.t -> (Symbol.t
-    Function_slot.Lmap.t * Flambda.Set_of_closures.t) list -> Bound_name.t
+(** val simplify_lifted_sets_of_closures : DA.t -> (Symbol.t
+    Function_slot.Lmap.t * Set_of_closures.t) list -> Bound_name.t
     Function_slot.Map.t list -> Simplify_common.simplify_function_body ->
-    (Bound_static.t, Rebuilt_static_const.Group.t, Downwards_acc.t)
-    Port_monad.tuple3 coq_M **)
+    (Bound_static.t, Rebuilt_static_const.Group.t, DA.t) Port_monad.tuple3 coq_M
+    **)
 
 let simplify_lifted_sets_of_closures dacc0 all_sets_of_closures_and_symbols
     closure_bound_names_all_sets simplify_function_body0 =
@@ -1543,13 +1441,11 @@ let simplify_lifted_sets_of_closures dacc0 all_sets_of_closures_and_symbols
   in
   let value_slot_types_all_sets = List.map snd value_slots_and_types_all_sets in
   let context =
-    Simplify_set_of_closures_context.create dacc0 simplify_function_body0
-      all_sets_of_closures closure_bound_names_all_sets
-      value_slot_types_all_sets
+    C.create dacc0 simplify_function_body0 all_sets_of_closures
+      closure_bound_names_all_sets value_slot_types_all_sets
   in
   let closure_bound_names_inside_functions_all_sets =
-    Simplify_set_of_closures_context
-    .closure_bound_names_inside_functions_all_sets context
+    C.closure_bound_names_inside_functions_all_sets context
   in
   List_.fold_left3
     (fun pat ->
@@ -1573,14 +1469,13 @@ let simplify_lifted_sets_of_closures dacc0 all_sets_of_closures_and_symbols
     all_sets_of_closures_and_symbols
     closure_bound_names_inside_functions_all_sets value_slots_and_types_all_sets
 
-(** val simplify_static_stub_function : Downwards_acc.t -> Code.t -> Code.t
-    Code_id.Map.t -> Simplify_common.simplify_function_body ->
-    (Rebuilt_static_const.t * Downwards_acc.t) coq_M **)
+(** val simplify_static_stub_function : DA.t -> Code.t -> Code.t Code_id.Map.t
+    -> Simplify_common.simplify_function_body -> (Rebuilt_static_const.t * DA.t)
+    coq_M **)
 
 let simplify_static_stub_function dacc0 code0 all_code simplify_function_body0 =
   let context =
-    Simplify_set_of_closures_context.create_for_static_stub dacc0 all_code
-      simplify_function_body0
+    C.create_for_static_stub dacc0 all_code simplify_function_body0
   in
   let closure_bound_names_inside_function = Function_slot.Map.empty in
   let { code_id = _;

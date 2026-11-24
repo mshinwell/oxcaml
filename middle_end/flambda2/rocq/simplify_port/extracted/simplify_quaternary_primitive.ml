@@ -22,34 +22,28 @@ open! Simplify_import
 open Port_monad
 
 (** val simplify_atomic_compare_and_set_or_exchange_args :
-    Flambda_primitive.Block_access_field_kind.t -> Downwards_acc.t ->
-    Flambda2_types.t -> Flambda2_types.t ->
-    Flambda_primitive.Block_access_field_kind.t coq_M **)
+    P.Block_access_field_kind.t -> DA.t -> T.t -> T.t ->
+    P.Block_access_field_kind.t coq_M **)
 
 let simplify_atomic_compare_and_set_or_exchange_args args_kind dacc
     comparison_value_ty new_value_ty =
   match args_kind with
-  | Flambda_primitive.Block_access_field_kind.Any_value ->
+  | P.Block_access_field_kind.Any_value ->
     let is_immediate =
      fun ty ->
-      match
-        Flambda2_types.prove_is_not_a_pointer (Downwards_acc.typing_env dacc) ty
-      with
-      | Flambda2_types.Proved b -> if b then true else false
-      | Flambda2_types.Unknown -> false
+      match T.prove_is_not_a_pointer (DA.typing_env dacc) ty with
+      | T.Proved b -> if b then true else false
+      | T.Unknown -> false
     in
     if is_immediate comparison_value_ty && is_immediate new_value_ty
-    then Flambda_primitive.Block_access_field_kind.Immediate
-    else Flambda_primitive.Block_access_field_kind.Any_value
-  | Flambda_primitive.Block_access_field_kind.Immediate ->
-    Flambda_primitive.Block_access_field_kind.Immediate
+    then P.Block_access_field_kind.Immediate
+    else P.Block_access_field_kind.Any_value
+  | P.Block_access_field_kind.Immediate -> P.Block_access_field_kind.Immediate
 
-(** val simplify_atomic_compare_and_set : Flambda_primitive.atomic_offset_units
-    -> Flambda_primitive.Block_access_field_kind.t ->
-    Alloc_mode.For_assignments.t -> Flambda_primitive.t -> Downwards_acc.t ->
-    Flambda.Named.t -> Debuginfo.t -> Simple.t -> Flambda2_types.t -> Simple.t
-    -> Flambda2_types.t -> Simple.t -> Flambda2_types.t -> Simple.t ->
-    Flambda2_types.t -> Bound_var.t -> Simplify_primitive_result.t coq_M **)
+(** val simplify_atomic_compare_and_set : P.atomic_offset_units ->
+    P.Block_access_field_kind.t -> Alloc_mode.For_assignments.t -> P.t -> DA.t
+    -> Named.t -> Debuginfo.t -> Simple.t -> T.t -> Simple.t -> T.t -> Simple.t
+    -> T.t -> Simple.t -> T.t -> Bound_var.t -> SPR.t coq_M **)
 
 let simplify_atomic_compare_and_set offset_units args_kind mode _ dacc _ dbg
     atomic _ field _ expected comparison_value_ty desired new_value_ty
@@ -59,10 +53,9 @@ let simplify_atomic_compare_and_set offset_units args_kind mode _ dacc _ dbg
       comparison_value_ty new_value_ty
   in
   let new_term =
-    Flambda.Named.create_prim
-      (Flambda_primitive.Quaternary
-         ( Flambda_primitive.Atomic_compare_and_set
-             (offset_units, args_kind0, mode),
+    Named.create_prim
+      (P.Quaternary
+         ( P.Atomic_compare_and_set (offset_units, args_kind0, mode),
            atomic,
            field,
            expected,
@@ -70,19 +63,16 @@ let simplify_atomic_compare_and_set offset_units args_kind mode _ dacc _ dbg
       dbg
   in
   let dacc0 =
-    Downwards_acc.add_variable dacc result_var
-      (Flambda2_types.any_tagged_bool
-         (Downwards_env.machine_width (Downwards_acc.denv dacc)))
+    DA.add_variable dacc result_var
+      (T.any_tagged_bool (DE.machine_width (DA.denv dacc)))
   in
-  Simplify_primitive_result.create new_term false dacc0
+  SPR.create new_term false dacc0
 
-(** val simplify_atomic_compare_exchange : Flambda_primitive.atomic_offset_units
-    -> Flambda_primitive.Block_access_field_kind.t ->
-    Flambda_primitive.Block_access_field_kind.t -> Alloc_mode.For_assignments.t
-    -> Flambda_primitive.t -> Downwards_acc.t -> Flambda.Named.t -> Debuginfo.t
-    -> Simple.t -> Flambda2_types.t -> Simple.t -> Flambda2_types.t -> Simple.t
-    -> Flambda2_types.t -> Simple.t -> Flambda2_types.t -> Bound_var.t ->
-    Simplify_primitive_result.t coq_M **)
+(** val simplify_atomic_compare_exchange : P.atomic_offset_units ->
+    P.Block_access_field_kind.t -> P.Block_access_field_kind.t ->
+    Alloc_mode.For_assignments.t -> P.t -> DA.t -> Named.t -> Debuginfo.t ->
+    Simple.t -> T.t -> Simple.t -> T.t -> Simple.t -> T.t -> Simple.t -> T.t ->
+    Bound_var.t -> SPR.t coq_M **)
 
 let simplify_atomic_compare_exchange offset_units atomic_kind args_kind mode _
     dacc _ dbg atomic _ field _ expected comparison_value_ty desired
@@ -92,16 +82,16 @@ let simplify_atomic_compare_exchange offset_units atomic_kind args_kind mode _
       comparison_value_ty new_value_ty
   in
   let new_term =
-    Flambda.Named.create_prim
-      (Flambda_primitive.Quaternary
+    Named.create_prim
+      (P.Quaternary
          ( (fun (x__1, x__2, x__3, x__4) ->
-             (Flambda_primitive.Atomic_compare_exchange
+             (P.Atomic_compare_exchange
                 { offset_units = x__1;
                   atomic_kind = x__2;
                   args_kind = x__3;
                   mode = x__4
                 }
-               : Flambda_primitive.quaternary_primitive))
+               : P.quaternary_primitive))
              (offset_units, atomic_kind, args_kind0, mode),
            atomic,
            field,
@@ -111,29 +101,24 @@ let simplify_atomic_compare_exchange offset_units atomic_kind args_kind mode _
   in
   let result_var_ty =
     match atomic_kind with
-    | Flambda_primitive.Block_access_field_kind.Any_value ->
-      Flambda2_types.any_value
-    | Flambda_primitive.Block_access_field_kind.Immediate ->
-      Flambda2_types.any_tagged_immediate_or_null
+    | P.Block_access_field_kind.Any_value -> T.any_value
+    | P.Block_access_field_kind.Immediate -> T.any_tagged_immediate_or_null
   in
-  let dacc0 = Downwards_acc.add_variable dacc result_var result_var_ty in
-  Simplify_primitive_result.create new_term false dacc0
+  let dacc0 = DA.add_variable dacc result_var result_var_ty in
+  SPR.create new_term false dacc0
 
-(** val simplify_quaternary_primitive : Downwards_acc.t -> Flambda_primitive.t
-    -> Flambda_primitive.quaternary_primitive -> Simple.t -> Flambda2_types.t ->
-    Simple.t -> Flambda2_types.t -> Simple.t -> Flambda2_types.t -> Simple.t ->
-    Flambda2_types.t -> Debuginfo.t -> Bound_var.t ->
-    Simplify_primitive_result.t coq_M **)
+(** val simplify_quaternary_primitive : DA.t -> P.t -> P.quaternary_primitive ->
+    Simple.t -> T.t -> Simple.t -> T.t -> Simple.t -> T.t -> Simple.t -> T.t ->
+    Debuginfo.t -> Bound_var.t -> SPR.t coq_M **)
 
 let simplify_quaternary_primitive dacc original_prim prim arg1 arg1_ty arg2
     arg2_ty arg3 arg3_ty arg4 arg4_ty dbg result_var =
-  let original_term = Flambda.Named.create_prim original_prim dbg in
+  let original_term = Named.create_prim original_prim dbg in
   let simplifier =
     (fun f__1 f__2 x__0 ->
-      match (x__0 : Flambda_primitive.quaternary_primitive) with
-      | Flambda_primitive.Atomic_compare_and_set (x__1, x__2, x__3) ->
-        f__1 x__1 x__2 x__3
-      | Flambda_primitive.Atomic_compare_exchange
+      match (x__0 : P.quaternary_primitive) with
+      | P.Atomic_compare_and_set (x__1, x__2, x__3) -> f__1 x__1 x__2 x__3
+      | P.Atomic_compare_exchange
           { offset_units = x__1;
             atomic_kind = x__2;
             args_kind = x__3;

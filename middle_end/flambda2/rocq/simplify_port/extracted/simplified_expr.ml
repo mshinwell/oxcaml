@@ -187,7 +187,7 @@ let mark_as_cold t0 =
     t0
 
 (** val simplified_let : Simplified_named.binding_to_place list ->
-    Removed_operations.t -> Lifted_constant_state.t -> bool -> Closure_info.t ->
+    Removed_operations.t -> LCS.t -> bool -> Closure_info.t ->
     Named_rewrite_id.t -> t -> t coq_M **)
 
 let simplified_let bindings_to_place removed_operations
@@ -312,11 +312,9 @@ let simplified_apply_cont apply_cont args rewrite_id =
           (apply_cont, args, rewrite_id)))
 
 (** val simplified_switch : (Apply_cont_expr.t, Branch_annotations.t,
-    Apply_cont_rewrite_id.t, (_) Flambda_arity.t, Flambda2_types.Typing_env.t)
-    Port_monad.tuple5 Target_ocaml_int.Map.t -> Debuginfo.t -> Simple.t ->
-    Flambda2_types.t -> Symbol.t Flambda.Import_.Static_const.Map.t ->
-    Flambda2_types.Typing_env.t -> Common_subexpression_elimination.t -> t coq_M
-    **)
+    Apply_cont_rewrite_id.t, (_) Flambda_arity.t, TE.t) Port_monad.tuple5
+    Target_ocaml_int.Map.t -> Debuginfo.t -> Simple.t -> T.t -> Symbol.t
+    Flambda.Import_.Static_const.Map.t -> TE.t -> CSE.t -> t coq_M **)
 
 let simplified_switch arms condition_dbg scrutinee scrutinee_ty
     shareable_constants typing_env_before_switch cse_before_switch =

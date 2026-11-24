@@ -28,7 +28,7 @@ type cont_info = T.Continuation_info.t
 
 (** val print : Format.formatter -> t -> unit coq_M **)
 
-let print = Flow_types.Acc.print
+let print = T.Acc.print
 
 (** val wrong_dummy_toplevel_cont_name : string **)
 
@@ -206,7 +206,7 @@ let record_var_alias var definition t0 =
         elt direct_aliases0 defined0)
 
 (** val record_ref_named : Named_rewrite_id.t -> Variable.t ->
-    Flambda_primitive.t -> Flow_types.Mutable_prim.t -> t -> t coq_M **)
+    Flambda_primitive.t -> T.Mutable_prim.t -> t -> t coq_M **)
 
 let record_ref_named named_rewrite_id0 bound_to original_prim0 prim0 t0 =
   update_top_of_stack t0 (fun cont_info0 ->
@@ -359,7 +359,7 @@ let add_apply_conts result_cont exn_cont result_arity t0 =
                     let map0 =
                       Numeric_types.Int.Map.of_list
                         (List.init result_arity0 (fun i ->
-                             i, Flow_types.Cont_arg.Function_result))
+                             i, T.Cont_arg.Function_result))
                     in
                     let _, map1 =
                       List.fold_left
@@ -368,7 +368,7 @@ let add_apply_conts result_cont exn_cont result_arity t0 =
                           let extra_arg, _ = pat' in
                           let map2 =
                             Numeric_types.Int.Map.add i
-                              (Flow_types.Cont_arg.Simple extra_arg) map1
+                              (T.Cont_arg.Simple extra_arg) map1
                           in
                           i + 1, map2)
                         (1, map0) extra_args
@@ -424,7 +424,7 @@ let add_apply_cont_args rewrite_id cont arg_name_simples t0 =
                           let map0, i = pat in
                           let map1 =
                             Numeric_types.Int.Map.add i
-                              (Flow_types.Cont_arg.Simple arg_simple) map0
+                              (T.Cont_arg.Simple arg_simple) map0
                           in
                           map1, i + 1)
                         (Numeric_types.Int.Map.empty, 0)
@@ -574,9 +574,9 @@ let record_let_binding rewrite_id generate_phantom_lets let_bound
             record_var_bindings
               (record_ref_named rewrite_id var original_prim0
                  ((fun (x__1, x__2, x__3, x__4) ->
-                    (Flow_types.Mutable_prim.Block_load
+                    (T.Mutable_prim.Block_load
                        { bak = x__1; mut = x__2; block = x__3; field = x__4 }
-                      : Flow_types.Mutable_prim.t))
+                      : T.Mutable_prim.t))
                     (bak, mut, block0, field0))
                  t0)
               Name_occurrences.empty
@@ -599,7 +599,7 @@ let record_let_binding rewrite_id generate_phantom_lets let_bound
             let v, _ = p in
             record_var_bindings
               (record_ref_named rewrite_id var original_prim0
-                 (Flow_types.Mutable_prim.Is_int v) t0)
+                 (T.Mutable_prim.Is_int v) t0)
               Name_occurrences.empty
           | None -> record_var_bindings t0 free_names0)
         (fun _ ->
@@ -614,7 +614,7 @@ let record_let_binding rewrite_id generate_phantom_lets let_bound
             let v, _ = p in
             record_var_bindings
               (record_ref_named rewrite_id var original_prim0
-                 (Flow_types.Mutable_prim.Get_tag v) t0)
+                 (T.Mutable_prim.Get_tag v) t0)
               Name_occurrences.empty
           | None -> record_var_bindings t0 free_names0)
         (fun _ ->
@@ -805,9 +805,9 @@ let record_let_binding rewrite_id generate_phantom_lets let_bound
             let block0, field0 = p in
             record_ref_named rewrite_id var original_prim0
               ((fun (x__1, x__2, x__3, x__4) ->
-                 (Flow_types.Mutable_prim.Block_set
+                 (T.Mutable_prim.Block_set
                     { bak = x__1; block = x__2; field = x__3; value = x__4 }
-                   : Flow_types.Mutable_prim.t))
+                   : T.Mutable_prim.t))
                  (bak, block0, field0, value))
               t0
           | None -> add_used_in_current_handler free_names0 t0)
@@ -925,13 +925,13 @@ let record_let_binding rewrite_id generate_phantom_lets let_bound
           record_var_bindings
             (record_ref_named rewrite_id var original_prim0
                ((fun (x__1, x__2, x__3, x__4) ->
-                  (Flow_types.Mutable_prim.Make_block
+                  (T.Mutable_prim.Make_block
                      { kind = x__1;
                        mut = x__2;
                        alloc_mode = x__3;
                        fields = x__4
                      }
-                    : Flow_types.Mutable_prim.t))
+                    : T.Mutable_prim.t))
                   (kind, mut, alloc_mode, fields))
                t0)
             Name_occurrences.empty)
@@ -1082,10 +1082,10 @@ let record_lifted_constants lifted_constants0 t0 =
     (Lifted_constant_state.union lifted_constants0
        t0.Flow_types.Acc.lifted_constants)
 
-(** val add_extra_args_to_call : Continuation_extra_params_and_args.Extra_arg.t
-    list Or_invalid.t Apply_cont_rewrite_id.Map.t -> Apply_cont_rewrite_id.t ->
-    Flow_types.Cont_arg.t Numeric_types.Int.Map.t -> Flow_types.Cont_arg.t
-    Numeric_types.Int.Map.t option coq_M **)
+(** val add_extra_args_to_call : EPA.Extra_arg.t list Or_invalid.t
+    Apply_cont_rewrite_id.Map.t -> Apply_cont_rewrite_id.t -> T.Cont_arg.t
+    Numeric_types.Int.Map.t -> T.Cont_arg.t Numeric_types.Int.Map.t option coq_M
+    **)
 
 let add_extra_args_to_call extra_args rewrite_id original_args =
   match Apply_cont_rewrite_id.Map.find_or_null rewrite_id extra_args with
@@ -1104,16 +1104,11 @@ let add_extra_args_to_call extra_args rewrite_id original_args =
         List.map
           (fun x ->
             match x with
-            | Continuation_extra_params_and_args.Extra_arg.Already_in_scope s ->
-              Flow_types.Cont_arg.Simple s
-            | Continuation_extra_params_and_args.Extra_arg.New_let_binding
-                (v, prim0) ->
-              Flow_types.Cont_arg.New_let_binding
-                (v, Flambda_primitive.free_names prim0)
-            | Continuation_extra_params_and_args.Extra_arg
-              .New_let_binding_with_named_args
-                (v, _) ->
-              Flow_types.Cont_arg.New_let_binding (v, Name_occurrences.empty))
+            | EPA.Extra_arg.Already_in_scope s -> T.Cont_arg.Simple s
+            | EPA.Extra_arg.New_let_binding (v, prim0) ->
+              T.Cont_arg.New_let_binding (v, Flambda_primitive.free_names prim0)
+            | EPA.Extra_arg.New_let_binding_with_named_args (v, _) ->
+              T.Cont_arg.New_let_binding (v, Name_occurrences.empty))
           extra_args0
       in
       let _, args =
@@ -1161,9 +1156,7 @@ let normalize_acc specialization_map t0 =
                 with
                 | Or_null.Null -> rewrite_ids
                 | Or_null.This epa ->
-                  let extra_args =
-                    Continuation_extra_params_and_args.extra_args epa
-                  in
+                  let extra_args = EPA.extra_args epa in
                   Apply_cont_rewrite_id.Map.filter_map
                     (add_extra_args_to_call extra_args)
                     rewrite_ids
@@ -1194,7 +1187,7 @@ let normalize_acc specialization_map t0 =
                   (fun rewrite_id _ defined1 ->
                     match
                       Apply_cont_rewrite_id.Map.find_or_null rewrite_id
-                        (Continuation_extra_params_and_args.extra_args epa)
+                        (EPA.extra_args epa)
                     with
                     | Or_null.Null -> defined1
                     | Or_null.This t1 -> (
@@ -1204,16 +1197,10 @@ let normalize_acc specialization_map t0 =
                           List.fold_left
                             (fun defined2 x ->
                               match x with
-                              | Continuation_extra_params_and_args.Extra_arg
-                                .Already_in_scope
-                                  _ ->
-                                defined2
-                              | Continuation_extra_params_and_args.Extra_arg
-                                .New_let_binding
-                                  (v, _) ->
+                              | EPA.Extra_arg.Already_in_scope _ -> defined2
+                              | EPA.Extra_arg.New_let_binding (v, _) ->
                                 Variable.Set.add v defined2
-                              | Continuation_extra_params_and_args.Extra_arg
-                                .New_let_binding_with_named_args
+                              | EPA.Extra_arg.New_let_binding_with_named_args
                                   (v, _) ->
                                 Variable.Set.add v defined2)
                             defined1 extra_args
@@ -1234,7 +1221,7 @@ let normalize_acc specialization_map t0 =
         let elt0 =
           let params0 =
             Bound_parameters.append elt.Flow_types.Continuation_info.params
-              (Continuation_extra_params_and_args.extra_params epa)
+              (EPA.extra_params epa)
           in
           (fun t params -> { t with T.Continuation_info.params }) elt params0
         in

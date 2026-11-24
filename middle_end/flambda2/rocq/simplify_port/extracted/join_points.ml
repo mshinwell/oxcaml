@@ -24,13 +24,13 @@ open Port_monad
 module U = One_continuation_use
 
 type result =
-  { handler_env : Downwards_env.t;
+  { handler_env : DE.t;
     extra_params_and_args : Continuation_extra_params_and_args.t;
     is_single_inlinable_use : bool;
     escapes : bool
   }
 
-(** val handler_env : result -> Downwards_env.t **)
+(** val handler_env : result -> DE.t **)
 
 let handler_env r = r.handler_env
 
@@ -46,28 +46,24 @@ let is_single_inlinable_use r = r.is_single_inlinable_use
 
 let escapes r = r.escapes
 
-(** val introduce_extra_params_in_use_env : Continuation_extra_params_and_args.t
-    -> (Downwards_env.t, Apply_cont_rewrite_id.t, Continuation_use_kind.t)
-    Port_monad.tuple3 -> (Flambda2_types.Typing_env.t, Apply_cont_rewrite_id.t,
-    Continuation_use_kind.t) Port_monad.tuple3 option coq_M **)
+(** val introduce_extra_params_in_use_env : EPA.t -> (DE.t,
+    Apply_cont_rewrite_id.t, Continuation_use_kind.t) Port_monad.tuple3 ->
+    (TE.t, Apply_cont_rewrite_id.t, Continuation_use_kind.t) Port_monad.tuple3
+    option coq_M **)
 
 let introduce_extra_params_in_use_env epa = function
   | denv_at_use, use_id, kind ->
-    let tenv_at_use = Downwards_env.typing_env denv_at_use in
+    let tenv_at_use = DE.typing_env denv_at_use in
     let tenv_at_use0 =
-      Flambda2_types.Typing_env.add_definitions_of_params tenv_at_use
-        (Continuation_extra_params_and_args.extra_params epa)
+      TE.add_definitions_of_params tenv_at_use (EPA.extra_params epa)
     in
     Port_monad.match_exn
-      (fun _ ->
-        Apply_cont_rewrite_id.Map.find use_id
-          (Continuation_extra_params_and_args.extra_args epa))
+      (fun _ -> Apply_cont_rewrite_id.Map.find use_id (EPA.extra_args epa))
       Port_monad.not_found
       (fun _ ->
         Misc.fatal_errorf
           "No extra args for rewrite Id %a@.Extra params and args: %a"
-          Apply_cont_rewrite_id.print use_id
-          Continuation_extra_params_and_args.print epa)
+          Apply_cont_rewrite_id.print use_id EPA.print epa)
       (fun extra_args ->
         match extra_args with
         | Or_invalid.Ok extra_args0 ->
@@ -75,52 +71,41 @@ let introduce_extra_params_in_use_env epa = function
             List.fold_left2
               (fun tenv_at_use1 param arg ->
                 match arg with
-                | Continuation_extra_params_and_args.Extra_arg.Already_in_scope
-                    s ->
-                  Flambda2_types.Typing_env.add_equation tenv_at_use1
-                    (Bound_parameter.name param)
-                    (Flambda2_types.alias_type_of
-                       (Flambda_kind.With_subkind.kind
-                          (Bound_parameter.kind param))
+                | EPA.Extra_arg.Already_in_scope s ->
+                  TE.add_equation tenv_at_use1 (BP.name param)
+                    (T.alias_type_of
+                       (Flambda_kind.With_subkind.kind (BP.kind param))
                        s)
-                | Continuation_extra_params_and_args.Extra_arg.New_let_binding
-                    (_, _) ->
-                  tenv_at_use1
-                | Continuation_extra_params_and_args.Extra_arg
-                  .New_let_binding_with_named_args
-                    (_, _) ->
+                | EPA.Extra_arg.New_let_binding (_, _) -> tenv_at_use1
+                | EPA.Extra_arg.New_let_binding_with_named_args (_, _) ->
                   tenv_at_use1)
               tenv_at_use0
-              (Bound_parameters.to_list
-                 (Continuation_extra_params_and_args.extra_params epa))
+              (Bound_parameters.to_list (EPA.extra_params epa))
               extra_args0
           in
           Some (tenv_at_use1, use_id, kind)
         | Or_invalid.Invalid -> None)
 
-(** val introduce_extra_params_for_join : Downwards_env.t -> (Downwards_env.t,
+(** val introduce_extra_params_for_join : DE.t -> (DE.t,
     Apply_cont_rewrite_id.t, Continuation_use_kind.t) Port_monad.tuple3 list ->
-    Continuation_extra_params_and_args.t -> (Downwards_env.t *
-    (Flambda2_types.Typing_env.t, Apply_cont_rewrite_id.t,
-    Continuation_use_kind.t) Port_monad.tuple3 list) coq_M **)
+    EPA.t -> (DE.t * (TE.t, Apply_cont_rewrite_id.t, Continuation_use_kind.t)
+    Port_monad.tuple3 list) coq_M **)
 
 let introduce_extra_params_for_join denv use_envs_with_ids
     extra_params_and_args0 =
-  if Continuation_extra_params_and_args.is_empty extra_params_and_args0
+  if EPA.is_empty extra_params_and_args0
   then
     let use_tenvs_with_ids =
       List.map
         (fun pat ->
           let denv_at_use, use_id, kind = pat in
-          Downwards_env.typing_env denv_at_use, use_id, kind)
+          DE.typing_env denv_at_use, use_id, kind)
         use_envs_with_ids
     in
     denv, use_tenvs_with_ids
   else
-    let extra_params0 =
-      Continuation_extra_params_and_args.extra_params extra_params_and_args0
-    in
-    let denv0 = Downwards_env.define_parameters true denv extra_params0 in
+    let extra_params0 = EPA.extra_params extra_params_and_args0 in
+    let denv0 = DE.define_parameters true denv extra_params0 in
     let use_envs_with_ids0 =
       List.filter_map
         (introduce_extra_params_in_use_env extra_params_and_args0)
@@ -128,14 +113,12 @@ let introduce_extra_params_for_join denv use_envs_with_ids
     in
     denv0, use_envs_with_ids0
 
-(** val add_extra_params_from_join_analysis : Downwards_env.t ->
-    Apply_cont_rewrite_id.t Simplify_import.T.Join_analysis.t ->
-    (Flambda2_types.Typing_env.t, Apply_cont_rewrite_id.t,
-    Continuation_use_kind.t) Port_monad.tuple3 list -> (Downwards_env.t *
-    Continuation_extra_params_and_args.t) coq_M **)
+(** val add_extra_params_from_join_analysis : DE.t -> Apply_cont_rewrite_id.t
+    Simplify_import.T.Join_analysis.t -> (TE.t, Apply_cont_rewrite_id.t,
+    Continuation_use_kind.t) Port_monad.tuple3 list -> (DE.t * EPA.t) coq_M **)
 
 let add_extra_params_from_join_analysis denv analysis use_envs_with_ids' =
-  let handler_env0 = Downwards_env.typing_env denv in
+  let handler_env0 = DE.typing_env denv in
   let add_one_extra_param =
    fun name_hint name kind extra_args extra_params_and_args0 env_extension0 ->
     let name_hint0 =
@@ -149,46 +132,39 @@ let add_extra_params_from_join_analysis denv analysis use_envs_with_ids' =
     in
     let join_param_duid = Flambda_debug_uid.none in
     let extra_param =
-      Bound_parameter.create join_param
-        (Flambda_kind.With_subkind.anything kind)
-        join_param_duid
+      BP.create join_param (K.With_subkind.anything kind) join_param_duid
     in
     let env_extension1 =
-      Flambda2_types.Typing_env_extension.add_or_replace_equation env_extension0
-        (Name.var join_param)
-        (Flambda2_types.alias_type_of kind (Simple.name name))
+      TEE.add_or_replace_equation env_extension0 (Name.var join_param)
+        (T.alias_type_of kind (Simple.name name))
     in
     let extra_params_and_args1 =
-      Continuation_extra_params_and_args.add extra_params_and_args0
-        Apply_cont_rewrite_id.Set.empty extra_param extra_args
+      EPA.add extra_params_and_args0 Apply_cont_rewrite_id.Set.empty extra_param
+        extra_args
     in
     extra_params_and_args1, env_extension1
   in
   let extra_params_and_args0, env_extension0 =
-    Flambda2_types.Join_analysis.fold_variables_created_at_join
+    T.Join_analysis.fold_variables_created_at_join
       (fun name simples kind pat ->
         let extra_params_and_args0, env_extension0 = pat in
         Port_monad.match_exn
           (fun _ ->
             (fun x__1 x__2 x__3 x__4 ->
-              Flambda2_types.Typing_env.get_canonical_simple_exn x__1
-                ?min_name_mode:x__2 ?name_mode_of_existing_simple:x__3 x__4)
+              TE.get_canonical_simple_exn x__1 ?min_name_mode:x__2
+                ?name_mode_of_existing_simple:x__3 x__4)
               handler_env0 (Some Name_mode.normal) None (Simple.name name))
           Port_monad.not_found
           (fun _ ->
             let extra_args =
-              Flambda2_types.Join_analysis.Simples_at_join
-              .fold_definitions_at_uses
+              T.Join_analysis.Simples_at_join.fold_definitions_at_uses
                 (fun use_id definition_at_use0 extra_args ->
-                  let (Flambda2_types.Join_analysis.Simples_at_join
-                       .At_normal_mode
+                  let (T.Join_analysis.Simples_at_join.At_normal_mode
                          simple_at_use) =
                     definition_at_use0
                   in
                   Apply_cont_rewrite_id.Map.add use_id
-                    (Continuation_extra_params_and_args.Extra_arg
-                     .Already_in_scope
-                       simple_at_use) extra_args)
+                    (EPA.Extra_arg.Already_in_scope simple_at_use) extra_args)
                 simples Apply_cont_rewrite_id.Map.empty
             in
             let has_extra_arg_in_all_uses =
@@ -204,57 +180,49 @@ let add_extra_params_from_join_analysis denv analysis use_envs_with_ids' =
               add_one_extra_param None name kind extra_args
                 extra_params_and_args0 env_extension0)
           (fun _ -> extra_params_and_args0, env_extension0))
-      analysis
-      ( Continuation_extra_params_and_args.empty,
-        Flambda2_types.Typing_env_extension.empty )
+      analysis (EPA.empty, TEE.empty)
   in
-  let extra_params0 =
-    Continuation_extra_params_and_args.extra_params extra_params_and_args0
-  in
-  let denv0 = Downwards_env.define_parameters true denv extra_params0 in
+  let extra_params0 = EPA.extra_params extra_params_and_args0 in
+  let denv0 = DE.define_parameters true denv extra_params0 in
   let denv1 =
-    Downwards_env.map_typing_env denv0 (fun tenv ->
-        Flambda2_types.Typing_env.add_env_extension tenv env_extension0)
+    DE.map_typing_env denv0 (fun tenv ->
+        TE.add_env_extension tenv env_extension0)
   in
   denv1, extra_params_and_args0
 
-(** val join : Scope.t option -> Downwards_env.t -> Bound_parameters.t ->
-    Lifted_constant_state.t -> (Downwards_env.t, Apply_cont_rewrite_id.t,
-    Continuation_use_kind.t) Port_monad.tuple3 list ->
-    Continuation_extra_params_and_args.t -> (Downwards_env.t,
-    Apply_cont_rewrite_id.t Simplify_import.T.Join_analysis.t option,
-    Continuation_extra_params_and_args.t) Port_monad.tuple3 coq_M **)
+(** val join : Scope.t option -> DE.t -> Bound_parameters.t -> LCS.t -> (DE.t,
+    Apply_cont_rewrite_id.t, Continuation_use_kind.t) Port_monad.tuple3 list ->
+    EPA.t -> (DE.t, Apply_cont_rewrite_id.t Simplify_import.T.Join_analysis.t
+    option, EPA.t) Port_monad.tuple3 coq_M **)
 
 let join cut_after denv params consts_lifted_after_fork use_envs_with_ids
     previous_extra_params_and_args =
-  let definition_scope = Downwards_env.get_continuation_scope denv in
+  let definition_scope = DE.get_continuation_scope denv in
   let extra_lifted_consts_in_use_envs =
-    Lifted_constant_state.all_defined_symbols consts_lifted_after_fork
+    LCS.all_defined_symbols consts_lifted_after_fork
   in
   let cse_join_result =
-    let typing_env = Downwards_env.typing_env denv in
+    let typing_env = DE.typing_env denv in
     let () =
-      assert (
-        Scope.equal definition_scope
-          (Flambda2_types.Typing_env.current_scope typing_env))
+      assert (Scope.equal definition_scope (TE.current_scope typing_env))
     in
-    Common_subexpression_elimination.join typing_env (Downwards_env.cse denv)
+    Common_subexpression_elimination.join typing_env (DE.cse denv)
       use_envs_with_ids
       (fun pat ->
         let use_env, _, _ = pat in
-        Downwards_env.typing_env use_env)
+        DE.typing_env use_env)
       (fun pat ->
         let _, id, _ = pat in
         id)
       (fun pat ->
         let use_env, _, _ = pat in
-        Downwards_env.cse use_env)
+        DE.cse use_env)
       params
   in
   let extra_params_and_args0 =
     match cse_join_result with
     | Some cse_join_result0 ->
-      Continuation_extra_params_and_args.concat
+      EPA.concat
         cse_join_result0
           .Common_subexpression_elimination.Join_result.extra_params
         previous_extra_params_and_args
@@ -269,30 +237,27 @@ let join cut_after denv params consts_lifted_after_fork use_envs_with_ids
     | Some cse_join_result0 ->
       cse_join_result0
         .Common_subexpression_elimination.Join_result.extra_allowed_names
-    | None -> Name_occurrences.empty
+    | None -> NO.empty
   in
   let cut_after0 = Option.value cut_after definition_scope in
   let handler_env0, join_analysis =
-    Flambda2_types.cut_and_n_way_join
-      (Downwards_env.typing_env denv0)
-      use_envs_with_ids'
-      (Bound_parameters.append params
-         (Continuation_extra_params_and_args.extra_params extra_params_and_args0))
+    T.cut_and_n_way_join (DE.typing_env denv0) use_envs_with_ids'
+      (Bound_parameters.append params (EPA.extra_params extra_params_and_args0))
       cut_after0 extra_lifted_consts_in_use_envs extra_allowed_names0
   in
   let handler_env1 =
     match cse_join_result with
     | Some cse_join_result0 ->
-      Flambda2_types.Typing_env.add_env_extension handler_env0
+      TE.add_env_extension handler_env0
         cse_join_result0
           .Common_subexpression_elimination.Join_result.env_extension
     | None -> handler_env0
   in
   let denv1 =
-    let denv1 = Downwards_env.with_typing_env denv0 handler_env1 in
+    let denv1 = DE.with_typing_env denv0 handler_env1 in
     match cse_join_result with
     | Some cse_join_result0 ->
-      Downwards_env.with_cse denv1
+      DE.with_cse denv1
         cse_join_result0
           .Common_subexpression_elimination.Join_result.cse_at_join_point
     | None -> denv1
@@ -304,17 +269,15 @@ let join cut_after denv params consts_lifted_after_fork use_envs_with_ids
         add_extra_params_from_join_analysis denv1 analysis use_envs_with_ids'
       in
       let extra_params_and_args1 =
-        Continuation_extra_params_and_args.concat extra_params_and_args0
-          join_extra_params_and_args
+        EPA.concat extra_params_and_args0 join_extra_params_and_args
       in
       denv2, extra_params_and_args1
     | None -> denv1, extra_params_and_args0
   in
   denv2, join_analysis, extra_params_and_args1
 
-(** val add_equations_on_params : Flambda2_types.Typing_env.t -> bool ->
-    Bound_parameters.t -> Flambda2_types.t list -> Flambda2_types.Typing_env.t
-    coq_M **)
+(** val add_equations_on_params : TE.t -> bool -> Bound_parameters.t -> T.t list
+    -> TE.t coq_M **)
 
 let add_equations_on_params typing_env is_recursive params' param_types =
   let params = Bound_parameters.to_list params' in
@@ -326,7 +289,7 @@ let add_equations_on_params typing_env is_recursive params' param_types =
       Bound_parameters.print params'
       ((fun x__1 x__2 x__3 x__4 ->
          Format.pp_print_list ?pp_sep:x__1 x__2 x__3 x__4)
-         (Some Format.pp_print_space) Flambda2_types.print)
+         (Some Format.pp_print_space) T.print)
       param_types
   in
   let rec add_equations_on_params0 typing_env0 params0 param_types0 =
@@ -352,49 +315,43 @@ let add_equations_on_params typing_env is_recursive params' param_types =
             let raw_kind = Flambda_kind.With_subkind.kind kind in
             let type_from_kind =
               (fun x__1 x__2 x__3 ->
-                Flambda2_types.unknown_with_subkind ?alloc_mode:x__1 x__2 x__3)
+                T.unknown_with_subkind ?alloc_mode:x__1 x__2 x__3)
                 None
-                (Flambda2_types.Typing_env.machine_width typing_env0)
+                (TE.machine_width typing_env0)
                 kind
             in
-            match Flambda2_types.meet typing_env0 type_from_kind param_type with
+            match T.meet typing_env0 type_from_kind param_type with
             | Or_bottom.Ok p ->
               let meet_ty, typing_env1 = p in
-              Flambda2_types.Typing_env.add_equation typing_env1 name meet_ty
+              TE.add_equation typing_env1 name meet_ty
             | Or_bottom.Bottom ->
-              Flambda2_types.Typing_env.add_equation typing_env0 name
-                (Flambda2_types.bottom raw_kind)
-          else
-            Flambda2_types.Typing_env.add_equation typing_env0 name param_type
+              TE.add_equation typing_env0 name (T.bottom raw_kind)
+          else TE.add_equation typing_env0 name param_type
         in
         add_equations_on_params0 typing_env1 params1 param_types1)
   in
   add_equations_on_params0 typing_env params param_types
 
 (** val compute_use_env_with_ids : (Replay_history.t * bool) option -> bool ->
-    Bound_parameters.t -> One_continuation_use.t -> (Downwards_env.t,
-    Apply_cont_rewrite_id.t, Continuation_use_kind.t) Port_monad.tuple3 coq_M **)
+    Bound_parameters.t -> U.t -> (DE.t, Apply_cont_rewrite_id.t,
+    Continuation_use_kind.t) Port_monad.tuple3 coq_M **)
 
 let compute_use_env_with_ids replay is_recursive params use =
   let add_or_meet_param_type =
    fun typing_env ->
-    let param_types = One_continuation_use.arg_types use in
+    let param_types = U.arg_types use in
     add_equations_on_params typing_env is_recursive params param_types
   in
   let use_env =
-    let use_env =
-      Downwards_env.with_replay_history replay
-        (One_continuation_use.env_at_use use)
-    in
-    let use_env0 = Downwards_env.define_parameters false use_env params in
-    Downwards_env.map_typing_env use_env0 add_or_meet_param_type
+    let use_env = DE.with_replay_history replay (U.env_at_use use) in
+    let use_env0 = DE.define_parameters false use_env params in
+    DE.map_typing_env use_env0 add_or_meet_param_type
   in
-  use_env, One_continuation_use.id use, One_continuation_use.use_kind use
+  use_env, U.id use, U.use_kind use
 
 (** val compute_handler_env : (Replay_history.t * bool) option -> Scope.t option
-    -> One_continuation_use.t list -> bool -> Downwards_env.t ->
-    Lifted_constant_state.t -> Bound_parameters.t ->
-    Continuation_extra_params_and_args.t -> result coq_M **)
+    -> U.t list -> bool -> DE.t -> LCS.t -> Bound_parameters.t -> EPA.t ->
+    result coq_M **)
 
 let compute_handler_env replay cut_after uses is_recursive env_at_fork
     consts_lifted_after_fork params previous_extra_params_and_args =
@@ -403,11 +360,10 @@ let compute_handler_env replay cut_after uses is_recursive env_at_fork
     let use_envs_with_ids =
       List.map (compute_use_env_with_ids None is_recursive params) uses
     in
-    let denv = Downwards_env.with_replay_history replay env_at_fork in
+    let denv = DE.with_replay_history replay env_at_fork in
     let denv0 =
       (fun x__1 x__2 x__3 ->
-        Downwards_env.add_lifted_constant_state ?maybe_already_defined:x__1 x__2
-          x__3)
+        DE.add_lifted_constant_state ?maybe_already_defined:x__1 x__2 x__3)
         None denv consts_lifted_after_fork
     in
     let should_do_join =
@@ -420,7 +376,7 @@ let compute_handler_env replay cut_after uses is_recursive env_at_fork
     let handler_env0, join_analysis, extra_params_and_args0 =
       if should_do_join
       then
-        let denv1 = Downwards_env.define_parameters false denv0 params in
+        let denv1 = DE.define_parameters false denv0 params in
         (fun x__1 x__2 x__3 -> Profile.record_call ?accumulate:x__1 x__2 x__3)
           (Some true) "join" (fun _ ->
             join cut_after denv1 params consts_lifted_after_fork
@@ -428,34 +384,29 @@ let compute_handler_env replay cut_after uses is_recursive env_at_fork
       else
         let denv1 =
           (fun x__1 x__2 x__3 x__4 x__5 ->
-            Downwards_env.add_parameters_with_unknown_types x__1
-              ?alloc_modes:x__2 ?name_mode:x__3 x__4 x__5)
+            DE.add_parameters_with_unknown_types x__1 ?alloc_modes:x__2
+              ?name_mode:x__3 x__4 x__5)
             false None None denv0 params
         in
         let denv2 =
           (fun x__1 x__2 x__3 x__4 x__5 ->
-            Downwards_env.add_parameters_with_unknown_types x__1
-              ?alloc_modes:x__2 ?name_mode:x__3 x__4 x__5)
+            DE.add_parameters_with_unknown_types x__1 ?alloc_modes:x__2
+              ?name_mode:x__3 x__4 x__5)
             true None None denv1
-            (Continuation_extra_params_and_args.extra_params
-               previous_extra_params_and_args)
+            (EPA.extra_params previous_extra_params_and_args)
         in
         denv2, None, previous_extra_params_and_args
     in
-    let handler_env1 =
-      Downwards_env.with_join_analysis join_analysis handler_env0
-    in
+    let handler_env1 = DE.with_join_analysis join_analysis handler_env0 in
     let only_cold_uses =
       List.for_all
         (fun pat ->
           let use_env, _, _ = pat in
-          Downwards_env.is_cold use_env)
+          DE.is_cold use_env)
         use_envs_with_ids
     in
     let handler_env2 =
-      if only_cold_uses
-      then Downwards_env.mark_as_cold handler_env1
-      else handler_env1
+      if only_cold_uses then DE.mark_as_cold handler_env1 else handler_env1
     in
     let escapes0 =
       List.exists
@@ -491,7 +442,7 @@ let compute_handler_env replay cut_after uses is_recursive env_at_fork
                f__2 x__1)
              (fun _ -> true)
              (fun _ -> false)
-             (One_continuation_use.use_kind use)
+             (U.use_kind use)
       then
         let use0 = compute_use_env_with_ids replay is_recursive params use in
         let use_env, _, _ = use0 in
@@ -507,28 +458,24 @@ let compute_handler_env replay cut_after uses is_recursive env_at_fork
             Misc.fatal_errorf
               "Apply_cont of a single-use inlinable continuation is Invalid."
         in
-        let use_env0 = Downwards_env.with_typing_env use_env use_tenv in
+        let use_env0 = DE.with_typing_env use_env use_tenv in
         let handler_env0 =
           (fun x__1 x__2 x__3 ->
-            Downwards_env.add_lifted_constant_state ?maybe_already_defined:x__1
-              x__2 x__3)
+            DE.add_lifted_constant_state ?maybe_already_defined:x__1 x__2 x__3)
             (Some ()) use_env0 consts_lifted_after_fork
         in
         let handler_env1 =
-          Downwards_env.set_inlining_state handler_env0
-            (Downwards_env.get_inlining_state env_at_fork)
+          DE.set_inlining_state handler_env0 (DE.get_inlining_state env_at_fork)
         in
         let handler_env2 =
-          Downwards_env.set_inlining_history_tracker
-            (Downwards_env.inlining_history_tracker env_at_fork)
+          DE.set_inlining_history_tracker
+            (DE.inlining_history_tracker env_at_fork)
             handler_env1
         in
-        let handler_env3 =
-          Downwards_env.set_inlined_debuginfo handler_env2 env_at_fork
-        in
+        let handler_env3 = DE.set_inlined_debuginfo handler_env2 env_at_fork in
         let handler_env4 =
-          Downwards_env.set_at_unit_toplevel_state handler_env3
-            (Downwards_env.at_unit_toplevel env_at_fork)
+          DE.set_at_unit_toplevel_state handler_env3
+            (DE.at_unit_toplevel env_at_fork)
         in
         { handler_env = handler_env4;
           extra_params_and_args = previous_extra_params_and_args;

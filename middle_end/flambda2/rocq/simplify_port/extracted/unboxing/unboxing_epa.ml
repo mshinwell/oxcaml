@@ -59,8 +59,7 @@ let _print_unboxed_arg ppf unboxed_arg0 =
     (fun nth_arg -> Format.fprintf ppf "added_by_wrapper(%d)" nth_arg)
     unboxed_arg0
 
-(** val type_of_arg_being_unboxed : unboxed_arg -> Flambda2_types.t option coq_M
-    **)
+(** val type_of_arg_being_unboxed : unboxed_arg -> T.t option coq_M **)
 
 let type_of_arg_being_unboxed unboxed_arg0 =
   (fun f__1 f__2 f__3 f__4 x__0 ->
@@ -70,15 +69,13 @@ let type_of_arg_being_unboxed unboxed_arg0 =
     | Generated x__1 -> f__3 x__1
     | Added_by_wrapper_at_rewrite_use { nth_arg = x__1 } -> f__4 x__1)
     (fun _ -> None)
-    (fun simple ->
-      Some (Flambda2_types.alias_type_of Flambda_kind.value simple))
-    (fun _ -> Some (Flambda2_types.unknown Flambda_kind.value))
+    (fun simple -> Some (T.alias_type_of K.value simple))
+    (fun _ -> Some (T.unknown K.value))
     (fun _ -> prevent_current_unboxing ())
     unboxed_arg0
 
-(** val unbox_arg : Unboxers.unboxer -> Flambda2_types.Typing_env.t ->
-    unboxed_arg -> (Continuation_extra_params_and_args.Extra_arg.t *
-    unboxed_arg) coq_M **)
+(** val unbox_arg : Unboxers.unboxer -> TE.t -> unboxed_arg -> (EPA.Extra_arg.t
+    * unboxed_arg) coq_M **)
 
 let unbox_arg unboxer0 typing_env_at_use arg_being_unboxed =
   (fun f__1 f__2 f__3 f__4 x__0 ->
@@ -89,32 +86,25 @@ let unbox_arg unboxer0 typing_env_at_use arg_being_unboxed =
     | Added_by_wrapper_at_rewrite_use { nth_arg = x__1 } -> f__4 x__1)
     (fun _ ->
       let extra_arg =
-        Continuation_extra_params_and_args.Extra_arg.Already_in_scope
+        EPA.Extra_arg.Already_in_scope
           (Simple.const unboxer0.Unboxers.poison_const)
       in
       extra_arg, Poison)
     (fun arg_at_use ->
-      let arg_type =
-        Flambda2_types.alias_type_of Flambda_kind.value arg_at_use
-      in
+      let arg_type = T.alias_type_of K.value arg_at_use in
       (fun f__1 f__2 f__3 x__0 ->
         match (x__0 : _ Flambda2_types.meet_shortcut) with
         | Flambda2_types.Known_result x__1 -> f__1 x__1
         | Flambda2_types.Need_meet -> f__2 ()
         | Flambda2_types.Invalid -> f__3 ())
-        (fun simple ->
-          ( Continuation_extra_params_and_args.Extra_arg.Already_in_scope simple,
-            Available simple ))
+        (fun simple -> EPA.Extra_arg.Already_in_scope simple, Available simple)
         (fun _ ->
           let var =
             (fun x__1 x__2 x__3 -> Variable.create ?user_visible:x__1 x__2 x__3)
               None unboxer0.Unboxers.var_name unboxer0.Unboxers.var_kind
           in
           let prim = unboxer0.Unboxers.unboxing_prim arg_at_use in
-          let extra_arg =
-            Continuation_extra_params_and_args.Extra_arg.New_let_binding
-              (var, prim)
-          in
+          let extra_arg = EPA.Extra_arg.New_let_binding (var, prim) in
           extra_arg, Generated var)
         (fun _ ->
           Port_monad.raise_
@@ -130,17 +120,14 @@ let unbox_arg unboxer0 typing_env_at_use arg_being_unboxed =
           None unboxer0.Unboxers.var_name unboxer0.Unboxers.var_kind
       in
       let prim = unboxer0.Unboxers.unboxing_prim arg_at_use in
-      let extra_arg =
-        Continuation_extra_params_and_args.Extra_arg.New_let_binding (var0, prim)
-      in
+      let extra_arg = EPA.Extra_arg.New_let_binding (var0, prim) in
       extra_arg, Generated var0)
     (fun nth_arg ->
       let var =
         (fun x__1 x__2 x__3 -> Variable.create ?user_visible:x__1 x__2 x__3)
           None "unboxed_field" unboxer0.Unboxers.var_kind
       in
-      ( Continuation_extra_params_and_args.Extra_arg
-        .New_let_binding_with_named_args
+      ( EPA.Extra_arg.New_let_binding_with_named_args
           ( var,
             fun args0 ->
               let arg_simple = List.nth args0 nth_arg in
@@ -156,7 +143,7 @@ type variant_argument =
       }
 
 (** val extra_arg_for_is_int : Target_system.Machine_width.t -> variant_argument
-    -> Continuation_extra_params_and_args.Extra_arg.t coq_M **)
+    -> EPA.Extra_arg.t coq_M **)
 
 let extra_arg_for_is_int machine_width variant_arg =
   (fun f__1 f__2 x__0 ->
@@ -165,65 +152,54 @@ let extra_arg_for_is_int machine_width variant_arg =
     | Maybe_constant_constructor { is_int = x__1; arg_being_unboxed = x__2 } ->
       f__2 x__1 x__2)
     (fun _ ->
-      Continuation_extra_params_and_args.Extra_arg.Already_in_scope
-        (Simple.untagged_const_false machine_width))
-    (fun is_int _ ->
-      Continuation_extra_params_and_args.Extra_arg.Already_in_scope is_int)
+      EPA.Extra_arg.Already_in_scope (Simple.untagged_const_false machine_width))
+    (fun is_int _ -> EPA.Extra_arg.Already_in_scope is_int)
     variant_arg
 
-(** val extra_arg_for_ctor : Flambda2_types.Typing_env.t -> variant_argument ->
-    Continuation_extra_params_and_args.Extra_arg.t coq_M **)
+(** val extra_arg_for_ctor : TE.t -> variant_argument -> EPA.Extra_arg.t coq_M **)
 
 let extra_arg_for_ctor typing_env_at_use variant_arg =
-  let machine_width =
-    Flambda2_types.Typing_env.machine_width typing_env_at_use
-  in
+  let machine_width = TE.machine_width typing_env_at_use in
   (fun f__1 f__2 x__0 ->
     match (x__0 : variant_argument) with
     | Not_a_constant_constructor -> f__1 ()
     | Maybe_constant_constructor { is_int = x__1; arg_being_unboxed = x__2 } ->
       f__2 x__1 x__2)
     (fun _ ->
-      Continuation_extra_params_and_args.Extra_arg.Already_in_scope
+      EPA.Extra_arg.Already_in_scope
         (Simple.untagged_const_int (Target_ocaml_int.of_int machine_width 0)))
     (fun _ arg_being_unboxed ->
       match type_of_arg_being_unboxed arg_being_unboxed with
       | Some arg_type ->
         (fun f__1 f__2 f__3 x__0 ->
-          match (x__0 : _ Flambda2_types.meet_shortcut) with
-          | Flambda2_types.Known_result x__1 -> f__1 x__1
-          | Flambda2_types.Need_meet -> f__2 ()
-          | Flambda2_types.Invalid -> f__3 ())
-          (fun simple ->
-            Continuation_extra_params_and_args.Extra_arg.Already_in_scope simple)
+          match (x__0 : _ T.meet_shortcut) with
+          | T.Known_result x__1 -> f__1 x__1
+          | T.Need_meet -> f__2 ()
+          | T.Invalid -> f__3 ())
+          (fun simple -> EPA.Extra_arg.Already_in_scope simple)
           (fun _ -> prevent_current_unboxing ())
           (fun _ ->
             Port_monad.raise_
               ( (fun () -> Invalid_apply_cont),
                 function Invalid_apply_cont -> Some () | _ -> None )
               ())
-          (Flambda2_types.meet_tagging_of_simple typing_env_at_use
-             Name_mode.normal arg_type)
+          (T.meet_tagging_of_simple typing_env_at_use Name_mode.normal arg_type)
       | None ->
-        Continuation_extra_params_and_args.Extra_arg.Already_in_scope
+        EPA.Extra_arg.Already_in_scope
           (Simple.untagged_const_int (Target_ocaml_int.of_int machine_width 0)))
     variant_arg
 
-(** val extra_args_for_const_ctor_of_variant :
-    Unboxing_types.const_ctors_decision -> Flambda2_types.Typing_env.t ->
-    Apply_cont_rewrite_id.t -> variant_argument ->
-    Unboxing_types.const_ctors_decision coq_M **)
+(** val extra_args_for_const_ctor_of_variant : U.const_ctors_decision -> TE.t ->
+    Apply_cont_rewrite_id.t -> variant_argument -> U.const_ctors_decision coq_M
+    **)
 
 let extra_args_for_const_ctor_of_variant const_ctors_decision0 typing_env_at_use
     rewrite_id variant_arg =
-  let machine_width =
-    Flambda2_types.Typing_env.machine_width typing_env_at_use
-  in
+  let machine_width = TE.machine_width typing_env_at_use in
   (fun f__1 f__2 x__0 ->
-    match (x__0 : Unboxing_types.const_ctors_decision) with
-    | Unboxing_types.Zero -> f__1 ()
-    | Unboxing_types.At_least_one { is_int = x__1; ctor = x__2 } ->
-      f__2 x__1 x__2)
+    match (x__0 : U.const_ctors_decision) with
+    | U.Zero -> f__1 ()
+    | U.At_least_one { is_int = x__1; ctor = x__2 } -> f__2 x__1 x__2)
     (fun _ ->
       (fun f__1 f__2 x__0 ->
         match (x__0 : variant_argument) with
@@ -240,19 +216,18 @@ let extra_args_for_const_ctor_of_variant const_ctors_decision0 typing_env_at_use
         variant_arg)
     (fun is_int d ->
       match d with
-      | Unboxing_types.Unbox u ->
+      | U.Unbox u ->
         (fun f__1 f__2 f__3 f__4 x__0 ->
-          match (x__0 : Unboxing_types.unboxing_decision) with
-          | Unboxing_types.Unique_tag_and_size
-              { tag = x__1; shape = x__2; fields = x__3 } ->
+          match (x__0 : U.unboxing_decision) with
+          | U.Unique_tag_and_size { tag = x__1; shape = x__2; fields = x__3 } ->
             f__1 x__1 x__2 x__3
-          | Unboxing_types.Variant
-              { tag = x__1; const_ctors = x__2; fields_by_tag = x__3 } ->
+          | U.Variant { tag = x__1; const_ctors = x__2; fields_by_tag = x__3 }
+            ->
             f__2 x__1 x__2 x__3
-          | Unboxing_types.Closure_single_entry
+          | U.Closure_single_entry
               { function_slot = x__1; vars_within_closure = x__2 } ->
             f__3 x__1 x__2
-          | Unboxing_types.Number (x__1, x__2) -> f__4 x__1 x__2)
+          | U.Number (x__1, x__2) -> f__4 x__1 x__2)
           (fun _ _ _ ->
             Misc.fatal_errorf
               "Bad kind for unboxing the constant constructor of a variant")
@@ -266,34 +241,29 @@ let extra_args_for_const_ctor_of_variant const_ctors_decision0 typing_env_at_use
             match t0 with
             | Flambda_kind.Naked_number_kind.Naked_immediate ->
               let is_int0 =
-                Unboxing_types.Extra_param_and_args.update_param_args is_int
-                  rewrite_id
+                Extra_param_and_args.update_param_args is_int rewrite_id
                   (extra_arg_for_is_int machine_width variant_arg)
               in
               Port_monad.try_with
                 (fun _ ->
                   let ctor0 =
-                    Unboxing_types.Extra_param_and_args.update_param_args ctor
-                      rewrite_id
+                    Extra_param_and_args.update_param_args ctor rewrite_id
                       (extra_arg_for_ctor typing_env_at_use variant_arg)
                   in
                   (fun (x__1, x__2) ->
-                    (Unboxing_types.At_least_one { is_int = x__1; ctor = x__2 }
-                      : Unboxing_types.const_ctors_decision))
+                    (U.At_least_one { is_int = x__1; ctor = x__2 }
+                      : U.const_ctors_decision))
                     ( is_int0,
-                      Unboxing_types.Unbox
-                        (Unboxing_types.Number
-                           ( Flambda_kind.Naked_number_kind.Naked_immediate,
-                             ctor0 )) ))
+                      U.Unbox
+                        (U.Number (K.Naked_number_kind.Naked_immediate, ctor0))
+                    ))
                 ( (fun () -> Prevent_current_unboxing),
                   function Prevent_current_unboxing -> Some () | _ -> None )
                 (fun _ ->
                   (fun (x__1, x__2) ->
-                    (Unboxing_types.At_least_one { is_int = x__1; ctor = x__2 }
-                      : Unboxing_types.const_ctors_decision))
-                    ( is_int0,
-                      Unboxing_types.Do_not_unbox
-                        Unboxing_types.Not_enough_information_at_use ))
+                    (U.At_least_one { is_int = x__1; ctor = x__2 }
+                      : U.const_ctors_decision))
+                    (is_int0, U.Do_not_unbox U.Not_enough_information_at_use))
             | Flambda_kind.Naked_number_kind.Naked_float32 ->
               Misc.fatal_errorf
                 "Bad kind for unboxing the constant constructor of a variant"
@@ -328,35 +298,30 @@ let extra_args_for_const_ctor_of_variant const_ctors_decision0 typing_env_at_use
               Misc.fatal_errorf
                 "Bad kind for unboxing the constant constructor of a variant")
           u
-      | Unboxing_types.Do_not_unbox reason ->
+      | U.Do_not_unbox reason ->
         let is_int0 =
-          Unboxing_types.Extra_param_and_args.update_param_args is_int
-            rewrite_id
+          Extra_param_and_args.update_param_args is_int rewrite_id
             (extra_arg_for_is_int machine_width variant_arg)
         in
         (fun (x__1, x__2) ->
-          (Unboxing_types.At_least_one { is_int = x__1; ctor = x__2 }
-            : Unboxing_types.const_ctors_decision))
-          (is_int0, Unboxing_types.Do_not_unbox reason))
+          (U.At_least_one { is_int = x__1; ctor = x__2 }
+            : U.const_ctors_decision))
+          (is_int0, U.Do_not_unbox reason))
     const_ctors_decision0
 
-(** val compute_extra_arg_for_number : Flambda_kind.Naked_number_kind.t ->
-    Unboxers.unboxer -> Extra_param_and_args.t -> Apply_cont_rewrite_id.t ->
-    Flambda2_types.Typing_env.t -> unboxed_arg -> Unboxing_types.decision coq_M
-    **)
+(** val compute_extra_arg_for_number : K.Naked_number_kind.t -> Unboxers.unboxer
+    -> Extra_param_and_args.t -> Apply_cont_rewrite_id.t -> TE.t -> unboxed_arg
+    -> U.decision coq_M **)
 
 let compute_extra_arg_for_number kind unboxer0 epa rewrite_id typing_env_at_use
     arg_being_unboxed =
   let extra_arg, _ = unbox_arg unboxer0 typing_env_at_use arg_being_unboxed in
-  let epa0 =
-    Unboxing_types.Extra_param_and_args.update_param_args epa rewrite_id
-      extra_arg
-  in
-  Unboxing_types.Unbox (Unboxing_types.Number (kind, epa0))
+  let epa0 = Extra_param_and_args.update_param_args epa rewrite_id extra_arg in
+  U.Unbox (U.Number (kind, epa0))
 
 (** val access_kind_and_poison_const : Target_system.Machine_width.t -> Tag.t ->
-    Flambda_kind.Block_shape.t -> 'a1 list -> int ->
-    (Flambda_primitive.Block_access_kind.t * Reg_width_const.t) coq_M **)
+    K.Block_shape.t -> 'a1 list -> int -> (P.Block_access_kind.t * Const.t)
+    coq_M **)
 
 let access_kind_and_poison_const machine_width tag shape fields index =
   let size =
@@ -364,60 +329,54 @@ let access_kind_and_poison_const machine_width tag shape fields index =
       (Target_ocaml_int.of_int machine_width (List.length fields))
   in
   match shape with
-  | Flambda_kind.Block_shape.Scannable t0 -> (
+  | K.Block_shape.Scannable t0 -> (
     match t0 with
-    | Flambda_kind.Scannable_block_shape.Value_only ->
+    | K.Scannable_block_shape.Value_only ->
       ( (fun (x__1, x__2, x__3) ->
-          (Flambda_primitive.Block_access_kind.Values
+          (P.Block_access_kind.Values
              { tag = x__1; size = x__2; field_kind = x__3 }
-            : Flambda_primitive.Block_access_kind.t))
+            : P.Block_access_kind.t))
           ( Or_unknown.Known (Option.get (Tag.Scannable.of_tag tag)),
             size,
-            Flambda_primitive.Block_access_field_kind.Any_value ),
-        Reg_width_const.const_poison Flambda_kind.value "variant_unboxing_field"
-      )
-    | Flambda_kind.Scannable_block_shape.Mixed_record shape0 ->
+            P.Block_access_field_kind.Any_value ),
+        Const.const_poison K.value "variant_unboxing_field" )
+    | K.Scannable_block_shape.Mixed_record shape0 ->
       let field_kind, const =
-        if index < Flambda_kind.Mixed_block_shape.value_prefix_size shape0
+        if index < K.Mixed_block_shape.value_prefix_size shape0
         then
-          ( Flambda_primitive.Mixed_block_access_field_kind.Value_prefix
-              Flambda_primitive.Block_access_field_kind.Any_value,
-            Reg_width_const.const_zero machine_width )
+          ( P.Mixed_block_access_field_kind.Value_prefix
+              P.Block_access_field_kind.Any_value,
+            Const.const_zero machine_width )
         else
           let field_kind =
             let flat_suffix_index =
-              index - Flambda_kind.Mixed_block_shape.value_prefix_size shape0
+              index - K.Mixed_block_shape.value_prefix_size shape0
             in
             let () = assert (flat_suffix_index >= 0) in
-            Array.get
-              (Flambda_kind.Mixed_block_shape.flat_suffix shape0)
-              flat_suffix_index
+            Array.get (K.Mixed_block_shape.flat_suffix shape0) flat_suffix_index
           in
-          ( Flambda_primitive.Mixed_block_access_field_kind.Flat_suffix
-              field_kind,
-            Reg_width_const.const_poison
-              (Flambda_kind.Flat_suffix_element.kind field_kind)
+          ( P.Mixed_block_access_field_kind.Flat_suffix field_kind,
+            Const.const_poison
+              (K.Flat_suffix_element.kind field_kind)
               "variant_unboxing_mixed_block_field" )
       in
       let tag0 = Or_unknown.Known (Option.get (Tag.Scannable.of_tag tag)) in
       ( (fun (x__1, x__2, x__3, x__4) ->
-          (Flambda_primitive.Block_access_kind.Mixed
+          (P.Block_access_kind.Mixed
              { tag = x__1; size = x__2; field_kind = x__3; shape = x__4 }
-            : Flambda_primitive.Block_access_kind.t))
+            : P.Block_access_kind.t))
           (tag0, size, field_kind, shape0),
         const ))
-  | Flambda_kind.Block_shape.Float_record ->
+  | K.Block_shape.Float_record ->
     ( (fun x__1 ->
-        (Flambda_primitive.Block_access_kind.Naked_floats { size = x__1 }
-          : Flambda_primitive.Block_access_kind.t))
+        (P.Block_access_kind.Naked_floats { size = x__1 }
+          : P.Block_access_kind.t))
         size,
-      Reg_width_const.const_poison Flambda_kind.naked_float
-        "variant_unboxing_float_record" )
+      Const.const_poison K.naked_float "variant_unboxing_float_record" )
 
-(** val compute_extra_args_for_one_decision_and_use : Unboxing_types.pass ->
-    Apply_cont_rewrite_id.t -> Flambda2_types.Typing_env.t ->
-    Target_system.Machine_width.t -> unboxed_arg -> Unboxing_types.decision ->
-    Unboxing_types.decision coq_M **)
+(** val compute_extra_args_for_one_decision_and_use : U.pass ->
+    Apply_cont_rewrite_id.t -> TE.t -> Target_system.Machine_width.t ->
+    unboxed_arg -> U.decision -> U.decision coq_M **)
 
 let rec compute_extra_args_for_one_decision_and_use pass0 rewrite_id
     typing_env_at_use machine_width arg_being_unboxed decision =
@@ -429,32 +388,28 @@ let rec compute_extra_args_for_one_decision_and_use pass0 rewrite_id
       function Prevent_current_unboxing -> Some () | _ -> None )
     (fun _ ->
       match pass0 with
-      | Unboxing_types.Filter ->
-        Unboxing_types.Do_not_unbox Unboxing_types.Not_enough_information_at_use
-      | Unboxing_types.Compute_all_extra_args ->
+      | U.Filter -> U.Do_not_unbox U.Not_enough_information_at_use
+      | U.Compute_all_extra_args ->
         Misc.fatal_errorf "This case should have been filtered out before.")
 
-(** val compute_extra_args_for_one_decision_and_use_aux : Unboxing_types.pass ->
-    Apply_cont_rewrite_id.t -> Flambda2_types.Typing_env.t ->
-    Target_system.Machine_width.t -> unboxed_arg -> Unboxing_types.decision ->
-    Unboxing_types.decision coq_M **)
+(** val compute_extra_args_for_one_decision_and_use_aux : U.pass ->
+    Apply_cont_rewrite_id.t -> TE.t -> Target_system.Machine_width.t ->
+    unboxed_arg -> U.decision -> U.decision coq_M **)
 
 and compute_extra_args_for_one_decision_and_use_aux pass0 rewrite_id
     typing_env_at_use machine_width arg_being_unboxed decision =
   match decision with
-  | Unboxing_types.Unbox u ->
+  | U.Unbox u ->
     (fun f__1 f__2 f__3 f__4 x__0 ->
-      match (x__0 : Unboxing_types.unboxing_decision) with
-      | Unboxing_types.Unique_tag_and_size
-          { tag = x__1; shape = x__2; fields = x__3 } ->
+      match (x__0 : U.unboxing_decision) with
+      | U.Unique_tag_and_size { tag = x__1; shape = x__2; fields = x__3 } ->
         f__1 x__1 x__2 x__3
-      | Unboxing_types.Variant
-          { tag = x__1; const_ctors = x__2; fields_by_tag = x__3 } ->
+      | U.Variant { tag = x__1; const_ctors = x__2; fields_by_tag = x__3 } ->
         f__2 x__1 x__2 x__3
-      | Unboxing_types.Closure_single_entry
+      | U.Closure_single_entry
           { function_slot = x__1; vars_within_closure = x__2 } ->
         f__3 x__1 x__2
-      | Unboxing_types.Number (x__1, x__2) -> f__4 x__1 x__2)
+      | U.Number (x__1, x__2) -> f__4 x__1 x__2)
       (fun tag shape fields ->
         compute_extra_args_for_block pass0 rewrite_id typing_env_at_use
           machine_width arg_being_unboxed tag shape fields)
@@ -494,60 +449,55 @@ and compute_extra_args_for_one_decision_and_use_aux pass0 rewrite_id
       (fun t0 epa ->
         match t0 with
         | Flambda_kind.Naked_number_kind.Naked_immediate ->
-          compute_extra_arg_for_number
-            Flambda_kind.Naked_number_kind.Naked_immediate
+          compute_extra_arg_for_number K.Naked_number_kind.Naked_immediate
             Unboxers.Immediate.unboxer epa rewrite_id typing_env_at_use
             arg_being_unboxed
         | Flambda_kind.Naked_number_kind.Naked_float32 ->
-          compute_extra_arg_for_number
-            Flambda_kind.Naked_number_kind.Naked_float32
+          compute_extra_arg_for_number K.Naked_number_kind.Naked_float32
             Unboxers.Float32.unboxer epa rewrite_id typing_env_at_use
             arg_being_unboxed
         | Flambda_kind.Naked_number_kind.Naked_float ->
-          compute_extra_arg_for_number
-            Flambda_kind.Naked_number_kind.Naked_float Unboxers.Float.unboxer
-            epa rewrite_id typing_env_at_use arg_being_unboxed
+          compute_extra_arg_for_number K.Naked_number_kind.Naked_float
+            Unboxers.Float.unboxer epa rewrite_id typing_env_at_use
+            arg_being_unboxed
         | Flambda_kind.Naked_number_kind.Naked_int8 ->
-          Unboxing_types.Do_not_unbox Unboxing_types.Not_beneficial
+          U.Do_not_unbox U.Not_beneficial
         | Flambda_kind.Naked_number_kind.Naked_int16 ->
-          Unboxing_types.Do_not_unbox Unboxing_types.Not_beneficial
+          U.Do_not_unbox U.Not_beneficial
         | Flambda_kind.Naked_number_kind.Naked_int32 ->
-          compute_extra_arg_for_number
-            Flambda_kind.Naked_number_kind.Naked_int32 Unboxers.Int32.unboxer
-            epa rewrite_id typing_env_at_use arg_being_unboxed
+          compute_extra_arg_for_number K.Naked_number_kind.Naked_int32
+            Unboxers.Int32.unboxer epa rewrite_id typing_env_at_use
+            arg_being_unboxed
         | Flambda_kind.Naked_number_kind.Naked_int64 ->
-          compute_extra_arg_for_number
-            Flambda_kind.Naked_number_kind.Naked_int64 Unboxers.Int64.unboxer
-            epa rewrite_id typing_env_at_use arg_being_unboxed
+          compute_extra_arg_for_number K.Naked_number_kind.Naked_int64
+            Unboxers.Int64.unboxer epa rewrite_id typing_env_at_use
+            arg_being_unboxed
         | Flambda_kind.Naked_number_kind.Naked_nativeint ->
-          compute_extra_arg_for_number
-            Flambda_kind.Naked_number_kind.Naked_nativeint
+          compute_extra_arg_for_number K.Naked_number_kind.Naked_nativeint
             Unboxers.Nativeint.unboxer epa rewrite_id typing_env_at_use
             arg_being_unboxed
         | Flambda_kind.Naked_number_kind.Naked_vec128 ->
-          compute_extra_arg_for_number
-            Flambda_kind.Naked_number_kind.Naked_vec128 Unboxers.Vec128.unboxer
-            epa rewrite_id typing_env_at_use arg_being_unboxed
+          compute_extra_arg_for_number K.Naked_number_kind.Naked_vec128
+            Unboxers.Vec128.unboxer epa rewrite_id typing_env_at_use
+            arg_being_unboxed
         | Flambda_kind.Naked_number_kind.Naked_vec256 ->
-          compute_extra_arg_for_number
-            Flambda_kind.Naked_number_kind.Naked_vec256 Unboxers.Vec256.unboxer
-            epa rewrite_id typing_env_at_use arg_being_unboxed
+          compute_extra_arg_for_number K.Naked_number_kind.Naked_vec256
+            Unboxers.Vec256.unboxer epa rewrite_id typing_env_at_use
+            arg_being_unboxed
         | Flambda_kind.Naked_number_kind.Naked_vec512 ->
-          compute_extra_arg_for_number
-            Flambda_kind.Naked_number_kind.Naked_vec512 Unboxers.Vec512.unboxer
-            epa rewrite_id typing_env_at_use arg_being_unboxed
+          compute_extra_arg_for_number K.Naked_number_kind.Naked_vec512
+            Unboxers.Vec512.unboxer epa rewrite_id typing_env_at_use
+            arg_being_unboxed
         | Flambda_kind.Naked_number_kind.Naked_mask ->
-          compute_extra_arg_for_number Flambda_kind.Naked_number_kind.Naked_mask
+          compute_extra_arg_for_number K.Naked_number_kind.Naked_mask
             Unboxers.Mask.unboxer epa rewrite_id typing_env_at_use
             arg_being_unboxed)
       u
-  | Unboxing_types.Do_not_unbox _ -> decision
+  | U.Do_not_unbox _ -> decision
 
-(** val compute_extra_args_for_block : Unboxing_types.pass ->
-    Apply_cont_rewrite_id.t -> Flambda2_types.Typing_env.t ->
-    Target_system.Machine_width.t -> unboxed_arg -> Tag.t ->
-    Flambda_kind.Block_shape.t -> Unboxing_types.field_decision list ->
-    Unboxing_types.decision coq_M **)
+(** val compute_extra_args_for_block : U.pass -> Apply_cont_rewrite_id.t -> TE.t
+    -> Target_system.Machine_width.t -> unboxed_arg -> Tag.t -> K.Block_shape.t
+    -> U.field_decision list -> U.decision coq_M **)
 
 and compute_extra_args_for_block pass0 rewrite_id typing_env_at_use
     machine_width arg_being_unboxed tag shape fields =
@@ -555,9 +505,7 @@ and compute_extra_args_for_block pass0 rewrite_id typing_env_at_use
     List.fold_left_map
       (fun field_nth field_decision ->
         (fun x__0 f__1 ->
-          let { Unboxing_types.epa = x__1; decision = x__2; kind = x__3 } =
-            x__0
-          in
+          let { U.epa = x__1; decision = x__2; kind = x__3 } = x__0 in
           f__1 x__1 x__2 x__3) field_decision (fun epa decision kind ->
             let bak, poison_const0 =
               access_kind_and_poison_const machine_width tag shape fields
@@ -568,8 +516,8 @@ and compute_extra_args_for_block pass0 rewrite_id typing_env_at_use
               unbox_arg unboxer0 typing_env_at_use arg_being_unboxed
             in
             let epa0 =
-              Unboxing_types.Extra_param_and_args.update_param_args epa
-                rewrite_id new_extra_arg
+              Extra_param_and_args.update_param_args epa rewrite_id
+                new_extra_arg
             in
             let decision0 =
               compute_extra_args_for_one_decision_and_use pass0 rewrite_id
@@ -577,23 +525,20 @@ and compute_extra_args_for_block pass0 rewrite_id typing_env_at_use
             in
             ( Target_ocaml_int.add (Target_ocaml_int.one machine_width) field_nth,
               (fun x__1 x__2 x__3 ->
-                { Unboxing_types.epa = x__1; decision = x__2; kind = x__3 })
+                { U.epa = x__1; decision = x__2; kind = x__3 })
                 epa0 decision0 kind )))
       (Target_ocaml_int.zero machine_width)
       fields
   in
-  Unboxing_types.Unbox
+  U.Unbox
     ((fun (x__1, x__2, x__3) ->
-       (Unboxing_types.Unique_tag_and_size
-          { tag = x__1; shape = x__2; fields = x__3 }
-         : Unboxing_types.unboxing_decision))
+       (U.Unique_tag_and_size { tag = x__1; shape = x__2; fields = x__3 }
+         : U.unboxing_decision))
        (tag, shape, fields0))
 
-(** val compute_extra_args_for_closure : Unboxing_types.pass ->
-    Apply_cont_rewrite_id.t -> Flambda2_types.Typing_env.t ->
-    Target_system.Machine_width.t -> unboxed_arg -> Function_slot.t ->
-    Unboxing_types.field_decision Value_slot.Map.t -> Unboxing_types.decision
-    coq_M **)
+(** val compute_extra_args_for_closure : U.pass -> Apply_cont_rewrite_id.t ->
+    TE.t -> Target_system.Machine_width.t -> unboxed_arg -> Function_slot.t ->
+    U.field_decision Value_slot.Map.t -> U.decision coq_M **)
 
 and compute_extra_args_for_closure pass0 rewrite_id typing_env_at_use
     machine_width arg_being_unboxed function_slot vars_within_closure =
@@ -601,42 +546,38 @@ and compute_extra_args_for_closure pass0 rewrite_id typing_env_at_use
     Value_slot.Map.mapi
       (fun var field_decision ->
         (fun x__0 f__1 ->
-          let { Unboxing_types.epa = x__1; decision = x__2; kind = x__3 } =
-            x__0
-          in
+          let { U.epa = x__1; decision = x__2; kind = x__3 } = x__0 in
           f__1 x__1 x__2 x__3) field_decision (fun epa decision kind ->
             let unboxer0 = Unboxers.Closure_field.unboxer function_slot var in
             let new_extra_arg, new_arg_being_unboxed =
               unbox_arg unboxer0 typing_env_at_use arg_being_unboxed
             in
             let epa0 =
-              Unboxing_types.Extra_param_and_args.update_param_args epa
-                rewrite_id new_extra_arg
+              Extra_param_and_args.update_param_args epa rewrite_id
+                new_extra_arg
             in
             let decision0 =
               compute_extra_args_for_one_decision_and_use pass0 rewrite_id
                 typing_env_at_use machine_width new_arg_being_unboxed decision
             in
             (fun x__1 x__2 x__3 ->
-              { Unboxing_types.epa = x__1; decision = x__2; kind = x__3 })
+              { U.epa = x__1; decision = x__2; kind = x__3 })
               epa0 decision0 kind))
       vars_within_closure
   in
-  Unboxing_types.Unbox
+  U.Unbox
     ((fun (x__1, x__2) ->
-       (Unboxing_types.Closure_single_entry
+       (U.Closure_single_entry
           { function_slot = x__1; vars_within_closure = x__2 }
-         : Unboxing_types.unboxing_decision))
+         : U.unboxing_decision))
        (function_slot, vars_within_closure0))
 
-(** val compute_extra_args_for_variant : Unboxing_types.pass ->
-    Apply_cont_rewrite_id.t -> Flambda2_types.Typing_env.t ->
-    Target_system.Machine_width.t -> unboxed_arg -> Extra_param_and_args.t ->
-    Unboxing_types.const_ctors_decision -> (Flambda_kind.Block_shape.t *
-    Unboxing_types.field_decision list) Tag.Scannable.Map.t ->
-    Target_ocaml_int.Set.t Or_unknown.t -> (Target_ocaml_int.t *
-    Flambda_kind.Block_shape.t) Tag.Scannable.Map.t -> Unboxing_types.decision
-    coq_M **)
+(** val compute_extra_args_for_variant : U.pass -> Apply_cont_rewrite_id.t ->
+    TE.t -> Target_system.Machine_width.t -> unboxed_arg ->
+    Extra_param_and_args.t -> U.const_ctors_decision -> (K.Block_shape.t *
+    U.field_decision list) Tag.Scannable.Map.t -> Target_ocaml_int.Set.t
+    Or_unknown.t -> (Target_ocaml_int.t * K.Block_shape.t) Tag.Scannable.Map.t
+    -> U.decision coq_M **)
 
 and compute_extra_args_for_variant pass0 rewrite_id typing_env_at_use
     machine_width arg_being_unboxed tag_from_decision const_ctors_from_decision
@@ -679,15 +620,15 @@ and compute_extra_args_for_variant pass0 rewrite_id typing_env_at_use
       | None -> prevent_current_unboxing ()
   in
   let tag_extra_arg =
-    Continuation_extra_params_and_args.Extra_arg.Already_in_scope
+    EPA.Extra_arg.Already_in_scope
       (Simple.const
-         (Reg_width_const.untagged_const_int
+         (Const.untagged_const_int
             (Target_ocaml_int.of_targetint machine_width
                (Tag.Scannable.to_targetint machine_width tag_at_use_site))))
   in
   let tag =
-    Unboxing_types.Extra_param_and_args.update_param_args tag_from_decision
-      rewrite_id tag_extra_arg
+    Extra_param_and_args.update_param_args tag_from_decision rewrite_id
+      tag_extra_arg
   in
   let fields_by_tag =
     Tag.Scannable.Map.mapi
@@ -698,10 +639,7 @@ and compute_extra_args_for_variant pass0 rewrite_id typing_env_at_use
             (fun acc field_decision ->
               let new_decisions, field_nth = acc in
               (fun x__0 f__1 ->
-                let { Unboxing_types.epa = x__1; decision = x__2; kind = x__3 }
-                    =
-                  x__0
-                in
+                let { U.epa = x__1; decision = x__2; kind = x__3 } = x__0 in
                 f__1 x__1 x__2 x__3) field_decision (fun epa decision kind ->
                   let bak, poison_const0 =
                     access_kind_and_poison_const machine_width
@@ -719,14 +657,13 @@ and compute_extra_args_for_variant pass0 rewrite_id typing_env_at_use
                       in
                       unbox_arg unboxer0 typing_env_at_use arg_being_unboxed
                     else
-                      ( Continuation_extra_params_and_args.Extra_arg
-                        .Already_in_scope
+                      ( EPA.Extra_arg.Already_in_scope
                           (Simple.const poison_const0),
                         Poison )
                   in
                   let epa0 =
-                    Unboxing_types.Extra_param_and_args.update_param_args epa
-                      rewrite_id new_extra_arg
+                    Extra_param_and_args.update_param_args epa rewrite_id
+                      new_extra_arg
                   in
                   let decision0 =
                     compute_extra_args_for_one_decision_and_use pass0 rewrite_id
@@ -735,10 +672,7 @@ and compute_extra_args_for_variant pass0 rewrite_id typing_env_at_use
                   in
                   let field_decision0 =
                     (fun x__1 x__2 x__3 ->
-                      { Unboxing_types.epa = x__1;
-                        decision = x__2;
-                        kind = x__3
-                      })
+                      { U.epa = x__1; decision = x__2; kind = x__3 })
                       epa0 decision0 kind
                   in
                   let new_decisions0 = field_decision0 :: new_decisions in
@@ -752,49 +686,40 @@ and compute_extra_args_for_variant pass0 rewrite_id typing_env_at_use
         shape, List.rev new_fields_decisions)
       fields_by_tag_from_decision
   in
-  Unboxing_types.Unbox
+  U.Unbox
     ((fun (x__1, x__2, x__3) ->
-       (Unboxing_types.Variant
-          { tag = x__1; const_ctors = x__2; fields_by_tag = x__3 }
-         : Unboxing_types.unboxing_decision))
+       (U.Variant { tag = x__1; const_ctors = x__2; fields_by_tag = x__3 }
+         : U.unboxing_decision))
        (tag, const_ctors0, fields_by_tag))
 
-(** val add_extra_params_and_args : Continuation_extra_params_and_args.t ->
-    Apply_cont_rewrite_id.Set.t -> Unboxing_types.decision ->
-    Continuation_extra_params_and_args.t coq_M **)
+(** val add_extra_params_and_args : EPA.t -> Apply_cont_rewrite_id.Set.t ->
+    U.decision -> EPA.t coq_M **)
 
 let add_extra_params_and_args extra_params_and_args invalids decision =
   let rec aux extra_params_and_args0 = function
-    | Unboxing_types.Unbox u ->
+    | U.Unbox u ->
       (fun f__1 f__2 f__3 f__4 x__0 ->
-        match (x__0 : Unboxing_types.unboxing_decision) with
-        | Unboxing_types.Unique_tag_and_size
-            { tag = x__1; shape = x__2; fields = x__3 } ->
+        match (x__0 : U.unboxing_decision) with
+        | U.Unique_tag_and_size { tag = x__1; shape = x__2; fields = x__3 } ->
           f__1 x__1 x__2 x__3
-        | Unboxing_types.Variant
-            { tag = x__1; const_ctors = x__2; fields_by_tag = x__3 } ->
+        | U.Variant { tag = x__1; const_ctors = x__2; fields_by_tag = x__3 } ->
           f__2 x__1 x__2 x__3
-        | Unboxing_types.Closure_single_entry
+        | U.Closure_single_entry
             { function_slot = x__1; vars_within_closure = x__2 } ->
           f__3 x__1 x__2
-        | Unboxing_types.Number (x__1, x__2) -> f__4 x__1 x__2)
+        | U.Number (x__1, x__2) -> f__4 x__1 x__2)
         (fun _ _ fields ->
           List.fold_left
             (fun extra_params_and_args1 field_decision ->
               (fun x__0 f__1 ->
-                let { Unboxing_types.epa = x__1; decision = x__2; kind = x__3 }
-                    =
-                  x__0
-                in
+                let { U.epa = x__1; decision = x__2; kind = x__3 } = x__0 in
                 f__1 x__1 x__2 x__3) field_decision (fun epa decision1 kind ->
                   let extra_param =
-                    Bound_parameter.create
-                      epa.Unboxing_types.Extra_param_and_args.param kind
+                    BP.create epa.Unboxing_types.Extra_param_and_args.param kind
                       epa.Unboxing_types.Extra_param_and_args.param_debug_uid
                   in
                   let extra_params_and_args2 =
-                    Continuation_extra_params_and_args.add
-                      extra_params_and_args1 invalids extra_param
+                    EPA.add extra_params_and_args1 invalids extra_param
                       epa.Unboxing_types.Extra_param_and_args.args
                   in
                   aux extra_params_and_args2 decision1))
@@ -808,24 +733,20 @@ let add_extra_params_and_args extra_params_and_args invalids decision =
                   List.fold_left
                     (fun extra_params_and_args2 field_decision ->
                       (fun x__0 f__1 ->
-                        let { Unboxing_types.epa = x__1;
-                              decision = x__2;
-                              kind = x__3
-                            } =
+                        let { U.epa = x__1; decision = x__2; kind = x__3 } =
                           x__0
                         in
                         f__1 x__1 x__2 x__3) field_decision
                         (fun epa decision1 kind ->
                           let extra_param =
-                            Bound_parameter.create
+                            BP.create
                               epa.Unboxing_types.Extra_param_and_args.param kind
                               epa
                                 .Unboxing_types.Extra_param_and_args
                                  .param_debug_uid
                           in
                           let extra_params_and_args3 =
-                            Continuation_extra_params_and_args.add
-                              extra_params_and_args2 invalids extra_param
+                            EPA.add extra_params_and_args2 invalids extra_param
                               epa.Unboxing_types.Extra_param_and_args.args
                           in
                           aux extra_params_and_args3 decision1))
@@ -834,27 +755,26 @@ let add_extra_params_and_args extra_params_and_args invalids decision =
           in
           let extra_params_and_args2 =
             (fun f__1 f__2 x__0 ->
-              match (x__0 : Unboxing_types.const_ctors_decision) with
-              | Unboxing_types.Zero -> f__1 ()
-              | Unboxing_types.At_least_one { is_int = x__1; ctor = x__2 } ->
-                f__2 x__1 x__2)
+              match (x__0 : U.const_ctors_decision) with
+              | U.Zero -> f__1 ()
+              | U.At_least_one { is_int = x__1; ctor = x__2 } -> f__2 x__1 x__2)
               (fun _ -> extra_params_and_args1)
               (fun is_int d ->
                 match d with
-                | Unboxing_types.Unbox u0 ->
+                | U.Unbox u0 ->
                   (fun f__1 f__2 f__3 f__4 x__0 ->
-                    match (x__0 : Unboxing_types.unboxing_decision) with
-                    | Unboxing_types.Unique_tag_and_size
+                    match (x__0 : U.unboxing_decision) with
+                    | U.Unique_tag_and_size
                         { tag = x__1; shape = x__2; fields = x__3 } ->
                       f__1 x__1 x__2 x__3
-                    | Unboxing_types.Variant
+                    | U.Variant
                         { tag = x__1; const_ctors = x__2; fields_by_tag = x__3 }
                       ->
                       f__2 x__1 x__2 x__3
-                    | Unboxing_types.Closure_single_entry
+                    | U.Closure_single_entry
                         { function_slot = x__1; vars_within_closure = x__2 } ->
                       f__3 x__1 x__2
-                    | Unboxing_types.Number (x__1, x__2) -> f__4 x__1 x__2)
+                    | U.Number (x__1, x__2) -> f__4 x__1 x__2)
                     (fun _ _ _ ->
                       Misc.fatal_errorf
                         "Trying to unbox the constant constructor of a variant \
@@ -871,28 +791,26 @@ let add_extra_params_and_args extra_params_and_args invalids decision =
                       match t0 with
                       | Flambda_kind.Naked_number_kind.Naked_immediate ->
                         let extra_param =
-                          Bound_parameter.create
+                          BP.create
                             is_int.Unboxing_types.Extra_param_and_args.param
-                            Flambda_kind.With_subkind.naked_immediate
+                            K.With_subkind.naked_immediate
                             is_int
                               .Unboxing_types.Extra_param_and_args
                                .param_debug_uid
                         in
                         let extra_params_and_args2 =
-                          Continuation_extra_params_and_args.add
-                            extra_params_and_args1 invalids extra_param
+                          EPA.add extra_params_and_args1 invalids extra_param
                             is_int.Unboxing_types.Extra_param_and_args.args
                         in
                         let extra_param0 =
-                          Bound_parameter.create
+                          BP.create
                             ctor.Unboxing_types.Extra_param_and_args.param
-                            Flambda_kind.With_subkind.naked_immediate
+                            K.With_subkind.naked_immediate
                             ctor
                               .Unboxing_types.Extra_param_and_args
                                .param_debug_uid
                         in
-                        Continuation_extra_params_and_args.add
-                          extra_params_and_args2 invalids extra_param0
+                        EPA.add extra_params_and_args2 invalids extra_param0
                           ctor.Unboxing_types.Extra_param_and_args.args
                       | Flambda_kind.Naked_number_kind.Naked_float32 ->
                         Misc.fatal_errorf
@@ -939,58 +857,51 @@ let add_extra_params_and_args extra_params_and_args invalids decision =
                           "Trying to unbox the constant constructor of a \
                            variant with a kind other than Naked_immediate.")
                     u0
-                | Unboxing_types.Do_not_unbox _ ->
+                | U.Do_not_unbox _ ->
                   let extra_param =
-                    Bound_parameter.create
-                      is_int.Unboxing_types.Extra_param_and_args.param
-                      Flambda_kind.With_subkind.naked_immediate
+                    BP.create is_int.Unboxing_types.Extra_param_and_args.param
+                      K.With_subkind.naked_immediate
                       is_int.Unboxing_types.Extra_param_and_args.param_debug_uid
                   in
-                  Continuation_extra_params_and_args.add extra_params_and_args1
-                    invalids extra_param
+                  EPA.add extra_params_and_args1 invalids extra_param
                     is_int.Unboxing_types.Extra_param_and_args.args)
               const_ctors0
           in
           let extra_param =
-            Bound_parameter.create tag.Unboxing_types.Extra_param_and_args.param
-              Flambda_kind.With_subkind.naked_immediate
+            BP.create tag.Unboxing_types.Extra_param_and_args.param
+              K.With_subkind.naked_immediate
               tag.Unboxing_types.Extra_param_and_args.param_debug_uid
           in
-          Continuation_extra_params_and_args.add extra_params_and_args2 invalids
-            extra_param tag.Unboxing_types.Extra_param_and_args.args)
+          EPA.add extra_params_and_args2 invalids extra_param
+            tag.Unboxing_types.Extra_param_and_args.args)
         (fun _ vars_within_closure ->
           Value_slot.Map.fold
             (fun _ field_decision extra_params_and_args1 ->
               (fun x__0 f__1 ->
-                let { Unboxing_types.epa = x__1; decision = x__2; kind = x__3 }
-                    =
-                  x__0
-                in
+                let { U.epa = x__1; decision = x__2; kind = x__3 } = x__0 in
                 f__1 x__1 x__2 x__3) field_decision (fun epa decision1 kind ->
                   let extra_param =
-                    Bound_parameter.create
-                      epa.Unboxing_types.Extra_param_and_args.param kind
+                    BP.create epa.Unboxing_types.Extra_param_and_args.param kind
                       epa.Unboxing_types.Extra_param_and_args.param_debug_uid
                   in
                   let extra_params_and_args2 =
-                    Continuation_extra_params_and_args.add
-                      extra_params_and_args1 invalids extra_param
+                    EPA.add extra_params_and_args1 invalids extra_param
                       epa.Unboxing_types.Extra_param_and_args.args
                   in
                   aux extra_params_and_args2 decision1))
             vars_within_closure extra_params_and_args0)
         (fun naked_number_kind epa ->
           let kind_with_subkind =
-            Flambda_kind.With_subkind.of_naked_number_kind naked_number_kind
+            K.With_subkind.of_naked_number_kind naked_number_kind
           in
           let extra_param =
-            Bound_parameter.create epa.Unboxing_types.Extra_param_and_args.param
+            BP.create epa.Unboxing_types.Extra_param_and_args.param
               kind_with_subkind
               epa.Unboxing_types.Extra_param_and_args.param_debug_uid
           in
-          Continuation_extra_params_and_args.add extra_params_and_args0 invalids
-            extra_param epa.Unboxing_types.Extra_param_and_args.args)
+          EPA.add extra_params_and_args0 invalids extra_param
+            epa.Unboxing_types.Extra_param_and_args.args)
         u
-    | Unboxing_types.Do_not_unbox _ -> extra_params_and_args0
+    | U.Do_not_unbox _ -> extra_params_and_args0
   in
   aux extra_params_and_args decision

@@ -101,48 +101,37 @@ module T0 = struct
     let { by_scope = by_scope0; combined = combined0 } = pat in
     Format.fprintf ppf
       "@[<hov 1>(@[<hov 1>(by_scope@ %a)@]@ @[<hov 1>(combined@ %a)@]@]"
-      (Scope.Map.print
-         (Flambda_primitive.Eligible_for_cse.Map.print Simple.print))
+      (Scope.Map.print (EP.Map.print Simple.print))
       by_scope0
-      (Flambda_primitive.Eligible_for_cse.Map.print Simple.print)
+      (EP.Map.print Simple.print)
       combined0
 
   (** val empty : t **)
 
-  let empty =
-    { by_scope = Scope.Map.empty;
-      combined = Flambda_primitive.Eligible_for_cse.Map.empty
-    }
+  let empty = { by_scope = Scope.Map.empty; combined = EP.Map.empty }
 
-  (** val add : t -> Flambda_primitive.Eligible_for_cse.t -> Simple.t -> Scope.t
-      -> t coq_M **)
+  (** val add : t -> EP.t -> Simple.t -> Scope.t -> t coq_M **)
 
   let add t0 prim bound_to scope =
     Port_monad.match_exn
-      (fun _ -> Flambda_primitive.Eligible_for_cse.Map.find prim t0.combined)
+      (fun _ -> EP.Map.find prim t0.combined)
       Port_monad.not_found
       (fun _ ->
         let level =
           Port_monad.match_exn
             (fun _ -> Scope.Map.find scope t0.by_scope)
             Port_monad.not_found
-            (fun _ ->
-              Flambda_primitive.Eligible_for_cse.Map.singleton prim bound_to)
-            (fun level ->
-              Flambda_primitive.Eligible_for_cse.Map.add prim bound_to level)
+            (fun _ -> EP.Map.singleton prim bound_to)
+            (fun level -> EP.Map.add prim bound_to level)
         in
         let by_scope0 = Scope.Map.add scope level t0.by_scope in
-        let combined0 =
-          Flambda_primitive.Eligible_for_cse.Map.add prim bound_to t0.combined
-        in
+        let combined0 = EP.Map.add prim bound_to t0.combined in
         { by_scope = by_scope0; combined = combined0 })
       (fun _ -> t0)
 
-  (** val find : t -> Flambda_primitive.Eligible_for_cse.t -> Simple.t option
-      coq_M **)
+  (** val find : t -> EP.t -> Simple.t option coq_M **)
 
-  let find t0 prim =
-    Flambda_primitive.Eligible_for_cse.Map.find_opt prim t0.combined
+  let find t0 prim = EP.Map.find_opt prim t0.combined
 end
 
 type t = T0.t
@@ -155,65 +144,55 @@ let print = T0.print
 
 let empty = T0.empty
 
-(** val add : T0.t -> Flambda_primitive.Eligible_for_cse.t -> Simple.t ->
-    Scope.t -> T0.t coq_M **)
+(** val add : T0.t -> EP.t -> Simple.t -> Scope.t -> T0.t coq_M **)
 
 let add = T0.add
 
-(** val find : T0.t -> Flambda_primitive.Eligible_for_cse.t -> Simple.t option
-    coq_M **)
+(** val find : T0.t -> EP.t -> Simple.t option coq_M **)
 
 let find = T0.find
 
-(** val cse_with_eligible_lhs : Flambda2_types.Typing_env.t ->
-    (Flambda2_types.Typing_env.t, Apply_cont_rewrite_id.t, Simple.t EP.Map.t)
+(** val cse_with_eligible_lhs : TE.t -> (TE.t, RI.t, Simple.t EP.Map.t)
     Port_monad.tuple3 list -> Bound_parameter.t list -> Simple.t EP.Map.t ->
-    Continuation_extra_params_and_args.t ->
-    Flambda2_types.Typing_env_extension.t -> Rhs_kind.t RI.Map.t EP.Map.t coq_M
-    **)
+    EPA.t -> TEE.t -> Rhs_kind.t RI.Map.t EP.Map.t coq_M **)
 
 let cse_with_eligible_lhs typing_env_at_fork cse_at_each_use params prev_cse
     extra_bindings env_extension0 =
-  let params_set =
-    Name.Set.of_list (ListLabels.map Bound_parameter.name params)
-  in
-  let params0 = ListLabels.map Bound_parameter.simple params in
+  let params_set = Name.Set.of_list (List.map Bound_parameter.name params) in
+  let params0 = List.map Bound_parameter.simple params in
   let is_param =
    fun simple ->
     Simple.pattern_match simple
       (fun name _ -> Name.Set.mem name params_set)
       (fun _ -> false)
   in
-  ListLabels.fold_left
+  List.fold_left
     (fun eligible pat ->
       let env_at_use, id, cse = pat in
       let find_new_name =
         let find_param =
          fun simple params1 ->
-          ListLabels.find_opt
+          List.find_opt
             (fun param ->
               Port_monad.match_exn
                 (fun _ ->
                   (fun x__1 x__2 x__3 x__4 ->
-                    Flambda2_types.Typing_env.get_canonical_simple_exn x__1
-                      ?min_name_mode:x__2 ?name_mode_of_existing_simple:x__3
-                      x__4)
-                    env_at_use (Some Name_mode.normal) (Some Name_mode.normal)
-                    param)
+                    TE.get_canonical_simple_exn x__1 ?min_name_mode:x__2
+                      ?name_mode_of_existing_simple:x__3 x__4)
+                    env_at_use (Some NM.normal) (Some NM.normal) param)
                 Port_monad.not_found
                 (fun _ -> false)
                 (fun arg -> Simple.equal arg simple))
             params1
         in
         (fun f__1 f__2 x__0 ->
-          match (x__0 : Continuation_extra_params_and_args.t) with
-          | Continuation_extra_params_and_args.Empty -> f__1 ()
-          | Continuation_extra_params_and_args.Non_empty
-              { extra_params = x__1; extra_args = x__2 } ->
+          match (x__0 : EPA.t) with
+          | EPA.Empty -> f__1 ()
+          | EPA.Non_empty { extra_params = x__1; extra_args = x__2 } ->
             f__2 x__1 x__2)
           (fun _ arg -> find_param arg params0)
           (fun extra_params0 extra_args0 ->
-            match Apply_cont_rewrite_id.Map.find id extra_args0 with
+            match RI.Map.find id extra_args0 with
             | Or_invalid.Ok extra_args1 -> (
               fun arg ->
                 let r = find_param arg params0 in
@@ -232,25 +211,16 @@ let cse_with_eligible_lhs typing_env_at_fork cse_at_each_use params prev_cse
                         Misc.fatal_error "Mismatching params and args arity"
                       | param :: params2 -> (
                         match arg0 with
-                        | Continuation_extra_params_and_args.Extra_arg
-                          .Already_in_scope
-                            arg1 ->
+                        | EA.Already_in_scope arg1 ->
                           if Simple.equal arg1 simple
                           then
-                            if
-                              Flambda2_types.Typing_env_extension.has_equation
-                                (Bound_parameter.name param)
-                                env_extension0
+                            if TEE.has_equation (BP.name param) env_extension0
                             then None
-                            else Some (Bound_parameter.simple param)
+                            else Some (BP.simple param)
                           else find_name simple params2 args0
-                        | Continuation_extra_params_and_args.Extra_arg
-                          .New_let_binding
-                            (_, _) ->
+                        | EA.New_let_binding (_, _) ->
                           find_name simple params2 args0
-                        | Continuation_extra_params_and_args.Extra_arg
-                          .New_let_binding_with_named_args
-                            (_, _) ->
+                        | EA.New_let_binding_with_named_args (_, _) ->
                           find_name simple params2 args0))
                   in
                   find_name arg
@@ -259,18 +229,16 @@ let cse_with_eligible_lhs typing_env_at_fork cse_at_each_use params prev_cse
             | Or_invalid.Invalid -> fun _ -> None)
           extra_bindings
       in
-      Flambda_primitive.Eligible_for_cse.Map.fold
+      EP.Map.fold
         (fun prim bound_to eligible0 ->
           let prim0 =
-            Flambda_primitive.Eligible_for_cse.filter_map_args prim (fun arg ->
+            EP.filter_map_args prim (fun arg ->
                 Port_monad.match_exn
                   (fun _ ->
                     (fun x__1 x__2 x__3 x__4 ->
-                      Flambda2_types.Typing_env.get_canonical_simple_exn x__1
-                        ?min_name_mode:x__2 ?name_mode_of_existing_simple:x__3
-                        x__4)
-                      env_at_use (Some Name_mode.normal) (Some Name_mode.normal)
-                      arg)
+                      TE.get_canonical_simple_exn x__1 ?min_name_mode:x__2
+                        ?name_mode_of_existing_simple:x__3 x__4)
+                      env_at_use (Some NM.normal) (Some NM.normal) arg)
                   Port_monad.not_found
                   (fun _ -> None)
                   (fun arg0 ->
@@ -280,25 +248,22 @@ let cse_with_eligible_lhs typing_env_at_fork cse_at_each_use params prev_cse
                     | None ->
                       if
                         (fun x__1 x__2 x__3 ->
-                          Flambda2_types.Typing_env.mem_simple
-                            ?min_name_mode:x__1 x__2 x__3)
+                          TE.mem_simple ?min_name_mode:x__1 x__2 x__3)
                           None typing_env_at_fork arg0
                       then Some arg0
                       else None))
           in
           match prim0 with
           | Some prim1 ->
-            if Flambda_primitive.Eligible_for_cse.Map.mem prim1 prev_cse
+            if EP.Map.mem prim1 prev_cse
             then eligible0
             else
               Port_monad.match_exn
                 (fun _ ->
                   (fun x__1 x__2 x__3 x__4 ->
-                    Flambda2_types.Typing_env.get_canonical_simple_exn x__1
-                      ?min_name_mode:x__2 ?name_mode_of_existing_simple:x__3
-                      x__4)
-                    env_at_use (Some Name_mode.normal) (Some Name_mode.normal)
-                    bound_to)
+                    TE.get_canonical_simple_exn x__1 ?min_name_mode:x__2
+                      ?name_mode_of_existing_simple:x__3 x__4)
+                    env_at_use (Some NM.normal) (Some NM.normal) bound_to)
                 Port_monad.not_found
                 (fun _ -> eligible0)
                 (fun bound_to0 ->
@@ -307,20 +272,18 @@ let cse_with_eligible_lhs typing_env_at_fork cse_at_each_use params prev_cse
                     then Some bound_to0
                     else
                       let aliases =
-                        Flambda2_types.Typing_env.Alias_set.filter
-                          (Flambda2_types.Typing_env.aliases_of_simple
-                             env_at_use Name_mode.normal bound_to0)
+                        TE.Alias_set.filter
+                          (TE.aliases_of_simple env_at_use NM.normal bound_to0)
                           (fun simple -> not (is_param simple))
                       in
-                      Flambda2_types.Typing_env.Alias_set.get_singleton aliases
+                      TE.Alias_set.get_singleton aliases
                   in
                   match bound_to1 with
                   | Some bound_to2 ->
                     let bound_to3 =
                       if
                         (fun x__1 x__2 x__3 ->
-                          Flambda2_types.Typing_env.mem_simple
-                            ?min_name_mode:x__1 x__2 x__3)
+                          TE.mem_simple ?min_name_mode:x__1 x__2 x__3)
                           None typing_env_at_fork bound_to2
                       then
                         (fun x__1 ->
@@ -334,66 +297,53 @@ let cse_with_eligible_lhs typing_env_at_fork cse_at_each_use params prev_cse
                           bound_to2
                     in
                     Port_monad.match_exn
-                      (fun _ ->
-                        Flambda_primitive.Eligible_for_cse.Map.find prim1
-                          eligible0)
+                      (fun _ -> EP.Map.find prim1 eligible0)
                       Port_monad.not_found
                       (fun _ ->
-                        Flambda_primitive.Eligible_for_cse.Map.add prim1
-                          (Apply_cont_rewrite_id.Map.singleton id bound_to3)
+                        EP.Map.add prim1
+                          (RI.Map.singleton id bound_to3)
                           eligible0)
                       (fun from_prev_levels ->
-                        let map =
-                          Apply_cont_rewrite_id.Map.add id bound_to3
-                            from_prev_levels
-                        in
-                        Flambda_primitive.Eligible_for_cse.Map.add prim1 map
-                          eligible0)
+                        let map = RI.Map.add id bound_to3 from_prev_levels in
+                        EP.Map.add prim1 map eligible0)
                   | None -> eligible0)
           | None -> eligible0)
         cse eligible)
-    Flambda_primitive.Eligible_for_cse.Map.empty cse_at_each_use
+    EP.Map.empty cse_at_each_use
 
 type extra_binding =
-  { extra_param : Bound_parameter.t;
-    extra_args : Continuation_extra_params_and_args.Extra_arg.t RI.Map.t
+  { extra_param : BP.t;
+    extra_args : EA.t RI.Map.t
   }
 
-(** val extra_param : extra_binding -> Bound_parameter.t **)
+(** val extra_param : extra_binding -> BP.t **)
 
 let extra_param e = e.extra_param
 
-(** val extra_args : extra_binding ->
-    Continuation_extra_params_and_args.Extra_arg.t RI.Map.t **)
+(** val extra_args : extra_binding -> EA.t RI.Map.t **)
 
 let extra_args e = e.extra_args
 
-(** val join_one_cse_equation : Target_system.Machine_width.t ->
-    (Flambda2_types.Typing_env.t, Apply_cont_rewrite_id.t, Simple.t EP.Map.t)
-    Port_monad.tuple3 list -> Flambda_primitive.Eligible_for_cse.t -> Rhs_kind.t
-    RI.Map.t -> (Simple.t EP.Map.t, (Flambda_primitive.Eligible_for_cse.t *
-    extra_binding) list, Flambda2_types.Typing_env_extension.t,
-    Name_occurrences.t) Port_monad.tuple4 -> (Simple.t EP.Map.t,
-    (Flambda_primitive.Eligible_for_cse.t * extra_binding) list,
-    Flambda2_types.Typing_env_extension.t, Name_occurrences.t) Port_monad.tuple4
-    coq_M **)
+(** val join_one_cse_equation : Target_system.Machine_width.t -> (TE.t, RI.t,
+    Simple.t EP.Map.t) Port_monad.tuple3 list -> EP.t -> Rhs_kind.t RI.Map.t ->
+    (Simple.t EP.Map.t, (EP.t * extra_binding) list, TEE.t, Name_occurrences.t)
+    Port_monad.tuple4 -> (Simple.t EP.Map.t, (EP.t * extra_binding) list, TEE.t,
+    Name_occurrences.t) Port_monad.tuple4 coq_M **)
 
 let join_one_cse_equation machine_width cse_at_each_use prim bound_to_map =
   function
   | cse, extra_bindings, env_extension0, allowed -> (
     let has_value_on_all_paths =
-      ListLabels.for_all
+      List.for_all
         (fun pat0 ->
           let _, id, _ = pat0 in
-          Apply_cont_rewrite_id.Map.mem id bound_to_map)
+          RI.Map.mem id bound_to_map)
         cse_at_each_use
     in
     if not has_value_on_all_paths
     then cse, extra_bindings, env_extension0, allowed
     else
-      let bound_to_set =
-        Rhs_kind.Set.of_list (Apply_cont_rewrite_id.Map.data bound_to_map)
-      in
+      let bound_to_set = Rhs_kind.Set.of_list (RI.Map.data bound_to_map) in
       match Rhs_kind.Set.get_singleton bound_to_set with
       | Some e ->
         (fun f__1 f__2 x__0 ->
@@ -401,10 +351,7 @@ let join_one_cse_equation machine_width cse_at_each_use prim bound_to_map =
           | Rhs_kind.Needs_extra_binding { bound_to = x__1 } -> f__1 x__1
           | Rhs_kind.Rhs_in_scope { bound_to = x__1 } -> f__2 x__1)
           (fun _ ->
-            let prim_result_kind =
-              Flambda_primitive.result_kind'
-                (Flambda_primitive.Eligible_for_cse.to_primitive prim)
-            in
+            let prim_result_kind = P.result_kind' (EP.to_primitive prim) in
             let var =
               (fun x__1 x__2 x__3 ->
                 Variable.create ?user_visible:x__1 x__2 x__3)
@@ -412,29 +359,18 @@ let join_one_cse_equation machine_width cse_at_each_use prim bound_to_map =
             in
             let var_duid = Flambda_debug_uid.none in
             let extra_param0 =
-              Bound_parameter.create var
-                (Flambda_kind.With_subkind.anything prim_result_kind)
-                var_duid
+              BP.create var (K.With_subkind.anything prim_result_kind) var_duid
             in
-            let bound_to =
-              Apply_cont_rewrite_id.Map.map Rhs_kind.bound_to bound_to_map
-            in
-            let cse0 =
-              Flambda_primitive.Eligible_for_cse.Map.add prim (Simple.var var)
-                cse
-            in
+            let bound_to = RI.Map.map Rhs_kind.bound_to bound_to_map in
+            let cse0 = EP.Map.add prim (Simple.var var) cse in
             let extra_args0 =
-              Apply_cont_rewrite_id.Map.map
-                (fun simple ->
-                  Continuation_extra_params_and_args.Extra_arg.Already_in_scope
-                    simple)
-                bound_to
+              RI.Map.map (fun simple -> EA.Already_in_scope simple) bound_to
             in
             let extra_binding0 =
               { extra_param = extra_param0; extra_args = extra_args0 }
             in
             let env_extension1 =
-              match Flambda_primitive.Eligible_for_cse.to_primitive prim with
+              match EP.to_primitive prim with
               | Flambda_primitive.Nullary _ -> env_extension0
               | Flambda_primitive.Unary (u, block) ->
                 (fun f__1
@@ -532,13 +468,12 @@ let join_one_cse_equation machine_width cse_at_each_use prim bound_to_map =
                   (fun b ->
                     if b
                     then
-                      Flambda2_types.Typing_env_extension.add_is_int_relation
-                        machine_width env_extension0 (Name.var var) block
+                      TEE.add_is_int_relation machine_width env_extension0
+                        (Name.var var) block
                     else env_extension0)
                   (fun _ -> env_extension0)
                   (fun _ ->
-                    Flambda2_types.Typing_env_extension.add_get_tag_relation
-                      env_extension0 (Name.var var) block)
+                    TEE.add_get_tag_relation env_extension0 (Name.var var) block)
                   (fun _ -> env_extension0)
                   (fun _ -> env_extension0)
                   (fun _ -> env_extension0)
@@ -571,51 +506,38 @@ let join_one_cse_equation machine_width cse_at_each_use prim bound_to_map =
               | Flambda_primitive.Variadic (_, _) -> env_extension0
             in
             let allowed0 =
-              Name_occurrences.add_name allowed (Name.var var) Name_mode.normal
+              Name_occurrences.add_name allowed (Name.var var) NM.normal
             in
             ( cse0,
               (prim, extra_binding0) :: extra_bindings,
               env_extension1,
               allowed0 ))
           (fun bound_to ->
-            ( Flambda_primitive.Eligible_for_cse.Map.add prim bound_to cse,
+            ( EP.Map.add prim bound_to cse,
               extra_bindings,
               env_extension0,
               allowed ))
           e
       | None ->
-        let prim_result_kind =
-          Flambda_primitive.result_kind'
-            (Flambda_primitive.Eligible_for_cse.to_primitive prim)
-        in
+        let prim_result_kind = P.result_kind' (EP.to_primitive prim) in
         let var =
           (fun x__1 x__2 x__3 -> Variable.create ?user_visible:x__1 x__2 x__3)
             None "cse_param" prim_result_kind
         in
         let var_duid = Flambda_debug_uid.none in
         let extra_param0 =
-          Bound_parameter.create var
-            (Flambda_kind.With_subkind.anything prim_result_kind)
-            var_duid
+          BP.create var (K.With_subkind.anything prim_result_kind) var_duid
         in
-        let bound_to =
-          Apply_cont_rewrite_id.Map.map Rhs_kind.bound_to bound_to_map
-        in
-        let cse0 =
-          Flambda_primitive.Eligible_for_cse.Map.add prim (Simple.var var) cse
-        in
+        let bound_to = RI.Map.map Rhs_kind.bound_to bound_to_map in
+        let cse0 = EP.Map.add prim (Simple.var var) cse in
         let extra_args0 =
-          Apply_cont_rewrite_id.Map.map
-            (fun simple ->
-              Continuation_extra_params_and_args.Extra_arg.Already_in_scope
-                simple)
-            bound_to
+          RI.Map.map (fun simple -> EA.Already_in_scope simple) bound_to
         in
         let extra_binding0 =
           { extra_param = extra_param0; extra_args = extra_args0 }
         in
         let env_extension1 =
-          match Flambda_primitive.Eligible_for_cse.to_primitive prim with
+          match EP.to_primitive prim with
           | Flambda_primitive.Nullary _ -> env_extension0
           | Flambda_primitive.Unary (u, block) ->
             (fun f__1
@@ -709,13 +631,12 @@ let join_one_cse_equation machine_width cse_at_each_use prim bound_to_map =
               (fun b ->
                 if b
                 then
-                  Flambda2_types.Typing_env_extension.add_is_int_relation
-                    machine_width env_extension0 (Name.var var) block
+                  TEE.add_is_int_relation machine_width env_extension0
+                    (Name.var var) block
                 else env_extension0)
               (fun _ -> env_extension0)
               (fun _ ->
-                Flambda2_types.Typing_env_extension.add_get_tag_relation
-                  env_extension0 (Name.var var) block)
+                TEE.add_get_tag_relation env_extension0 (Name.var var) block)
               (fun _ -> env_extension0)
               (fun _ -> env_extension0)
               (fun _ -> env_extension0)
@@ -748,7 +669,7 @@ let join_one_cse_equation machine_width cse_at_each_use prim bound_to_map =
           | Flambda_primitive.Variadic (_, _) -> env_extension0
         in
         let allowed0 =
-          Name_occurrences.add_name allowed (Name.var var) Name_mode.normal
+          Name_occurrences.add_name allowed (Name.var var) NM.normal
         in
         cse0, (prim, extra_binding0) :: extra_bindings, env_extension1, allowed0
     )
@@ -764,8 +685,7 @@ let cut_cse_environment t0 =
         Port_monad.try_with
           (fun _ ->
             (fun x__1 x__2 x__3 x__4 ->
-              Flambda_primitive.Eligible_for_cse.Map.disjoint_union ?eq:x__1
-                ?print:x__2 x__3 x__4)
+              EP.Map.disjoint_union ?eq:x__1 ?print:x__2 x__3 x__4)
               None None equations result)
           ( (fun x__1 -> Invalid_argument x__1),
             function Invalid_argument x__1 -> Some x__1 | _ -> None )
@@ -779,22 +699,22 @@ let cut_cse_environment t0 =
                  equations = %a@ \n\
                  result=%a@ \n\n"
                 print t0 Scope.print scope_at_fork Scope.print scope
-                (Flambda_primitive.Eligible_for_cse.Map.print Simple.print)
+                (EP.Map.print Simple.print)
                 equations
-                (Flambda_primitive.Eligible_for_cse.Map.print Simple.print)
+                (EP.Map.print Simple.print)
                 result
             in
             Port_monad.raise_
               ( (fun x__1 -> Invalid_argument x__1),
                 function Invalid_argument x__1 -> Some x__1 | _ -> None )
               exn))
-      levels Flambda_primitive.Eligible_for_cse.Map.empty
+      levels EP.Map.empty
 
 module Join_result = struct
   type t =
     { cse_at_join_point : T0.t;
-      extra_params : Continuation_extra_params_and_args.t;
-      env_extension : Flambda2_types.Typing_env_extension.t;
+      extra_params : EPA.t;
+      env_extension : TEE.t;
       extra_allowed_names : Name_occurrences.t
     }
 
@@ -802,11 +722,11 @@ module Join_result = struct
 
   let cse_at_join_point t0 = t0.cse_at_join_point
 
-  (** val extra_params : t -> Continuation_extra_params_and_args.t **)
+  (** val extra_params : t -> EPA.t **)
 
   let extra_params t0 = t0.extra_params
 
-  (** val env_extension : t -> Flambda2_types.Typing_env_extension.t **)
+  (** val env_extension : t -> TEE.t **)
 
   let env_extension t0 = t0.env_extension
 
@@ -815,8 +735,7 @@ module Join_result = struct
   let extra_allowed_names t0 = t0.extra_allowed_names
 end
 
-(** val join0 : Flambda2_types.Typing_env.t -> T0.t ->
-    (Flambda2_types.Typing_env.t, Apply_cont_rewrite_id.t, Simple.t EP.Map.t)
+(** val join0 : TE.t -> T0.t -> (TE.t, RI.t, Simple.t EP.Map.t)
     Port_monad.tuple3 list -> Bound_parameters.t -> Scope.t -> Join_result.t
     option coq_M **)
 
@@ -830,67 +749,50 @@ let join0 typing_env_at_fork cse_at_fork cse_at_each_use params scope_at_fork =
         extra_params0 env_extension0
     in
     let cse', extra_bindings, env_extension', allowed0 =
-      Flambda_primitive.Eligible_for_cse.Map.fold
+      EP.Map.fold
         (join_one_cse_equation
-           (Flambda2_types.Typing_env.machine_width typing_env_at_fork)
+           (TE.machine_width typing_env_at_fork)
            cse_at_each_use)
         new_cse
-        ( Flambda_primitive.Eligible_for_cse.Map.empty,
-          [],
-          Flambda2_types.Typing_env_extension.empty,
-          allowed )
+        (EP.Map.empty, [], TEE.empty, allowed)
     in
     let sorted_extra_bindings =
-      ListLabels.sort
+      List.sort
         (fun pat1 pat2 ->
           let prim1, _ = pat1 in
           let prim2, _ = pat2 in
-          Flambda_primitive.compare_primitive_application
-            (Flambda2_types.Typing_env.stable_compare_simples
-               typing_env_with_extra_params)
-            (Flambda_primitive.Eligible_for_cse.to_primitive prim1)
-            (Flambda_primitive.Eligible_for_cse.to_primitive prim2))
+          P.compare_primitive_application
+            (TE.stable_compare_simples typing_env_with_extra_params)
+            (EP.to_primitive prim1) (EP.to_primitive prim2))
         extra_bindings
     in
     let extra_params', typing_env_with_extra_params' =
-      ListLabels.fold_left
+      List.fold_left
         (fun pat1 pat2 ->
           let extra_bindings0, typing_env_with_extra_params0 = pat1 in
           let _, e = pat2 in
           let { extra_param = extra_param0; extra_args = extra_args0 } = e in
           let extra_bindings1 =
-            Continuation_extra_params_and_args.add extra_bindings0
-              Apply_cont_rewrite_id.Set.empty extra_param0 extra_args0
+            EPA.add extra_bindings0 Apply_cont_rewrite_id.Set.empty extra_param0
+              extra_args0
           in
           let typing_env_with_extra_params1 =
-            Flambda2_types.Typing_env.add_definition
-              typing_env_with_extra_params0
-              (Bound_name.create
-                 (Bound_parameter.name extra_param0)
-                 Name_mode.normal)
-              (Flambda_kind.With_subkind.kind
-                 (Bound_parameter.kind extra_param0))
+            TE.add_definition typing_env_with_extra_params0
+              (Bound_name.create (BP.name extra_param0) Name_mode.normal)
+              (K.With_subkind.kind (BP.kind extra_param0))
           in
           extra_bindings1, typing_env_with_extra_params1)
-        (Continuation_extra_params_and_args.empty, typing_env_with_extra_params)
+        (EPA.empty, typing_env_with_extra_params)
         sorted_extra_bindings
     in
-    let need_other_round =
-      not (Continuation_extra_params_and_args.is_empty extra_params')
-    in
+    let need_other_round = not (EPA.is_empty extra_params') in
     let cse =
       (fun x__1 x__2 x__3 x__4 ->
-        Flambda_primitive.Eligible_for_cse.Map.disjoint_union ?eq:x__1
-          ?print:x__2 x__3 x__4)
+        EP.Map.disjoint_union ?eq:x__1 ?print:x__2 x__3 x__4)
         None None prev_cse cse'
     in
-    let extra_params1 =
-      Continuation_extra_params_and_args.concat extra_params' extra_params0
-    in
-    let env_extension1 =
-      Flambda2_types.Typing_env_extension.disjoint_union env_extension0
-        env_extension'
-    in
+    let extra_params1 = EPA.concat extra_params' extra_params0 in
+    let env_extension1 = TEE.disjoint_union env_extension0 env_extension' in
     ( cse,
       extra_params1,
       typing_env_with_extra_params',
@@ -916,13 +818,12 @@ let join0 typing_env_at_fork cse_at_fork cse_at_each_use params scope_at_fork =
           typing_env_with_extra_params0 env_extension1 allowed0
       else cse0, extra_params1, env_extension1, allowed0
     in
-    do_rounds 1 Flambda_primitive.Eligible_for_cse.Map.empty
-      Continuation_extra_params_and_args.empty typing_env_at_fork
-      Flambda2_types.Typing_env_extension.empty Name_occurrences.empty
+    do_rounds 1 EP.Map.empty EPA.empty typing_env_at_fork TEE.empty
+      Name_occurrences.empty
   in
   let have_propagated_something = ref false in
   let cse_at_join_point0 =
-    Flambda_primitive.Eligible_for_cse.Map.fold
+    EP.Map.fold
       (fun prim bound_to cse0 ->
         let propagate =
           Simple.pattern_match bound_to
@@ -946,25 +847,21 @@ let join0 typing_env_at_fork cse_at_fork cse_at_each_use params scope_at_fork =
         Join_result.extra_allowed_names = allowed
       }
 
-(** val join : Flambda2_types.Typing_env.t -> T0.t -> 'a1 list -> ('a1 ->
-    Flambda2_types.Typing_env.t coq_M) -> ('a1 -> Apply_cont_rewrite_id.t coq_M)
-    -> ('a1 -> T0.t coq_M) -> Bound_parameters.t -> Join_result.t option coq_M **)
+(** val join : TE.t -> T0.t -> 'a1 list -> ('a1 -> TE.t coq_M) -> ('a1 -> RI.t
+    coq_M) -> ('a1 -> T0.t coq_M) -> Bound_parameters.t -> Join_result.t option
+    coq_M **)
 
 let join typing_env_at_fork cse_at_fork use_info get_typing_env get_rewrite_id
     get_cse params =
-  let scope_at_fork =
-    Flambda2_types.Typing_env.current_scope typing_env_at_fork
-  in
+  let scope_at_fork = TE.current_scope typing_env_at_fork in
   let no_equations = ref false in
   let cse_at_each_use =
-    ListLabels.map
+    List.map
       (fun use ->
         let t0 = get_cse use in
         let cse_between_fork_and_use = cut_cse_environment t0 scope_at_fork in
         let () =
-          if
-            Flambda_primitive.Eligible_for_cse.Map.is_empty
-              cse_between_fork_and_use
+          if EP.Map.is_empty cse_between_fork_and_use
           then no_equations := true
           else ()
         in

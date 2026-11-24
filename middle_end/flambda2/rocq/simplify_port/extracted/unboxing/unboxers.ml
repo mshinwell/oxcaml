@@ -25,23 +25,20 @@ open Port_monad
 
 type number_decider =
   { param_name : string;
-    kind : Flambda_kind.Naked_number_kind.t;
-    prove_is_a_boxed_number :
-      Flambda2_types.Typing_env.t ->
-      Flambda2_types.t ->
-      unit Flambda2_types.proof_of_property coq_M
+    kind : K.Naked_number_kind.t;
+    prove_is_a_boxed_number : TE.t -> T.t -> unit T.proof_of_property coq_M
   }
 
 (** val param_name : number_decider -> string **)
 
 let param_name n = n.param_name
 
-(** val kind : number_decider -> Flambda_kind.Naked_number_kind.t **)
+(** val kind : number_decider -> K.Naked_number_kind.t **)
 
 let kind n = n.kind
 
-(** val prove_is_a_boxed_number : number_decider -> Flambda2_types.Typing_env.t
-    -> Flambda2_types.t -> unit Flambda2_types.proof_of_property coq_M **)
+(** val prove_is_a_boxed_number : number_decider -> TE.t -> T.t -> unit
+    T.proof_of_property coq_M **)
 
 let prove_is_a_boxed_number n = n.prove_is_a_boxed_number
 
@@ -49,13 +46,10 @@ module Coq__1 = struct
   type unboxer =
     { var_name : string;
       var_kind : Flambda_kind.t;
-      poison_const : Reg_width_const.t;
-      unboxing_prim : Simple.t -> Flambda_primitive.t coq_M;
+      poison_const : Const.t;
+      unboxing_prim : Simple.t -> P.t coq_M;
       prove_simple :
-        Flambda2_types.Typing_env.t ->
-        Name_mode.t ->
-        Flambda2_types.t ->
-        Simple.t Flambda2_types.meet_shortcut coq_M
+        TE.t -> Name_mode.t -> T.t -> Simple.t T.meet_shortcut coq_M
     }
 end
 
@@ -69,23 +63,23 @@ let var_name u = u.var_name
 
 let var_kind u = u.var_kind
 
-(** val poison_const : unboxer -> Reg_width_const.t **)
+(** val poison_const : unboxer -> Const.t **)
 
 let poison_const u = u.poison_const
 
-(** val unboxing_prim : unboxer -> Simple.t -> Flambda_primitive.t coq_M **)
+(** val unboxing_prim : unboxer -> Simple.t -> P.t coq_M **)
 
 let unboxing_prim u = u.unboxing_prim
 
-(** val prove_simple : unboxer -> Flambda2_types.Typing_env.t -> Name_mode.t ->
-    Flambda2_types.t -> Simple.t Flambda2_types.meet_shortcut coq_M **)
+(** val prove_simple : unboxer -> TE.t -> Name_mode.t -> T.t -> Simple.t
+    T.meet_shortcut coq_M **)
 
 let prove_simple u = u.prove_simple
 
 module type Number_S = sig
   val decider : number_decider
 
-  val unboxing_prim : Simple.t -> Flambda_primitive.t coq_M
+  val unboxing_prim : Simple.t -> P.t coq_M
 
   val unboxer : unboxer
 end
@@ -95,14 +89,13 @@ module Immediate = struct
 
   let decider =
     { param_name = "naked_immediate";
-      kind = Flambda_kind.Naked_number_kind.Naked_immediate;
-      prove_is_a_boxed_number = Flambda2_types.prove_is_a_tagged_immediate
+      kind = K.Naked_number_kind.Naked_immediate;
+      prove_is_a_boxed_number = T.prove_is_a_tagged_immediate
     }
 
-  (** val unboxing_prim : Simple.t -> Flambda_primitive.t coq_M **)
+  (** val unboxing_prim : Simple.t -> P.t coq_M **)
 
-  let unboxing_prim simple =
-    Flambda_primitive.Unary (Flambda_primitive.Untag_immediate, simple)
+  let unboxing_prim simple = P.Unary (P.Untag_immediate, simple)
 
   (** val unboxer : unboxer **)
 
@@ -121,16 +114,14 @@ module Float32 = struct
 
   let decider =
     { param_name = "unboxed_float32";
-      kind = Flambda_kind.Naked_number_kind.Naked_float32;
-      prove_is_a_boxed_number = Flambda2_types.prove_is_a_boxed_float32
+      kind = K.Naked_number_kind.Naked_float32;
+      prove_is_a_boxed_number = T.prove_is_a_boxed_float32
     }
 
-  (** val unboxing_prim : Simple.t -> Flambda_primitive.t coq_M **)
+  (** val unboxing_prim : Simple.t -> P.t coq_M **)
 
   let unboxing_prim simple =
-    Flambda_primitive.Unary
-      ( Flambda_primitive.Unbox_number Flambda_kind.Boxable_number.Naked_float32,
-        simple )
+    P.Unary (P.Unbox_number K.Boxable_number.Naked_float32, simple)
 
   (** val unboxer : unboxer **)
 
@@ -149,16 +140,14 @@ module Float = struct
 
   let decider =
     { param_name = "unboxed_float";
-      kind = Flambda_kind.Naked_number_kind.Naked_float;
-      prove_is_a_boxed_number = Flambda2_types.prove_is_a_boxed_float
+      kind = K.Naked_number_kind.Naked_float;
+      prove_is_a_boxed_number = T.prove_is_a_boxed_float
     }
 
-  (** val unboxing_prim : Simple.t -> Flambda_primitive.t coq_M **)
+  (** val unboxing_prim : Simple.t -> P.t coq_M **)
 
   let unboxing_prim simple =
-    Flambda_primitive.Unary
-      ( Flambda_primitive.Unbox_number Flambda_kind.Boxable_number.Naked_float,
-        simple )
+    P.Unary (P.Unbox_number K.Boxable_number.Naked_float, simple)
 
   (** val unboxer : unboxer **)
 
@@ -176,16 +165,14 @@ module Int32 = struct
 
   let decider =
     { param_name = "unboxed_int32";
-      kind = Flambda_kind.Naked_number_kind.Naked_int32;
-      prove_is_a_boxed_number = Flambda2_types.prove_is_a_boxed_int32
+      kind = K.Naked_number_kind.Naked_int32;
+      prove_is_a_boxed_number = T.prove_is_a_boxed_int32
     }
 
-  (** val unboxing_prim : Simple.t -> Flambda_primitive.t coq_M **)
+  (** val unboxing_prim : Simple.t -> P.t coq_M **)
 
   let unboxing_prim simple =
-    Flambda_primitive.Unary
-      ( Flambda_primitive.Unbox_number Flambda_kind.Boxable_number.Naked_int32,
-        simple )
+    P.Unary (P.Unbox_number K.Boxable_number.Naked_int32, simple)
 
   (** val unboxer : unboxer **)
 
@@ -203,16 +190,14 @@ module Int64 = struct
 
   let decider =
     { param_name = "unboxed_int64";
-      kind = Flambda_kind.Naked_number_kind.Naked_int64;
-      prove_is_a_boxed_number = Flambda2_types.prove_is_a_boxed_int64
+      kind = K.Naked_number_kind.Naked_int64;
+      prove_is_a_boxed_number = T.prove_is_a_boxed_int64
     }
 
-  (** val unboxing_prim : Simple.t -> Flambda_primitive.t coq_M **)
+  (** val unboxing_prim : Simple.t -> P.t coq_M **)
 
   let unboxing_prim simple =
-    Flambda_primitive.Unary
-      ( Flambda_primitive.Unbox_number Flambda_kind.Boxable_number.Naked_int64,
-        simple )
+    P.Unary (P.Unbox_number K.Boxable_number.Naked_int64, simple)
 
   (** val unboxer : unboxer **)
 
@@ -230,17 +215,14 @@ module Nativeint = struct
 
   let decider =
     { param_name = "unboxed_nativeint";
-      kind = Flambda_kind.Naked_number_kind.Naked_nativeint;
-      prove_is_a_boxed_number = Flambda2_types.prove_is_a_boxed_nativeint
+      kind = K.Naked_number_kind.Naked_nativeint;
+      prove_is_a_boxed_number = T.prove_is_a_boxed_nativeint
     }
 
-  (** val unboxing_prim : Simple.t -> Flambda_primitive.t coq_M **)
+  (** val unboxing_prim : Simple.t -> P.t coq_M **)
 
   let unboxing_prim simple =
-    Flambda_primitive.Unary
-      ( Flambda_primitive.Unbox_number
-          Flambda_kind.Boxable_number.Naked_nativeint,
-        simple )
+    P.Unary (P.Unbox_number K.Boxable_number.Naked_nativeint, simple)
 
   (** val unboxer : unboxer **)
 
@@ -259,16 +241,14 @@ module Vec128 = struct
 
   let decider =
     { param_name = "unboxed_vec128";
-      kind = Flambda_kind.Naked_number_kind.Naked_vec128;
-      prove_is_a_boxed_number = Flambda2_types.prove_is_a_boxed_vec128
+      kind = K.Naked_number_kind.Naked_vec128;
+      prove_is_a_boxed_number = T.prove_is_a_boxed_vec128
     }
 
-  (** val unboxing_prim : Simple.t -> Flambda_primitive.t coq_M **)
+  (** val unboxing_prim : Simple.t -> P.t coq_M **)
 
   let unboxing_prim simple =
-    Flambda_primitive.Unary
-      ( Flambda_primitive.Unbox_number Flambda_kind.Boxable_number.Naked_vec128,
-        simple )
+    P.Unary (P.Unbox_number K.Boxable_number.Naked_vec128, simple)
 
   (** val unboxer : unboxer **)
 
@@ -286,16 +266,14 @@ module Vec256 = struct
 
   let decider =
     { param_name = "unboxed_vec256";
-      kind = Flambda_kind.Naked_number_kind.Naked_vec256;
-      prove_is_a_boxed_number = Flambda2_types.prove_is_a_boxed_vec256
+      kind = K.Naked_number_kind.Naked_vec256;
+      prove_is_a_boxed_number = T.prove_is_a_boxed_vec256
     }
 
-  (** val unboxing_prim : Simple.t -> Flambda_primitive.t coq_M **)
+  (** val unboxing_prim : Simple.t -> P.t coq_M **)
 
   let unboxing_prim simple =
-    Flambda_primitive.Unary
-      ( Flambda_primitive.Unbox_number Flambda_kind.Boxable_number.Naked_vec256,
-        simple )
+    P.Unary (P.Unbox_number K.Boxable_number.Naked_vec256, simple)
 
   (** val unboxer : unboxer **)
 
@@ -313,16 +291,14 @@ module Vec512 = struct
 
   let decider =
     { param_name = "unboxed_vec512";
-      kind = Flambda_kind.Naked_number_kind.Naked_vec512;
-      prove_is_a_boxed_number = Flambda2_types.prove_is_a_boxed_vec512
+      kind = K.Naked_number_kind.Naked_vec512;
+      prove_is_a_boxed_number = T.prove_is_a_boxed_vec512
     }
 
-  (** val unboxing_prim : Simple.t -> Flambda_primitive.t coq_M **)
+  (** val unboxing_prim : Simple.t -> P.t coq_M **)
 
   let unboxing_prim simple =
-    Flambda_primitive.Unary
-      ( Flambda_primitive.Unbox_number Flambda_kind.Boxable_number.Naked_vec512,
-        simple )
+    P.Unary (P.Unbox_number K.Boxable_number.Naked_vec512, simple)
 
   (** val unboxer : unboxer **)
 
@@ -340,16 +316,14 @@ module Mask = struct
 
   let decider =
     { param_name = "unboxed_mask";
-      kind = Flambda_kind.Naked_number_kind.Naked_mask;
-      prove_is_a_boxed_number = Flambda2_types.prove_is_a_boxed_mask
+      kind = K.Naked_number_kind.Naked_mask;
+      prove_is_a_boxed_number = T.prove_is_a_boxed_mask
     }
 
-  (** val unboxing_prim : Simple.t -> Flambda_primitive.t coq_M **)
+  (** val unboxing_prim : Simple.t -> P.t coq_M **)
 
   let unboxing_prim simple =
-    Flambda_primitive.Unary
-      ( Flambda_primitive.Unbox_number Flambda_kind.Boxable_number.Naked_mask,
-        simple )
+    P.Unary (P.Unbox_number K.Boxable_number.Naked_mask, simple)
 
   (** val unboxer : unboxer **)
 
@@ -363,44 +337,42 @@ module Mask = struct
 end
 
 module Field = struct
-  (** val unboxing_prim : Flambda_primitive.Block_access_kind.t -> Simple.t ->
-      Target_ocaml_int.t -> Flambda_primitive.t coq_M **)
+  (** val unboxing_prim : P.Block_access_kind.t -> Simple.t ->
+      Target_ocaml_int.t -> P.t coq_M **)
 
   let unboxing_prim bak block index =
-    Flambda_primitive.Unary
+    P.Unary
       ( (fun (x__1, x__2, x__3) ->
-          (Flambda_primitive.Block_load
-             { kind = x__1; mut = x__2; field = x__3 }
-            : Flambda_primitive.unary_primitive))
+          (P.Block_load { kind = x__1; mut = x__2; field = x__3 }
+            : P.unary_primitive))
           (bak, Mutability.Immutable, index),
         block )
 
-  (** val unboxer : Reg_width_const.t -> Flambda_primitive.Block_access_kind.t
-      -> Target_ocaml_int.t -> unboxer coq_M **)
+  (** val unboxer : Const.t -> P.Block_access_kind.t -> Target_ocaml_int.t ->
+      unboxer coq_M **)
 
   let unboxer poison_const0 bak index =
     { var_name = "field_at_use";
-      var_kind = Flambda_primitive.Block_access_kind.element_kind_for_load bak;
+      var_kind = P.Block_access_kind.element_kind_for_load bak;
       poison_const = poison_const0;
       Coq__1.unboxing_prim = (fun block -> unboxing_prim bak block index);
       prove_simple =
         (fun tenv min_name_mode t ->
-          Flambda2_types.meet_block_field_simple tenv min_name_mode
-            (Flambda_primitive.Block_access_kind.element_kind_for_load bak)
+          T.meet_block_field_simple tenv min_name_mode
+            (P.Block_access_kind.element_kind_for_load bak)
             t index)
     }
 end
 
 module Closure_field = struct
-  (** val unboxing_prim : Function_slot.t -> Simple.t -> Value_slot.t ->
-      Flambda_primitive.t coq_M **)
+  (** val unboxing_prim : Function_slot.t -> Simple.t -> Value_slot.t -> P.t
+      coq_M **)
 
   let unboxing_prim function_slot closure value_slot =
-    Flambda_primitive.Unary
+    P.Unary
       ( (fun (x__1, x__2) ->
-          (Flambda_primitive.Project_value_slot
-             { project_from = x__1; value_slot = x__2 }
-            : Flambda_primitive.unary_primitive))
+          (P.Project_value_slot { project_from = x__1; value_slot = x__2 }
+            : P.unary_primitive))
           (function_slot, value_slot),
         closure )
 
@@ -408,7 +380,7 @@ module Closure_field = struct
 
   let unboxer function_slot value_slot =
     let poison_const0 =
-      Reg_width_const.const_poison
+      Const.const_poison
         (Value_slot.kind value_slot)
         "variant_unboxing_closure_field"
     in
@@ -420,7 +392,6 @@ module Closure_field = struct
         (fun closure -> unboxing_prim function_slot closure value_slot);
       prove_simple =
         (fun tenv min_name_mode t ->
-          Flambda2_types.meet_project_value_slot_simple tenv min_name_mode t
-            value_slot)
+          T.meet_project_value_slot_simple tenv min_name_mode t value_slot)
     }
 end

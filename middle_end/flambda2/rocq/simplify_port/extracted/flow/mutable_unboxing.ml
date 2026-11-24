@@ -70,9 +70,8 @@ let extra_params_and_args t0 = t0.extra_params_and_args
 
 let rewrites t0 = t0.rewrites
 
-(** val free_names_of_apply_cont_args : Flow_types.Cont_arg.t
-    Numeric_types.Int.Map.t Apply_cont_rewrite_id.Map.t -> Variable.Set.t coq_M
-    **)
+(** val free_names_of_apply_cont_args : T.Cont_arg.t Numeric_types.Int.Map.t
+    Apply_cont_rewrite_id.Map.t -> Variable.Set.t coq_M **)
 
 let free_names_of_apply_cont_args apply_cont_args0 =
   Apply_cont_rewrite_id.Map.fold
@@ -80,14 +79,14 @@ let free_names_of_apply_cont_args apply_cont_args0 =
       Numeric_types.Int.Map.fold
         (fun _ arg free0 ->
           match arg with
-          | Flow_types.Cont_arg.Function_result -> free0
-          | Flow_types.Cont_arg.Simple s -> (
+          | T.Cont_arg.Function_result -> free0
+          | T.Cont_arg.Simple s -> (
             match Simple.must_be_var s with
             | Some p ->
               let var, _ = p in
               Variable.Set.add var free0
             | None -> free0)
-          | Flow_types.Cont_arg.New_let_binding (_, _) -> free0)
+          | T.Cont_arg.New_let_binding (_, _) -> free0)
         args free)
     apply_cont_args0 Variable.Set.empty
 
@@ -122,21 +121,21 @@ let escaping_by_alias dom dom_graph =
       Simple.Set.union escaping0 new_escaping)
     dom_graph.Dominator_graph.graph Simple.Set.empty
 
-(** val names_escaping_from_mutable_prim : bool -> Flow_types.Mutable_prim.t ->
+(** val names_escaping_from_mutable_prim : bool -> T.Mutable_prim.t ->
     Name_occurrences.t coq_M **)
 
 let names_escaping_from_mutable_prim result_required prim0 =
   (fun f__1 f__2 f__3 f__4 f__5 x__0 ->
-    match (x__0 : Flow_types.Mutable_prim.t) with
-    | Flow_types.Mutable_prim.Is_int x__1 -> f__1 x__1
-    | Flow_types.Mutable_prim.Get_tag x__1 -> f__2 x__1
-    | Flow_types.Mutable_prim.Block_load
+    match (x__0 : T.Mutable_prim.t) with
+    | T.Mutable_prim.Is_int x__1 -> f__1 x__1
+    | T.Mutable_prim.Get_tag x__1 -> f__2 x__1
+    | T.Mutable_prim.Block_load
         { bak = x__1; mut = x__2; block = x__3; field = x__4 } ->
       f__3 x__1 x__2 x__3 x__4
-    | Flow_types.Mutable_prim.Block_set
+    | T.Mutable_prim.Block_set
         { bak = x__1; block = x__2; field = x__3; value = x__4 } ->
       f__4 x__1 x__2 x__3 x__4
-    | Flow_types.Mutable_prim.Make_block
+    | T.Mutable_prim.Make_block
         { kind = x__1; mut = x__2; alloc_mode = x__3; fields = x__4 } ->
       f__5 x__1 x__2 x__3 x__4)
     (fun _ -> Name_occurrences.empty)
@@ -160,9 +159,9 @@ let names_used_in_new_let_binding elt =
           Numeric_types.Int.Map.fold
             (fun _ arg vars1 ->
               match arg with
-              | Flow_types.Cont_arg.Function_result -> vars1
-              | Flow_types.Cont_arg.Simple _ -> vars1
-              | Flow_types.Cont_arg.New_let_binding (_, deps) ->
+              | T.Cont_arg.Function_result -> vars1
+              | T.Cont_arg.Simple _ -> vars1
+              | T.Cont_arg.New_let_binding (_, deps) ->
                 Name_occurrences.fold_variables deps vars1 (fun vars2 v ->
                     Variable.Set.add v vars2))
             args vars0)
@@ -299,16 +298,16 @@ let blocks_to_unbox escaping0 source_info required_names0 =
             pat
           in
           (fun f__1 f__2 f__3 f__4 f__5 x__0 ->
-            match (x__0 : Flow_types.Mutable_prim.t) with
-            | Flow_types.Mutable_prim.Is_int x__1 -> f__1 x__1
-            | Flow_types.Mutable_prim.Get_tag x__1 -> f__2 x__1
-            | Flow_types.Mutable_prim.Block_load
+            match (x__0 : T.Mutable_prim.t) with
+            | T.Mutable_prim.Is_int x__1 -> f__1 x__1
+            | T.Mutable_prim.Get_tag x__1 -> f__2 x__1
+            | T.Mutable_prim.Block_load
                 { bak = x__1; mut = x__2; block = x__3; field = x__4 } ->
               f__3 x__1 x__2 x__3 x__4
-            | Flow_types.Mutable_prim.Block_set
+            | T.Mutable_prim.Block_set
                 { bak = x__1; block = x__2; field = x__3; value = x__4 } ->
               f__4 x__1 x__2 x__3 x__4
-            | Flow_types.Mutable_prim.Make_block
+            | T.Mutable_prim.Make_block
                 { kind = x__1; mut = x__2; alloc_mode = x__3; fields = x__4 } ->
               f__5 x__1 x__2 x__3 x__4)
             (fun _ -> map1)
@@ -353,21 +352,20 @@ let blocks_to_unbox escaping0 source_info required_names0 =
     source_info.Flow_types.Acc.map Simple.Map.empty
 
 (** val prims_using_block : block_to_unbox Simple.Map.t ->
-    Dominator_graph.alias_map -> Flow_types.Mutable_prim.t -> Simple.Set.t coq_M
-    **)
+    Dominator_graph.alias_map -> T.Mutable_prim.t -> Simple.Set.t coq_M **)
 
 let prims_using_block blocks_to_unbox0 dom prim0 =
   (fun f__1 f__2 f__3 f__4 f__5 x__0 ->
-    match (x__0 : Flow_types.Mutable_prim.t) with
-    | Flow_types.Mutable_prim.Is_int x__1 -> f__1 x__1
-    | Flow_types.Mutable_prim.Get_tag x__1 -> f__2 x__1
-    | Flow_types.Mutable_prim.Block_load
+    match (x__0 : T.Mutable_prim.t) with
+    | T.Mutable_prim.Is_int x__1 -> f__1 x__1
+    | T.Mutable_prim.Get_tag x__1 -> f__2 x__1
+    | T.Mutable_prim.Block_load
         { bak = x__1; mut = x__2; block = x__3; field = x__4 } ->
       f__3 x__1 x__2 x__3 x__4
-    | Flow_types.Mutable_prim.Block_set
+    | T.Mutable_prim.Block_set
         { bak = x__1; block = x__2; field = x__3; value = x__4 } ->
       f__4 x__1 x__2 x__3 x__4
-    | Flow_types.Mutable_prim.Make_block
+    | T.Mutable_prim.Make_block
         { kind = x__1; mut = x__2; alloc_mode = x__3; fields = x__4 } ->
       f__5 x__1 x__2 x__3 x__4)
     (fun block ->
@@ -577,21 +575,20 @@ module Fold_prims = struct
 
   (** val apply_prim : Target_system.Machine_width.t ->
       Dominator_graph.alias_map -> block_to_unbox Simple.Map.t -> env ->
-      Named_rewrite_id.t -> Variable.t -> Flow_types.Mutable_prim.t -> env coq_M
-      **)
+      Named_rewrite_id.t -> Variable.t -> T.Mutable_prim.t -> env coq_M **)
 
   let apply_prim machine_width dom blocks_to_unbox0 env0 rewrite_id var prim0 =
     (fun f__1 f__2 f__3 f__4 f__5 x__0 ->
-      match (x__0 : Flow_types.Mutable_prim.t) with
-      | Flow_types.Mutable_prim.Is_int x__1 -> f__1 x__1
-      | Flow_types.Mutable_prim.Get_tag x__1 -> f__2 x__1
-      | Flow_types.Mutable_prim.Block_load
+      match (x__0 : T.Mutable_prim.t) with
+      | T.Mutable_prim.Is_int x__1 -> f__1 x__1
+      | T.Mutable_prim.Get_tag x__1 -> f__2 x__1
+      | T.Mutable_prim.Block_load
           { bak = x__1; mut = x__2; block = x__3; field = x__4 } ->
         f__3 x__1 x__2 x__3 x__4
-      | Flow_types.Mutable_prim.Block_set
+      | T.Mutable_prim.Block_set
           { bak = x__1; block = x__2; field = x__3; value = x__4 } ->
         f__4 x__1 x__2 x__3 x__4
-      | Flow_types.Mutable_prim.Make_block
+      | T.Mutable_prim.Make_block
           { kind = x__1; mut = x__2; alloc_mode = x__3; fields = x__4 } ->
         f__5 x__1 x__2 x__3 x__4)
       (fun block ->
@@ -907,8 +904,7 @@ let pp_node t0 ppf cont =
   | Or_null.This live_blocks ->
     Format.fprintf ppf " %a" Simple.Set.print live_blocks
 
-(** val add_to_extra_params_and_args : t -> Continuation_extra_params_and_args.t
-    Continuation.Map.t coq_M **)
+(** val add_to_extra_params_and_args : t -> EPA.t Continuation.Map.t coq_M **)
 
 let add_to_extra_params_and_args result =
   let epa = Continuation.Map.empty in
@@ -942,9 +938,8 @@ let add_to_extra_params_and_args result =
                       List.map2
                         (fun arg previous_extra_args2 ->
                           Apply_cont_rewrite_id.Map.add rewrite_id
-                            (Continuation_extra_params_and_args.Extra_arg
-                             .Already_in_scope
-                               arg) previous_extra_args2)
+                            (EPA.Extra_arg.Already_in_scope arg)
+                            previous_extra_args2)
                         args0 previous_extra_args1)
                     caller_extra_args previous_extra_args0
                 in
@@ -968,15 +963,13 @@ let add_to_extra_params_and_args result =
         Continuation.Map.update cont
           (fun epa_for_cont ->
             let epa_for_cont0 =
-              match epa_for_cont with
-              | Some epa1 -> epa1
-              | None -> Continuation_extra_params_and_args.empty
+              match epa_for_cont with Some epa1 -> epa1 | None -> EPA.empty
             in
             let epa_for_cont1 =
               List.fold_left2
                 (fun epa_for_cont1 extra_param extra_args1 ->
-                  Continuation_extra_params_and_args.add epa_for_cont1
-                    Apply_cont_rewrite_id.Set.empty extra_param extra_args1)
+                  EPA.add epa_for_cont1 Apply_cont_rewrite_id.Set.empty
+                    extra_param extra_args1)
                 epa_for_cont0 extra_params0 extra_args0
             in
             Some epa_for_cont1)

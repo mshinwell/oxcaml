@@ -31,14 +31,14 @@ module UA = Upwards_acc
 module UE = Upwards_env
 module FT = Flambda2_types.Function_type
 
-(** val speculative_inlining : Downwards_acc.t -> Flambda.Import.Apply.t ->
-    Flambda2_types.Function_type.t -> Flambda.Import.Expr.t
-    Simplify_common.expr_simplifier -> Simplified_expr.t Simplify_common.rebuild
-    -> [ `Complex ] Flambda_arity.t -> Cost_metrics.t coq_M **)
+(** val speculative_inlining : DA.t -> Flambda.Import.Apply.t -> FT.t ->
+    Flambda.Import.Expr.t Simplify_common.expr_simplifier -> Simplified_expr.t
+    Simplify_common.rebuild -> [ `Complex ] Flambda_arity.t -> Cost_metrics.t
+    coq_M **)
 
 let speculative_inlining dacc apply function_type simplify_expr rebuild_expr
     return_arity =
-  let dacc0 = Downwards_acc.prepare_for_speculative_inlining dacc in
+  let dacc0 = DA.prepare_for_speculative_inlining dacc in
   let dacc1, expr =
     Inlining_transforms.inline dacc0 apply None false function_type
   in
@@ -47,7 +47,7 @@ let speculative_inlining dacc apply function_type simplify_expr rebuild_expr
       None (Some "speculative_inlining_toplevel_continuation") ()
   in
   let dacc2 =
-    Downwards_acc.with_flow_acc
+    DA.with_flow_acc
       (Flow.Acc.init_toplevel dummy_toplevel_cont Bound_parameters.empty)
       dacc1
   in
@@ -57,10 +57,9 @@ let speculative_inlining dacc apply function_type simplify_expr rebuild_expr
   let _, uacc =
     let exn_continuation = Flambda.Import.Apply.exn_continuation apply in
     let dacc4 =
-      Downwards_acc.map_flow_acc dacc3
-        (Flow.Acc.exit_continuation dummy_toplevel_cont)
+      DA.map_flow_acc dacc3 (Flow.Acc.exit_continuation dummy_toplevel_cont)
     in
-    let data_flow = Downwards_acc.flow_acc dacc4 in
+    let data_flow = DA.flow_acc dacc4 in
     let function_return_cont =
       match Flambda.Import.Apply.continuation apply with
       | Apply_expr.Result_continuation.Return cont -> cont
@@ -73,22 +72,17 @@ let speculative_inlining dacc apply function_type simplify_expr rebuild_expr
         Flow.Analysis.analyze ?speculative:x__1 ?print_name:x__2 x__3 x__4 x__5
           x__6 x__7 x__8 x__9 x__10)
         (Some true) (Some "speculative")
-        (Downwards_env.machine_width (Downwards_acc.denv dacc4))
+        (DE.machine_width (DA.denv dacc4))
         function_return_cont
         (Exn_continuation.exn_handler exn_continuation)
-        Flambda2_types.Code_age_relation.empty Or_unknown.Unknown
-        Code_id.Set.empty
-        (Downwards_acc.specialization_map dacc4)
+        T.Code_age_relation.empty Or_unknown.Unknown Code_id.Set.empty
+        (DA.specialization_map dacc4)
         data_flow
     in
     let uenv =
-      let machine_width =
-        Downwards_env.machine_width (Downwards_acc.denv dacc4)
-      in
-      Upwards_env.add_function_return_or_exn_continuation
-        (Upwards_env.create
-           (Downwards_acc.are_rebuilding_terms dacc4)
-           machine_width)
+      let machine_width = DE.machine_width (DA.denv dacc4) in
+      UE.add_function_return_or_exn_continuation
+        (UE.create (DA.are_rebuilding_terms dacc4) machine_width)
         (Exn_continuation.exn_handler exn_continuation)
         false
         (Flambda_arity.create_singletons
@@ -97,18 +91,18 @@ let speculative_inlining dacc apply function_type simplify_expr rebuild_expr
     let uenv0 =
       match Flambda.Import.Apply.continuation apply with
       | Apply_expr.Result_continuation.Return return_continuation ->
-        Upwards_env.add_function_return_or_exn_continuation uenv
-          return_continuation false
+        UE.add_function_return_or_exn_continuation uenv return_continuation
+          false
           (Flambda_arity.unarize_t return_arity)
       | Apply_expr.Result_continuation.Never_returns -> uenv
     in
-    let uacc = Upwards_acc.create flow_result false uenv0 dacc4 in
+    let uacc = UA.create flow_result false uenv0 dacc4 in
     rebuild_expr expr0 uacc (fun expr1 uacc0 -> expr1, uacc0)
   in
   let cost_metrics_of_lifted_constants =
     if Flambda_features.Inlining.speculative_inlining_track_lifted_constants ()
     then
-      let lifted_constants = Upwards_acc.lifted_constants uacc in
+      let lifted_constants = UA.lifted_constants uacc in
       Lifted_constant_state.fold lifted_constants Cost_metrics.zero
         (fun cost_metrics lifted_constant ->
           List.fold_left
@@ -120,9 +114,7 @@ let speculative_inlining dacc apply function_type simplify_expr rebuild_expr
             (Lifted_constant.definitions lifted_constant))
     else Cost_metrics.zero
   in
-  Cost_metrics.( + )
-    (Upwards_acc.cost_metrics uacc)
-    cost_metrics_of_lifted_constants
+  Cost_metrics.( + ) (UA.cost_metrics uacc) cost_metrics_of_lifted_constants
 
 type argument_types_useful_ =
   | Coarse
@@ -134,7 +126,7 @@ let argument_types_useful__ =
   Oxcaml_args.Extra_options.symbol __LOC__ "argument-types-useful" Coarse
     ["coarse", Coarse; "fine", Fine]
 
-(** val argument_types_useful : Downwards_acc.t -> Flambda.Import.Apply.t ->
+(** val argument_types_useful : DA.t -> Flambda.Import.Apply.t ->
     Code_metadata.t -> bool coq_M **)
 
 let argument_types_useful dacc apply code_metadata =
@@ -144,15 +136,15 @@ let argument_types_useful dacc apply code_metadata =
          ())
   then true
   else
-    let typing_env = Downwards_env.typing_env (Downwards_acc.denv dacc) in
+    let typing_env = DE.typing_env (DA.denv dacc) in
     match argument_types_useful__ () with
     | Coarse ->
       List.exists
         (fun simple ->
           Simple.pattern_match simple
             (fun name _ ->
-              let ty = Flambda2_types.Typing_env.find typing_env name None in
-              not (Flambda2_types.is_unknown_maybe_null typing_env ty))
+              let ty = TE.find typing_env name None in
+              not (T.is_unknown_maybe_null typing_env ty))
             (fun _ -> true))
         (Flambda.Import.Apply.args apply)
     | Fine ->
@@ -160,8 +152,7 @@ let argument_types_useful dacc apply code_metadata =
       List.exists2
         (fun full_kind simple ->
           Simple.pattern_match simple
-            (fun name _ ->
-              Flambda2_types.type_is_useful full_kind typing_env name)
+            (fun name _ -> T.type_is_useful full_kind typing_env name)
             (fun const ->
               match Reg_width_const.is_tagged_immediate const with
               | Some const0 ->
@@ -191,34 +182,31 @@ let inlining_does_decrease_code_size code_metadata cost_metrics =
   let inlined_code_size = Cost_metrics.size cost_metrics in
   not (Code_size.( <= ) original_code_size inlined_code_size)
 
-(** val might_inline : Downwards_acc.t -> Flambda.Import.Apply.t ->
-    Code_metadata.t -> Flambda2_types.Function_type.t -> Flambda.Import.Expr.t
-    Simplify_common.expr_simplifier -> Simplified_expr.t Simplify_common.rebuild
-    -> [ `Complex ] Flambda_arity.t -> Call_site_inlining_decision_type.t coq_M
-    **)
+(** val might_inline : DA.t -> Flambda.Import.Apply.t -> Code_metadata.t -> FT.t
+    -> Flambda.Import.Expr.t Simplify_common.expr_simplifier ->
+    Simplified_expr.t Simplify_common.rebuild -> [ `Complex ] Flambda_arity.t ->
+    Call_site_inlining_decision_type.t coq_M **)
 
 let might_inline dacc apply code_metadata function_type simplify_expr
     rebuild_expr return_arity =
   let code_present =
    fun _ ->
     let code_or_metadata =
-      Downwards_env.find_code_exn (Downwards_acc.denv dacc)
-        (Code_metadata.code_id code_metadata)
+      DE.find_code_exn (DA.denv dacc) (Code_metadata.code_id code_metadata)
     in
     Code_or_metadata.code_present code_or_metadata
   in
-  let denv = Downwards_acc.denv dacc in
-  let disable_inlining = Downwards_env.disable_inlining denv in
+  let denv = DA.denv dacc in
+  let disable_inlining = DE.disable_inlining denv in
   let decision = Code_metadata.inlining_decision code_metadata in
   let is_a_functor = Code_metadata.is_a_functor code_metadata in
   let in_a_stub, doing_speculative_inlining =
     match disable_inlining with
-    | Downwards_env.Disable_inlining.Disable_inlining t0 -> (
+    | DE.Disable_inlining.Disable_inlining t0 -> (
       match t0 with
-      | Downwards_env.Disable_inlining_reason.Stub -> true, false
-      | Downwards_env.Disable_inlining_reason.Speculative_inlining ->
-        false, true)
-    | Downwards_env.Disable_inlining.Do_not_disable_inlining -> false, false
+      | DE.Disable_inlining_reason.Stub -> true, false
+      | DE.Disable_inlining_reason.Speculative_inlining -> false, true)
+    | DE.Disable_inlining.Do_not_disable_inlining -> false, false
   in
   if in_a_stub
   then Call_site_inlining_decision_type.In_a_stub
@@ -477,7 +465,7 @@ let might_inline dacc apply code_metadata function_type simplify_expr
           in
           let inlining_args =
             Inlining_arguments.combine
-              (Downwards_env.inlining_arguments denv)
+              (DE.inlining_arguments denv)
               (Flambda.Import.Apply.inlining_arguments apply)
           in
           let evaluated_to = Cost_metrics.evaluate inlining_args cost_metrics in
@@ -507,11 +495,10 @@ let might_inline dacc apply code_metadata function_type simplify_expr
                 : Call_site_inlining_decision_type.t))
               (cost_metrics, evaluated_to, threshold, is_a_functor))
 
-(** val get_rec_info : Downwards_acc.t -> Flambda2_types.Function_type.t ->
-    Rec_info_expr.t coq_M **)
+(** val get_rec_info : DA.t -> FT.t -> Rec_info_expr.t coq_M **)
 
 let get_rec_info dacc function_type =
-  let rec_info = Flambda2_types.Function_type.rec_info function_type in
+  let rec_info = FT.rec_info function_type in
   (fun f__1 f__2 f__3 x__0 ->
     match (x__0 : _ Flambda2_types.meet_shortcut) with
     | Flambda2_types.Known_result x__1 -> f__1 x__1
@@ -520,16 +507,16 @@ let get_rec_info dacc function_type =
     (fun rec_info0 -> rec_info0)
     (fun _ -> Rec_info_expr.unknown)
     (fun _ -> Rec_info_expr.do_not_inline)
-    (Flambda2_types.meet_rec_info (Downwards_acc.typing_env dacc) rec_info)
+    (Flambda2_types.meet_rec_info (DA.typing_env dacc) rec_info)
 
-(** val make_decision0 : Downwards_acc.t -> Flambda.Import.Expr.t
+(** val make_decision0 : DA.t -> Flambda.Import.Expr.t
     Simplify_common.expr_simplifier -> Simplified_expr.t Simplify_common.rebuild
-    -> Flambda2_types.Function_type.t -> Flambda.Import.Apply.t -> [ `Complex ]
-    Flambda_arity.t -> Call_site_inlining_decision_type.t coq_M **)
+    -> FT.t -> Flambda.Import.Apply.t -> [ `Complex ] Flambda_arity.t ->
+    Call_site_inlining_decision_type.t coq_M **)
 
 let make_decision0 dacc simplify_expr rebuild_expr function_type apply
     return_arity =
-  let must_inline = Downwards_env.must_inline (Downwards_acc.denv dacc) in
+  let must_inline = DE.must_inline (DA.denv dacc) in
   let fail_if_must_inline =
    fun _ ->
     if must_inline
@@ -538,7 +525,7 @@ let make_decision0 dacc simplify_expr rebuild_expr function_type apply
         "Deciding not to inline an [Apply], but the replay_history says we \
          should inline.@ Replay_history: %a"
         Replay_history.print
-        (Downwards_env.replay_history (Downwards_acc.denv dacc))
+        (DE.replay_history (DA.denv dacc))
     else ()
   in
   let do_not_inline =
@@ -552,8 +539,7 @@ let make_decision0 dacc simplify_expr rebuild_expr function_type apply
   | Inlined_attribute.Always_inlined _ ->
     Port_monad.match_exn
       (fun _ ->
-        Downwards_env.find_code_metadata_exn (Downwards_acc.denv dacc)
-          (Flambda2_types.Function_type.code_id function_type))
+        DE.find_code_metadata_exn (DA.denv dacc) (FT.code_id function_type))
       Port_monad.not_found
       (fun _ -> do_not_inline Call_site_inlining_decision_type.Missing_code)
       (fun code_metadata ->
@@ -561,7 +547,7 @@ let make_decision0 dacc simplify_expr rebuild_expr function_type apply
          fun _ ->
           Port_monad.match_exn
             (fun _ ->
-              Downwards_env.find_code_exn (Downwards_acc.denv dacc)
+              DE.find_code_exn (DA.denv dacc)
                 (Code_metadata.code_id code_metadata))
             Port_monad.not_found
             (fun _ ->
@@ -619,8 +605,7 @@ let make_decision0 dacc simplify_expr rebuild_expr function_type apply
             | `Heuristic ->
               let max_rec_depth =
                 Flambda_features.Inlining.max_rec_depth
-                  (Flambda_features.Inlining.Round
-                     (Downwards_env.round (Downwards_acc.denv dacc)))
+                  (Flambda_features.Inlining.Round (DE.round (DA.denv dacc)))
               in
               if
                 Simplify_rec_info_expr.depth_may_exceed dacc rec_info
@@ -632,7 +617,7 @@ let make_decision0 dacc simplify_expr rebuild_expr function_type apply
               then
                 match
                   Replay_history.replay_inlining_decision
-                    (Downwards_env.replay_history (Downwards_acc.denv dacc))
+                    (DE.replay_history (DA.denv dacc))
                 with
                 | Replay_history.Still_recording ->
                   Misc.fatal_errorf
@@ -668,8 +653,7 @@ let make_decision0 dacc simplify_expr rebuild_expr function_type apply
   | Inlined_attribute.Hint_inlined ->
     Port_monad.match_exn
       (fun _ ->
-        Downwards_env.find_code_metadata_exn (Downwards_acc.denv dacc)
-          (Flambda2_types.Function_type.code_id function_type))
+        DE.find_code_metadata_exn (DA.denv dacc) (FT.code_id function_type))
       Port_monad.not_found
       (fun _ -> do_not_inline Call_site_inlining_decision_type.Missing_code)
       (fun code_metadata ->
@@ -677,7 +661,7 @@ let make_decision0 dacc simplify_expr rebuild_expr function_type apply
          fun _ ->
           Port_monad.match_exn
             (fun _ ->
-              Downwards_env.find_code_exn (Downwards_acc.denv dacc)
+              DE.find_code_exn (DA.denv dacc)
                 (Code_metadata.code_id code_metadata))
             Port_monad.not_found
             (fun _ ->
@@ -735,8 +719,7 @@ let make_decision0 dacc simplify_expr rebuild_expr function_type apply
             | `Heuristic ->
               let max_rec_depth =
                 Flambda_features.Inlining.max_rec_depth
-                  (Flambda_features.Inlining.Round
-                     (Downwards_env.round (Downwards_acc.denv dacc)))
+                  (Flambda_features.Inlining.Round (DE.round (DA.denv dacc)))
               in
               if
                 Simplify_rec_info_expr.depth_may_exceed dacc rec_info
@@ -748,7 +731,7 @@ let make_decision0 dacc simplify_expr rebuild_expr function_type apply
               then
                 match
                   Replay_history.replay_inlining_decision
-                    (Downwards_env.replay_history (Downwards_acc.denv dacc))
+                    (DE.replay_history (DA.denv dacc))
                 with
                 | Replay_history.Still_recording ->
                   Misc.fatal_errorf
@@ -790,8 +773,7 @@ let make_decision0 dacc simplify_expr rebuild_expr function_type apply
   | Inlined_attribute.Unroll (_, _) ->
     Port_monad.match_exn
       (fun _ ->
-        Downwards_env.find_code_metadata_exn (Downwards_acc.denv dacc)
-          (Flambda2_types.Function_type.code_id function_type))
+        DE.find_code_metadata_exn (DA.denv dacc) (FT.code_id function_type))
       Port_monad.not_found
       (fun _ -> do_not_inline Call_site_inlining_decision_type.Missing_code)
       (fun code_metadata ->
@@ -799,7 +781,7 @@ let make_decision0 dacc simplify_expr rebuild_expr function_type apply
          fun _ ->
           Port_monad.match_exn
             (fun _ ->
-              Downwards_env.find_code_exn (Downwards_acc.denv dacc)
+              DE.find_code_exn (DA.denv dacc)
                 (Code_metadata.code_id code_metadata))
             Port_monad.not_found
             (fun _ ->
@@ -857,8 +839,7 @@ let make_decision0 dacc simplify_expr rebuild_expr function_type apply
             | `Heuristic ->
               let max_rec_depth =
                 Flambda_features.Inlining.max_rec_depth
-                  (Flambda_features.Inlining.Round
-                     (Downwards_env.round (Downwards_acc.denv dacc)))
+                  (Flambda_features.Inlining.Round (DE.round (DA.denv dacc)))
               in
               if
                 Simplify_rec_info_expr.depth_may_exceed dacc rec_info
@@ -870,7 +851,7 @@ let make_decision0 dacc simplify_expr rebuild_expr function_type apply
               then
                 match
                   Replay_history.replay_inlining_decision
-                    (Downwards_env.replay_history (Downwards_acc.denv dacc))
+                    (DE.replay_history (DA.denv dacc))
                 with
                 | Replay_history.Still_recording ->
                   Misc.fatal_errorf
@@ -906,8 +887,7 @@ let make_decision0 dacc simplify_expr rebuild_expr function_type apply
   | Inlined_attribute.Default_inlined ->
     Port_monad.match_exn
       (fun _ ->
-        Downwards_env.find_code_metadata_exn (Downwards_acc.denv dacc)
-          (Flambda2_types.Function_type.code_id function_type))
+        DE.find_code_metadata_exn (DA.denv dacc) (FT.code_id function_type))
       Port_monad.not_found
       (fun _ -> do_not_inline Call_site_inlining_decision_type.Missing_code)
       (fun code_metadata ->
@@ -915,7 +895,7 @@ let make_decision0 dacc simplify_expr rebuild_expr function_type apply
          fun _ ->
           Port_monad.match_exn
             (fun _ ->
-              Downwards_env.find_code_exn (Downwards_acc.denv dacc)
+              DE.find_code_exn (DA.denv dacc)
                 (Code_metadata.code_id code_metadata))
             Port_monad.not_found
             (fun _ ->
@@ -973,8 +953,7 @@ let make_decision0 dacc simplify_expr rebuild_expr function_type apply
             | `Heuristic ->
               let max_rec_depth =
                 Flambda_features.Inlining.max_rec_depth
-                  (Flambda_features.Inlining.Round
-                     (Downwards_env.round (Downwards_acc.denv dacc)))
+                  (Flambda_features.Inlining.Round (DE.round (DA.denv dacc)))
               in
               if
                 Simplify_rec_info_expr.depth_may_exceed dacc rec_info
@@ -986,7 +965,7 @@ let make_decision0 dacc simplify_expr rebuild_expr function_type apply
               then
                 match
                   Replay_history.replay_inlining_decision
-                    (Downwards_env.replay_history (Downwards_acc.denv dacc))
+                    (DE.replay_history (DA.denv dacc))
                 with
                 | Replay_history.Still_recording ->
                   Misc.fatal_errorf
@@ -1020,10 +999,10 @@ let make_decision0 dacc simplify_expr rebuild_expr function_type apply
               inline_if_code_present
                 Call_site_inlining_decision_type.Attribute_always))
 
-(** val make_decision : Downwards_acc.t -> Flambda.Import.Expr.t
+(** val make_decision : DA.t -> Flambda.Import.Expr.t
     Simplify_common.expr_simplifier -> Simplified_expr.t Simplify_common.rebuild
-    -> Flambda2_types.Function_type.t -> Flambda.Import.Apply.t -> [ `Complex ]
-    Flambda_arity.t -> Call_site_inlining_decision_type.t coq_M **)
+    -> FT.t -> Flambda.Import.Apply.t -> [ `Complex ] Flambda_arity.t ->
+    Call_site_inlining_decision_type.t coq_M **)
 
 let make_decision dacc simplify_expr rebuild_expr function_type apply
     return_arity =

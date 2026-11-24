@@ -125,9 +125,8 @@ let create_normal_non_code cost_metrics0 const =
       : rebuilt_static_const))
     (const0, free_names0, cost_metrics0)
 
-(** val create_code : Are_rebuilding_terms.t ->
-    Rebuilt_expr.Function_params_and_body.t -> Name_occurrences.t -> (t * Code.t
-    option) Code_metadata.create_type **)
+(** val create_code : ART.t -> Rebuilt_expr.Function_params_and_body.t ->
+    Name_occurrences.t -> (t * Code.t option) Code_metadata.create_type **)
 
 let create_code are_rebuilding params_and_body free_names_of_params_and_body
     code_id newer_version_of params_arity param_modes first_complex_local_param
@@ -136,7 +135,7 @@ let create_code are_rebuilding params_and_body free_names_of_params_and_body
     is_opaque recursive cost_metrics0 inlining_arguments dbg is_tupled
     is_my_closure_used inlining_decision absolute_history relative_history
     loopify =
-  if Are_rebuilding_terms.do_not_rebuild_terms are_rebuilding
+  if ART.do_not_rebuild_terms are_rebuilding
   then
     Code_metadata.createk
       (fun code_metadata ->
@@ -196,8 +195,8 @@ let find_code_characteristics find_code_metadata code_id =
     Cost_metrics.function_slot_size = function_slot_size0
   }
 
-(** val create_set_of_closures : Are_rebuilding_terms.t -> (Code_id.t ->
-    Code_metadata.t coq_M) -> Flambda.Set_of_closures.t -> t coq_M **)
+(** val create_set_of_closures : ART.t -> (Code_id.t -> Code_metadata.t coq_M)
+    -> Flambda.Set_of_closures.t -> t coq_M **)
 
 let create_set_of_closures are_rebuilding find_code_metadata set =
   let free_names0 = Flambda.Set_of_closures.free_names set in
@@ -206,7 +205,7 @@ let create_set_of_closures are_rebuilding find_code_metadata set =
       (find_code_characteristics find_code_metadata)
       set
   in
-  if Are_rebuilding_terms.do_not_rebuild_terms are_rebuilding
+  if ART.do_not_rebuild_terms are_rebuilding
   then
     (fun (x__1, x__2) ->
       (Set_of_closures_not_rebuilt { free_names = x__1; cost_metrics = x__2 }
@@ -216,8 +215,7 @@ let create_set_of_closures are_rebuilding find_code_metadata set =
     (fun (x__1, x__2, x__3) ->
       (Normal { const = x__1; free_names = x__2; cost_metrics = x__3 }
         : rebuilt_static_const))
-      ( Flambda.Static_const_or_code.create_static_const
-          (Static_const.set_of_closures set),
+      ( Flambda.Static_const_or_code.create_static_const (SC.set_of_closures set),
         free_names0,
         cost_metrics0 )
 
@@ -231,15 +229,15 @@ let free_names_of_fields fields =
         (Simple.With_debuginfo.free_names field))
     Name_occurrences.empty fields
 
-(** val create_block : Are_rebuilding_terms.t -> Tag.Scannable.t -> Mutability.t
-    -> Flambda_kind.Scannable_block_shape.t -> Simple.With_debuginfo.t list -> t
+(** val create_block : ART.t -> Tag.Scannable.t -> Mutability.t ->
+    Flambda_kind.Scannable_block_shape.t -> Simple.With_debuginfo.t list -> t
     coq_M **)
 
 let create_block are_rebuilding tag is_mutable shape fields =
   let cost_metrics0 =
     Cost_metrics.from_size (Code_size.block (List.length fields))
   in
-  if Are_rebuilding_terms.do_not_rebuild_terms are_rebuilding
+  if ART.do_not_rebuild_terms are_rebuilding
   then
     let free_names0 = free_names_of_fields fields in
     (fun (x__1, x__2) ->
@@ -247,12 +245,10 @@ let create_block are_rebuilding tag is_mutable shape fields =
         : rebuilt_static_const))
       (free_names0, cost_metrics0)
   else
-    create_normal_non_code cost_metrics0
-      (Static_const.block tag is_mutable shape fields)
+    create_normal_non_code cost_metrics0 (SC.block tag is_mutable shape fields)
 
-(** val create_boxed_float32 : Are_rebuilding_terms.t ->
-    Target_system.Machine_width.t -> Numeric_types.Float32_by_bit_pattern.t
-    Or_variable.t -> t coq_M **)
+(** val create_boxed_float32 : ART.t -> Target_system.Machine_width.t ->
+    Numeric_types.Float32_by_bit_pattern.t Or_variable.t -> t coq_M **)
 
 let create_boxed_float32 are_rebuilding machine_width or_var =
   let cost_metrics0 =
@@ -260,17 +256,16 @@ let create_boxed_float32 are_rebuilding machine_width or_var =
       (Code_size.box_number machine_width
          Flambda_kind.Boxable_number.Naked_float32)
   in
-  if Are_rebuilding_terms.do_not_rebuild_terms are_rebuilding
+  if ART.do_not_rebuild_terms are_rebuilding
   then
     (fun (x__1, x__2) ->
       (Block_not_rebuilt { free_names = x__1; cost_metrics = x__2 }
         : rebuilt_static_const))
       (Or_variable.free_names or_var, cost_metrics0)
-  else create_normal_non_code cost_metrics0 (Static_const.boxed_float32 or_var)
+  else create_normal_non_code cost_metrics0 (SC.boxed_float32 or_var)
 
-(** val create_boxed_float : Are_rebuilding_terms.t ->
-    Target_system.Machine_width.t -> Numeric_types.Float_by_bit_pattern.t
-    Or_variable.t -> t coq_M **)
+(** val create_boxed_float : ART.t -> Target_system.Machine_width.t ->
+    Numeric_types.Float_by_bit_pattern.t Or_variable.t -> t coq_M **)
 
 let create_boxed_float are_rebuilding machine_width or_var =
   let cost_metrics0 =
@@ -278,16 +273,16 @@ let create_boxed_float are_rebuilding machine_width or_var =
       (Code_size.box_number machine_width
          Flambda_kind.Boxable_number.Naked_float)
   in
-  if Are_rebuilding_terms.do_not_rebuild_terms are_rebuilding
+  if ART.do_not_rebuild_terms are_rebuilding
   then
     (fun (x__1, x__2) ->
       (Block_not_rebuilt { free_names = x__1; cost_metrics = x__2 }
         : rebuilt_static_const))
       (Or_variable.free_names or_var, cost_metrics0)
-  else create_normal_non_code cost_metrics0 (Static_const.boxed_float or_var)
+  else create_normal_non_code cost_metrics0 (SC.boxed_float or_var)
 
-(** val create_boxed_int32 : Are_rebuilding_terms.t ->
-    Target_system.Machine_width.t -> Int32.t Or_variable.t -> t coq_M **)
+(** val create_boxed_int32 : ART.t -> Target_system.Machine_width.t -> Int32.t
+    Or_variable.t -> t coq_M **)
 
 let create_boxed_int32 are_rebuilding machine_width or_var =
   let cost_metrics0 =
@@ -295,16 +290,16 @@ let create_boxed_int32 are_rebuilding machine_width or_var =
       (Code_size.box_number machine_width
          Flambda_kind.Boxable_number.Naked_int32)
   in
-  if Are_rebuilding_terms.do_not_rebuild_terms are_rebuilding
+  if ART.do_not_rebuild_terms are_rebuilding
   then
     (fun (x__1, x__2) ->
       (Block_not_rebuilt { free_names = x__1; cost_metrics = x__2 }
         : rebuilt_static_const))
       (Or_variable.free_names or_var, cost_metrics0)
-  else create_normal_non_code cost_metrics0 (Static_const.boxed_int32 or_var)
+  else create_normal_non_code cost_metrics0 (SC.boxed_int32 or_var)
 
-(** val create_boxed_int64 : Are_rebuilding_terms.t ->
-    Target_system.Machine_width.t -> Int64.t Or_variable.t -> t coq_M **)
+(** val create_boxed_int64 : ART.t -> Target_system.Machine_width.t -> Int64.t
+    Or_variable.t -> t coq_M **)
 
 let create_boxed_int64 are_rebuilding machine_width or_var =
   let cost_metrics0 =
@@ -312,17 +307,16 @@ let create_boxed_int64 are_rebuilding machine_width or_var =
       (Code_size.box_number machine_width
          Flambda_kind.Boxable_number.Naked_int64)
   in
-  if Are_rebuilding_terms.do_not_rebuild_terms are_rebuilding
+  if ART.do_not_rebuild_terms are_rebuilding
   then
     (fun (x__1, x__2) ->
       (Block_not_rebuilt { free_names = x__1; cost_metrics = x__2 }
         : rebuilt_static_const))
       (Or_variable.free_names or_var, cost_metrics0)
-  else create_normal_non_code cost_metrics0 (Static_const.boxed_int64 or_var)
+  else create_normal_non_code cost_metrics0 (SC.boxed_int64 or_var)
 
-(** val create_boxed_nativeint : Are_rebuilding_terms.t ->
-    Target_system.Machine_width.t -> Targetint_32_64.t Or_variable.t -> t coq_M
-    **)
+(** val create_boxed_nativeint : ART.t -> Target_system.Machine_width.t ->
+    Targetint_32_64.t Or_variable.t -> t coq_M **)
 
 let create_boxed_nativeint are_rebuilding machine_width or_var =
   let cost_metrics0 =
@@ -330,18 +324,16 @@ let create_boxed_nativeint are_rebuilding machine_width or_var =
       (Code_size.box_number machine_width
          Flambda_kind.Boxable_number.Naked_nativeint)
   in
-  if Are_rebuilding_terms.do_not_rebuild_terms are_rebuilding
+  if ART.do_not_rebuild_terms are_rebuilding
   then
     (fun (x__1, x__2) ->
       (Block_not_rebuilt { free_names = x__1; cost_metrics = x__2 }
         : rebuilt_static_const))
       (Or_variable.free_names or_var, cost_metrics0)
-  else
-    create_normal_non_code cost_metrics0 (Static_const.boxed_nativeint or_var)
+  else create_normal_non_code cost_metrics0 (SC.boxed_nativeint or_var)
 
-(** val create_boxed_vec128 : Are_rebuilding_terms.t ->
-    Target_system.Machine_width.t -> Vector_types.Vec128.Bit_pattern.t
-    Or_variable.t -> t coq_M **)
+(** val create_boxed_vec128 : ART.t -> Target_system.Machine_width.t ->
+    Vector_types.Vec128.Bit_pattern.t Or_variable.t -> t coq_M **)
 
 let create_boxed_vec128 are_rebuilding machine_width or_var =
   let cost_metrics0 =
@@ -349,17 +341,16 @@ let create_boxed_vec128 are_rebuilding machine_width or_var =
       (Code_size.box_number machine_width
          Flambda_kind.Boxable_number.Naked_vec128)
   in
-  if Are_rebuilding_terms.do_not_rebuild_terms are_rebuilding
+  if ART.do_not_rebuild_terms are_rebuilding
   then
     (fun (x__1, x__2) ->
       (Block_not_rebuilt { free_names = x__1; cost_metrics = x__2 }
         : rebuilt_static_const))
       (Or_variable.free_names or_var, cost_metrics0)
-  else create_normal_non_code cost_metrics0 (Static_const.boxed_vec128 or_var)
+  else create_normal_non_code cost_metrics0 (SC.boxed_vec128 or_var)
 
-(** val create_boxed_vec256 : Are_rebuilding_terms.t ->
-    Target_system.Machine_width.t -> Vector_types.Vec256.Bit_pattern.t
-    Or_variable.t -> t coq_M **)
+(** val create_boxed_vec256 : ART.t -> Target_system.Machine_width.t ->
+    Vector_types.Vec256.Bit_pattern.t Or_variable.t -> t coq_M **)
 
 let create_boxed_vec256 are_rebuilding machine_width or_var =
   let cost_metrics0 =
@@ -367,17 +358,16 @@ let create_boxed_vec256 are_rebuilding machine_width or_var =
       (Code_size.box_number machine_width
          Flambda_kind.Boxable_number.Naked_vec256)
   in
-  if Are_rebuilding_terms.do_not_rebuild_terms are_rebuilding
+  if ART.do_not_rebuild_terms are_rebuilding
   then
     (fun (x__1, x__2) ->
       (Block_not_rebuilt { free_names = x__1; cost_metrics = x__2 }
         : rebuilt_static_const))
       (Or_variable.free_names or_var, cost_metrics0)
-  else create_normal_non_code cost_metrics0 (Static_const.boxed_vec256 or_var)
+  else create_normal_non_code cost_metrics0 (SC.boxed_vec256 or_var)
 
-(** val create_boxed_vec512 : Are_rebuilding_terms.t ->
-    Target_system.Machine_width.t -> Vector_types.Vec512.Bit_pattern.t
-    Or_variable.t -> t coq_M **)
+(** val create_boxed_vec512 : ART.t -> Target_system.Machine_width.t ->
+    Vector_types.Vec512.Bit_pattern.t Or_variable.t -> t coq_M **)
 
 let create_boxed_vec512 are_rebuilding machine_width or_var =
   let cost_metrics0 =
@@ -385,39 +375,38 @@ let create_boxed_vec512 are_rebuilding machine_width or_var =
       (Code_size.box_number machine_width
          Flambda_kind.Boxable_number.Naked_vec512)
   in
-  if Are_rebuilding_terms.do_not_rebuild_terms are_rebuilding
+  if ART.do_not_rebuild_terms are_rebuilding
   then
     (fun (x__1, x__2) ->
       (Block_not_rebuilt { free_names = x__1; cost_metrics = x__2 }
         : rebuilt_static_const))
       (Or_variable.free_names or_var, cost_metrics0)
-  else create_normal_non_code cost_metrics0 (Static_const.boxed_vec512 or_var)
+  else create_normal_non_code cost_metrics0 (SC.boxed_vec512 or_var)
 
-(** val create_boxed_mask : Are_rebuilding_terms.t ->
-    Target_system.Machine_width.t -> Vector_types.Mask.Bit_pattern.t
-    Or_variable.t -> t coq_M **)
+(** val create_boxed_mask : ART.t -> Target_system.Machine_width.t ->
+    Vector_types.Mask.Bit_pattern.t Or_variable.t -> t coq_M **)
 
 let create_boxed_mask are_rebuilding machine_width or_var =
   let cost_metrics0 =
     Cost_metrics.from_size
       (Code_size.box_number machine_width Flambda_kind.Boxable_number.Naked_mask)
   in
-  if Are_rebuilding_terms.do_not_rebuild_terms are_rebuilding
+  if ART.do_not_rebuild_terms are_rebuilding
   then
     (fun (x__1, x__2) ->
       (Block_not_rebuilt { free_names = x__1; cost_metrics = x__2 }
         : rebuilt_static_const))
       (Or_variable.free_names or_var, cost_metrics0)
-  else create_normal_non_code cost_metrics0 (Static_const.boxed_mask or_var)
+  else create_normal_non_code cost_metrics0 (SC.boxed_mask or_var)
 
-(** val create_immutable_float_block : Are_rebuilding_terms.t ->
+(** val create_immutable_float_block : ART.t ->
     Numeric_types.Float_by_bit_pattern.t Or_variable.t list -> t coq_M **)
 
 let create_immutable_float_block are_rebuilding fields =
   let cost_metrics0 =
     Cost_metrics.from_size (Code_size.array (List.length fields))
   in
-  if Are_rebuilding_terms.do_not_rebuild_terms are_rebuilding
+  if ART.do_not_rebuild_terms are_rebuilding
   then
     let free_names0 =
       ListLabels.fold_left
@@ -429,19 +418,16 @@ let create_immutable_float_block are_rebuilding fields =
       (Block_not_rebuilt { free_names = x__1; cost_metrics = x__2 }
         : rebuilt_static_const))
       (free_names0, cost_metrics0)
-  else
-    create_normal_non_code cost_metrics0
-      (Static_const.immutable_float_block fields)
+  else create_normal_non_code cost_metrics0 (SC.immutable_float_block fields)
 
-(** val create_immutable_naked_number_array : ('a1 Or_variable.t list ->
-    Static_const.t coq_M) -> Are_rebuilding_terms.t -> 'a1 Or_variable.t list ->
-    t coq_M **)
+(** val create_immutable_naked_number_array : ('a1 Or_variable.t list -> SC.t
+    coq_M) -> ART.t -> 'a1 Or_variable.t list -> t coq_M **)
 
 let create_immutable_naked_number_array builder are_rebuilding fields =
   let cost_metrics0 =
     Cost_metrics.from_size (Code_size.array (List.length fields))
   in
-  if Are_rebuilding_terms.do_not_rebuild_terms are_rebuilding
+  if ART.do_not_rebuild_terms are_rebuilding
   then
     let free_names0 =
       ListLabels.fold_left
@@ -455,123 +441,119 @@ let create_immutable_naked_number_array builder are_rebuilding fields =
       (free_names0, cost_metrics0)
   else create_normal_non_code cost_metrics0 (builder fields)
 
-(** val create_immutable_float_array : Are_rebuilding_terms.t ->
+(** val create_immutable_float_array : ART.t ->
     Numeric_types.Float_by_bit_pattern.t Or_variable.t list -> t coq_M **)
 
 let create_immutable_float_array =
-  create_immutable_naked_number_array Static_const.immutable_float_array
+  create_immutable_naked_number_array SC.immutable_float_array
 
-(** val create_immutable_float32_array : Are_rebuilding_terms.t ->
+(** val create_immutable_float32_array : ART.t ->
     Numeric_types.Float32_by_bit_pattern.t Or_variable.t list -> t coq_M **)
 
 let create_immutable_float32_array =
-  create_immutable_naked_number_array Static_const.immutable_float32_array
+  create_immutable_naked_number_array SC.immutable_float32_array
 
-(** val create_immutable_int_array : Are_rebuilding_terms.t ->
-    Target_ocaml_int.t Or_variable.t list -> t coq_M **)
+(** val create_immutable_int_array : ART.t -> Target_ocaml_int.t Or_variable.t
+    list -> t coq_M **)
 
 let create_immutable_int_array =
-  create_immutable_naked_number_array Static_const.immutable_int_array
+  create_immutable_naked_number_array SC.immutable_int_array
 
-(** val create_immutable_int8_array : Are_rebuilding_terms.t ->
-    Numeric_types.Int8.t Or_variable.t list -> t coq_M **)
+(** val create_immutable_int8_array : ART.t -> Numeric_types.Int8.t
+    Or_variable.t list -> t coq_M **)
 
 let create_immutable_int8_array =
-  create_immutable_naked_number_array Static_const.immutable_int8_array
+  create_immutable_naked_number_array SC.immutable_int8_array
 
-(** val create_immutable_int16_array : Are_rebuilding_terms.t ->
-    Numeric_types.Int16.t Or_variable.t list -> t coq_M **)
+(** val create_immutable_int16_array : ART.t -> Numeric_types.Int16.t
+    Or_variable.t list -> t coq_M **)
 
 let create_immutable_int16_array =
-  create_immutable_naked_number_array Static_const.immutable_int16_array
+  create_immutable_naked_number_array SC.immutable_int16_array
 
-(** val create_immutable_int32_array : Are_rebuilding_terms.t -> Int32.t
-    Or_variable.t list -> t coq_M **)
+(** val create_immutable_int32_array : ART.t -> Int32.t Or_variable.t list -> t
+    coq_M **)
 
 let create_immutable_int32_array =
-  create_immutable_naked_number_array Static_const.immutable_int32_array
+  create_immutable_naked_number_array SC.immutable_int32_array
 
-(** val create_immutable_int64_array : Are_rebuilding_terms.t -> Int64.t
-    Or_variable.t list -> t coq_M **)
+(** val create_immutable_int64_array : ART.t -> Int64.t Or_variable.t list -> t
+    coq_M **)
 
 let create_immutable_int64_array =
-  create_immutable_naked_number_array Static_const.immutable_int64_array
+  create_immutable_naked_number_array SC.immutable_int64_array
 
-(** val create_immutable_nativeint_array : Are_rebuilding_terms.t ->
-    Targetint_32_64.t Or_variable.t list -> t coq_M **)
+(** val create_immutable_nativeint_array : ART.t -> Targetint_32_64.t
+    Or_variable.t list -> t coq_M **)
 
 let create_immutable_nativeint_array =
-  create_immutable_naked_number_array Static_const.immutable_nativeint_array
+  create_immutable_naked_number_array SC.immutable_nativeint_array
 
-(** val create_immutable_vec128_array : Are_rebuilding_terms.t ->
+(** val create_immutable_vec128_array : ART.t ->
     Vector_types.Vec128.Bit_pattern.t Or_variable.t list -> t coq_M **)
 
 let create_immutable_vec128_array =
-  create_immutable_naked_number_array Static_const.immutable_vec128_array
+  create_immutable_naked_number_array SC.immutable_vec128_array
 
-(** val create_immutable_vec256_array : Are_rebuilding_terms.t ->
+(** val create_immutable_vec256_array : ART.t ->
     Vector_types.Vec256.Bit_pattern.t Or_variable.t list -> t coq_M **)
 
 let create_immutable_vec256_array =
-  create_immutable_naked_number_array Static_const.immutable_vec256_array
+  create_immutable_naked_number_array SC.immutable_vec256_array
 
-(** val create_immutable_vec512_array : Are_rebuilding_terms.t ->
+(** val create_immutable_vec512_array : ART.t ->
     Vector_types.Vec512.Bit_pattern.t Or_variable.t list -> t coq_M **)
 
 let create_immutable_vec512_array =
-  create_immutable_naked_number_array Static_const.immutable_vec512_array
+  create_immutable_naked_number_array SC.immutable_vec512_array
 
-(** val create_immutable_mask_array : Are_rebuilding_terms.t ->
-    Vector_types.Mask.Bit_pattern.t Or_variable.t list -> t coq_M **)
+(** val create_immutable_mask_array : ART.t -> Vector_types.Mask.Bit_pattern.t
+    Or_variable.t list -> t coq_M **)
 
 let create_immutable_mask_array =
-  create_immutable_naked_number_array Static_const.immutable_mask_array
+  create_immutable_naked_number_array SC.immutable_mask_array
 
-(** val create_immutable_value_array : Are_rebuilding_terms.t ->
-    Simple.With_debuginfo.t list -> t coq_M **)
+(** val create_immutable_value_array : ART.t -> Simple.With_debuginfo.t list ->
+    t coq_M **)
 
 let create_immutable_value_array are_rebuilding fields =
   let cost_metrics0 =
     Cost_metrics.from_size (Code_size.array (List.length fields))
   in
-  if Are_rebuilding_terms.do_not_rebuild_terms are_rebuilding
+  if ART.do_not_rebuild_terms are_rebuilding
   then
     let free_names0 = free_names_of_fields fields in
     (fun (x__1, x__2) ->
       (Block_not_rebuilt { free_names = x__1; cost_metrics = x__2 }
         : rebuilt_static_const))
       (free_names0, cost_metrics0)
-  else
-    create_normal_non_code cost_metrics0
-      (Static_const.immutable_value_array fields)
+  else create_normal_non_code cost_metrics0 (SC.immutable_value_array fields)
 
-(** val create_empty_array : Are_rebuilding_terms.t -> Empty_array_kind.t -> t
-    coq_M **)
+(** val create_empty_array : ART.t -> Empty_array_kind.t -> t coq_M **)
 
 let create_empty_array are_rebuilding array_kind =
   let cost_metrics0 = Cost_metrics.from_size (Code_size.array 0) in
-  if Are_rebuilding_terms.do_not_rebuild_terms are_rebuilding
+  if ART.do_not_rebuild_terms are_rebuilding
   then
     (fun (x__1, x__2) ->
       (Block_not_rebuilt { free_names = x__1; cost_metrics = x__2 }
         : rebuilt_static_const))
       (Name_occurrences.empty, cost_metrics0)
-  else
-    create_normal_non_code cost_metrics0 (Static_const.empty_array array_kind)
+  else create_normal_non_code cost_metrics0 (SC.empty_array array_kind)
 
-(** val create_immutable_string : Are_rebuilding_terms.t -> string -> t coq_M **)
+(** val create_immutable_string : ART.t -> string -> t coq_M **)
 
 let create_immutable_string are_rebuilding str =
   let cost_metrics0 =
     Cost_metrics.from_size (Code_size.of_int (String.length str))
   in
-  if Are_rebuilding_terms.do_not_rebuild_terms are_rebuilding
+  if ART.do_not_rebuild_terms are_rebuilding
   then
     (fun (x__1, x__2) ->
       (Block_not_rebuilt { free_names = x__1; cost_metrics = x__2 }
         : rebuilt_static_const))
       (Name_occurrences.empty, cost_metrics0)
-  else create_normal_non_code cost_metrics0 (Static_const.immutable_string str)
+  else create_normal_non_code cost_metrics0 (SC.immutable_string str)
 
 (** val map_set_of_closures : t -> (Code_id.t -> Code_metadata.t coq_M) ->
     (Flambda.Set_of_closures.t -> Flambda.Set_of_closures.t coq_M) -> t coq_M **)
@@ -604,7 +586,7 @@ let map_set_of_closures t0 find_code_metadata f =
           in
           let const1 =
             Flambda.Static_const_or_code.create_static_const
-              (Static_const.set_of_closures set_of_closures0)
+              (SC.set_of_closures set_of_closures0)
           in
           (fun (x__1, x__2, x__3) ->
             (Normal { const = x__1; free_names = x__2; cost_metrics = x__3 }

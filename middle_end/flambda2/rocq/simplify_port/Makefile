@@ -134,20 +134,25 @@ $(B)/id/%.vo: $(B)/id/%.v
 # used once (the temporaries of [let!]); every other optimisation of the
 # extraction is off, and so is its automatic inlining. KeepSingleton: a
 # record of one field stays a record (the payload of [Invalid { message }]).
+# Before the extraction, tools/aliases.py gives the directives by which a
+# name that the file reaches through an abbreviation of a module is printed
+# with that abbreviation (GUIDE.md, section 7).
 # When the declarations of the file's own module (decl/Foo.v) are loaded
 # too, through what the file requires, Rocq names its output Foo0.ml: the
 # rule gives it the name Foo.ml.
-$(B)/id/out/%.ml: $(B)/id/%.vo Makefile
+$(B)/id/out/%.ml: $(B)/id/%.vo Makefile tools/aliases.py
 	@mkdir -p $(dir $@) $(dir $(B)/id/extract/$*)
 	@rm -f $@ $(B)/id/out/$*0.ml
 	@printf '%s\n' \
 	  'From SimplifyPort Require Import Port_monad.' \
-	  'Require SimplifyPort.$(subst /,.,$*).' \
+	  'Require SimplifyPort.$(subst /,.,$*).' > $(B)/id/extract/$*_extract.v
+	@$(PYTHON) tools/aliases.py $*.v decl >> $(B)/id/extract/$*_extract.v
+	@printf '%s\n' \
 	  'Set Extraction Output Directory "out/$(patsubst %/,%,$(call reldir,$*))".' \
 	  'Set Extraction Flag 513.' \
 	  'Unset Extraction AutoInline.' \
 	  'Set Extraction KeepSingleton.' \
-	  'Extraction Library $(notdir $*).' > $(B)/id/extract/$*_extract.v
+	  'Extraction Library $(notdir $*).' >> $(B)/id/extract/$*_extract.v
 	cd $(B)/id && $(ROCQ) compile -q -Q . SimplifyPort -w -extraction extract/$*_extract.v
 	@[ -e $@ ] || mv $(B)/id/out/$*0.ml $@
 

@@ -28,7 +28,7 @@ module Float = Numeric_types.Float_by_bit_pattern
 module Int32 = Numeric_types.Int32
 module Int64 = Numeric_types.Int64
 
-(** val get_my_alloc_region : Downwards_acc.t -> Variable.t coq_M **)
+(** val get_my_alloc_region : DA.t -> Variable.t coq_M **)
 
 let get_my_alloc_region dacc =
   (fun f__1 f__2 f__3 x__0 ->
@@ -44,31 +44,29 @@ let get_my_alloc_region dacc =
           my_alloc_region = x__5
         } ->
       f__3 x__1 x__2 x__3 x__4 x__5)
-    (fun _ ->
-      Downwards_env.unit_toplevel_alloc_region (Downwards_acc.denv dacc))
+    (fun _ -> DE.unit_toplevel_alloc_region (DA.denv dacc))
     (fun _ ->
       Misc.fatal_error
         "Inconsistent closure_info in [simplify_immutable_block_load0]")
     (fun _ _ _ _ my_alloc_region -> my_alloc_region)
-    (Downwards_env.closure_info (Downwards_acc.denv dacc))
+    (DE.closure_info (DA.denv dacc))
 
 (** val simplify_project_function_slot : Function_slot.t -> Function_slot.t ->
-    Name_mode.t -> Downwards_acc.t -> Flambda.Named.t -> Simple.t ->
-    Flambda2_types.t -> Bound_var.t -> Simplify_primitive_result.t coq_M **)
+    Name_mode.t -> DA.t -> Named.t -> Simple.t -> T.t -> Bound_var.t -> SPR.t
+    coq_M **)
 
 let simplify_project_function_slot move_from move_to min_name_mode dacc
     original_term closure closure_ty result_var =
   (fun f__1 f__2 f__3 x__0 ->
-    match (x__0 : _ Flambda2_types.meet_shortcut) with
-    | Flambda2_types.Known_result x__1 -> f__1 x__1
-    | Flambda2_types.Need_meet -> f__2 ()
-    | Flambda2_types.Invalid -> f__3 ())
+    match (x__0 : _ T.meet_shortcut) with
+    | T.Known_result x__1 -> f__1 x__1
+    | T.Need_meet -> f__2 ()
+    | T.Invalid -> f__3 ())
     (fun simple ->
-      Simplify_primitive_result.create
-        (Flambda.Named.create_simple simple)
+      SPR.create
+        (Named.create_simple simple)
         true
-        (Downwards_acc.add_variable dacc result_var
-           (Flambda2_types.alias_type_of Flambda_kind.value simple)))
+        (DA.add_variable dacc result_var (T.alias_type_of K.value simple)))
     (fun _ ->
       let closures =
         Function_slot.Map.add move_to
@@ -76,131 +74,111 @@ let simplify_project_function_slot move_from move_to min_name_mode dacc
           (Function_slot.Map.add move_from closure Function_slot.Map.empty)
       in
       Simplify_common.simplify_projection dacc original_term closure_ty
-        (Flambda2_types.closure_with_at_least_these_function_slots move_from
-           closures)
-        result_var Flambda_kind.value)
-    (fun _ -> Simplify_primitive_result.create_invalid dacc)
-    (Flambda2_types.meet_project_function_slot_simple
-       (Downwards_acc.typing_env dacc)
-       min_name_mode closure_ty move_to)
+        (T.closure_with_at_least_these_function_slots move_from closures)
+        result_var K.value)
+    (fun _ -> SPR.create_invalid dacc)
+    (T.meet_project_function_slot_simple (DA.typing_env dacc) min_name_mode
+       closure_ty move_to)
 
 (** val simplify_project_value_slot : Function_slot.t -> Value_slot.t ->
-    Name_mode.t -> Downwards_acc.t -> Flambda.Named.t -> Simple.t ->
-    Flambda2_types.t -> Bound_var.t -> Simplify_primitive_result.t coq_M **)
+    Name_mode.t -> DA.t -> Named.t -> Simple.t -> T.t -> Bound_var.t -> SPR.t
+    coq_M **)
 
 let simplify_project_value_slot function_slot value_slot min_name_mode dacc
     original_term closure closure_ty result_var =
   let kind = Value_slot.kind value_slot in
   let result =
     (fun f__1 f__2 f__3 x__0 ->
-      match (x__0 : _ Flambda2_types.meet_shortcut) with
-      | Flambda2_types.Known_result x__1 -> f__1 x__1
-      | Flambda2_types.Need_meet -> f__2 ()
-      | Flambda2_types.Invalid -> f__3 ())
+      match (x__0 : _ T.meet_shortcut) with
+      | T.Known_result x__1 -> f__1 x__1
+      | T.Need_meet -> f__2 ()
+      | T.Invalid -> f__3 ())
       (fun simple ->
         let simple0 =
           if Coercion.is_id (Simple.coercion simple)
           then simple
           else
-            let _, simple0 =
-              Simplify_simple.simplify_simple dacc simple min_name_mode
-            in
+            let _, simple0 = S.simplify_simple dacc simple min_name_mode in
             simple0
         in
         let dacc0 =
-          Downwards_acc.add_variable dacc result_var
-            (Flambda2_types.alias_type_of kind simple0)
+          DA.add_variable dacc result_var (T.alias_type_of kind simple0)
         in
-        Simplify_primitive_result.create
-          (Flambda.Named.create_simple simple0)
-          true dacc0)
+        SPR.create (Named.create_simple simple0) true dacc0)
       (fun _ ->
         let result =
           Simplify_common.simplify_projection dacc original_term closure_ty
-            (Flambda2_types.closure_with_at_least_this_value_slot function_slot
-               value_slot (Bound_var.var result_var) kind)
+            (T.closure_with_at_least_this_value_slot function_slot value_slot
+               (Bound_var.var result_var) kind)
             result_var kind
         in
-        Simplify_primitive_result.map_dacc result (fun dacc0 ->
-            Downwards_acc.add_use_of_value_slot dacc0 value_slot))
-      (fun _ -> Simplify_primitive_result.create_invalid dacc)
-      (Flambda2_types.meet_project_value_slot_simple
-         (Downwards_acc.typing_env dacc)
-         min_name_mode closure_ty value_slot)
+        SPR.map_dacc result (fun dacc0 ->
+            DA.add_use_of_value_slot dacc0 value_slot))
+      (fun _ -> SPR.create_invalid dacc)
+      (T.meet_project_value_slot_simple (DA.typing_env dacc) min_name_mode
+         closure_ty value_slot)
   in
-  Simplify_primitive_result.map_dacc result (fun dacc0 ->
+  SPR.map_dacc result (fun dacc0 ->
       Simplify_common.add_symbol_projection dacc0 closure
         (Symbol_projection.Projection.project_value_slot function_slot
            value_slot)
         result_var
         (Flambda_kind.With_subkind.anything kind))
 
-(** val simplify_unbox_number : Flambda_kind.Boxable_number.t -> Downwards_acc.t
-    -> Flambda.Named.t -> Simple.t -> Flambda2_types.t -> Bound_var.t ->
-    Simplify_primitive_result.t coq_M **)
+(** val simplify_unbox_number : K.Boxable_number.t -> DA.t -> Named.t ->
+    Simple.t -> T.t -> Bound_var.t -> SPR.t coq_M **)
 
 let simplify_unbox_number boxable_number_kind dacc original_term arg
     boxed_number_ty result_var =
   let result_var' = Bound_var.var result_var in
   let shape, result_kind =
     match boxable_number_kind with
-    | Flambda_kind.Boxable_number.Naked_float32 ->
-      ( Flambda2_types.boxed_float32_alias_to result_var'
-          (Alloc_mode.For_types.unknown ()),
-        Flambda_kind.naked_float32 )
-    | Flambda_kind.Boxable_number.Naked_float ->
-      ( Flambda2_types.boxed_float_alias_to result_var'
-          (Alloc_mode.For_types.unknown ()),
-        Flambda_kind.naked_float )
-    | Flambda_kind.Boxable_number.Naked_int32 ->
-      ( Flambda2_types.boxed_int32_alias_to result_var'
-          (Alloc_mode.For_types.unknown ()),
-        Flambda_kind.naked_int32 )
-    | Flambda_kind.Boxable_number.Naked_int64 ->
-      ( Flambda2_types.boxed_int64_alias_to result_var'
-          (Alloc_mode.For_types.unknown ()),
-        Flambda_kind.naked_int64 )
-    | Flambda_kind.Boxable_number.Naked_nativeint ->
-      ( Flambda2_types.boxed_nativeint_alias_to result_var'
-          (Alloc_mode.For_types.unknown ()),
-        Flambda_kind.naked_nativeint )
-    | Flambda_kind.Boxable_number.Naked_vec128 ->
-      ( Flambda2_types.boxed_vec128_alias_to result_var'
-          (Alloc_mode.For_types.unknown ()),
-        Flambda_kind.naked_vec128 )
-    | Flambda_kind.Boxable_number.Naked_vec256 ->
-      ( Flambda2_types.boxed_vec256_alias_to result_var'
-          (Alloc_mode.For_types.unknown ()),
-        Flambda_kind.naked_vec256 )
-    | Flambda_kind.Boxable_number.Naked_vec512 ->
-      ( Flambda2_types.boxed_vec512_alias_to result_var'
-          (Alloc_mode.For_types.unknown ()),
-        Flambda_kind.naked_vec512 )
-    | Flambda_kind.Boxable_number.Naked_mask ->
-      ( Flambda2_types.boxed_mask_alias_to result_var'
-          (Alloc_mode.For_types.unknown ()),
-        Flambda_kind.naked_mask )
+    | K.Boxable_number.Naked_float32 ->
+      ( T.boxed_float32_alias_to result_var' (Alloc_mode.For_types.unknown ()),
+        K.naked_float32 )
+    | K.Boxable_number.Naked_float ->
+      ( T.boxed_float_alias_to result_var' (Alloc_mode.For_types.unknown ()),
+        K.naked_float )
+    | K.Boxable_number.Naked_int32 ->
+      ( T.boxed_int32_alias_to result_var' (Alloc_mode.For_types.unknown ()),
+        K.naked_int32 )
+    | K.Boxable_number.Naked_int64 ->
+      ( T.boxed_int64_alias_to result_var' (Alloc_mode.For_types.unknown ()),
+        K.naked_int64 )
+    | K.Boxable_number.Naked_nativeint ->
+      ( T.boxed_nativeint_alias_to result_var' (Alloc_mode.For_types.unknown ()),
+        K.naked_nativeint )
+    | K.Boxable_number.Naked_vec128 ->
+      ( T.boxed_vec128_alias_to result_var' (Alloc_mode.For_types.unknown ()),
+        K.naked_vec128 )
+    | K.Boxable_number.Naked_vec256 ->
+      ( T.boxed_vec256_alias_to result_var' (Alloc_mode.For_types.unknown ()),
+        K.naked_vec256 )
+    | K.Boxable_number.Naked_vec512 ->
+      ( T.boxed_vec512_alias_to result_var' (Alloc_mode.For_types.unknown ()),
+        K.naked_vec512 )
+    | K.Boxable_number.Naked_mask ->
+      ( T.boxed_mask_alias_to result_var' (Alloc_mode.For_types.unknown ()),
+        K.naked_mask )
   in
   let alloc_mode =
-    Flambda2_types.prove_alloc_mode_of_boxed_number
-      (Downwards_acc.typing_env dacc)
-      boxed_number_ty
+    T.prove_alloc_mode_of_boxed_number (DA.typing_env dacc) boxed_number_ty
   in
   let result =
     Simplify_common.simplify_projection dacc original_term boxed_number_ty shape
       result_var result_kind
   in
-  Simplify_primitive_result.map_dacc result (fun dacc0 ->
+  SPR.map_dacc result (fun dacc0 ->
       match alloc_mode with
-      | Flambda2_types.Proved t0 -> (
+      | T.Proved t0 -> (
         match t0 with
         | Alloc_mode.For_types.Heap ->
           let alloc_region = get_my_alloc_region dacc0 in
-          Downwards_acc.map_denv dacc0 (fun denv ->
-              Downwards_env.add_cse denv
-                (Flambda_primitive.Eligible_for_cse.create_exn
-                   (Flambda_primitive.Unary
-                      ( Flambda_primitive.Box_number
+          DA.map_denv dacc0 (fun denv ->
+              DE.add_cse denv
+                (P.Eligible_for_cse.create_exn
+                   (P.Unary
+                      ( P.Box_number
                           ( boxable_number_kind,
                             Alloc_mode.For_allocations.heap alloc_region ),
                         Simple.var result_var' )))
@@ -208,161 +186,131 @@ let simplify_unbox_number boxable_number_kind dacc original_term arg
                 (Bound_var.name_mode result_var))
         | Alloc_mode.For_types.Local -> dacc0
         | Alloc_mode.For_types.Heap_or_local -> dacc0)
-      | Flambda2_types.Unknown -> dacc0)
+      | T.Unknown -> dacc0)
 
-(** val simplify_untag_immediate : Downwards_acc.t -> Flambda.Named.t ->
-    Simple.t -> Flambda2_types.t -> Bound_var.t -> Simplify_primitive_result.t
-    coq_M **)
+(** val simplify_untag_immediate : DA.t -> Named.t -> Simple.t -> T.t ->
+    Bound_var.t -> SPR.t coq_M **)
 
 let simplify_untag_immediate dacc original_term arg boxed_number_ty result_var =
   let result_var' = Bound_var.var result_var in
   let shape, result_kind =
-    ( Flambda2_types.tagged_immediate_alias_to result_var',
-      Flambda_kind.naked_immediate )
+    T.tagged_immediate_alias_to result_var', K.naked_immediate
   in
   let result =
     Simplify_common.simplify_projection dacc original_term boxed_number_ty shape
       result_var result_kind
   in
-  Simplify_primitive_result.map_dacc result (fun dacc0 ->
-      Downwards_acc.map_denv dacc0 (fun denv ->
-          Downwards_env.add_cse denv
-            (Flambda_primitive.Eligible_for_cse.create_exn
-               (Flambda_primitive.Unary
-                  (Flambda_primitive.Tag_immediate, Simple.var result_var')))
+  SPR.map_dacc result (fun dacc0 ->
+      DA.map_denv dacc0 (fun denv ->
+          DE.add_cse denv
+            (P.Eligible_for_cse.create_exn
+               (P.Unary (P.Tag_immediate, Simple.var result_var')))
             arg
             (Bound_var.name_mode result_var)))
 
-(** val simplify_box_number : Flambda_kind.Boxable_number.t ->
-    Alloc_mode.For_allocations.t -> Downwards_acc.t -> Flambda.Named.t ->
-    Simple.t -> Flambda2_types.t -> Bound_var.t -> Simplify_primitive_result.t
-    coq_M **)
+(** val simplify_box_number : K.Boxable_number.t -> Alloc_mode.For_allocations.t
+    -> DA.t -> Named.t -> Simple.t -> T.t -> Bound_var.t -> SPR.t coq_M **)
 
 let simplify_box_number boxable_number_kind alloc_mode dacc original_term _
     naked_number_ty result_var =
   let ty =
     let alloc_mode0 = Alloc_mode.For_allocations.as_type alloc_mode in
     match boxable_number_kind with
-    | Flambda_kind.Boxable_number.Naked_float32 ->
-      Flambda2_types.box_float32 naked_number_ty alloc_mode0
-    | Flambda_kind.Boxable_number.Naked_float ->
-      Flambda2_types.box_float naked_number_ty alloc_mode0
-    | Flambda_kind.Boxable_number.Naked_int32 ->
-      Flambda2_types.box_int32 naked_number_ty alloc_mode0
-    | Flambda_kind.Boxable_number.Naked_int64 ->
-      Flambda2_types.box_int64 naked_number_ty alloc_mode0
-    | Flambda_kind.Boxable_number.Naked_nativeint ->
-      Flambda2_types.box_nativeint naked_number_ty alloc_mode0
-    | Flambda_kind.Boxable_number.Naked_vec128 ->
-      Flambda2_types.box_vec128 naked_number_ty alloc_mode0
-    | Flambda_kind.Boxable_number.Naked_vec256 ->
-      Flambda2_types.box_vec256 naked_number_ty alloc_mode0
-    | Flambda_kind.Boxable_number.Naked_vec512 ->
-      Flambda2_types.box_vec512 naked_number_ty alloc_mode0
-    | Flambda_kind.Boxable_number.Naked_mask ->
-      Flambda2_types.box_mask naked_number_ty alloc_mode0
+    | K.Boxable_number.Naked_float32 ->
+      T.box_float32 naked_number_ty alloc_mode0
+    | K.Boxable_number.Naked_float -> T.box_float naked_number_ty alloc_mode0
+    | K.Boxable_number.Naked_int32 -> T.box_int32 naked_number_ty alloc_mode0
+    | K.Boxable_number.Naked_int64 -> T.box_int64 naked_number_ty alloc_mode0
+    | K.Boxable_number.Naked_nativeint ->
+      T.box_nativeint naked_number_ty alloc_mode0
+    | K.Boxable_number.Naked_vec128 -> T.box_vec128 naked_number_ty alloc_mode0
+    | K.Boxable_number.Naked_vec256 -> T.box_vec256 naked_number_ty alloc_mode0
+    | K.Boxable_number.Naked_vec512 -> T.box_vec512 naked_number_ty alloc_mode0
+    | K.Boxable_number.Naked_mask -> T.box_mask naked_number_ty alloc_mode0
   in
-  let dacc0 = Downwards_acc.add_variable dacc result_var ty in
-  Simplify_primitive_result.create original_term true dacc0
+  let dacc0 = DA.add_variable dacc result_var ty in
+  SPR.create original_term true dacc0
 
-(** val simplify_tag_immediate : Downwards_acc.t -> Flambda.Named.t -> Simple.t
-    -> Flambda2_types.t -> Bound_var.t -> Simplify_primitive_result.t coq_M **)
+(** val simplify_tag_immediate : DA.t -> Named.t -> Simple.t -> T.t ->
+    Bound_var.t -> SPR.t coq_M **)
 
 let simplify_tag_immediate dacc original_term _ naked_number_ty result_var =
-  let ty = Flambda2_types.tag_immediate naked_number_ty in
-  let dacc0 = Downwards_acc.add_variable dacc result_var ty in
-  Simplify_primitive_result.create original_term true dacc0
+  let ty = T.tag_immediate naked_number_ty in
+  let dacc0 = DA.add_variable dacc result_var ty in
+  SPR.create original_term true dacc0
 
-(** val simplify_relational_primitive : Downwards_acc.t -> Flambda.Named.t ->
-    Simple.t -> Flambda2_types.t -> Bound_var.t -> (Flambda2_types.Typing_env.t
-    -> Name.t -> Simple.t -> Flambda2_types.Typing_env.t coq_M) ->
-    Simplify_primitive_result.t coq_M **)
+(** val simplify_relational_primitive : DA.t -> Named.t -> Simple.t -> T.t ->
+    Bound_var.t -> (TE.t -> Name.t -> Simple.t -> TE.t coq_M) -> SPR.t coq_M **)
 
 let simplify_relational_primitive dacc original_term scrutinee _ result_var
     add_relation =
   let dacc0 =
-    Downwards_acc.map_denv dacc (fun denv ->
-        let denv0 =
-          Downwards_env.define_variable denv result_var
-            Flambda_kind.naked_immediate
-        in
-        Downwards_env.map_typing_env denv0 (fun tenv ->
+    DA.map_denv dacc (fun denv ->
+        let denv0 = DE.define_variable denv result_var K.naked_immediate in
+        DE.map_typing_env denv0 (fun tenv ->
             add_relation tenv (Name.var (Bound_var.var result_var)) scrutinee))
   in
-  Simplify_primitive_result.create original_term true dacc0
+  SPR.create original_term true dacc0
 
-(** val simplify_is_int : bool -> Downwards_acc.t -> Flambda.Named.t -> Simple.t
-    -> Flambda2_types.t -> Bound_var.t -> Simplify_primitive_result.t coq_M **)
+(** val simplify_is_int : bool -> DA.t -> Named.t -> Simple.t -> T.t ->
+    Bound_var.t -> SPR.t coq_M **)
 
 let simplify_is_int variant_only dacc original_term scrutinee scrutinee_ty
     result_var =
   if variant_only
   then
     simplify_relational_primitive dacc original_term scrutinee scrutinee_ty
-      result_var Flambda2_types.Typing_env.add_is_int_relation
+      result_var TE.add_is_int_relation
   else
-    match
-      Flambda2_types.prove_is_int (Downwards_acc.typing_env dacc) scrutinee_ty
-    with
-    | Flambda2_types.Proved b ->
-      let machine_width =
-        Downwards_env.machine_width (Downwards_acc.denv dacc)
-      in
-      let ty =
-        Flambda2_types.this_naked_immediate
-          (Target_ocaml_int.bool machine_width b)
-      in
-      let dacc0 = Downwards_acc.add_variable dacc result_var ty in
-      Simplify_primitive_result.create original_term false dacc0
-    | Flambda2_types.Unknown ->
-      Simplify_primitive_result.create_unknown dacc result_var
-        Flambda_kind.naked_immediate original_term
+    match T.prove_is_int (DA.typing_env dacc) scrutinee_ty with
+    | T.Proved b ->
+      let machine_width = DE.machine_width (DA.denv dacc) in
+      let ty = T.this_naked_immediate (Target_ocaml_int.bool machine_width b) in
+      let dacc0 = DA.add_variable dacc result_var ty in
+      SPR.create original_term false dacc0
+    | T.Unknown ->
+      SPR.create_unknown dacc result_var K.naked_immediate original_term
 
-(** val simplify_get_tag : Downwards_acc.t -> Flambda.Named.t -> Simple.t ->
-    Flambda2_types.t -> Bound_var.t -> Simplify_primitive_result.t coq_M **)
+(** val simplify_get_tag : DA.t -> Named.t -> Simple.t -> T.t -> Bound_var.t ->
+    SPR.t coq_M **)
 
 let simplify_get_tag dacc original_term scrutinee scrutinee_ty result_var =
-  match
-    Flambda2_types.prove_is_int (Downwards_acc.typing_env dacc) scrutinee_ty
-  with
-  | Flambda2_types.Proved b ->
+  match T.prove_is_int (DA.typing_env dacc) scrutinee_ty with
+  | T.Proved b ->
     if b
-    then Simplify_primitive_result.create_invalid dacc
+    then SPR.create_invalid dacc
     else
       simplify_relational_primitive dacc original_term scrutinee scrutinee_ty
-        result_var Flambda2_types.Typing_env.add_get_tag_relation
-  | Flambda2_types.Unknown ->
+        result_var TE.add_get_tag_relation
+  | T.Unknown ->
     simplify_relational_primitive dacc original_term scrutinee scrutinee_ty
-      result_var Flambda2_types.Typing_env.add_get_tag_relation
+      result_var TE.add_get_tag_relation
 
-(** val simplify_array_length : Flambda_primitive.Array_kind_for_length.t ->
-    Downwards_acc.t -> Flambda.Named.t -> Simple.t -> Flambda2_types.t ->
-    Bound_var.t -> Simplify_primitive_result.t coq_M **)
+(** val simplify_array_length : P.Array_kind_for_length.t -> DA.t -> Named.t ->
+    Simple.t -> T.t -> Bound_var.t -> SPR.t coq_M **)
 
 let simplify_array_length _ dacc original_term _ array_ty result_var =
   let result = Simple.var (Bound_var.var result_var) in
   Simplify_common.simplify_projection dacc original_term array_ty
-    (Flambda2_types.array_of_length Or_unknown_or_bottom.Unknown
-       (Flambda2_types.alias_type_of Flambda_kind.value result)
+    (T.array_of_length Or_unknown_or_bottom.Unknown
+       (T.alias_type_of K.value result)
        (Alloc_mode.For_types.unknown ()))
-    result_var Flambda_kind.value
+    result_var K.value
 
-(** val simplify_string_length : Downwards_acc.t -> Flambda.Named.t -> Simple.t
-    -> Flambda2_types.t -> Bound_var.t -> Simplify_primitive_result.t coq_M **)
+(** val simplify_string_length : DA.t -> Named.t -> Simple.t -> T.t ->
+    Bound_var.t -> SPR.t coq_M **)
 
 let simplify_string_length dacc original_term _ str_ty result_var =
   (fun f__1 f__2 f__3 x__0 ->
-    match (x__0 : _ Flambda2_types.meet_shortcut) with
-    | Flambda2_types.Known_result x__1 -> f__1 x__1
-    | Flambda2_types.Need_meet -> f__2 ()
-    | Flambda2_types.Invalid -> f__3 ())
+    match (x__0 : _ T.meet_shortcut) with
+    | T.Known_result x__1 -> f__1 x__1
+    | T.Need_meet -> f__2 ()
+    | T.Invalid -> f__3 ())
     (fun str_infos ->
       if String_info.Set.is_empty str_infos
-      then Simplify_primitive_result.create_invalid dacc
+      then SPR.create_invalid dacc
       else
-        let machine_width =
-          Downwards_env.machine_width (Downwards_acc.denv dacc)
-        in
+        let machine_width = DE.machine_width (DA.denv dacc) in
         let lengths =
           String_info.Set.fold
             (fun str lengths ->
@@ -371,166 +319,135 @@ let simplify_string_length dacc original_term _ str_ty result_var =
                 lengths)
             str_infos Target_ocaml_int.Set.empty
         in
-        let ty = Flambda2_types.these_naked_immediates lengths in
-        let dacc0 = Downwards_acc.add_variable dacc result_var ty in
-        Simplify_primitive_result.create original_term true dacc0)
+        let ty = T.these_naked_immediates lengths in
+        let dacc0 = DA.add_variable dacc result_var ty in
+        SPR.create original_term true dacc0)
     (fun _ ->
-      Simplify_primitive_result.create_unknown dacc result_var
-        Flambda_kind.naked_immediate original_term)
-    (fun _ -> Simplify_primitive_result.create_invalid dacc)
-    (Flambda2_types.meet_strings (Downwards_acc.typing_env dacc) str_ty)
+      SPR.create_unknown dacc result_var K.naked_immediate original_term)
+    (fun _ -> SPR.create_invalid dacc)
+    (T.meet_strings (DA.typing_env dacc) str_ty)
 
 module Unary_int_arith = struct
   (** val simplify : ('a2 -> bool coq_M) -> (('a1 -> 'a1 coq_M) -> 'a2 -> 'a2
       coq_M) -> ('a1 -> 'a1 coq_M) -> ('a1 -> 'a1 coq_M) ->
-      Flambda_kind.Standard_int_or_float.t -> (Flambda2_types.Typing_env.t ->
-      Flambda2_types.t -> 'a2 Flambda2_types.meet_shortcut coq_M) -> ('a2 ->
-      Flambda2_types.t coq_M) -> Flambda_primitive.unary_int_arith_op ->
-      Downwards_acc.t -> Flambda.Named.t -> Simple.t -> Flambda2_types.t ->
-      Bound_var.t -> Simplify_primitive_result.t coq_M **)
+      K.Standard_int_or_float.t -> (TE.t -> T.t -> 'a2 T.meet_shortcut coq_M) ->
+      ('a2 -> T.t coq_M) -> P.unary_int_arith_op -> DA.t -> Named.t -> Simple.t
+      -> T.t -> Bound_var.t -> SPR.t coq_M **)
 
   let simplify i_Num_Set_is_empty i_Num_Set_map i_Num_swap_byte_endianness
       i_Num_not_ i_standard_int_or_float_kind i_unboxed_prover i_these_unboxed
       op dacc original_term _ arg_ty result_var =
     (fun f__1 f__2 f__3 x__0 ->
-      match (x__0 : _ Flambda2_types.meet_shortcut) with
-      | Flambda2_types.Known_result x__1 -> f__1 x__1
-      | Flambda2_types.Need_meet -> f__2 ()
-      | Flambda2_types.Invalid -> f__3 ())
+      match (x__0 : _ T.meet_shortcut) with
+      | T.Known_result x__1 -> f__1 x__1
+      | T.Need_meet -> f__2 ()
+      | T.Invalid -> f__3 ())
       (fun ints ->
         let () = assert (not (i_Num_Set_is_empty ints)) in
         let f =
           match op with
-          | Flambda_primitive.Swap_byte_endianness -> i_Num_swap_byte_endianness
-          | Flambda_primitive.Not -> i_Num_not_
+          | P.Swap_byte_endianness -> i_Num_swap_byte_endianness
+          | P.Not -> i_Num_not_
         in
         let possible_results = i_Num_Set_map f ints in
         let ty = i_these_unboxed possible_results in
-        let dacc0 = Downwards_acc.add_variable dacc result_var ty in
-        Simplify_primitive_result.create original_term true dacc0)
+        let dacc0 = DA.add_variable dacc result_var ty in
+        SPR.create original_term true dacc0)
       (fun _ ->
         let result_kind =
-          Flambda_kind.Standard_int_or_float.to_kind
-            i_standard_int_or_float_kind
+          K.Standard_int_or_float.to_kind i_standard_int_or_float_kind
         in
-        Simplify_primitive_result.create_unknown dacc result_var result_kind
-          original_term)
-      (fun _ -> Simplify_primitive_result.create_invalid dacc)
-      (i_unboxed_prover (Downwards_acc.typing_env dacc) arg_ty)
+        SPR.create_unknown dacc result_var result_kind original_term)
+      (fun _ -> SPR.create_invalid dacc)
+      (i_unboxed_prover (DA.typing_env dacc) arg_ty)
 end
 
 module Unary_int_arith_tagged_immediate = struct
-  (** val simplify : Flambda_primitive.unary_int_arith_op -> Downwards_acc.t ->
-      Flambda.Named.t -> Simple.t -> Flambda2_types.t -> Bound_var.t ->
-      Simplify_primitive_result.t coq_M **)
+  (** val simplify : P.unary_int_arith_op -> DA.t -> Named.t -> Simple.t -> T.t
+      -> Bound_var.t -> SPR.t coq_M **)
 
   let simplify =
-    Unary_int_arith.simplify
-      Number_adjuncts.For_tagged_immediates.Num.Set.is_empty
-      Number_adjuncts.For_tagged_immediates.Num.Set.map
-      Number_adjuncts.For_tagged_immediates.Num.swap_byte_endianness
-      Number_adjuncts.For_tagged_immediates.Num.not_
-      Number_adjuncts.For_tagged_immediates.standard_int_or_float_kind
-      Number_adjuncts.For_tagged_immediates.unboxed_prover
-      Number_adjuncts.For_tagged_immediates.these_unboxed
+    Unary_int_arith.simplify A.For_tagged_immediates.Num.Set.is_empty
+      A.For_tagged_immediates.Num.Set.map
+      A.For_tagged_immediates.Num.swap_byte_endianness
+      A.For_tagged_immediates.Num.not_
+      A.For_tagged_immediates.standard_int_or_float_kind
+      A.For_tagged_immediates.unboxed_prover
+      A.For_tagged_immediates.these_unboxed
 end
 
 module Unary_int_arith_naked_immediate = struct
-  (** val simplify : Flambda_primitive.unary_int_arith_op -> Downwards_acc.t ->
-      Flambda.Named.t -> Simple.t -> Flambda2_types.t -> Bound_var.t ->
-      Simplify_primitive_result.t coq_M **)
+  (** val simplify : P.unary_int_arith_op -> DA.t -> Named.t -> Simple.t -> T.t
+      -> Bound_var.t -> SPR.t coq_M **)
 
   let simplify =
-    Unary_int_arith.simplify
-      Number_adjuncts.For_naked_immediates.Num.Set.is_empty
-      Number_adjuncts.For_naked_immediates.Num.Set.map
-      Number_adjuncts.For_naked_immediates.Num.swap_byte_endianness
-      Number_adjuncts.For_naked_immediates.Num.not_
-      Number_adjuncts.For_naked_immediates.standard_int_or_float_kind
-      Number_adjuncts.For_naked_immediates.unboxed_prover
-      Number_adjuncts.For_naked_immediates.these_unboxed
+    Unary_int_arith.simplify A.For_naked_immediates.Num.Set.is_empty
+      A.For_naked_immediates.Num.Set.map
+      A.For_naked_immediates.Num.swap_byte_endianness
+      A.For_naked_immediates.Num.not_
+      A.For_naked_immediates.standard_int_or_float_kind
+      A.For_naked_immediates.unboxed_prover A.For_naked_immediates.these_unboxed
 end
 
 module Unary_int_arith_naked_int8 = struct
-  (** val simplify : Flambda_primitive.unary_int_arith_op -> Downwards_acc.t ->
-      Flambda.Named.t -> Simple.t -> Flambda2_types.t -> Bound_var.t ->
-      Simplify_primitive_result.t coq_M **)
+  (** val simplify : P.unary_int_arith_op -> DA.t -> Named.t -> Simple.t -> T.t
+      -> Bound_var.t -> SPR.t coq_M **)
 
   let simplify =
-    Unary_int_arith.simplify Number_adjuncts.For_int8s.Num.Set.is_empty
-      Number_adjuncts.For_int8s.Num.Set.map
-      Number_adjuncts.For_int8s.Num.swap_byte_endianness
-      Number_adjuncts.For_int8s.Num.not_
-      Number_adjuncts.For_int8s.standard_int_or_float_kind
-      Number_adjuncts.For_int8s.unboxed_prover
-      Number_adjuncts.For_int8s.these_unboxed
+    Unary_int_arith.simplify A.For_int8s.Num.Set.is_empty
+      A.For_int8s.Num.Set.map A.For_int8s.Num.swap_byte_endianness
+      A.For_int8s.Num.not_ A.For_int8s.standard_int_or_float_kind
+      A.For_int8s.unboxed_prover A.For_int8s.these_unboxed
 end
 
 module Unary_int_arith_naked_int16 = struct
-  (** val simplify : Flambda_primitive.unary_int_arith_op -> Downwards_acc.t ->
-      Flambda.Named.t -> Simple.t -> Flambda2_types.t -> Bound_var.t ->
-      Simplify_primitive_result.t coq_M **)
+  (** val simplify : P.unary_int_arith_op -> DA.t -> Named.t -> Simple.t -> T.t
+      -> Bound_var.t -> SPR.t coq_M **)
 
   let simplify =
-    Unary_int_arith.simplify Number_adjuncts.For_int16s.Num.Set.is_empty
-      Number_adjuncts.For_int16s.Num.Set.map
-      Number_adjuncts.For_int16s.Num.swap_byte_endianness
-      Number_adjuncts.For_int16s.Num.not_
-      Number_adjuncts.For_int16s.standard_int_or_float_kind
-      Number_adjuncts.For_int16s.unboxed_prover
-      Number_adjuncts.For_int16s.these_unboxed
+    Unary_int_arith.simplify A.For_int16s.Num.Set.is_empty
+      A.For_int16s.Num.Set.map A.For_int16s.Num.swap_byte_endianness
+      A.For_int16s.Num.not_ A.For_int16s.standard_int_or_float_kind
+      A.For_int16s.unboxed_prover A.For_int16s.these_unboxed
 end
 
 module Unary_int_arith_naked_int32 = struct
-  (** val simplify : Flambda_primitive.unary_int_arith_op -> Downwards_acc.t ->
-      Flambda.Named.t -> Simple.t -> Flambda2_types.t -> Bound_var.t ->
-      Simplify_primitive_result.t coq_M **)
+  (** val simplify : P.unary_int_arith_op -> DA.t -> Named.t -> Simple.t -> T.t
+      -> Bound_var.t -> SPR.t coq_M **)
 
   let simplify =
-    Unary_int_arith.simplify Number_adjuncts.For_int32s.Num.Set.is_empty
-      Number_adjuncts.For_int32s.Num.Set.map
-      Number_adjuncts.For_int32s.Num.swap_byte_endianness
-      Number_adjuncts.For_int32s.Num.not_
-      Number_adjuncts.For_int32s.standard_int_or_float_kind
-      Number_adjuncts.For_int32s.unboxed_prover
-      Number_adjuncts.For_int32s.these_unboxed
+    Unary_int_arith.simplify A.For_int32s.Num.Set.is_empty
+      A.For_int32s.Num.Set.map A.For_int32s.Num.swap_byte_endianness
+      A.For_int32s.Num.not_ A.For_int32s.standard_int_or_float_kind
+      A.For_int32s.unboxed_prover A.For_int32s.these_unboxed
 end
 
 module Unary_int_arith_naked_int64 = struct
-  (** val simplify : Flambda_primitive.unary_int_arith_op -> Downwards_acc.t ->
-      Flambda.Named.t -> Simple.t -> Flambda2_types.t -> Bound_var.t ->
-      Simplify_primitive_result.t coq_M **)
+  (** val simplify : P.unary_int_arith_op -> DA.t -> Named.t -> Simple.t -> T.t
+      -> Bound_var.t -> SPR.t coq_M **)
 
   let simplify =
-    Unary_int_arith.simplify Number_adjuncts.For_int64s.Num.Set.is_empty
-      Number_adjuncts.For_int64s.Num.Set.map
-      Number_adjuncts.For_int64s.Num.swap_byte_endianness
-      Number_adjuncts.For_int64s.Num.not_
-      Number_adjuncts.For_int64s.standard_int_or_float_kind
-      Number_adjuncts.For_int64s.unboxed_prover
-      Number_adjuncts.For_int64s.these_unboxed
+    Unary_int_arith.simplify A.For_int64s.Num.Set.is_empty
+      A.For_int64s.Num.Set.map A.For_int64s.Num.swap_byte_endianness
+      A.For_int64s.Num.not_ A.For_int64s.standard_int_or_float_kind
+      A.For_int64s.unboxed_prover A.For_int64s.these_unboxed
 end
 
 module Unary_int_arith_naked_nativeint = struct
-  (** val simplify : Flambda_primitive.unary_int_arith_op -> Downwards_acc.t ->
-      Flambda.Named.t -> Simple.t -> Flambda2_types.t -> Bound_var.t ->
-      Simplify_primitive_result.t coq_M **)
+  (** val simplify : P.unary_int_arith_op -> DA.t -> Named.t -> Simple.t -> T.t
+      -> Bound_var.t -> SPR.t coq_M **)
 
   let simplify =
-    Unary_int_arith.simplify Number_adjuncts.For_nativeints.Num.Set.is_empty
-      Number_adjuncts.For_nativeints.Num.Set.map
-      Number_adjuncts.For_nativeints.Num.swap_byte_endianness
-      Number_adjuncts.For_nativeints.Num.not_
-      Number_adjuncts.For_nativeints.standard_int_or_float_kind
-      Number_adjuncts.For_nativeints.unboxed_prover
-      Number_adjuncts.For_nativeints.these_unboxed
+    Unary_int_arith.simplify A.For_nativeints.Num.Set.is_empty
+      A.For_nativeints.Num.Set.map A.For_nativeints.Num.swap_byte_endianness
+      A.For_nativeints.Num.not_ A.For_nativeints.standard_int_or_float_kind
+      A.For_nativeints.unboxed_prover A.For_nativeints.these_unboxed
 end
 
 module Make_simplify_int_conv = struct
   (** val for_kind : (('a1 -> 'a4 -> 'a4 coq_M) -> 'a2 -> 'a4 -> 'a4 coq_M) ->
-      ('a3 -> 'a4 -> 'a4 coq_M) -> 'a4 -> ('a1 -> 'a3 coq_M) -> ('a4 ->
-      Flambda2_types.t coq_M) -> Downwards_acc.t -> Flambda.Named.t ->
-      Bound_var.t -> 'a2 -> Simplify_primitive_result.t coq_M **)
+      ('a3 -> 'a4 -> 'a4 coq_M) -> 'a4 -> ('a1 -> 'a3 coq_M) -> ('a4 -> T.t
+      coq_M) -> DA.t -> Named.t -> Bound_var.t -> 'a2 -> SPR.t coq_M **)
 
   let for_kind n_Num_Set_fold p_Result_num_Set_add p_Result_num_Set_empty
       p_num_to_result_num p_these dacc original_term result_var is_ =
@@ -540,42 +457,30 @@ module Make_simplify_int_conv = struct
         is_ p_Result_num_Set_empty
     in
     let ty = p_these res_ns in
-    let dacc0 = Downwards_acc.add_variable dacc result_var ty in
-    Simplify_primitive_result.create original_term true dacc0
+    let dacc0 = DA.add_variable dacc result_var ty in
+    SPR.create original_term true dacc0
 
   (** val simplify : ('a2 -> int coq_M) -> (('a1 -> Target_ocaml_int.Set.t ->
       Target_ocaml_int.Set.t coq_M) -> 'a2 -> Target_ocaml_int.Set.t ->
-      Target_ocaml_int.Set.t coq_M) -> (('a1 ->
-      Numeric_types.Float32_by_bit_pattern.Set.t ->
-      Numeric_types.Float32_by_bit_pattern.Set.t coq_M) -> 'a2 ->
-      Numeric_types.Float32_by_bit_pattern.Set.t ->
-      Numeric_types.Float32_by_bit_pattern.Set.t coq_M) -> (('a1 ->
-      Numeric_types.Float_by_bit_pattern.Set.t ->
-      Numeric_types.Float_by_bit_pattern.Set.t coq_M) -> 'a2 ->
-      Numeric_types.Float_by_bit_pattern.Set.t ->
-      Numeric_types.Float_by_bit_pattern.Set.t coq_M) -> (('a1 ->
-      Numeric_types.Int8.Set.t -> Numeric_types.Int8.Set.t coq_M) -> 'a2 ->
-      Numeric_types.Int8.Set.t -> Numeric_types.Int8.Set.t coq_M) -> (('a1 ->
-      Numeric_types.Int16.Set.t -> Numeric_types.Int16.Set.t coq_M) -> 'a2 ->
-      Numeric_types.Int16.Set.t -> Numeric_types.Int16.Set.t coq_M) -> (('a1 ->
-      Numeric_types.Int32.Set.t -> Numeric_types.Int32.Set.t coq_M) -> 'a2 ->
-      Numeric_types.Int32.Set.t -> Numeric_types.Int32.Set.t coq_M) -> (('a1 ->
-      Numeric_types.Int64.Set.t -> Numeric_types.Int64.Set.t coq_M) -> 'a2 ->
-      Numeric_types.Int64.Set.t -> Numeric_types.Int64.Set.t coq_M) -> (('a1 ->
-      Targetint_32_64.Set.t -> Targetint_32_64.Set.t coq_M) -> 'a2 ->
-      Targetint_32_64.Set.t -> Targetint_32_64.Set.t coq_M) -> ('a1 ->
-      Target_system.Machine_width.t -> Target_ocaml_int.t coq_M) -> ('a1 ->
-      Numeric_types.Float32_by_bit_pattern.t coq_M) -> ('a1 ->
-      Numeric_types.Float_by_bit_pattern.t coq_M) -> ('a1 ->
-      Numeric_types.Int8.t coq_M) -> ('a1 -> Numeric_types.Int16.t coq_M) ->
-      ('a1 -> Numeric_types.Int32.t coq_M) -> ('a1 -> Numeric_types.Int64.t
+      Target_ocaml_int.Set.t coq_M) -> (('a1 -> Float32.Set.t -> Float32.Set.t
+      coq_M) -> 'a2 -> Float32.Set.t -> Float32.Set.t coq_M) -> (('a1 ->
+      Float.Set.t -> Float.Set.t coq_M) -> 'a2 -> Float.Set.t -> Float.Set.t
+      coq_M) -> (('a1 -> Numeric_types.Int8.Set.t -> Numeric_types.Int8.Set.t
+      coq_M) -> 'a2 -> Numeric_types.Int8.Set.t -> Numeric_types.Int8.Set.t
+      coq_M) -> (('a1 -> Numeric_types.Int16.Set.t -> Numeric_types.Int16.Set.t
+      coq_M) -> 'a2 -> Numeric_types.Int16.Set.t -> Numeric_types.Int16.Set.t
+      coq_M) -> (('a1 -> Int32.Set.t -> Int32.Set.t coq_M) -> 'a2 -> Int32.Set.t
+      -> Int32.Set.t coq_M) -> (('a1 -> Int64.Set.t -> Int64.Set.t coq_M) -> 'a2
+      -> Int64.Set.t -> Int64.Set.t coq_M) -> (('a1 -> Targetint_32_64.Set.t ->
+      Targetint_32_64.Set.t coq_M) -> 'a2 -> Targetint_32_64.Set.t ->
+      Targetint_32_64.Set.t coq_M) -> ('a1 -> Target_system.Machine_width.t ->
+      Target_ocaml_int.t coq_M) -> ('a1 -> Float32.t coq_M) -> ('a1 -> Float.t
+      coq_M) -> ('a1 -> Numeric_types.Int8.t coq_M) -> ('a1 ->
+      Numeric_types.Int16.t coq_M) -> ('a1 -> Int32.t coq_M) -> ('a1 -> Int64.t
       coq_M) -> ('a1 -> Target_system.Machine_width.t -> Targetint_32_64.t
-      coq_M) -> Flambda_kind.Standard_int_or_float.t ->
-      (Flambda2_types.Typing_env.t -> Flambda2_types.t -> 'a2
-      Flambda2_types.meet_shortcut coq_M) ->
-      Flambda_kind.Standard_int_or_float.t -> Downwards_acc.t -> Flambda.Named.t
-      -> Simple.t -> Flambda2_types.t -> Bound_var.t ->
-      Simplify_primitive_result.t coq_M **)
+      coq_M) -> K.Standard_int_or_float.t -> (TE.t -> T.t -> 'a2 T.meet_shortcut
+      coq_M) -> K.Standard_int_or_float.t -> DA.t -> Named.t -> Simple.t -> T.t
+      -> Bound_var.t -> SPR.t coq_M **)
 
   let simplify n_Num_Set_cardinal n_Num_Set_fold_to_immediates
       n_Num_Set_fold_to_float32s n_Num_Set_fold_to_floats
@@ -585,345 +490,245 @@ module Make_simplify_int_conv = struct
       n_Num_to_naked_int16 n_Num_to_naked_int32 n_Num_to_naked_int64
       n_Num_to_naked_nativeint n_standard_int_or_float_kind n_unboxed_prover dst
       dacc original_term arg arg_ty result_var =
-    if Flambda_kind.Standard_int_or_float.equal n_standard_int_or_float_kind dst
+    if K.Standard_int_or_float.equal n_standard_int_or_float_kind dst
     then
-      let dacc0 = Downwards_acc.add_variable dacc result_var arg_ty in
-      Simplify_primitive_result.create
-        (Flambda.Named.create_simple arg)
-        false dacc0
+      let dacc0 = DA.add_variable dacc result_var arg_ty in
+      SPR.create (Named.create_simple arg) false dacc0
     else
-      let proof = n_unboxed_prover (Downwards_acc.typing_env dacc) arg_ty in
+      let proof = n_unboxed_prover (DA.typing_env dacc) arg_ty in
       (fun f__1 f__2 f__3 x__0 ->
-        match (x__0 : _ Flambda2_types.meet_shortcut) with
-        | Flambda2_types.Known_result x__1 -> f__1 x__1
-        | Flambda2_types.Need_meet -> f__2 ()
-        | Flambda2_types.Invalid -> f__3 ())
+        match (x__0 : _ T.meet_shortcut) with
+        | T.Known_result x__1 -> f__1 x__1
+        | T.Need_meet -> f__2 ()
+        | T.Invalid -> f__3 ())
         (fun is_ ->
           let () = assert (n_Num_Set_cardinal is_ > 0) in
-          let machine_width =
-            Downwards_env.machine_width (Downwards_acc.denv dacc)
-          in
+          let machine_width = DE.machine_width (DA.denv dacc) in
           match dst with
-          | Flambda_kind.Standard_int_or_float.Tagged_immediate ->
+          | K.Standard_int_or_float.Tagged_immediate ->
             for_kind n_Num_Set_fold_to_immediates Target_ocaml_int.Set.add
               Target_ocaml_int.Set.empty
               (fun t0 -> n_Num_to_immediate t0 machine_width)
-              Flambda2_types.these_tagged_immediates dacc original_term
-              result_var is_
-          | Flambda_kind.Standard_int_or_float.Naked_immediate ->
+              T.these_tagged_immediates dacc original_term result_var is_
+          | K.Standard_int_or_float.Naked_immediate ->
             for_kind n_Num_Set_fold_to_immediates Target_ocaml_int.Set.add
               Target_ocaml_int.Set.empty
               (fun t0 -> n_Num_to_immediate t0 machine_width)
-              Flambda2_types.these_naked_immediates dacc original_term
+              T.these_naked_immediates dacc original_term result_var is_
+          | K.Standard_int_or_float.Naked_float32 ->
+            for_kind n_Num_Set_fold_to_float32s Float32.Set.add
+              Float32.Set.empty n_Num_to_naked_float32 T.these_naked_float32s
+              dacc original_term result_var is_
+          | K.Standard_int_or_float.Naked_float ->
+            for_kind n_Num_Set_fold_to_floats Float.Set.add Float.Set.empty
+              n_Num_to_naked_float T.these_naked_floats dacc original_term
               result_var is_
-          | Flambda_kind.Standard_int_or_float.Naked_float32 ->
-            for_kind n_Num_Set_fold_to_float32s
-              Numeric_types.Float32_by_bit_pattern.Set.add
-              Numeric_types.Float32_by_bit_pattern.Set.empty
-              n_Num_to_naked_float32 Flambda2_types.these_naked_float32s dacc
-              original_term result_var is_
-          | Flambda_kind.Standard_int_or_float.Naked_float ->
-            for_kind n_Num_Set_fold_to_floats
-              Numeric_types.Float_by_bit_pattern.Set.add
-              Numeric_types.Float_by_bit_pattern.Set.empty n_Num_to_naked_float
-              Flambda2_types.these_naked_floats dacc original_term result_var
-              is_
-          | Flambda_kind.Standard_int_or_float.Naked_int8 ->
+          | K.Standard_int_or_float.Naked_int8 ->
             for_kind n_Num_Set_fold_to_int8s Numeric_types.Int8.Set.add
               Numeric_types.Int8.Set.empty n_Num_to_naked_int8
-              Flambda2_types.these_naked_int8s dacc original_term result_var is_
-          | Flambda_kind.Standard_int_or_float.Naked_int16 ->
+              T.these_naked_int8s dacc original_term result_var is_
+          | K.Standard_int_or_float.Naked_int16 ->
             for_kind n_Num_Set_fold_to_int16s Numeric_types.Int16.Set.add
               Numeric_types.Int16.Set.empty n_Num_to_naked_int16
-              Flambda2_types.these_naked_int16s dacc original_term result_var
-              is_
-          | Flambda_kind.Standard_int_or_float.Naked_int32 ->
-            for_kind n_Num_Set_fold_to_int32s Numeric_types.Int32.Set.add
-              Numeric_types.Int32.Set.empty n_Num_to_naked_int32
-              Flambda2_types.these_naked_int32s dacc original_term result_var
-              is_
-          | Flambda_kind.Standard_int_or_float.Naked_int64 ->
-            for_kind n_Num_Set_fold_to_int64s Numeric_types.Int64.Set.add
-              Numeric_types.Int64.Set.empty n_Num_to_naked_int64
-              Flambda2_types.these_naked_int64s dacc original_term result_var
-              is_
-          | Flambda_kind.Standard_int_or_float.Naked_nativeint ->
-            let machine_width0 =
-              Downwards_env.machine_width (Downwards_acc.denv dacc)
-            in
+              T.these_naked_int16s dacc original_term result_var is_
+          | K.Standard_int_or_float.Naked_int32 ->
+            for_kind n_Num_Set_fold_to_int32s Int32.Set.add Int32.Set.empty
+              n_Num_to_naked_int32 T.these_naked_int32s dacc original_term
+              result_var is_
+          | K.Standard_int_or_float.Naked_int64 ->
+            for_kind n_Num_Set_fold_to_int64s Int64.Set.add Int64.Set.empty
+              n_Num_to_naked_int64 T.these_naked_int64s dacc original_term
+              result_var is_
+          | K.Standard_int_or_float.Naked_nativeint ->
+            let machine_width0 = DE.machine_width (DA.denv dacc) in
             for_kind n_Num_Set_fold_to_nativeints Targetint_32_64.Set.add
               Targetint_32_64.Set.empty
               (fun n -> n_Num_to_naked_nativeint n machine_width0)
-              Flambda2_types.these_naked_nativeints dacc original_term
-              result_var is_)
+              T.these_naked_nativeints dacc original_term result_var is_)
         (fun _ ->
-          let result_kind = Flambda_kind.Standard_int_or_float.to_kind dst in
-          Simplify_primitive_result.create_unknown dacc result_var result_kind
-            original_term)
-        (fun _ -> Simplify_primitive_result.create_invalid dacc)
+          let result_kind = K.Standard_int_or_float.to_kind dst in
+          SPR.create_unknown dacc result_var result_kind original_term)
+        (fun _ -> SPR.create_invalid dacc)
         proof
 end
 
 module Simplify_int_conv_tagged_immediate = struct
-  (** val simplify : Flambda_kind.Standard_int_or_float.t -> Downwards_acc.t ->
-      Flambda.Named.t -> Simple.t -> Flambda2_types.t -> Bound_var.t ->
-      Simplify_primitive_result.t coq_M **)
+  (** val simplify : K.Standard_int_or_float.t -> DA.t -> Named.t -> Simple.t ->
+      T.t -> Bound_var.t -> SPR.t coq_M **)
 
   let simplify =
-    Make_simplify_int_conv.simplify
-      Number_adjuncts.For_tagged_immediates.Num.Set.cardinal
-      Number_adjuncts.For_tagged_immediates.Num.Set.fold
-      Number_adjuncts.For_tagged_immediates.Num.Set.fold
-      Number_adjuncts.For_tagged_immediates.Num.Set.fold
-      Number_adjuncts.For_tagged_immediates.Num.Set.fold
-      Number_adjuncts.For_tagged_immediates.Num.Set.fold
-      Number_adjuncts.For_tagged_immediates.Num.Set.fold
-      Number_adjuncts.For_tagged_immediates.Num.Set.fold
-      Number_adjuncts.For_tagged_immediates.Num.Set.fold
-      Number_adjuncts.For_tagged_immediates.Num.to_immediate
-      Number_adjuncts.For_tagged_immediates.Num.to_naked_float32
-      Number_adjuncts.For_tagged_immediates.Num.to_naked_float
-      Number_adjuncts.For_tagged_immediates.Num.to_naked_int8
-      Number_adjuncts.For_tagged_immediates.Num.to_naked_int16
-      Number_adjuncts.For_tagged_immediates.Num.to_naked_int32
-      Number_adjuncts.For_tagged_immediates.Num.to_naked_int64
-      Number_adjuncts.For_tagged_immediates.Num.to_naked_nativeint
-      Number_adjuncts.For_tagged_immediates.standard_int_or_float_kind
-      Number_adjuncts.For_tagged_immediates.unboxed_prover
+    Make_simplify_int_conv.simplify A.For_tagged_immediates.Num.Set.cardinal
+      A.For_tagged_immediates.Num.Set.fold A.For_tagged_immediates.Num.Set.fold
+      A.For_tagged_immediates.Num.Set.fold A.For_tagged_immediates.Num.Set.fold
+      A.For_tagged_immediates.Num.Set.fold A.For_tagged_immediates.Num.Set.fold
+      A.For_tagged_immediates.Num.Set.fold A.For_tagged_immediates.Num.Set.fold
+      A.For_tagged_immediates.Num.to_immediate
+      A.For_tagged_immediates.Num.to_naked_float32
+      A.For_tagged_immediates.Num.to_naked_float
+      A.For_tagged_immediates.Num.to_naked_int8
+      A.For_tagged_immediates.Num.to_naked_int16
+      A.For_tagged_immediates.Num.to_naked_int32
+      A.For_tagged_immediates.Num.to_naked_int64
+      A.For_tagged_immediates.Num.to_naked_nativeint
+      A.For_tagged_immediates.standard_int_or_float_kind
+      A.For_tagged_immediates.unboxed_prover
 end
 
 module Simplify_int_conv_naked_immediate = struct
-  (** val simplify : Flambda_kind.Standard_int_or_float.t -> Downwards_acc.t ->
-      Flambda.Named.t -> Simple.t -> Flambda2_types.t -> Bound_var.t ->
-      Simplify_primitive_result.t coq_M **)
+  (** val simplify : K.Standard_int_or_float.t -> DA.t -> Named.t -> Simple.t ->
+      T.t -> Bound_var.t -> SPR.t coq_M **)
 
   let simplify =
-    Make_simplify_int_conv.simplify
-      Number_adjuncts.For_naked_immediates.Num.Set.cardinal
-      Number_adjuncts.For_naked_immediates.Num.Set.fold
-      Number_adjuncts.For_naked_immediates.Num.Set.fold
-      Number_adjuncts.For_naked_immediates.Num.Set.fold
-      Number_adjuncts.For_naked_immediates.Num.Set.fold
-      Number_adjuncts.For_naked_immediates.Num.Set.fold
-      Number_adjuncts.For_naked_immediates.Num.Set.fold
-      Number_adjuncts.For_naked_immediates.Num.Set.fold
-      Number_adjuncts.For_naked_immediates.Num.Set.fold
-      Number_adjuncts.For_naked_immediates.Num.to_immediate
-      Number_adjuncts.For_naked_immediates.Num.to_naked_float32
-      Number_adjuncts.For_naked_immediates.Num.to_naked_float
-      Number_adjuncts.For_naked_immediates.Num.to_naked_int8
-      Number_adjuncts.For_naked_immediates.Num.to_naked_int16
-      Number_adjuncts.For_naked_immediates.Num.to_naked_int32
-      Number_adjuncts.For_naked_immediates.Num.to_naked_int64
-      Number_adjuncts.For_naked_immediates.Num.to_naked_nativeint
-      Number_adjuncts.For_naked_immediates.standard_int_or_float_kind
-      Number_adjuncts.For_naked_immediates.unboxed_prover
+    Make_simplify_int_conv.simplify A.For_naked_immediates.Num.Set.cardinal
+      A.For_naked_immediates.Num.Set.fold A.For_naked_immediates.Num.Set.fold
+      A.For_naked_immediates.Num.Set.fold A.For_naked_immediates.Num.Set.fold
+      A.For_naked_immediates.Num.Set.fold A.For_naked_immediates.Num.Set.fold
+      A.For_naked_immediates.Num.Set.fold A.For_naked_immediates.Num.Set.fold
+      A.For_naked_immediates.Num.to_immediate
+      A.For_naked_immediates.Num.to_naked_float32
+      A.For_naked_immediates.Num.to_naked_float
+      A.For_naked_immediates.Num.to_naked_int8
+      A.For_naked_immediates.Num.to_naked_int16
+      A.For_naked_immediates.Num.to_naked_int32
+      A.For_naked_immediates.Num.to_naked_int64
+      A.For_naked_immediates.Num.to_naked_nativeint
+      A.For_naked_immediates.standard_int_or_float_kind
+      A.For_naked_immediates.unboxed_prover
 end
 
 module Simplify_int_conv_naked_float = struct
-  (** val simplify : Flambda_kind.Standard_int_or_float.t -> Downwards_acc.t ->
-      Flambda.Named.t -> Simple.t -> Flambda2_types.t -> Bound_var.t ->
-      Simplify_primitive_result.t coq_M **)
+  (** val simplify : K.Standard_int_or_float.t -> DA.t -> Named.t -> Simple.t ->
+      T.t -> Bound_var.t -> SPR.t coq_M **)
 
   let simplify =
-    Make_simplify_int_conv.simplify Number_adjuncts.For_floats.Num.Set.cardinal
-      Number_adjuncts.For_floats.Num.Set.fold
-      Number_adjuncts.For_floats.Num.Set.fold
-      Number_adjuncts.For_floats.Num.Set.fold
-      Number_adjuncts.For_floats.Num.Set.fold
-      Number_adjuncts.For_floats.Num.Set.fold
-      Number_adjuncts.For_floats.Num.Set.fold
-      Number_adjuncts.For_floats.Num.Set.fold
-      Number_adjuncts.For_floats.Num.Set.fold
-      Number_adjuncts.For_floats.Num.to_immediate
-      Number_adjuncts.For_floats.Num.to_naked_float32
-      Number_adjuncts.For_floats.Num.to_naked_float
-      Number_adjuncts.For_floats.Num.to_naked_int8
-      Number_adjuncts.For_floats.Num.to_naked_int16
-      Number_adjuncts.For_floats.Num.to_naked_int32
-      Number_adjuncts.For_floats.Num.to_naked_int64
-      Number_adjuncts.For_floats.Num.to_naked_nativeint
-      Number_adjuncts.For_floats.standard_int_or_float_kind
-      Number_adjuncts.For_floats.unboxed_prover
+    Make_simplify_int_conv.simplify A.For_floats.Num.Set.cardinal
+      A.For_floats.Num.Set.fold A.For_floats.Num.Set.fold
+      A.For_floats.Num.Set.fold A.For_floats.Num.Set.fold
+      A.For_floats.Num.Set.fold A.For_floats.Num.Set.fold
+      A.For_floats.Num.Set.fold A.For_floats.Num.Set.fold
+      A.For_floats.Num.to_immediate A.For_floats.Num.to_naked_float32
+      A.For_floats.Num.to_naked_float A.For_floats.Num.to_naked_int8
+      A.For_floats.Num.to_naked_int16 A.For_floats.Num.to_naked_int32
+      A.For_floats.Num.to_naked_int64 A.For_floats.Num.to_naked_nativeint
+      A.For_floats.standard_int_or_float_kind A.For_floats.unboxed_prover
 end
 
 module Simplify_int_conv_naked_float32 = struct
-  (** val simplify : Flambda_kind.Standard_int_or_float.t -> Downwards_acc.t ->
-      Flambda.Named.t -> Simple.t -> Flambda2_types.t -> Bound_var.t ->
-      Simplify_primitive_result.t coq_M **)
+  (** val simplify : K.Standard_int_or_float.t -> DA.t -> Named.t -> Simple.t ->
+      T.t -> Bound_var.t -> SPR.t coq_M **)
 
   let simplify =
-    Make_simplify_int_conv.simplify
-      Number_adjuncts.For_float32s.Num.Set.cardinal
-      Number_adjuncts.For_float32s.Num.Set.fold
-      Number_adjuncts.For_float32s.Num.Set.fold
-      Number_adjuncts.For_float32s.Num.Set.fold
-      Number_adjuncts.For_float32s.Num.Set.fold
-      Number_adjuncts.For_float32s.Num.Set.fold
-      Number_adjuncts.For_float32s.Num.Set.fold
-      Number_adjuncts.For_float32s.Num.Set.fold
-      Number_adjuncts.For_float32s.Num.Set.fold
-      Number_adjuncts.For_float32s.Num.to_immediate
-      Number_adjuncts.For_float32s.Num.to_naked_float32
-      Number_adjuncts.For_float32s.Num.to_naked_float
-      Number_adjuncts.For_float32s.Num.to_naked_int8
-      Number_adjuncts.For_float32s.Num.to_naked_int16
-      Number_adjuncts.For_float32s.Num.to_naked_int32
-      Number_adjuncts.For_float32s.Num.to_naked_int64
-      Number_adjuncts.For_float32s.Num.to_naked_nativeint
-      Number_adjuncts.For_float32s.standard_int_or_float_kind
-      Number_adjuncts.For_float32s.unboxed_prover
+    Make_simplify_int_conv.simplify A.For_float32s.Num.Set.cardinal
+      A.For_float32s.Num.Set.fold A.For_float32s.Num.Set.fold
+      A.For_float32s.Num.Set.fold A.For_float32s.Num.Set.fold
+      A.For_float32s.Num.Set.fold A.For_float32s.Num.Set.fold
+      A.For_float32s.Num.Set.fold A.For_float32s.Num.Set.fold
+      A.For_float32s.Num.to_immediate A.For_float32s.Num.to_naked_float32
+      A.For_float32s.Num.to_naked_float A.For_float32s.Num.to_naked_int8
+      A.For_float32s.Num.to_naked_int16 A.For_float32s.Num.to_naked_int32
+      A.For_float32s.Num.to_naked_int64 A.For_float32s.Num.to_naked_nativeint
+      A.For_float32s.standard_int_or_float_kind A.For_float32s.unboxed_prover
 end
 
 module Simplify_int_conv_naked_int8 = struct
-  (** val simplify : Flambda_kind.Standard_int_or_float.t -> Downwards_acc.t ->
-      Flambda.Named.t -> Simple.t -> Flambda2_types.t -> Bound_var.t ->
-      Simplify_primitive_result.t coq_M **)
+  (** val simplify : K.Standard_int_or_float.t -> DA.t -> Named.t -> Simple.t ->
+      T.t -> Bound_var.t -> SPR.t coq_M **)
 
   let simplify =
-    Make_simplify_int_conv.simplify Number_adjuncts.For_int8s.Num.Set.cardinal
-      Number_adjuncts.For_int8s.Num.Set.fold
-      Number_adjuncts.For_int8s.Num.Set.fold
-      Number_adjuncts.For_int8s.Num.Set.fold
-      Number_adjuncts.For_int8s.Num.Set.fold
-      Number_adjuncts.For_int8s.Num.Set.fold
-      Number_adjuncts.For_int8s.Num.Set.fold
-      Number_adjuncts.For_int8s.Num.Set.fold
-      Number_adjuncts.For_int8s.Num.Set.fold
-      Number_adjuncts.For_int8s.Num.to_immediate
-      Number_adjuncts.For_int8s.Num.to_naked_float32
-      Number_adjuncts.For_int8s.Num.to_naked_float
-      Number_adjuncts.For_int8s.Num.to_naked_int8
-      Number_adjuncts.For_int8s.Num.to_naked_int16
-      Number_adjuncts.For_int8s.Num.to_naked_int32
-      Number_adjuncts.For_int8s.Num.to_naked_int64
-      Number_adjuncts.For_int8s.Num.to_naked_nativeint
-      Number_adjuncts.For_int8s.standard_int_or_float_kind
-      Number_adjuncts.For_int8s.unboxed_prover
+    Make_simplify_int_conv.simplify A.For_int8s.Num.Set.cardinal
+      A.For_int8s.Num.Set.fold A.For_int8s.Num.Set.fold A.For_int8s.Num.Set.fold
+      A.For_int8s.Num.Set.fold A.For_int8s.Num.Set.fold A.For_int8s.Num.Set.fold
+      A.For_int8s.Num.Set.fold A.For_int8s.Num.Set.fold
+      A.For_int8s.Num.to_immediate A.For_int8s.Num.to_naked_float32
+      A.For_int8s.Num.to_naked_float A.For_int8s.Num.to_naked_int8
+      A.For_int8s.Num.to_naked_int16 A.For_int8s.Num.to_naked_int32
+      A.For_int8s.Num.to_naked_int64 A.For_int8s.Num.to_naked_nativeint
+      A.For_int8s.standard_int_or_float_kind A.For_int8s.unboxed_prover
 end
 
 module Simplify_int_conv_naked_int16 = struct
-  (** val simplify : Flambda_kind.Standard_int_or_float.t -> Downwards_acc.t ->
-      Flambda.Named.t -> Simple.t -> Flambda2_types.t -> Bound_var.t ->
-      Simplify_primitive_result.t coq_M **)
+  (** val simplify : K.Standard_int_or_float.t -> DA.t -> Named.t -> Simple.t ->
+      T.t -> Bound_var.t -> SPR.t coq_M **)
 
   let simplify =
-    Make_simplify_int_conv.simplify Number_adjuncts.For_int16s.Num.Set.cardinal
-      Number_adjuncts.For_int16s.Num.Set.fold
-      Number_adjuncts.For_int16s.Num.Set.fold
-      Number_adjuncts.For_int16s.Num.Set.fold
-      Number_adjuncts.For_int16s.Num.Set.fold
-      Number_adjuncts.For_int16s.Num.Set.fold
-      Number_adjuncts.For_int16s.Num.Set.fold
-      Number_adjuncts.For_int16s.Num.Set.fold
-      Number_adjuncts.For_int16s.Num.Set.fold
-      Number_adjuncts.For_int16s.Num.to_immediate
-      Number_adjuncts.For_int16s.Num.to_naked_float32
-      Number_adjuncts.For_int16s.Num.to_naked_float
-      Number_adjuncts.For_int16s.Num.to_naked_int8
-      Number_adjuncts.For_int16s.Num.to_naked_int16
-      Number_adjuncts.For_int16s.Num.to_naked_int32
-      Number_adjuncts.For_int16s.Num.to_naked_int64
-      Number_adjuncts.For_int16s.Num.to_naked_nativeint
-      Number_adjuncts.For_int16s.standard_int_or_float_kind
-      Number_adjuncts.For_int16s.unboxed_prover
+    Make_simplify_int_conv.simplify A.For_int16s.Num.Set.cardinal
+      A.For_int16s.Num.Set.fold A.For_int16s.Num.Set.fold
+      A.For_int16s.Num.Set.fold A.For_int16s.Num.Set.fold
+      A.For_int16s.Num.Set.fold A.For_int16s.Num.Set.fold
+      A.For_int16s.Num.Set.fold A.For_int16s.Num.Set.fold
+      A.For_int16s.Num.to_immediate A.For_int16s.Num.to_naked_float32
+      A.For_int16s.Num.to_naked_float A.For_int16s.Num.to_naked_int8
+      A.For_int16s.Num.to_naked_int16 A.For_int16s.Num.to_naked_int32
+      A.For_int16s.Num.to_naked_int64 A.For_int16s.Num.to_naked_nativeint
+      A.For_int16s.standard_int_or_float_kind A.For_int16s.unboxed_prover
 end
 
 module Simplify_int_conv_naked_int32 = struct
-  (** val simplify : Flambda_kind.Standard_int_or_float.t -> Downwards_acc.t ->
-      Flambda.Named.t -> Simple.t -> Flambda2_types.t -> Bound_var.t ->
-      Simplify_primitive_result.t coq_M **)
+  (** val simplify : K.Standard_int_or_float.t -> DA.t -> Named.t -> Simple.t ->
+      T.t -> Bound_var.t -> SPR.t coq_M **)
 
   let simplify =
-    Make_simplify_int_conv.simplify Number_adjuncts.For_int32s.Num.Set.cardinal
-      Number_adjuncts.For_int32s.Num.Set.fold
-      Number_adjuncts.For_int32s.Num.Set.fold
-      Number_adjuncts.For_int32s.Num.Set.fold
-      Number_adjuncts.For_int32s.Num.Set.fold
-      Number_adjuncts.For_int32s.Num.Set.fold
-      Number_adjuncts.For_int32s.Num.Set.fold
-      Number_adjuncts.For_int32s.Num.Set.fold
-      Number_adjuncts.For_int32s.Num.Set.fold
-      Number_adjuncts.For_int32s.Num.to_immediate
-      Number_adjuncts.For_int32s.Num.to_naked_float32
-      Number_adjuncts.For_int32s.Num.to_naked_float
-      Number_adjuncts.For_int32s.Num.to_naked_int8
-      Number_adjuncts.For_int32s.Num.to_naked_int16
-      Number_adjuncts.For_int32s.Num.to_naked_int32
-      Number_adjuncts.For_int32s.Num.to_naked_int64
-      Number_adjuncts.For_int32s.Num.to_naked_nativeint
-      Number_adjuncts.For_int32s.standard_int_or_float_kind
-      Number_adjuncts.For_int32s.unboxed_prover
+    Make_simplify_int_conv.simplify A.For_int32s.Num.Set.cardinal
+      A.For_int32s.Num.Set.fold A.For_int32s.Num.Set.fold
+      A.For_int32s.Num.Set.fold A.For_int32s.Num.Set.fold
+      A.For_int32s.Num.Set.fold A.For_int32s.Num.Set.fold
+      A.For_int32s.Num.Set.fold A.For_int32s.Num.Set.fold
+      A.For_int32s.Num.to_immediate A.For_int32s.Num.to_naked_float32
+      A.For_int32s.Num.to_naked_float A.For_int32s.Num.to_naked_int8
+      A.For_int32s.Num.to_naked_int16 A.For_int32s.Num.to_naked_int32
+      A.For_int32s.Num.to_naked_int64 A.For_int32s.Num.to_naked_nativeint
+      A.For_int32s.standard_int_or_float_kind A.For_int32s.unboxed_prover
 end
 
 module Simplify_int_conv_naked_int64 = struct
-  (** val simplify : Flambda_kind.Standard_int_or_float.t -> Downwards_acc.t ->
-      Flambda.Named.t -> Simple.t -> Flambda2_types.t -> Bound_var.t ->
-      Simplify_primitive_result.t coq_M **)
+  (** val simplify : K.Standard_int_or_float.t -> DA.t -> Named.t -> Simple.t ->
+      T.t -> Bound_var.t -> SPR.t coq_M **)
 
   let simplify =
-    Make_simplify_int_conv.simplify Number_adjuncts.For_int64s.Num.Set.cardinal
-      Number_adjuncts.For_int64s.Num.Set.fold
-      Number_adjuncts.For_int64s.Num.Set.fold
-      Number_adjuncts.For_int64s.Num.Set.fold
-      Number_adjuncts.For_int64s.Num.Set.fold
-      Number_adjuncts.For_int64s.Num.Set.fold
-      Number_adjuncts.For_int64s.Num.Set.fold
-      Number_adjuncts.For_int64s.Num.Set.fold
-      Number_adjuncts.For_int64s.Num.Set.fold
-      Number_adjuncts.For_int64s.Num.to_immediate
-      Number_adjuncts.For_int64s.Num.to_naked_float32
-      Number_adjuncts.For_int64s.Num.to_naked_float
-      Number_adjuncts.For_int64s.Num.to_naked_int8
-      Number_adjuncts.For_int64s.Num.to_naked_int16
-      Number_adjuncts.For_int64s.Num.to_naked_int32
-      Number_adjuncts.For_int64s.Num.to_naked_int64
-      Number_adjuncts.For_int64s.Num.to_naked_nativeint
-      Number_adjuncts.For_int64s.standard_int_or_float_kind
-      Number_adjuncts.For_int64s.unboxed_prover
+    Make_simplify_int_conv.simplify A.For_int64s.Num.Set.cardinal
+      A.For_int64s.Num.Set.fold A.For_int64s.Num.Set.fold
+      A.For_int64s.Num.Set.fold A.For_int64s.Num.Set.fold
+      A.For_int64s.Num.Set.fold A.For_int64s.Num.Set.fold
+      A.For_int64s.Num.Set.fold A.For_int64s.Num.Set.fold
+      A.For_int64s.Num.to_immediate A.For_int64s.Num.to_naked_float32
+      A.For_int64s.Num.to_naked_float A.For_int64s.Num.to_naked_int8
+      A.For_int64s.Num.to_naked_int16 A.For_int64s.Num.to_naked_int32
+      A.For_int64s.Num.to_naked_int64 A.For_int64s.Num.to_naked_nativeint
+      A.For_int64s.standard_int_or_float_kind A.For_int64s.unboxed_prover
 end
 
 module Simplify_int_conv_naked_nativeint = struct
-  (** val simplify : Flambda_kind.Standard_int_or_float.t -> Downwards_acc.t ->
-      Flambda.Named.t -> Simple.t -> Flambda2_types.t -> Bound_var.t ->
-      Simplify_primitive_result.t coq_M **)
+  (** val simplify : K.Standard_int_or_float.t -> DA.t -> Named.t -> Simple.t ->
+      T.t -> Bound_var.t -> SPR.t coq_M **)
 
   let simplify =
-    Make_simplify_int_conv.simplify
-      Number_adjuncts.For_nativeints.Num.Set.cardinal
-      Number_adjuncts.For_nativeints.Num.Set.fold
-      Number_adjuncts.For_nativeints.Num.Set.fold
-      Number_adjuncts.For_nativeints.Num.Set.fold
-      Number_adjuncts.For_nativeints.Num.Set.fold
-      Number_adjuncts.For_nativeints.Num.Set.fold
-      Number_adjuncts.For_nativeints.Num.Set.fold
-      Number_adjuncts.For_nativeints.Num.Set.fold
-      Number_adjuncts.For_nativeints.Num.Set.fold
-      Number_adjuncts.For_nativeints.Num.to_immediate
-      Number_adjuncts.For_nativeints.Num.to_naked_float32
-      Number_adjuncts.For_nativeints.Num.to_naked_float
-      Number_adjuncts.For_nativeints.Num.to_naked_int8
-      Number_adjuncts.For_nativeints.Num.to_naked_int16
-      Number_adjuncts.For_nativeints.Num.to_naked_int32
-      Number_adjuncts.For_nativeints.Num.to_naked_int64
-      Number_adjuncts.For_nativeints.Num.to_naked_nativeint
-      Number_adjuncts.For_nativeints.standard_int_or_float_kind
-      Number_adjuncts.For_nativeints.unboxed_prover
+    Make_simplify_int_conv.simplify A.For_nativeints.Num.Set.cardinal
+      A.For_nativeints.Num.Set.fold A.For_nativeints.Num.Set.fold
+      A.For_nativeints.Num.Set.fold A.For_nativeints.Num.Set.fold
+      A.For_nativeints.Num.Set.fold A.For_nativeints.Num.Set.fold
+      A.For_nativeints.Num.Set.fold A.For_nativeints.Num.Set.fold
+      A.For_nativeints.Num.to_immediate A.For_nativeints.Num.to_naked_float32
+      A.For_nativeints.Num.to_naked_float A.For_nativeints.Num.to_naked_int8
+      A.For_nativeints.Num.to_naked_int16 A.For_nativeints.Num.to_naked_int32
+      A.For_nativeints.Num.to_naked_int64
+      A.For_nativeints.Num.to_naked_nativeint
+      A.For_nativeints.standard_int_or_float_kind
+      A.For_nativeints.unboxed_prover
 end
 
-(** val simplify_boolean_not : Downwards_acc.t -> Flambda.Named.t -> Simple.t ->
-    Flambda2_types.t -> Bound_var.t -> Simplify_primitive_result.t coq_M **)
+(** val simplify_boolean_not : DA.t -> Named.t -> Simple.t -> T.t -> Bound_var.t
+    -> SPR.t coq_M **)
 
 let simplify_boolean_not dacc original_term _ arg_ty result_var =
-  let denv = Downwards_acc.denv dacc in
-  let typing_env = Downwards_env.typing_env denv in
-  let machine_width = Downwards_env.machine_width denv in
-  let proof = Flambda2_types.meet_equals_tagged_immediates typing_env arg_ty in
+  let denv = DA.denv dacc in
+  let typing_env = DE.typing_env denv in
+  let machine_width = DE.machine_width denv in
+  let proof = T.meet_equals_tagged_immediates typing_env arg_ty in
   (fun f__1 f__2 f__3 x__0 ->
-    match (x__0 : _ Flambda2_types.meet_shortcut) with
-    | Flambda2_types.Known_result x__1 -> f__1 x__1
-    | Flambda2_types.Need_meet -> f__2 ()
-    | Flambda2_types.Invalid -> f__3 ())
+    match (x__0 : _ T.meet_shortcut) with
+    | T.Known_result x__1 -> f__1 x__1
+    | T.Need_meet -> f__2 ()
+    | T.Invalid -> f__3 ())
     (fun imms ->
       let imms0 =
         Target_ocaml_int.Set.filter_map
@@ -937,42 +742,39 @@ let simplify_boolean_not dacc original_term _ arg_ty result_var =
           imms
       in
       if Target_ocaml_int.Set.is_empty imms0
-      then Simplify_primitive_result.create_invalid dacc
+      then SPR.create_invalid dacc
       else
-        let ty = Flambda2_types.these_tagged_immediates imms0 in
-        let dacc0 = Downwards_acc.add_variable dacc result_var ty in
-        Simplify_primitive_result.create original_term true dacc0)
+        let ty = T.these_tagged_immediates imms0 in
+        let dacc0 = DA.add_variable dacc result_var ty in
+        SPR.create original_term true dacc0)
     (fun _ ->
-      let machine_width0 = Downwards_env.machine_width denv in
+      let machine_width0 = DE.machine_width denv in
       let ty =
-        Flambda2_types.these_tagged_immediates
-          (Target_ocaml_int.all_bools machine_width0)
+        T.these_tagged_immediates (Target_ocaml_int.all_bools machine_width0)
       in
-      let dacc0 = Downwards_acc.add_variable dacc result_var ty in
-      Simplify_primitive_result.create original_term false dacc0)
-    (fun _ -> Simplify_primitive_result.create_invalid dacc)
+      let dacc0 = DA.add_variable dacc result_var ty in
+      SPR.create original_term false dacc0)
+    (fun _ -> SPR.create_invalid dacc)
     proof
 
 module Make_simplify_reinterpret_64_bit_word = struct
   (** val simplify : (('a1 -> 'a4 -> 'a4 coq_M) -> 'a2 -> 'a4 -> 'a4 coq_M) ->
-      ('a3 -> 'a4 -> 'a4 coq_M) -> 'a4 -> (Flambda2_types.Typing_env.t ->
-      Flambda2_types.t -> 'a2 Flambda2_types.meet_shortcut coq_M) ->
-      (Target_system.Machine_width.t -> 'a1 -> 'a3 coq_M) -> ('a4 ->
-      Flambda2_types.t coq_M) -> Flambda2_types.t -> Downwards_acc.t ->
-      Flambda.Named.t -> Simple.t -> Flambda2_types.t -> Bound_var.t ->
-      Simplify_primitive_result.t coq_M **)
+      ('a3 -> 'a4 -> 'a4 coq_M) -> 'a4 -> (TE.t -> T.t -> 'a2 T.meet_shortcut
+      coq_M) -> (Target_system.Machine_width.t -> 'a1 -> 'a3 coq_M) -> ('a4 ->
+      T.t coq_M) -> T.t -> DA.t -> Named.t -> Simple.t -> T.t -> Bound_var.t ->
+      SPR.t coq_M **)
 
   let simplify p_Src_Set_fold p_Dst_Set_add p_Dst_Set_empty p_prover p_convert
       p_these p_any_dst dacc original_term _ arg_ty result_var =
-    let denv = Downwards_acc.denv dacc in
-    let typing_env = Downwards_env.typing_env denv in
-    let machine_width = Downwards_env.machine_width denv in
+    let denv = DA.denv dacc in
+    let typing_env = DE.typing_env denv in
+    let machine_width = DE.machine_width denv in
     let proof = p_prover typing_env arg_ty in
     (fun f__1 f__2 f__3 x__0 ->
-      match (x__0 : _ Flambda2_types.meet_shortcut) with
-      | Flambda2_types.Known_result x__1 -> f__1 x__1
-      | Flambda2_types.Need_meet -> f__2 ()
-      | Flambda2_types.Invalid -> f__3 ())
+      match (x__0 : _ T.meet_shortcut) with
+      | T.Known_result x__1 -> f__1 x__1
+      | T.Need_meet -> f__2 ()
+      | T.Invalid -> f__3 ())
       (fun src ->
         let dst =
           p_Src_Set_fold
@@ -980,416 +782,349 @@ module Make_simplify_reinterpret_64_bit_word = struct
             src p_Dst_Set_empty
         in
         let ty = p_these dst in
-        let dacc0 = Downwards_acc.add_variable dacc result_var ty in
-        Simplify_primitive_result.create original_term true dacc0)
+        let dacc0 = DA.add_variable dacc result_var ty in
+        SPR.create original_term true dacc0)
       (fun _ ->
-        let dacc0 = Downwards_acc.add_variable dacc result_var p_any_dst in
-        Simplify_primitive_result.create original_term false dacc0)
-      (fun _ -> Simplify_primitive_result.create_invalid dacc)
+        let dacc0 = DA.add_variable dacc result_var p_any_dst in
+        SPR.create original_term false dacc0)
+      (fun _ -> SPR.create_invalid dacc)
       proof
 end
 
 module Simplify_reinterpret_unboxed_int64_as_unboxed_float64 = struct
-  (** val simplify : Downwards_acc.t -> Flambda.Named.t -> Simple.t ->
-      Flambda2_types.t -> Bound_var.t -> Simplify_primitive_result.t coq_M **)
+  (** val simplify : DA.t -> Named.t -> Simple.t -> T.t -> Bound_var.t -> SPR.t
+      coq_M **)
 
   let simplify =
-    Make_simplify_reinterpret_64_bit_word.simplify Numeric_types.Int64.Set.fold
-      Numeric_types.Float_by_bit_pattern.Set.add
-      Numeric_types.Float_by_bit_pattern.Set.empty
-      Flambda2_types.meet_naked_int64s
-      (fun _ -> Numeric_types.Float_by_bit_pattern.of_bits)
-      Flambda2_types.these_naked_floats Flambda2_types.any_naked_float
+    Make_simplify_reinterpret_64_bit_word.simplify Int64.Set.fold Float.Set.add
+      Float.Set.empty T.meet_naked_int64s
+      (fun _ -> Float.of_bits)
+      T.these_naked_floats T.any_naked_float
 end
 
 module Simplify_reinterpret_unboxed_float64_as_unboxed_int64 = struct
-  (** val simplify : Downwards_acc.t -> Flambda.Named.t -> Simple.t ->
-      Flambda2_types.t -> Bound_var.t -> Simplify_primitive_result.t coq_M **)
+  (** val simplify : DA.t -> Named.t -> Simple.t -> T.t -> Bound_var.t -> SPR.t
+      coq_M **)
 
   let simplify =
-    Make_simplify_reinterpret_64_bit_word.simplify
-      Numeric_types.Float_by_bit_pattern.Set.fold Numeric_types.Int64.Set.add
-      Numeric_types.Int64.Set.empty Flambda2_types.meet_naked_floats
-      (fun _ -> Numeric_types.Float_by_bit_pattern.to_bits)
-      Flambda2_types.these_naked_int64s Flambda2_types.any_naked_int64
+    Make_simplify_reinterpret_64_bit_word.simplify Float.Set.fold Int64.Set.add
+      Int64.Set.empty T.meet_naked_floats
+      (fun _ -> Float.to_bits)
+      T.these_naked_int64s T.any_naked_int64
 end
 
 module Simplify_reinterpret_unboxed_int64_as_tagged_int63 = struct
-  (** val simplify : Downwards_acc.t -> Flambda.Named.t -> Simple.t ->
-      Flambda2_types.t -> Bound_var.t -> Simplify_primitive_result.t coq_M **)
+  (** val simplify : DA.t -> Named.t -> Simple.t -> T.t -> Bound_var.t -> SPR.t
+      coq_M **)
 
   let simplify =
-    Make_simplify_reinterpret_64_bit_word.simplify Numeric_types.Int64.Set.fold
-      Target_ocaml_int.Set.add Target_ocaml_int.Set.empty
-      Flambda2_types.meet_naked_int64s
+    Make_simplify_reinterpret_64_bit_word.simplify Int64.Set.fold
+      Target_ocaml_int.Set.add Target_ocaml_int.Set.empty T.meet_naked_int64s
       (fun machine_width i ->
-        Target_ocaml_int.of_int64 machine_width
-          (Numeric_types.Int64.shift_right_logical i 1))
-      Flambda2_types.these_tagged_immediates Flambda2_types.any_tagged_immediate
+        Target_ocaml_int.of_int64 machine_width (Int64.shift_right_logical i 1))
+      T.these_tagged_immediates T.any_tagged_immediate
 end
 
 module Simplify_reinterpret_tagged_int63_as_unboxed_int64 = struct
-  (** val simplify : Downwards_acc.t -> Flambda.Named.t -> Simple.t ->
-      Flambda2_types.t -> Bound_var.t -> Simplify_primitive_result.t coq_M **)
+  (** val simplify : DA.t -> Named.t -> Simple.t -> T.t -> Bound_var.t -> SPR.t
+      coq_M **)
 
   let simplify =
     Make_simplify_reinterpret_64_bit_word.simplify Target_ocaml_int.Set.fold
-      Numeric_types.Int64.Set.add Numeric_types.Int64.Set.empty
-      Flambda2_types.meet_equals_tagged_immediates
-      (fun _ i ->
-        Numeric_types.Int64.add
-          (Numeric_types.Int64.mul (Target_ocaml_int.to_int64 i) 2L)
-          1L)
-      Flambda2_types.these_naked_int64s Flambda2_types.any_naked_int64
+      Int64.Set.add Int64.Set.empty T.meet_equals_tagged_immediates
+      (fun _ i -> Int64.add (Int64.mul (Target_ocaml_int.to_int64 i) 2L) 1L)
+      T.these_naked_int64s T.any_naked_int64
 end
 
-(** val simplify_reinterpret_64_bit_word :
-    Flambda_primitive.Reinterpret_64_bit_word.t -> Downwards_acc.t ->
-    Flambda.Named.t -> Simple.t -> Flambda2_types.t -> Bound_var.t ->
-    Simplify_primitive_result.t coq_M **)
+(** val simplify_reinterpret_64_bit_word : P.Reinterpret_64_bit_word.t -> DA.t
+    -> Named.t -> Simple.t -> T.t -> Bound_var.t -> SPR.t coq_M **)
 
 let simplify_reinterpret_64_bit_word reinterpret dacc original_term arg arg_ty
     result_var =
   match reinterpret with
-  | Flambda_primitive.Reinterpret_64_bit_word.Tagged_int63_as_unboxed_int64 ->
+  | P.Reinterpret_64_bit_word.Tagged_int63_as_unboxed_int64 ->
     Simplify_reinterpret_tagged_int63_as_unboxed_int64.simplify dacc
       original_term arg arg_ty result_var
-  | Flambda_primitive.Reinterpret_64_bit_word.Unboxed_int64_as_tagged_int63 ->
+  | P.Reinterpret_64_bit_word.Unboxed_int64_as_tagged_int63 ->
     Simplify_reinterpret_unboxed_int64_as_tagged_int63.simplify dacc
       original_term arg arg_ty result_var
-  | Flambda_primitive.Reinterpret_64_bit_word.Unboxed_int64_as_unboxed_float64
-    ->
+  | P.Reinterpret_64_bit_word.Unboxed_int64_as_unboxed_float64 ->
     Simplify_reinterpret_unboxed_int64_as_unboxed_float64.simplify dacc
       original_term arg arg_ty result_var
-  | Flambda_primitive.Reinterpret_64_bit_word.Unboxed_float64_as_unboxed_int64
-    ->
+  | P.Reinterpret_64_bit_word.Unboxed_float64_as_unboxed_int64 ->
     Simplify_reinterpret_unboxed_float64_as_unboxed_int64.simplify dacc
       original_term arg arg_ty result_var
 
 module Make_simplify_float_arith_op = struct
   (** val simplify : ('a2 -> bool coq_M) -> (('a1 -> 'a1 coq_M) -> 'a2 -> 'a2
-      coq_M) -> ('a1 -> 'a1 coq_M) -> ('a1 -> 'a1 coq_M) ->
-      (Flambda2_types.Typing_env.t -> Flambda2_types.t -> 'a2
-      Flambda2_types.meet_shortcut coq_M) -> ('a2 -> Flambda2_types.t coq_M) ->
-      Flambda_kind.t -> Flambda_primitive.unary_float_arith_op ->
-      Downwards_acc.t -> Flambda.Named.t -> Simple.t -> Flambda2_types.t ->
-      Bound_var.t -> Simplify_primitive_result.t coq_M **)
+      coq_M) -> ('a1 -> 'a1 coq_M) -> ('a1 -> 'a1 coq_M) -> (T.Typing_env.t ->
+      T.t -> 'a2 T.meet_shortcut coq_M) -> ('a2 -> T.t coq_M) -> K.t ->
+      P.unary_float_arith_op -> DA.t -> Named.t -> Simple.t -> T.t ->
+      Bound_var.t -> SPR.t coq_M **)
 
   let simplify fP_F_Set_is_empty fP_F_Set_map fP_F_IEEE_semantics_abs
       fP_F_IEEE_semantics_neg fP_meet fP_these fP_kind op dacc original_term _
       arg_ty result_var =
-    let denv = Downwards_acc.denv dacc in
-    let proof = fP_meet (Downwards_env.typing_env denv) arg_ty in
+    let denv = DA.denv dacc in
+    let proof = fP_meet (DE.typing_env denv) arg_ty in
     (fun f__1 f__2 f__3 x__0 ->
-      match (x__0 : _ Flambda2_types.meet_shortcut) with
-      | Flambda2_types.Known_result x__1 -> f__1 x__1
-      | Flambda2_types.Need_meet -> f__2 ()
-      | Flambda2_types.Invalid -> f__3 ())
+      match (x__0 : _ T.meet_shortcut) with
+      | T.Known_result x__1 -> f__1 x__1
+      | T.Need_meet -> f__2 ()
+      | T.Invalid -> f__3 ())
       (fun fs ->
-        if Downwards_env.propagating_float_consts denv
+        if DE.propagating_float_consts denv
         then
           let () = assert (not (fP_F_Set_is_empty fs)) in
           let f =
             match op with
-            | Flambda_primitive.Abs -> fP_F_IEEE_semantics_abs
-            | Flambda_primitive.Neg -> fP_F_IEEE_semantics_neg
+            | P.Abs -> fP_F_IEEE_semantics_abs
+            | P.Neg -> fP_F_IEEE_semantics_neg
           in
           let possible_results = fP_F_Set_map f fs in
           let ty = fP_these possible_results in
-          let dacc0 = Downwards_acc.add_variable dacc result_var ty in
-          Simplify_primitive_result.create original_term true dacc0
-        else
-          Simplify_primitive_result.create_unknown dacc result_var fP_kind
-            original_term)
-      (fun _ ->
-        Simplify_primitive_result.create_unknown dacc result_var fP_kind
-          original_term)
-      (fun _ -> Simplify_primitive_result.create_invalid dacc)
+          let dacc0 = DA.add_variable dacc result_var ty in
+          SPR.create original_term true dacc0
+        else SPR.create_unknown dacc result_var fP_kind original_term)
+      (fun _ -> SPR.create_unknown dacc result_var fP_kind original_term)
+      (fun _ -> SPR.create_invalid dacc)
       proof
 end
 
 module Simplify_float_arith_op = struct
-  (** val simplify : Flambda_primitive.unary_float_arith_op -> Downwards_acc.t
-      -> Flambda.Named.t -> Simple.t -> Flambda2_types.t -> Bound_var.t ->
-      Simplify_primitive_result.t coq_M **)
+  (** val simplify : P.unary_float_arith_op -> DA.t -> Named.t -> Simple.t ->
+      T.t -> Bound_var.t -> SPR.t coq_M **)
 
   let simplify =
-    Make_simplify_float_arith_op.simplify
-      Numeric_types.Float_by_bit_pattern.Set.is_empty
-      Numeric_types.Float_by_bit_pattern.Set.map
-      Numeric_types.Float_by_bit_pattern.IEEE_semantics.abs
-      Numeric_types.Float_by_bit_pattern.IEEE_semantics.neg
-      Flambda2_types.meet_naked_floats Flambda2_types.these_naked_floats
-      Flambda_kind.naked_float
+    Make_simplify_float_arith_op.simplify Float.Set.is_empty Float.Set.map
+      Float.IEEE_semantics.abs Float.IEEE_semantics.neg T.meet_naked_floats
+      T.these_naked_floats K.naked_float
 end
 
 module Simplify_float32_arith_op = struct
-  (** val simplify : Flambda_primitive.unary_float_arith_op -> Downwards_acc.t
-      -> Flambda.Named.t -> Simple.t -> Flambda2_types.t -> Bound_var.t ->
-      Simplify_primitive_result.t coq_M **)
+  (** val simplify : P.unary_float_arith_op -> DA.t -> Named.t -> Simple.t ->
+      T.t -> Bound_var.t -> SPR.t coq_M **)
 
   let simplify =
-    Make_simplify_float_arith_op.simplify
-      Numeric_types.Float32_by_bit_pattern.Set.is_empty
-      Numeric_types.Float32_by_bit_pattern.Set.map
-      Numeric_types.Float32_by_bit_pattern.IEEE_semantics.abs
-      Numeric_types.Float32_by_bit_pattern.IEEE_semantics.neg
-      Flambda2_types.meet_naked_float32s Flambda2_types.these_naked_float32s
-      Flambda_kind.naked_float32
+    Make_simplify_float_arith_op.simplify Float32.Set.is_empty Float32.Set.map
+      Float32.IEEE_semantics.abs Float32.IEEE_semantics.neg
+      T.meet_naked_float32s T.these_naked_float32s K.naked_float32
 end
 
-(** val simplify_float_arith_op : Flambda_primitive.unary_float_arith_op ->
-    Downwards_acc.t -> Flambda.Named.t -> Simple.t -> Flambda2_types.t ->
-    Bound_var.t -> Simplify_primitive_result.t coq_M **)
+(** val simplify_float_arith_op : P.unary_float_arith_op -> DA.t -> Named.t ->
+    Simple.t -> T.t -> Bound_var.t -> SPR.t coq_M **)
 
 let simplify_float_arith_op = Simplify_float_arith_op.simplify
 
-(** val simplify_float32_arith_op : Flambda_primitive.unary_float_arith_op ->
-    Downwards_acc.t -> Flambda.Named.t -> Simple.t -> Flambda2_types.t ->
-    Bound_var.t -> Simplify_primitive_result.t coq_M **)
+(** val simplify_float32_arith_op : P.unary_float_arith_op -> DA.t -> Named.t ->
+    Simple.t -> T.t -> Bound_var.t -> SPR.t coq_M **)
 
 let simplify_float32_arith_op = Simplify_float32_arith_op.simplify
 
-(** val simplify_is_boxed_float : Downwards_acc.t -> Flambda.Named.t -> Simple.t
-    -> Flambda2_types.t -> Bound_var.t -> Simplify_primitive_result.t coq_M **)
+(** val simplify_is_boxed_float : DA.t -> Named.t -> Simple.t -> T.t ->
+    Bound_var.t -> SPR.t coq_M **)
 
 let simplify_is_boxed_float dacc original_term _ arg_ty result_var =
-  let denv = Downwards_acc.denv dacc in
-  let machine_width = Downwards_env.machine_width denv in
-  match
-    Flambda2_types.prove_is_or_is_not_a_boxed_float
-      (Downwards_acc.typing_env dacc)
-      arg_ty
-  with
-  | Flambda2_types.Proved is_a_boxed_float ->
+  let denv = DA.denv dacc in
+  let machine_width = DE.machine_width denv in
+  match T.prove_is_or_is_not_a_boxed_float (DA.typing_env dacc) arg_ty with
+  | T.Proved is_a_boxed_float ->
     let imm = Target_ocaml_int.bool machine_width is_a_boxed_float in
-    let ty = Flambda2_types.this_naked_immediate imm in
-    let dacc0 = Downwards_acc.add_variable dacc result_var ty in
-    Simplify_primitive_result.create original_term true dacc0
-  | Flambda2_types.Unknown ->
-    Simplify_primitive_result.create_unknown dacc result_var
-      Flambda_kind.naked_immediate original_term
+    let ty = T.this_naked_immediate imm in
+    let dacc0 = DA.add_variable dacc result_var ty in
+    SPR.create original_term true dacc0
+  | T.Unknown ->
+    SPR.create_unknown dacc result_var K.naked_immediate original_term
 
-(** val simplify_is_flat_float_array : Downwards_acc.t -> Flambda.Named.t ->
-    Simple.t -> Flambda2_types.t -> Bound_var.t -> Simplify_primitive_result.t
-    coq_M **)
+(** val simplify_is_flat_float_array : DA.t -> Named.t -> Simple.t -> T.t ->
+    Bound_var.t -> SPR.t coq_M **)
 
 let simplify_is_flat_float_array dacc original_term _ arg_ty result_var =
-  let denv = Downwards_acc.denv dacc in
-  let machine_width = Downwards_env.machine_width denv in
+  let denv = DA.denv dacc in
+  let machine_width = DE.machine_width denv in
   (fun f__1 f__2 f__3 x__0 ->
-    match (x__0 : _ Flambda2_types.meet_shortcut) with
-    | Flambda2_types.Known_result x__1 -> f__1 x__1
-    | Flambda2_types.Need_meet -> f__2 ()
-    | Flambda2_types.Invalid -> f__3 ())
+    match (x__0 : _ T.meet_shortcut) with
+    | T.Known_result x__1 -> f__1 x__1
+    | T.Need_meet -> f__2 ()
+    | T.Invalid -> f__3 ())
     (fun is_flat_float_array ->
       let imm = Target_ocaml_int.bool machine_width is_flat_float_array in
-      let ty = Flambda2_types.this_naked_immediate imm in
-      let dacc0 = Downwards_acc.add_variable dacc result_var ty in
-      Simplify_primitive_result.create
-        (Flambda.Named.create_simple
+      let ty = T.this_naked_immediate imm in
+      let dacc0 = DA.add_variable dacc result_var ty in
+      SPR.create
+        (Named.create_simple
            (Simple.const (Reg_width_const.naked_immediate imm)))
         false dacc0)
     (fun _ ->
-      Simplify_primitive_result.create_unknown dacc result_var
-        Flambda_kind.naked_immediate original_term)
-    (fun _ -> Simplify_primitive_result.create_invalid dacc)
-    (Flambda2_types.meet_is_flat_float_array
-       (Downwards_acc.typing_env dacc)
-       arg_ty)
+      SPR.create_unknown dacc result_var K.naked_immediate original_term)
+    (fun _ -> SPR.create_invalid dacc)
+    (T.meet_is_flat_float_array (DA.typing_env dacc) arg_ty)
 
-(** val simplify_opaque_identity : Downwards_acc.t -> Flambda_kind.t ->
-    Flambda.Named.t -> Simple.t -> Flambda2_types.t -> Bound_var.t ->
-    Simplify_primitive_result.t coq_M **)
+(** val simplify_opaque_identity : DA.t -> K.t -> Named.t -> Simple.t -> T.t ->
+    Bound_var.t -> SPR.t coq_M **)
 
 let simplify_opaque_identity dacc kind original_term _ _ result_var =
-  Simplify_primitive_result.create_unknown dacc result_var kind original_term
+  SPR.create_unknown dacc result_var kind original_term
 
-(** val simplify_reinterpret_boxed_vector : Downwards_acc.t -> Flambda.Named.t
-    -> Simple.t -> Flambda2_types.t -> Bound_var.t ->
-    Simplify_primitive_result.t coq_M **)
+(** val simplify_reinterpret_boxed_vector : DA.t -> Named.t -> Simple.t -> T.t
+    -> Bound_var.t -> SPR.t coq_M **)
 
 let simplify_reinterpret_boxed_vector dacc original_term _ _ result_var =
-  Simplify_primitive_result.create_unknown dacc result_var Flambda_kind.value
-    original_term
+  SPR.create_unknown dacc result_var Flambda_kind.value original_term
 
-(** val simplify_end_region : Downwards_acc.t -> Flambda.Named.t -> Simple.t ->
-    Flambda2_types.t -> Bound_var.t -> Simplify_primitive_result.t coq_M **)
+(** val simplify_end_region : DA.t -> Named.t -> Simple.t -> T.t -> Bound_var.t
+    -> SPR.t coq_M **)
 
 let simplify_end_region dacc original_term _ _ result_var =
-  let denv = Downwards_acc.denv dacc in
-  let machine_width = Downwards_env.machine_width denv in
-  let ty =
-    Flambda2_types.this_tagged_immediate (Target_ocaml_int.zero machine_width)
-  in
-  let dacc0 = Downwards_acc.add_variable dacc result_var ty in
-  Simplify_primitive_result.create original_term false dacc0
+  let denv = DA.denv dacc in
+  let machine_width = DE.machine_width denv in
+  let ty = T.this_tagged_immediate (Target_ocaml_int.zero machine_width) in
+  let dacc0 = DA.add_variable dacc result_var ty in
+  SPR.create original_term false dacc0
 
-(** val simplify_end_try_region : Downwards_acc.t -> Flambda.Named.t -> Simple.t
-    -> Flambda2_types.t -> Bound_var.t -> Simplify_primitive_result.t coq_M **)
+(** val simplify_end_try_region : DA.t -> Named.t -> Simple.t -> T.t ->
+    Bound_var.t -> SPR.t coq_M **)
 
 let simplify_end_try_region dacc original_term _ _ result_var =
-  let denv = Downwards_acc.denv dacc in
-  let machine_width = Downwards_env.machine_width denv in
-  let ty =
-    Flambda2_types.this_tagged_immediate (Target_ocaml_int.zero machine_width)
-  in
-  let dacc0 = Downwards_acc.add_variable dacc result_var ty in
-  Simplify_primitive_result.create original_term false dacc0
+  let denv = DA.denv dacc in
+  let machine_width = DE.machine_width denv in
+  let ty = T.this_tagged_immediate (Target_ocaml_int.zero machine_width) in
+  let dacc0 = DA.add_variable dacc result_var ty in
+  SPR.create original_term false dacc0
 
-(** val simplify_int_as_pointer : Alloc_mode.For_allocations.t ->
-    Downwards_acc.t -> Flambda.Named.t -> Simple.t -> Flambda2_types.t ->
-    Bound_var.t -> Simplify_primitive_result.t coq_M **)
+(** val simplify_int_as_pointer : Alloc_mode.For_allocations.t -> DA.t ->
+    Named.t -> Simple.t -> T.t -> Bound_var.t -> SPR.t coq_M **)
 
 let simplify_int_as_pointer _ dacc original_term _ _ result_var =
-  Simplify_primitive_result.create_unknown dacc result_var Flambda_kind.value
-    original_term
+  SPR.create_unknown dacc result_var K.value original_term
 
-(** val simplify_bigarray_length : int -> Downwards_acc.t -> Flambda.Named.t ->
-    Simple.t -> Flambda2_types.t -> Bound_var.t -> Simplify_primitive_result.t
-    coq_M **)
+(** val simplify_bigarray_length : int -> DA.t -> Named.t -> Simple.t -> T.t ->
+    Bound_var.t -> SPR.t coq_M **)
 
 let simplify_bigarray_length _ dacc original_term _ _ result_var =
-  Simplify_primitive_result.create_unknown dacc result_var
-    Flambda_kind.naked_immediate original_term
+  SPR.create_unknown dacc result_var K.naked_immediate original_term
 
-(** val simplify_duplicate_array : Flambda_primitive.Duplicate_array_kind.t ->
-    Mutability.t -> Mutability.t -> Variable.t -> Downwards_acc.t ->
-    Flambda.Named.t -> Simple.t -> Flambda2_types.t -> Bound_var.t ->
-    Simplify_primitive_result.t coq_M **)
+(** val simplify_duplicate_array : P.Duplicate_array_kind.t -> Mutability.t ->
+    Mutability.t -> Variable.t -> DA.t -> Named.t -> Simple.t -> T.t ->
+    Bound_var.t -> SPR.t coq_M **)
 
 let simplify_duplicate_array _ source_mutability destination_mutability _ dacc
     original_term _ arg_ty result_var =
-  let denv = Downwards_acc.denv dacc in
-  let machine_width = Downwards_env.machine_width denv in
+  let denv = DA.denv dacc in
+  let machine_width = DE.machine_width denv in
   match source_mutability with
   | Mutability.Mutable -> (
     match destination_mutability with
     | Mutability.Mutable ->
       Misc.fatal_errorf
         "Combination of mutabilities not supported for [Duplicate_array]:@ %a"
-        Flambda.Named.print original_term
+        Named.print original_term
     | Mutability.Immutable ->
       Misc.fatal_errorf
         "Combination of mutabilities not supported for [Duplicate_array]:@ %a"
-        Flambda.Named.print original_term
+        Named.print original_term
     | Mutability.Immutable_unique ->
       Misc.fatal_errorf
         "Combination of mutabilities not supported for [Duplicate_array]:@ %a"
-        Flambda.Named.print original_term)
+        Named.print original_term)
   | Mutability.Immutable -> (
     match destination_mutability with
     | Mutability.Mutable ->
       (fun f__1 f__2 f__3 x__0 ->
-        match (x__0 : _ Flambda2_types.meet_shortcut) with
-        | Flambda2_types.Known_result x__1 -> f__1 x__1
-        | Flambda2_types.Need_meet -> f__2 ()
-        | Flambda2_types.Invalid -> f__3 ())
+        match (x__0 : _ T.meet_shortcut) with
+        | T.Known_result x__1 -> f__1 x__1
+        | T.Need_meet -> f__2 ()
+        | T.Invalid -> f__3 ())
         (fun t0 ->
           let element_kind, fields, alloc_mode = t0 in
           let length =
-            Flambda2_types.this_tagged_immediate
+            T.this_tagged_immediate
               (Target_ocaml_int.of_int machine_width (Array.length fields))
           in
-          let ty =
-            Flambda2_types.mutable_array element_kind length alloc_mode
-          in
-          let dacc0 = Downwards_acc.add_variable dacc result_var ty in
-          Simplify_primitive_result.create original_term false dacc0)
+          let ty = T.mutable_array element_kind length alloc_mode in
+          let dacc0 = DA.add_variable dacc result_var ty in
+          SPR.create original_term false dacc0)
         (fun _ ->
-          let dacc0 =
-            Downwards_acc.add_variable dacc result_var Flambda2_types.any_value
-          in
-          Simplify_primitive_result.create original_term false dacc0)
-        (fun _ -> Simplify_primitive_result.create_invalid dacc)
-        (Flambda2_types.meet_is_immutable_array
-           (Downwards_acc.typing_env dacc)
-           arg_ty)
+          let dacc0 = DA.add_variable dacc result_var T.any_value in
+          SPR.create original_term false dacc0)
+        (fun _ -> SPR.create_invalid dacc)
+        (T.meet_is_immutable_array (DA.typing_env dacc) arg_ty)
     | Mutability.Immutable ->
       Misc.fatal_errorf
         "Combination of mutabilities not supported for [Duplicate_array]:@ %a"
-        Flambda.Named.print original_term
+        Named.print original_term
     | Mutability.Immutable_unique ->
       Misc.fatal_errorf
         "Combination of mutabilities not supported for [Duplicate_array]:@ %a"
-        Flambda.Named.print original_term)
+        Named.print original_term)
   | Mutability.Immutable_unique -> (
     match destination_mutability with
     | Mutability.Mutable ->
       Misc.fatal_errorf
         "Combination of mutabilities not supported for [Duplicate_array]:@ %a"
-        Flambda.Named.print original_term
+        Named.print original_term
     | Mutability.Immutable ->
       Misc.fatal_errorf
         "Combination of mutabilities not supported for [Duplicate_array]:@ %a"
-        Flambda.Named.print original_term
+        Named.print original_term
     | Mutability.Immutable_unique ->
       Misc.fatal_errorf
         "Combination of mutabilities not supported for [Duplicate_array]:@ %a"
-        Flambda.Named.print original_term)
+        Named.print original_term)
 
-(** val simplify_duplicate_block : Flambda_primitive.Duplicate_block_kind.t ->
-    Variable.t -> Downwards_acc.t -> Flambda.Named.t -> Simple.t ->
-    Flambda2_types.t -> Bound_var.t -> Simplify_primitive_result.t coq_M **)
+(** val simplify_duplicate_block : P.Duplicate_block_kind.t -> Variable.t ->
+    DA.t -> Named.t -> Simple.t -> T.t -> Bound_var.t -> SPR.t coq_M **)
 
 let simplify_duplicate_block _ _ dacc original_term _ arg_ty result_var =
-  let ty =
-    Flambda2_types.remove_outermost_alias (Downwards_acc.typing_env dacc) arg_ty
-  in
-  let dacc0 = Downwards_acc.add_variable dacc result_var ty in
-  Simplify_primitive_result.create original_term false dacc0
+  let ty = T.remove_outermost_alias (DA.typing_env dacc) arg_ty in
+  let dacc0 = DA.add_variable dacc result_var ty in
+  SPR.create original_term false dacc0
 
-(** val simplify_obj_dup : Variable.t -> Debuginfo.t -> Downwards_acc.t ->
-    Flambda.Named.t -> Simple.t -> Flambda2_types.t -> Bound_var.t ->
-    Simplify_primitive_result.t coq_M **)
+(** val simplify_obj_dup : Variable.t -> Debuginfo.t -> DA.t -> Named.t ->
+    Simple.t -> T.t -> Bound_var.t -> SPR.t coq_M **)
 
 let simplify_obj_dup alloc_region dbg dacc original_term arg arg_ty result_var =
-  let typing_env = Downwards_acc.typing_env dacc in
+  let typing_env = DA.typing_env dacc in
   let elide_primitive =
    fun _ ->
-    let dacc0 = Downwards_acc.add_variable dacc result_var arg_ty in
-    Simplify_primitive_result.create
-      (Flambda.Named.create_simple arg)
-      true dacc0
+    let dacc0 = DA.add_variable dacc result_var arg_ty in
+    SPR.create (Named.create_simple arg) true dacc0
   in
-  match Flambda2_types.prove_is_a_boxed_or_tagged_number typing_env arg_ty with
-  | Flambda2_types.Proved b -> (
+  match T.prove_is_a_boxed_or_tagged_number typing_env arg_ty with
+  | T.Proved b -> (
     match b with
-    | Flambda2_types.Boxed (t0, boxable_number, contents_ty) -> (
+    | T.Boxed (t0, boxable_number, contents_ty) -> (
       match t0 with
       | Alloc_mode.For_types.Heap -> elide_primitive ()
       | Alloc_mode.For_types.Local ->
         Port_monad.match_exn
           (fun _ ->
             (fun x__1 x__2 x__3 x__4 ->
-              Flambda2_types.Typing_env.get_alias_then_canonical_simple_exn x__1
-                ?min_name_mode:x__2 ?name_mode_of_existing_simple:x__3 x__4)
-              typing_env (Some Name_mode.normal) None contents_ty)
+              TE.get_alias_then_canonical_simple_exn x__1 ?min_name_mode:x__2
+                ?name_mode_of_existing_simple:x__3 x__4)
+              typing_env (Some NM.normal) None contents_ty)
           Port_monad.not_found
           (fun _ ->
             let contents_var =
               (fun x__1 x__2 x__3 ->
                 Variable.create ?user_visible:x__1 x__2 x__3)
-                None "obj_dup_contents"
-                (Flambda2_types.kind contents_ty)
+                None "obj_dup_contents" (T.kind contents_ty)
             in
             let contents_var_duid = Flambda_debug_uid.none in
             let unbox_expr =
-              Flambda.Named.create_prim
-                (Flambda_primitive.Unary
-                   (Flambda_primitive.Unbox_number boxable_number, arg))
+              Named.create_prim
+                (P.Unary (P.Unbox_number boxable_number, arg))
                 dbg
             in
             let contents_pat =
               Bound_pattern.singleton
-                (Bound_var.create contents_var contents_var_duid
-                   Name_mode.normal)
+                (Bound_var.create contents_var contents_var_duid NM.normal)
             in
             let contents_simple = Simple.var contents_var in
             let box_expr =
-              Flambda.Named.create_prim
-                (Flambda_primitive.Unary
-                   ( Flambda_primitive.Box_number
+              Named.create_prim
+                (P.Unary
+                   ( P.Box_number
                        ( boxable_number,
                          Alloc_mode.For_allocations.heap alloc_region ),
                      contents_simple ))
@@ -1398,42 +1133,32 @@ let simplify_obj_dup alloc_region dbg dacc original_term arg arg_ty result_var =
             let result_pat = Bound_pattern.singleton result_var in
             let wrap =
              fun body ->
-              Flambda.Expr.create_let
-                (Flambda.Let.create contents_pat unbox_expr
-                   (Flambda.Expr.create_let
-                      (Flambda.Let.create result_pat box_expr body
-                         Or_unknown.Unknown))
+              Expr.create_let
+                (Let.create contents_pat unbox_expr
+                   (Expr.create_let
+                      (Let.create result_pat box_expr body Or_unknown.Unknown))
                    Or_unknown.Unknown)
             in
-            Simplify_primitive_result.create_rewritten wrap)
+            SPR.create_rewritten wrap)
           (fun contents ->
             let boxer =
               match boxable_number with
-              | Flambda_kind.Boxable_number.Naked_float32 ->
-                Flambda2_types.box_float32
-              | Flambda_kind.Boxable_number.Naked_float ->
-                Flambda2_types.box_float
-              | Flambda_kind.Boxable_number.Naked_int32 ->
-                Flambda2_types.box_int32
-              | Flambda_kind.Boxable_number.Naked_int64 ->
-                Flambda2_types.box_int64
-              | Flambda_kind.Boxable_number.Naked_nativeint ->
-                Flambda2_types.box_nativeint
-              | Flambda_kind.Boxable_number.Naked_vec128 ->
-                Flambda2_types.box_vec128
-              | Flambda_kind.Boxable_number.Naked_vec256 ->
-                Flambda2_types.box_vec256
-              | Flambda_kind.Boxable_number.Naked_vec512 ->
-                Flambda2_types.box_vec512
-              | Flambda_kind.Boxable_number.Naked_mask ->
-                Flambda2_types.box_mask
+              | Flambda_kind.Boxable_number.Naked_float32 -> T.box_float32
+              | Flambda_kind.Boxable_number.Naked_float -> T.box_float
+              | Flambda_kind.Boxable_number.Naked_int32 -> T.box_int32
+              | Flambda_kind.Boxable_number.Naked_int64 -> T.box_int64
+              | Flambda_kind.Boxable_number.Naked_nativeint -> T.box_nativeint
+              | Flambda_kind.Boxable_number.Naked_vec128 -> T.box_vec128
+              | Flambda_kind.Boxable_number.Naked_vec256 -> T.box_vec256
+              | Flambda_kind.Boxable_number.Naked_vec512 -> T.box_vec512
+              | Flambda_kind.Boxable_number.Naked_mask -> T.box_mask
             in
             let ty = boxer contents_ty Alloc_mode.For_types.heap in
-            let dacc0 = Downwards_acc.add_variable dacc result_var ty in
-            Simplify_primitive_result.create
-              (Flambda.Named.create_prim
-                 (Flambda_primitive.Unary
-                    ( Flambda_primitive.Box_number
+            let dacc0 = DA.add_variable dacc result_var ty in
+            SPR.create
+              (Named.create_prim
+                 (P.Unary
+                    ( P.Box_number
                         ( boxable_number,
                           Alloc_mode.For_allocations.heap alloc_region ),
                       contents ))
@@ -1443,34 +1168,31 @@ let simplify_obj_dup alloc_region dbg dacc original_term arg arg_ty result_var =
         Port_monad.match_exn
           (fun _ ->
             (fun x__1 x__2 x__3 x__4 ->
-              Flambda2_types.Typing_env.get_alias_then_canonical_simple_exn x__1
-                ?min_name_mode:x__2 ?name_mode_of_existing_simple:x__3 x__4)
-              typing_env (Some Name_mode.normal) None contents_ty)
+              TE.get_alias_then_canonical_simple_exn x__1 ?min_name_mode:x__2
+                ?name_mode_of_existing_simple:x__3 x__4)
+              typing_env (Some NM.normal) None contents_ty)
           Port_monad.not_found
           (fun _ ->
             let contents_var =
               (fun x__1 x__2 x__3 ->
                 Variable.create ?user_visible:x__1 x__2 x__3)
-                None "obj_dup_contents"
-                (Flambda2_types.kind contents_ty)
+                None "obj_dup_contents" (T.kind contents_ty)
             in
             let contents_var_duid = Flambda_debug_uid.none in
             let unbox_expr =
-              Flambda.Named.create_prim
-                (Flambda_primitive.Unary
-                   (Flambda_primitive.Unbox_number boxable_number, arg))
+              Named.create_prim
+                (P.Unary (P.Unbox_number boxable_number, arg))
                 dbg
             in
             let contents_pat =
               Bound_pattern.singleton
-                (Bound_var.create contents_var contents_var_duid
-                   Name_mode.normal)
+                (Bound_var.create contents_var contents_var_duid NM.normal)
             in
             let contents_simple = Simple.var contents_var in
             let box_expr =
-              Flambda.Named.create_prim
-                (Flambda_primitive.Unary
-                   ( Flambda_primitive.Box_number
+              Named.create_prim
+                (P.Unary
+                   ( P.Box_number
                        ( boxable_number,
                          Alloc_mode.For_allocations.heap alloc_region ),
                      contents_simple ))
@@ -1479,108 +1201,87 @@ let simplify_obj_dup alloc_region dbg dacc original_term arg arg_ty result_var =
             let result_pat = Bound_pattern.singleton result_var in
             let wrap =
              fun body ->
-              Flambda.Expr.create_let
-                (Flambda.Let.create contents_pat unbox_expr
-                   (Flambda.Expr.create_let
-                      (Flambda.Let.create result_pat box_expr body
-                         Or_unknown.Unknown))
+              Expr.create_let
+                (Let.create contents_pat unbox_expr
+                   (Expr.create_let
+                      (Let.create result_pat box_expr body Or_unknown.Unknown))
                    Or_unknown.Unknown)
             in
-            Simplify_primitive_result.create_rewritten wrap)
+            SPR.create_rewritten wrap)
           (fun contents ->
             let boxer =
               match boxable_number with
-              | Flambda_kind.Boxable_number.Naked_float32 ->
-                Flambda2_types.box_float32
-              | Flambda_kind.Boxable_number.Naked_float ->
-                Flambda2_types.box_float
-              | Flambda_kind.Boxable_number.Naked_int32 ->
-                Flambda2_types.box_int32
-              | Flambda_kind.Boxable_number.Naked_int64 ->
-                Flambda2_types.box_int64
-              | Flambda_kind.Boxable_number.Naked_nativeint ->
-                Flambda2_types.box_nativeint
-              | Flambda_kind.Boxable_number.Naked_vec128 ->
-                Flambda2_types.box_vec128
-              | Flambda_kind.Boxable_number.Naked_vec256 ->
-                Flambda2_types.box_vec256
-              | Flambda_kind.Boxable_number.Naked_vec512 ->
-                Flambda2_types.box_vec512
-              | Flambda_kind.Boxable_number.Naked_mask ->
-                Flambda2_types.box_mask
+              | Flambda_kind.Boxable_number.Naked_float32 -> T.box_float32
+              | Flambda_kind.Boxable_number.Naked_float -> T.box_float
+              | Flambda_kind.Boxable_number.Naked_int32 -> T.box_int32
+              | Flambda_kind.Boxable_number.Naked_int64 -> T.box_int64
+              | Flambda_kind.Boxable_number.Naked_nativeint -> T.box_nativeint
+              | Flambda_kind.Boxable_number.Naked_vec128 -> T.box_vec128
+              | Flambda_kind.Boxable_number.Naked_vec256 -> T.box_vec256
+              | Flambda_kind.Boxable_number.Naked_vec512 -> T.box_vec512
+              | Flambda_kind.Boxable_number.Naked_mask -> T.box_mask
             in
             let ty = boxer contents_ty Alloc_mode.For_types.heap in
-            let dacc0 = Downwards_acc.add_variable dacc result_var ty in
-            Simplify_primitive_result.create
-              (Flambda.Named.create_prim
-                 (Flambda_primitive.Unary
-                    ( Flambda_primitive.Box_number
+            let dacc0 = DA.add_variable dacc result_var ty in
+            SPR.create
+              (Named.create_prim
+                 (P.Unary
+                    ( P.Box_number
                         ( boxable_number,
                           Alloc_mode.For_allocations.heap alloc_region ),
                       contents ))
                  dbg)
               true dacc0))
-    | Flambda2_types.Tagged_immediate -> elide_primitive ())
-  | Flambda2_types.Unknown -> (
-    match Flambda2_types.prove_strings typing_env arg_ty with
-    | Flambda2_types.Proved _ -> elide_primitive ()
-    | Flambda2_types.Unknown ->
-      Simplify_primitive_result.create_unknown dacc result_var
-        Flambda_kind.value original_term)
+    | T.Tagged_immediate -> elide_primitive ())
+  | T.Unknown -> (
+    match T.prove_strings typing_env arg_ty with
+    | T.Proved _ -> elide_primitive ()
+    | T.Unknown -> SPR.create_unknown dacc result_var K.value original_term)
 
-(** val simplify_get_header : Flambda_primitive.t -> Downwards_acc.t ->
-    Flambda.Named.t -> Simple.t -> Flambda2_types.t -> Bound_var.t ->
-    Simplify_primitive_result.t coq_M **)
+(** val simplify_get_header : P.t -> DA.t -> Named.t -> Simple.t -> T.t ->
+    Bound_var.t -> SPR.t coq_M **)
 
 let simplify_get_header original_prim dacc original_term _ _ result_var =
-  Simplify_primitive_result.create_unknown dacc result_var
-    (Flambda_primitive.result_kind' original_prim)
+  SPR.create_unknown dacc result_var
+    (P.result_kind' original_prim)
     original_term
 
-(** val simplify_immutable_block_load0 : Flambda_primitive.Block_access_kind.t
-    -> Target_ocaml_int.t -> Name_mode.t -> Downwards_acc.t -> Flambda.Named.t
-    -> Debuginfo.t -> Simple.t -> Flambda2_types.t -> Bound_var.t ->
-    Simplify_primitive_result.t coq_M **)
+(** val simplify_immutable_block_load0 : P.Block_access_kind.t ->
+    Target_ocaml_int.t -> Name_mode.t -> DA.t -> Named.t -> Debuginfo.t ->
+    Simple.t -> T.t -> Bound_var.t -> SPR.t coq_M **)
 
 let simplify_immutable_block_load0 access_kind field min_name_mode dacc
     original_term _ block block_ty result_var =
-  let result_kind =
-    Flambda_primitive.Block_access_kind.element_kind_for_load access_kind
-  in
+  let result_kind = P.Block_access_kind.element_kind_for_load access_kind in
   let result_var' = Bound_var.var result_var in
-  let denv = Downwards_acc.denv dacc in
-  let machine_width = Downwards_env.machine_width denv in
-  let typing_env = Downwards_acc.typing_env dacc in
+  let denv = DA.denv dacc in
+  let machine_width = DE.machine_width denv in
+  let typing_env = DA.typing_env dacc in
   (fun f__1 f__2 f__3 x__0 ->
-    match (x__0 : _ Flambda2_types.meet_shortcut) with
-    | Flambda2_types.Known_result x__1 -> f__1 x__1
-    | Flambda2_types.Need_meet -> f__2 ()
-    | Flambda2_types.Invalid -> f__3 ())
+    match (x__0 : _ T.meet_shortcut) with
+    | T.Known_result x__1 -> f__1 x__1
+    | T.Need_meet -> f__2 ()
+    | T.Invalid -> f__3 ())
     (fun simple ->
       let dacc0 =
-        Downwards_acc.add_variable dacc result_var
-          (Flambda2_types.alias_type_of result_kind simple)
+        DA.add_variable dacc result_var (T.alias_type_of result_kind simple)
       in
-      Simplify_primitive_result.create
-        (Flambda.Named.create_simple simple)
-        false dacc0)
+      SPR.create (Named.create_simple simple) false dacc0)
     (fun _ ->
       let n = Target_ocaml_int.add field (Target_ocaml_int.one machine_width) in
       let tag, shape =
         (fun f__1 f__2 f__3 x__0 ->
-          match (x__0 : Flambda_primitive.Block_access_kind.t) with
-          | Flambda_primitive.Block_access_kind.Values
+          match (x__0 : P.Block_access_kind.t) with
+          | P.Block_access_kind.Values
               { tag = x__1; size = x__2; field_kind = x__3 } ->
             f__1 x__1 x__2 x__3
-          | Flambda_primitive.Block_access_kind.Naked_floats { size = x__1 } ->
-            f__2 x__1
-          | Flambda_primitive.Block_access_kind.Mixed
+          | P.Block_access_kind.Naked_floats { size = x__1 } -> f__2 x__1
+          | P.Block_access_kind.Mixed
               { tag = x__1; size = x__2; field_kind = x__3; shape = x__4 } ->
             f__3 x__1 x__2 x__3 x__4)
           (fun tag _ _ ->
             ( Or_unknown.map tag Tag.Scannable.to_tag,
-              Flambda_kind.Block_shape.Scannable
-                Flambda_kind.Scannable_block_shape.Value_only ))
+              K.Block_shape.Scannable K.Scannable_block_shape.Value_only ))
           (fun size ->
             ( (match size with
               | Or_unknown.Known size0 ->
@@ -1590,43 +1291,41 @@ let simplify_immutable_block_load0 access_kind field min_name_mode dacc
                 then Or_unknown.Unknown
                 else Or_unknown.Known Tag.double_array_tag
               | Or_unknown.Unknown -> Or_unknown.Unknown),
-              Flambda_kind.Block_shape.Float_record ))
+              K.Block_shape.Float_record ))
           (fun tag _ _ shape ->
             ( Or_unknown.map tag Tag.Scannable.to_tag,
-              Flambda_kind.Block_shape.Scannable
-                (Flambda_kind.Scannable_block_shape.Mixed_record shape) ))
+              K.Block_shape.Scannable
+                (K.Scannable_block_shape.Mixed_record shape) ))
           access_kind
       in
       let result =
         Simplify_common.simplify_projection dacc original_term block_ty
-          (Flambda2_types.immutable_block_with_size_at_least
-             (Downwards_env.machine_width (Downwards_acc.denv dacc))
+          (T.immutable_block_with_size_at_least
+             (DE.machine_width (DA.denv dacc))
              tag n shape result_var')
           result_var result_kind
       in
-      if Simplify_primitive_result.is_invalid result
+      if SPR.is_invalid result
       then result
       else
-        Simplify_primitive_result.map_dacc result (fun dacc0 ->
+        SPR.map_dacc result (fun dacc0 ->
             match
-              Flambda2_types.prove_unique_fully_constructed_immutable_heap_block
-                (Downwards_acc.typing_env dacc0)
-                block_ty
+              T.prove_unique_fully_constructed_immutable_heap_block
+                (DA.typing_env dacc0) block_ty
             with
-            | Flambda2_types.Proved t0 -> (
+            | T.Proved t0 -> (
               let tag0, shape_from_type, _, field_simples = t0 in
               match Tag.Scannable.of_tag tag0 with
               | Some tag1 -> (
                 let block_kind =
                   (fun f__1 f__2 f__3 x__0 ->
-                    match (x__0 : Flambda_primitive.Block_access_kind.t) with
-                    | Flambda_primitive.Block_access_kind.Values
+                    match (x__0 : P.Block_access_kind.t) with
+                    | P.Block_access_kind.Values
                         { tag = x__1; size = x__2; field_kind = x__3 } ->
                       f__1 x__1 x__2 x__3
-                    | Flambda_primitive.Block_access_kind.Naked_floats
-                        { size = x__1 } ->
+                    | P.Block_access_kind.Naked_floats { size = x__1 } ->
                       f__2 x__1
-                    | Flambda_primitive.Block_access_kind.Mixed
+                    | P.Block_access_kind.Mixed
                         { tag = x__1;
                           size = x__2;
                           field_kind = x__3;
@@ -1636,11 +1335,11 @@ let simplify_immutable_block_load0 access_kind field min_name_mode dacc
                     (fun _ _ _ ->
                       let arity =
                         List.map
-                          (fun _ -> Flambda_kind.With_subkind.any_value)
+                          (fun _ -> K.With_subkind.any_value)
                           field_simples
                       in
-                      Flambda_primitive.Block_kind.Values (tag1, arity))
-                    (fun _ -> Flambda_primitive.Block_kind.Naked_floats)
+                      P.Block_kind.Values (tag1, arity))
+                    (fun _ -> P.Block_kind.Naked_floats)
                     (fun _ _ _ shape0 ->
                       let () =
                         match shape_from_type with
@@ -1652,9 +1351,7 @@ let simplify_immutable_block_load0 access_kind field min_name_mode dacc
                                from type"
                           | Flambda_kind.Scannable_block_shape.Mixed_record
                               shape_from_type0 ->
-                            if
-                              Flambda_kind.Mixed_block_shape.equal shape0
-                                shape_from_type0
+                            if K.Mixed_block_shape.equal shape0 shape_from_type0
                             then ()
                             else
                               Misc.fatal_error
@@ -1665,14 +1362,14 @@ let simplify_immutable_block_load0 access_kind field min_name_mode dacc
                             "Block access kind disagrees with block shape from \
                              type"
                       in
-                      Flambda_primitive.Block_kind.Mixed (tag1, shape0))
+                      P.Block_kind.Mixed (tag1, shape0))
                     access_kind
                 in
                 let alloc_region = get_my_alloc_region dacc0 in
                 let prim =
-                  Flambda_primitive.Eligible_for_cse.create
-                    (Flambda_primitive.Variadic
-                       ( Flambda_primitive.Make_block
+                  P.Eligible_for_cse.create
+                    (P.Variadic
+                       ( P.Make_block
                            ( block_kind,
                              Mutability.Immutable,
                              Alloc_mode.For_allocations.heap alloc_region ),
@@ -1680,20 +1377,19 @@ let simplify_immutable_block_load0 access_kind field min_name_mode dacc
                 in
                 match prim with
                 | Some prim0 ->
-                  Downwards_acc.map_denv dacc0 (fun denv0 ->
-                      Downwards_env.add_cse denv0 prim0 block
+                  DA.map_denv dacc0 (fun denv0 ->
+                      DE.add_cse denv0 prim0 block
                         (Bound_var.name_mode result_var))
                 | None -> dacc0)
               | None -> dacc0)
-            | Flambda2_types.Unknown -> dacc0))
-    (fun _ -> Simplify_primitive_result.create_invalid dacc)
-    (Flambda2_types.meet_block_field_simple typing_env min_name_mode result_kind
-       block_ty field)
+            | T.Unknown -> dacc0))
+    (fun _ -> SPR.create_invalid dacc)
+    (T.meet_block_field_simple typing_env min_name_mode result_kind block_ty
+       field)
 
-(** val simplify_immutable_block_load : Flambda_primitive.Block_access_kind.t ->
-    Target_ocaml_int.t -> Name_mode.t -> Downwards_acc.t -> Flambda.Named.t ->
-    Debuginfo.t -> Simple.t -> Flambda2_types.t -> Bound_var.t ->
-    Simplify_primitive_result.t coq_M **)
+(** val simplify_immutable_block_load : P.Block_access_kind.t ->
+    Target_ocaml_int.t -> Name_mode.t -> DA.t -> Named.t -> Debuginfo.t ->
+    Simple.t -> T.t -> Bound_var.t -> SPR.t coq_M **)
 
 let simplify_immutable_block_load access_kind field min_name_mode dacc
     original_term dbg arg arg_ty result_var =
@@ -1701,80 +1397,71 @@ let simplify_immutable_block_load access_kind field min_name_mode dacc
     simplify_immutable_block_load0 access_kind field min_name_mode dacc
       original_term dbg arg arg_ty result_var
   in
-  Simplify_primitive_result.map_dacc result (fun dacc0 ->
-      let kind =
-        Flambda_primitive.Block_access_kind.element_subkind_for_load access_kind
-      in
+  SPR.map_dacc result (fun dacc0 ->
+      let kind = P.Block_access_kind.element_subkind_for_load access_kind in
       let block_shape =
         (fun f__1 f__2 f__3 x__0 ->
-          match (x__0 : Flambda_primitive.Block_access_kind.t) with
-          | Flambda_primitive.Block_access_kind.Values
+          match (x__0 : P.Block_access_kind.t) with
+          | P.Block_access_kind.Values
               { tag = x__1; size = x__2; field_kind = x__3 } ->
             f__1 x__1 x__2 x__3
-          | Flambda_primitive.Block_access_kind.Naked_floats { size = x__1 } ->
-            f__2 x__1
-          | Flambda_primitive.Block_access_kind.Mixed
+          | P.Block_access_kind.Naked_floats { size = x__1 } -> f__2 x__1
+          | P.Block_access_kind.Mixed
               { tag = x__1; size = x__2; field_kind = x__3; shape = x__4 } ->
             f__3 x__1 x__2 x__3 x__4)
           (fun _ _ _ ->
-            Flambda_kind.Block_shape.Scannable
-              Flambda_kind.Scannable_block_shape.Value_only)
-          (fun _ -> Flambda_kind.Block_shape.Float_record)
+            K.Block_shape.Scannable K.Scannable_block_shape.Value_only)
+          (fun _ -> K.Block_shape.Float_record)
           (fun _ _ _ shape ->
-            Flambda_kind.Block_shape.Scannable
-              (Flambda_kind.Scannable_block_shape.Mixed_record shape))
+            K.Block_shape.Scannable (K.Scannable_block_shape.Mixed_record shape))
           access_kind
       in
       Simplify_common.add_symbol_projection dacc0 arg
         (Symbol_projection.Projection.block_load field block_shape)
         result_var kind)
 
-(** val simplify_mutable_block_load : Flambda_primitive.Block_access_kind.t ->
-    Target_ocaml_int.t -> Flambda_primitive.t -> Downwards_acc.t ->
-    Flambda.Named.t -> Debuginfo.t -> Simple.t -> Flambda2_types.t ->
-    Bound_var.t -> Simplify_primitive_result.t coq_M **)
+(** val simplify_mutable_block_load : P.Block_access_kind.t ->
+    Target_ocaml_int.t -> P.t -> DA.t -> Named.t -> Debuginfo.t -> Simple.t ->
+    T.t -> Bound_var.t -> SPR.t coq_M **)
 
 let simplify_mutable_block_load _ _ original_prim dacc original_term _ arg _
     result_var =
   if Simple.is_const arg
-  then Simplify_primitive_result.create_invalid dacc
+  then SPR.create_invalid dacc
   else
-    Simplify_primitive_result.create_unknown dacc result_var
-      (Flambda_primitive.result_kind' original_prim)
+    SPR.create_unknown dacc result_var
+      (P.result_kind' original_prim)
       original_term
 
-(** val simplify_lazy : Flambda_primitive.t -> Downwards_acc.t ->
-    Flambda.Named.t -> Simple.t -> Flambda2_types.t -> Bound_var.t ->
-    Simplify_primitive_result.t coq_M **)
+(** val simplify_lazy : P.t -> DA.t -> Named.t -> Simple.t -> T.t -> Bound_var.t
+    -> SPR.t coq_M **)
 
 let simplify_lazy original_prim dacc original_term _ _ result_var =
-  Simplify_primitive_result.create_unknown dacc result_var
-    (Flambda_primitive.result_kind' original_prim)
+  SPR.create_unknown dacc result_var
+    (P.result_kind' original_prim)
     original_term
 
-(** val simplify_is_null : Downwards_acc.t -> Flambda.Named.t -> Simple.t ->
-    Flambda2_types.t -> Bound_var.t -> Simplify_primitive_result.t coq_M **)
+(** val simplify_is_null : DA.t -> Named.t -> Simple.t -> T.t -> Bound_var.t ->
+    SPR.t coq_M **)
 
 let simplify_is_null dacc original_term scrutinee scrutinee_ty result_var =
   simplify_relational_primitive dacc original_term scrutinee scrutinee_ty
-    result_var Flambda2_types.Typing_env.add_is_null_relation
+    result_var TE.add_is_null_relation
 
-(** val simplify_peek : Flambda_primitive.t -> Downwards_acc.t ->
-    Flambda.Named.t -> Simple.t -> Flambda2_types.t -> Bound_var.t ->
-    Simplify_primitive_result.t coq_M **)
+(** val simplify_peek : P.t -> DA.t -> Named.t -> Simple.t -> T.t -> Bound_var.t
+    -> SPR.t coq_M **)
 
 let simplify_peek original_prim dacc original_term _ _ result_var =
-  Simplify_primitive_result.create_unknown dacc result_var
-    (Flambda_primitive.result_kind' original_prim)
+  SPR.create_unknown dacc result_var
+    (P.result_kind' original_prim)
     original_term
 
-(** val simplify_unary_primitive : Downwards_acc.t -> Flambda_primitive.t ->
-    Flambda_primitive.unary_primitive -> Simple.t -> Flambda2_types.t ->
-    Debuginfo.t -> Bound_var.t -> Simplify_primitive_result.t coq_M **)
+(** val simplify_unary_primitive : DA.t -> P.t -> P.unary_primitive -> Simple.t
+    -> T.t -> Debuginfo.t -> Bound_var.t -> SPR.t coq_M **)
 
 let simplify_unary_primitive dacc original_prim prim arg arg_ty dbg result_var =
   let min_name_mode = Bound_var.name_mode result_var in
-  let original_term = Flambda.Named.create_prim original_prim dbg in
+  let original_term = Named.create_prim original_prim dbg in
   let simplifier =
     (fun f__1
       f__2
@@ -1809,55 +1496,48 @@ let simplify_unary_primitive dacc original_prim prim arg arg_ty dbg result_var =
       f__31
       x__0
     ->
-      match (x__0 : Flambda_primitive.unary_primitive) with
-      | Flambda_primitive.Block_load { kind = x__1; mut = x__2; field = x__3 }
-        ->
+      match (x__0 : P.unary_primitive) with
+      | P.Block_load { kind = x__1; mut = x__2; field = x__3 } ->
         f__1 x__1 x__2 x__3
-      | Flambda_primitive.Duplicate_block { kind = x__1; alloc_region = x__2 }
-        ->
-        f__2 x__1 x__2
-      | Flambda_primitive.Duplicate_array
+      | P.Duplicate_block { kind = x__1; alloc_region = x__2 } -> f__2 x__1 x__2
+      | P.Duplicate_array
           { kind = x__1;
             source_mutability = x__2;
             destination_mutability = x__3;
             alloc_region = x__4
           } ->
         f__3 x__1 x__2 x__3 x__4
-      | Flambda_primitive.Is_int { variant_only = x__1 } -> f__4 x__1
-      | Flambda_primitive.Is_null -> f__5 ()
-      | Flambda_primitive.Get_tag -> f__6 ()
-      | Flambda_primitive.Array_length x__1 -> f__7 x__1
-      | Flambda_primitive.Bigarray_length { dimension = x__1 } -> f__8 x__1
-      | Flambda_primitive.String_length x__1 -> f__9 x__1
-      | Flambda_primitive.Int_as_pointer x__1 -> f__10 x__1
-      | Flambda_primitive.Opaque_identity
-          { middle_end_only = x__1; kind = x__2 } ->
+      | P.Is_int { variant_only = x__1 } -> f__4 x__1
+      | P.Is_null -> f__5 ()
+      | P.Get_tag -> f__6 ()
+      | P.Array_length x__1 -> f__7 x__1
+      | P.Bigarray_length { dimension = x__1 } -> f__8 x__1
+      | P.String_length x__1 -> f__9 x__1
+      | P.Int_as_pointer x__1 -> f__10 x__1
+      | P.Opaque_identity { middle_end_only = x__1; kind = x__2 } ->
         f__11 x__1 x__2
-      | Flambda_primitive.Int_arith (x__1, x__2) -> f__12 x__1 x__2
-      | Flambda_primitive.Float_arith (x__1, x__2) -> f__13 x__1 x__2
-      | Flambda_primitive.Num_conv { src = x__1; dst = x__2 } -> f__14 x__1 x__2
-      | Flambda_primitive.Boolean_not -> f__15 ()
-      | Flambda_primitive.Reinterpret_64_bit_word x__1 -> f__16 x__1
-      | Flambda_primitive.Reinterpret_boxed_vector -> f__17 ()
-      | Flambda_primitive.Unbox_number x__1 -> f__18 x__1
-      | Flambda_primitive.Box_number (x__1, x__2) -> f__19 x__1 x__2
-      | Flambda_primitive.Untag_immediate -> f__20 ()
-      | Flambda_primitive.Tag_immediate -> f__21 ()
-      | Flambda_primitive.Project_function_slot
-          { move_from = x__1; move_to = x__2 } ->
+      | P.Int_arith (x__1, x__2) -> f__12 x__1 x__2
+      | P.Float_arith (x__1, x__2) -> f__13 x__1 x__2
+      | P.Num_conv { src = x__1; dst = x__2 } -> f__14 x__1 x__2
+      | P.Boolean_not -> f__15 ()
+      | P.Reinterpret_64_bit_word x__1 -> f__16 x__1
+      | P.Reinterpret_boxed_vector -> f__17 ()
+      | P.Unbox_number x__1 -> f__18 x__1
+      | P.Box_number (x__1, x__2) -> f__19 x__1 x__2
+      | P.Untag_immediate -> f__20 ()
+      | P.Tag_immediate -> f__21 ()
+      | P.Project_function_slot { move_from = x__1; move_to = x__2 } ->
         f__22 x__1 x__2
-      | Flambda_primitive.Project_value_slot
-          { project_from = x__1; value_slot = x__2 } ->
+      | P.Project_value_slot { project_from = x__1; value_slot = x__2 } ->
         f__23 x__1 x__2
-      | Flambda_primitive.Is_boxed_float -> f__24 ()
-      | Flambda_primitive.Is_flat_float_array -> f__25 ()
-      | Flambda_primitive.End_region { ghost = x__1 } -> f__26 x__1
-      | Flambda_primitive.End_try_region { ghost = x__1 } -> f__27 x__1
-      | Flambda_primitive.Obj_dup { alloc_region = x__1 } -> f__28 x__1
-      | Flambda_primitive.Get_header -> f__29 ()
-      | Flambda_primitive.Peek x__1 -> f__30 x__1
-      | Flambda_primitive.Make_lazy { lazy_tag = x__1; alloc_region = x__2 } ->
-        f__31 x__1 x__2)
+      | P.Is_boxed_float -> f__24 ()
+      | P.Is_flat_float_array -> f__25 ()
+      | P.End_region { ghost = x__1 } -> f__26 x__1
+      | P.End_try_region { ghost = x__1 } -> f__27 x__1
+      | P.Obj_dup { alloc_region = x__1 } -> f__28 x__1
+      | P.Get_header -> f__29 ()
+      | P.Peek x__1 -> f__30 x__1
+      | P.Make_lazy { lazy_tag = x__1; alloc_region = x__2 } -> f__31 x__1 x__2)
       (fun kind t0 field ->
         match t0 with
         | Mutability.Mutable ->
@@ -1902,8 +1582,8 @@ let simplify_unary_primitive dacc original_prim prim arg arg_ty dbg result_var =
           Unary_int_arith_naked_nativeint.simplify op)
       (fun f op ->
         match f with
-        | Flambda_primitive.Float32 -> simplify_float32_arith_op op
-        | Flambda_primitive.Float64 -> simplify_float_arith_op op)
+        | P.Float32 -> simplify_float32_arith_op op
+        | P.Float64 -> simplify_float_arith_op op)
       (fun src dst ->
         match src with
         | Flambda_kind.Standard_int_or_float.Tagged_immediate ->

@@ -232,7 +232,7 @@ type 'a binary_arith_outcome_for_one_side_only =
   | Exactly of 'a
   | The_other_side
   | Negation_of_the_other_side
-  | Bitwise_not_of_the_other_side of Flambda_kind.Standard_int.t
+  | Bitwise_not_of_the_other_side of K.Standard_int.t
   | Float_negation_of_the_other_side of Flambda_primitive.float_bitwidth
   | Cannot_simplify
   | Invalid
@@ -260,31 +260,25 @@ module type Binary_arith_like_sig = sig
 
   module Result : Container_types.S
 
-  val ok_to_evaluate : Downwards_env.t -> bool coq_M
+  val ok_to_evaluate : DE.t -> bool coq_M
 
   val cross_product : Lhs.Set_.t -> Rhs.Set_.t -> Pair.Set_.t coq_M
 
-  val arg_kind : Flambda_kind.Standard_int_or_float.t
+  val arg_kind : K.Standard_int_or_float.t
 
-  val result_kind : Flambda_kind.t
+  val result_kind : K.t
 
-  val term : Result.t -> Flambda.Named.t coq_M
+  val term : Result.t -> Named.t coq_M
 
-  val prover_lhs :
-    Flambda2_types.Typing_env.t ->
-    Flambda2_types.t ->
-    Lhs.Set_.t Flambda2_types.meet_shortcut coq_M
+  val prover_lhs : T.Typing_env.t -> T.t -> Lhs.Set_.t T.meet_shortcut coq_M
 
-  val prover_rhs :
-    Flambda2_types.Typing_env.t ->
-    Flambda2_types.t ->
-    Rhs.Set_.t Flambda2_types.meet_shortcut coq_M
+  val prover_rhs : T.Typing_env.t -> T.t -> Rhs.Set_.t T.meet_shortcut coq_M
 
   type op_
 
-  val unknown : Target_system.Machine_width.t -> op_ -> Flambda2_types.t coq_M
+  val unknown : Target_system.Machine_width.t -> op_ -> T.t coq_M
 
-  val these : Result.Set_.t -> (Flambda2_types.t * Simple.t option) coq_M
+  val these : Result.Set_.t -> (T.t * Simple.t option) coq_M
 
   val op :
     Target_system.Machine_width.t ->
@@ -314,7 +308,7 @@ functor
     module Possible_result = struct
       type t =
         | Simple of Simple.t
-        | Prim of Flambda_primitive.t
+        | Prim of P.t
         | Exactly of N.Result.t
 
       (** val compare : t -> t -> int coq_M **)
@@ -329,7 +323,7 @@ functor
         | Prim prim1 -> (
           match t2 with
           | Simple _ -> 1
-          | Prim prim2 -> Flambda_primitive.compare prim1 prim2
+          | Prim prim2 -> P.compare prim1 prim2
           | Exactly _ -> -1)
         | Exactly i1 -> (
           match t2 with
@@ -389,33 +383,28 @@ functor
 
     let max_num_possible_results = 10
 
-    (** val simplify : N.op_ -> Downwards_acc.t -> Flambda.Named.t ->
-        Debuginfo.t -> Simple.t -> Flambda2_types.t -> Simple.t ->
-        Flambda2_types.t -> Bound_var.t -> Simplify_primitive_result.t coq_M **)
+    (** val simplify : N.op_ -> DA.t -> Named.t -> Debuginfo.t -> Simple.t ->
+        T.t -> Simple.t -> T.t -> Bound_var.t -> SPR.t coq_M **)
 
     let simplify op0 dacc original_term dbg arg1 arg1_ty arg2 arg2_ty result_var
         =
-      let denv = Downwards_acc.denv dacc in
-      let typing_env = Downwards_env.typing_env denv in
+      let denv = DA.denv dacc in
+      let typing_env = DE.typing_env denv in
       let proof1 = N.prover_lhs typing_env arg1_ty in
       let proof2 = N.prover_rhs typing_env arg2_ty in
       let kind = N.result_kind in
       let result_unknown =
        fun _ ->
-        let machine_width = Downwards_env.machine_width denv in
+        let machine_width = DE.machine_width denv in
         let dacc0 =
-          Downwards_acc.add_variable dacc result_var
-            (N.unknown machine_width op0)
+          DA.add_variable dacc result_var (N.unknown machine_width op0)
         in
-        Simplify_primitive_result.create original_term false dacc0
+        SPR.create original_term false dacc0
       in
       let result_invalid =
        fun _ ->
-        let dacc0 =
-          Downwards_acc.add_variable dacc result_var
-            (Flambda2_types.bottom kind)
-        in
-        Simplify_primitive_result.create_invalid dacc0
+        let dacc0 = DA.add_variable dacc result_var (T.bottom kind) in
+        SPR.create_invalid dacc0
       in
       let check_possible_results =
        fun possible_results ->
@@ -426,9 +415,8 @@ functor
             match Possible_result.Set_.get_singleton possible_results with
             | Some e -> (
               match e with
-              | Possible_result.Simple simple ->
-                Flambda.Named.create_simple simple
-              | Possible_result.Prim prim -> Flambda.Named.create_prim prim dbg
+              | Possible_result.Simple simple -> Named.create_simple simple
+              | Possible_result.Prim prim -> Named.create_prim prim dbg
               | Possible_result.Exactly i -> N.term i)
             | None -> original_term
           in
@@ -449,35 +437,35 @@ functor
               | Some e -> (
                 match e with
                 | Possible_result.Simple simple ->
-                  Flambda2_types.alias_type_of kind simple, Some simple
+                  T.alias_type_of kind simple, Some simple
                 | Possible_result.Prim _ ->
-                  let machine_width = Downwards_env.machine_width denv in
+                  let machine_width = DE.machine_width denv in
                   N.unknown machine_width op0, None
                 | Possible_result.Exactly _ ->
-                  let machine_width = Downwards_env.machine_width denv in
+                  let machine_width = DE.machine_width denv in
                   N.unknown machine_width op0, None)
               | None ->
-                let machine_width = Downwards_env.machine_width denv in
+                let machine_width = DE.machine_width denv in
                 N.unknown machine_width op0, None
           in
-          let dacc0 = Downwards_acc.add_variable dacc result_var ty in
+          let dacc0 = DA.add_variable dacc result_var ty in
           match simple_opt with
           | Some simple ->
-            let named0 = Flambda.Named.create_simple simple in
-            Simplify_primitive_result.create named0 false dacc0
-          | None -> Simplify_primitive_result.create named false dacc0
+            let named0 = Named.create_simple simple in
+            SPR.create named0 false dacc0
+          | None -> SPR.create named false dacc0
       in
       (fun f__1 f__2 f__3 x__0 ->
-        match (x__0 : _ Flambda2_types.meet_shortcut) with
-        | Flambda2_types.Known_result x__1 -> f__1 x__1
-        | Flambda2_types.Need_meet -> f__2 ()
-        | Flambda2_types.Invalid -> f__3 ())
+        match (x__0 : _ T.meet_shortcut) with
+        | T.Known_result x__1 -> f__1 x__1
+        | T.Need_meet -> f__2 ()
+        | T.Invalid -> f__3 ())
         (fun nums1 ->
           (fun f__1 f__2 f__3 x__0 ->
-            match (x__0 : _ Flambda2_types.meet_shortcut) with
-            | Flambda2_types.Known_result x__1 -> f__1 x__1
-            | Flambda2_types.Need_meet -> f__2 ()
-            | Flambda2_types.Invalid -> f__3 ())
+            match (x__0 : _ T.meet_shortcut) with
+            | T.Known_result x__1 -> f__1 x__1
+            | T.Need_meet -> f__2 ()
+            | T.Invalid -> f__3 ())
             (fun nums2 ->
               if N.ok_to_evaluate denv
               then
@@ -494,9 +482,7 @@ functor
                       (fun pat ->
                         let i1, i2 = pat in
                         fun possible_results ->
-                          let machine_width =
-                            Downwards_env.machine_width denv
-                          in
+                          let machine_width = DE.machine_width denv in
                           match N.op machine_width op0 i1 i2 with
                           | Some result ->
                             Possible_result.Set_.add
@@ -510,7 +496,7 @@ functor
               if N.ok_to_evaluate denv
               then
                 let () = assert (not (N.Lhs.Set_.is_empty nums1)) in
-                let machine_width = Downwards_env.machine_width denv in
+                let machine_width = DE.machine_width denv in
                 let possible_results =
                   N.Lhs.Set_.fold
                     (fun i possible_results ->
@@ -529,49 +515,40 @@ functor
                         | Negation_of_the_other_side ->
                           let standard_int_kind0 =
                             match N.arg_kind with
-                            | Flambda_kind.Standard_int_or_float
-                              .Tagged_immediate ->
-                              Flambda_kind.Standard_int.Tagged_immediate
-                            | Flambda_kind.Standard_int_or_float.Naked_immediate
-                              ->
-                              Flambda_kind.Standard_int.Naked_immediate
-                            | Flambda_kind.Standard_int_or_float.Naked_float32
-                              ->
+                            | K.Standard_int_or_float.Tagged_immediate ->
+                              K.Standard_int.Tagged_immediate
+                            | K.Standard_int_or_float.Naked_immediate ->
+                              K.Standard_int.Naked_immediate
+                            | K.Standard_int_or_float.Naked_float32 ->
                               Misc.fatal_error
                                 "Cannot use [Negation_of_the_other_side] with \
                                  floats; use the float version instead"
-                            | Flambda_kind.Standard_int_or_float.Naked_float ->
+                            | K.Standard_int_or_float.Naked_float ->
                               Misc.fatal_error
                                 "Cannot use [Negation_of_the_other_side] with \
                                  floats; use the float version instead"
-                            | Flambda_kind.Standard_int_or_float.Naked_int8 ->
-                              Flambda_kind.Standard_int.Naked_int8
-                            | Flambda_kind.Standard_int_or_float.Naked_int16 ->
-                              Flambda_kind.Standard_int.Naked_int16
-                            | Flambda_kind.Standard_int_or_float.Naked_int32 ->
-                              Flambda_kind.Standard_int.Naked_int32
-                            | Flambda_kind.Standard_int_or_float.Naked_int64 ->
-                              Flambda_kind.Standard_int.Naked_int64
-                            | Flambda_kind.Standard_int_or_float.Naked_nativeint
-                              ->
-                              Flambda_kind.Standard_int.Naked_nativeint
+                            | K.Standard_int_or_float.Naked_int8 ->
+                              K.Standard_int.Naked_int8
+                            | K.Standard_int_or_float.Naked_int16 ->
+                              K.Standard_int.Naked_int16
+                            | K.Standard_int_or_float.Naked_int32 ->
+                              K.Standard_int.Naked_int32
+                            | K.Standard_int_or_float.Naked_int64 ->
+                              K.Standard_int.Naked_int64
+                            | K.Standard_int_or_float.Naked_nativeint ->
+                              K.Standard_int.Naked_nativeint
                           in
-                          let machine_width0 =
-                            Downwards_env.machine_width denv
-                          in
+                          let machine_width0 = DE.machine_width denv in
                           let zero0 =
                             Simple.const_int_of_kind machine_width0
-                              (Flambda_kind.Standard_int.to_kind
-                                 standard_int_kind0)
+                              (K.Standard_int.to_kind standard_int_kind0)
                               0
                           in
                           let prim =
-                            Flambda_primitive.Binary
-                              ( Flambda_primitive.Int_arith
+                            P.Binary
+                              ( P.Int_arith
                                   ( standard_int_kind0,
-                                    (Flambda_primitive.Sub
-                                      : Flambda_primitive.binary_int_arith_op)
-                                  ),
+                                    (P.Sub : P.binary_int_arith_op) ),
                                 zero0,
                                 arg2 )
                           in
@@ -580,11 +557,10 @@ functor
                                (Possible_result.Prim prim) possible_results0)
                         | Bitwise_not_of_the_other_side kind0 ->
                           let prim =
-                            Flambda_primitive.Unary
+                            P.Unary
                               ( (fun (x__1, x__2) ->
-                                  (Flambda_primitive.Int_arith (x__1, x__2)
-                                    : Flambda_primitive.unary_primitive))
-                                  (kind0, Flambda_primitive.Not),
+                                  (P.Int_arith (x__1, x__2) : P.unary_primitive))
+                                  (kind0, P.Not),
                                 arg2 )
                           in
                           Some
@@ -592,11 +568,11 @@ functor
                                (Possible_result.Prim prim) possible_results0)
                         | Float_negation_of_the_other_side width0 ->
                           let prim =
-                            Flambda_primitive.Unary
+                            P.Unary
                               ( (fun (x__1, x__2) ->
-                                  (Flambda_primitive.Float_arith (x__1, x__2)
-                                    : Flambda_primitive.unary_primitive))
-                                  (width0, Flambda_primitive.Neg),
+                                  (P.Float_arith (x__1, x__2)
+                                    : P.unary_primitive))
+                                  (width0, P.Neg),
                                 arg2 )
                           in
                           Some
@@ -615,15 +591,15 @@ functor
             proof2)
         (fun _ ->
           (fun f__1 f__2 f__3 x__0 ->
-            match (x__0 : _ Flambda2_types.meet_shortcut) with
-            | Flambda2_types.Known_result x__1 -> f__1 x__1
-            | Flambda2_types.Need_meet -> f__2 ()
-            | Flambda2_types.Invalid -> f__3 ())
+            match (x__0 : _ T.meet_shortcut) with
+            | T.Known_result x__1 -> f__1 x__1
+            | T.Need_meet -> f__2 ()
+            | T.Invalid -> f__3 ())
             (fun nums2 ->
               if N.ok_to_evaluate denv
               then
                 let () = assert (not (N.Rhs.Set_.is_empty nums2)) in
-                let machine_width = Downwards_env.machine_width denv in
+                let machine_width = DE.machine_width denv in
                 let possible_results =
                   N.Rhs.Set_.fold
                     (fun i possible_results ->
@@ -642,49 +618,40 @@ functor
                         | Negation_of_the_other_side ->
                           let standard_int_kind0 =
                             match N.arg_kind with
-                            | Flambda_kind.Standard_int_or_float
-                              .Tagged_immediate ->
-                              Flambda_kind.Standard_int.Tagged_immediate
-                            | Flambda_kind.Standard_int_or_float.Naked_immediate
-                              ->
-                              Flambda_kind.Standard_int.Naked_immediate
-                            | Flambda_kind.Standard_int_or_float.Naked_float32
-                              ->
+                            | K.Standard_int_or_float.Tagged_immediate ->
+                              K.Standard_int.Tagged_immediate
+                            | K.Standard_int_or_float.Naked_immediate ->
+                              K.Standard_int.Naked_immediate
+                            | K.Standard_int_or_float.Naked_float32 ->
                               Misc.fatal_error
                                 "Cannot use [Negation_of_the_other_side] with \
                                  floats; use the float version instead"
-                            | Flambda_kind.Standard_int_or_float.Naked_float ->
+                            | K.Standard_int_or_float.Naked_float ->
                               Misc.fatal_error
                                 "Cannot use [Negation_of_the_other_side] with \
                                  floats; use the float version instead"
-                            | Flambda_kind.Standard_int_or_float.Naked_int8 ->
-                              Flambda_kind.Standard_int.Naked_int8
-                            | Flambda_kind.Standard_int_or_float.Naked_int16 ->
-                              Flambda_kind.Standard_int.Naked_int16
-                            | Flambda_kind.Standard_int_or_float.Naked_int32 ->
-                              Flambda_kind.Standard_int.Naked_int32
-                            | Flambda_kind.Standard_int_or_float.Naked_int64 ->
-                              Flambda_kind.Standard_int.Naked_int64
-                            | Flambda_kind.Standard_int_or_float.Naked_nativeint
-                              ->
-                              Flambda_kind.Standard_int.Naked_nativeint
+                            | K.Standard_int_or_float.Naked_int8 ->
+                              K.Standard_int.Naked_int8
+                            | K.Standard_int_or_float.Naked_int16 ->
+                              K.Standard_int.Naked_int16
+                            | K.Standard_int_or_float.Naked_int32 ->
+                              K.Standard_int.Naked_int32
+                            | K.Standard_int_or_float.Naked_int64 ->
+                              K.Standard_int.Naked_int64
+                            | K.Standard_int_or_float.Naked_nativeint ->
+                              K.Standard_int.Naked_nativeint
                           in
-                          let machine_width0 =
-                            Downwards_env.machine_width denv
-                          in
+                          let machine_width0 = DE.machine_width denv in
                           let zero0 =
                             Simple.const_int_of_kind machine_width0
-                              (Flambda_kind.Standard_int.to_kind
-                                 standard_int_kind0)
+                              (K.Standard_int.to_kind standard_int_kind0)
                               0
                           in
                           let prim =
-                            Flambda_primitive.Binary
-                              ( Flambda_primitive.Int_arith
+                            P.Binary
+                              ( P.Int_arith
                                   ( standard_int_kind0,
-                                    (Flambda_primitive.Sub
-                                      : Flambda_primitive.binary_int_arith_op)
-                                  ),
+                                    (P.Sub : P.binary_int_arith_op) ),
                                 zero0,
                                 arg1 )
                           in
@@ -693,11 +660,10 @@ functor
                                (Possible_result.Prim prim) possible_results0)
                         | Bitwise_not_of_the_other_side kind0 ->
                           let prim =
-                            Flambda_primitive.Unary
+                            P.Unary
                               ( (fun (x__1, x__2) ->
-                                  (Flambda_primitive.Int_arith (x__1, x__2)
-                                    : Flambda_primitive.unary_primitive))
-                                  (kind0, Flambda_primitive.Not),
+                                  (P.Int_arith (x__1, x__2) : P.unary_primitive))
+                                  (kind0, P.Not),
                                 arg1 )
                           in
                           Some
@@ -705,11 +671,11 @@ functor
                                (Possible_result.Prim prim) possible_results0)
                         | Float_negation_of_the_other_side width0 ->
                           let prim =
-                            Flambda_primitive.Unary
+                            P.Unary
                               ( (fun (x__1, x__2) ->
-                                  (Flambda_primitive.Float_arith (x__1, x__2)
-                                    : Flambda_primitive.unary_primitive))
-                                  (width0, Flambda_primitive.Neg),
+                                  (P.Float_arith (x__1, x__2)
+                                    : P.unary_primitive))
+                                  (width0, P.Neg),
                                 arg1 )
                           in
                           Some
@@ -740,17 +706,17 @@ functor
     module Rhs = I.Num
     module Result = I.Num
 
-    type op_ = Flambda_primitive.binary_int_arith_op
+    type op_ = P.binary_int_arith_op
 
-    (** val ok_to_evaluate : Downwards_env.t -> bool coq_M **)
+    (** val ok_to_evaluate : DE.t -> bool coq_M **)
 
     let ok_to_evaluate _ = true
 
-    (** val arg_kind : Flambda_kind.Standard_int_or_float.t **)
+    (** val arg_kind : K.Standard_int_or_float.t **)
 
     let arg_kind = I.standard_int_or_float_kind
 
-    (** val result_kind : Flambda_kind.t **)
+    (** val result_kind : K.t **)
 
     let result_kind = Flambda_kind.Standard_int_or_float.to_kind arg_kind
 
@@ -764,31 +730,21 @@ functor
 
     let prover_rhs = I.unboxed_prover
 
-    (** val unknown : Target_system.Machine_width.t -> op_ -> Flambda2_types.t
-        coq_M **)
+    (** val unknown : Target_system.Machine_width.t -> op_ -> T.t coq_M **)
 
     let unknown _ _ =
       match arg_kind with
-      | Flambda_kind.Standard_int_or_float.Tagged_immediate ->
-        Flambda2_types.any_tagged_immediate
-      | Flambda_kind.Standard_int_or_float.Naked_immediate ->
-        Flambda2_types.any_naked_immediate
-      | Flambda_kind.Standard_int_or_float.Naked_float32 ->
-        Flambda2_types.any_naked_float32
-      | Flambda_kind.Standard_int_or_float.Naked_float ->
-        Flambda2_types.any_naked_float
-      | Flambda_kind.Standard_int_or_float.Naked_int8 ->
-        Flambda2_types.any_naked_int8
-      | Flambda_kind.Standard_int_or_float.Naked_int16 ->
-        Flambda2_types.any_naked_int16
-      | Flambda_kind.Standard_int_or_float.Naked_int32 ->
-        Flambda2_types.any_naked_int32
-      | Flambda_kind.Standard_int_or_float.Naked_int64 ->
-        Flambda2_types.any_naked_int64
-      | Flambda_kind.Standard_int_or_float.Naked_nativeint ->
-        Flambda2_types.any_naked_nativeint
+      | K.Standard_int_or_float.Tagged_immediate -> T.any_tagged_immediate
+      | K.Standard_int_or_float.Naked_immediate -> T.any_naked_immediate
+      | K.Standard_int_or_float.Naked_float32 -> T.any_naked_float32
+      | K.Standard_int_or_float.Naked_float -> T.any_naked_float
+      | K.Standard_int_or_float.Naked_int8 -> T.any_naked_int8
+      | K.Standard_int_or_float.Naked_int16 -> T.any_naked_int16
+      | K.Standard_int_or_float.Naked_int32 -> T.any_naked_int32
+      | K.Standard_int_or_float.Naked_int64 -> T.any_naked_int64
+      | K.Standard_int_or_float.Naked_nativeint -> T.any_naked_nativeint
 
-    (** val these : I.Num.Set_.t -> (Flambda2_types.t * Simple.t option) coq_M **)
+    (** val these : I.Num.Set_.t -> (T.t * Simple.t option) coq_M **)
 
     let these s =
       let ty = I.these_unboxed s in
@@ -810,22 +766,21 @@ functor
 
     let cross_product = I.Num.cross_product
 
-    (** val op : Target_system.Machine_width.t ->
-        Flambda_primitive.binary_int_arith_op -> I.Num.t -> I.Num.t -> I.Num.t
-        option coq_M **)
+    (** val op : Target_system.Machine_width.t -> P.binary_int_arith_op ->
+        I.Num.t -> I.Num.t -> I.Num.t option coq_M **)
 
     let op _ op0 n1 n2 =
       let always_some = fun f -> Some (f n1 n2) in
       (fun f__1 f__2 f__3 f__4 f__5 f__6 f__7 f__8 x__0 ->
-        match (x__0 : Flambda_primitive.binary_int_arith_op) with
-        | Flambda_primitive.Add -> f__1 ()
-        | Flambda_primitive.Sub -> f__2 ()
-        | Flambda_primitive.Mul -> f__3 ()
-        | Flambda_primitive.Div x__1 -> f__4 x__1
-        | Flambda_primitive.Mod x__1 -> f__5 x__1
-        | Flambda_primitive.And -> f__6 ()
-        | Flambda_primitive.Or -> f__7 ()
-        | Flambda_primitive.Xor -> f__8 ())
+        match (x__0 : P.binary_int_arith_op) with
+        | P.Add -> f__1 ()
+        | P.Sub -> f__2 ()
+        | P.Mul -> f__3 ()
+        | P.Div x__1 -> f__4 x__1
+        | P.Mod x__1 -> f__5 x__1
+        | P.And -> f__6 ()
+        | P.Or -> f__7 ()
+        | P.Xor -> f__8 ())
         (fun _ -> always_some I.Num.add)
         (fun _ -> always_some I.Num.sub)
         (fun _ -> always_some I.Num.mul)
@@ -889,20 +844,20 @@ functor
         else Cannot_simplify
 
     (** val op_lhs_unknown : Target_system.Machine_width.t ->
-        Flambda_primitive.binary_int_arith_op -> Num.t -> Num.t
+        P.binary_int_arith_op -> Num.t -> Num.t
         binary_arith_outcome_for_one_side_only coq_M **)
 
     let op_lhs_unknown machine_width op0 rhs =
       (fun f__1 f__2 f__3 f__4 f__5 f__6 f__7 f__8 x__0 ->
-        match (x__0 : Flambda_primitive.binary_int_arith_op) with
-        | Flambda_primitive.Add -> f__1 ()
-        | Flambda_primitive.Sub -> f__2 ()
-        | Flambda_primitive.Mul -> f__3 ()
-        | Flambda_primitive.Div x__1 -> f__4 x__1
-        | Flambda_primitive.Mod x__1 -> f__5 x__1
-        | Flambda_primitive.And -> f__6 ()
-        | Flambda_primitive.Or -> f__7 ()
-        | Flambda_primitive.Xor -> f__8 ())
+        match (x__0 : P.binary_int_arith_op) with
+        | P.Add -> f__1 ()
+        | P.Sub -> f__2 ()
+        | P.Mul -> f__3 ()
+        | P.Div x__1 -> f__4 x__1
+        | P.Mod x__1 -> f__5 x__1
+        | P.And -> f__6 ()
+        | P.Or -> f__7 ()
+        | P.Xor -> f__8 ())
         (fun _ -> symmetric_op_one_side_unknown machine_width Add rhs)
         (fun _ ->
           if Num.equal rhs (Num.zero machine_width)
@@ -941,20 +896,20 @@ functor
         op0
 
     (** val op_rhs_unknown : Target_system.Machine_width.t ->
-        Flambda_primitive.binary_int_arith_op -> Num.t -> Num.t
+        P.binary_int_arith_op -> Num.t -> Num.t
         binary_arith_outcome_for_one_side_only coq_M **)
 
     let op_rhs_unknown machine_width op0 lhs =
       (fun f__1 f__2 f__3 f__4 f__5 f__6 f__7 f__8 x__0 ->
-        match (x__0 : Flambda_primitive.binary_int_arith_op) with
-        | Flambda_primitive.Add -> f__1 ()
-        | Flambda_primitive.Sub -> f__2 ()
-        | Flambda_primitive.Mul -> f__3 ()
-        | Flambda_primitive.Div x__1 -> f__4 x__1
-        | Flambda_primitive.Mod x__1 -> f__5 x__1
-        | Flambda_primitive.And -> f__6 ()
-        | Flambda_primitive.Or -> f__7 ()
-        | Flambda_primitive.Xor -> f__8 ())
+        match (x__0 : P.binary_int_arith_op) with
+        | P.Add -> f__1 ()
+        | P.Sub -> f__2 ()
+        | P.Mul -> f__3 ()
+        | P.Div x__1 -> f__4 x__1
+        | P.Mod x__1 -> f__5 x__1
+        | P.And -> f__6 ()
+        | P.Or -> f__7 ()
+        | P.Xor -> f__8 ())
         (fun _ -> symmetric_op_one_side_unknown machine_width Add lhs)
         (fun _ ->
           if Num.equal lhs (Num.zero machine_width)
@@ -1008,17 +963,17 @@ functor
     module Rhs = As_container_types_S (Target_ocaml_int)
     module Result = I.Num
 
-    type op_ = Flambda_primitive.int_shift_op
+    type op_ = P.int_shift_op
 
-    (** val arg_kind : Flambda_kind.Standard_int_or_float.t **)
+    (** val arg_kind : K.Standard_int_or_float.t **)
 
     let arg_kind = I.standard_int_or_float_kind
 
-    (** val result_kind : Flambda_kind.t **)
+    (** val result_kind : K.t **)
 
     let result_kind = Flambda_kind.Standard_int_or_float.to_kind arg_kind
 
-    (** val ok_to_evaluate : Downwards_env.t -> bool coq_M **)
+    (** val ok_to_evaluate : DE.t -> bool coq_M **)
 
     let ok_to_evaluate _ = true
 
@@ -1027,36 +982,26 @@ functor
 
     let prover_lhs = I.unboxed_prover
 
-    (** val prover_rhs : Flambda2_types.Typing_env.t -> Flambda2_types.t ->
-        Target_ocaml_int.Set.t Flambda2_types.meet_shortcut coq_M **)
+    (** val prover_rhs : T.Typing_env.t -> T.t -> Target_ocaml_int.Set.t
+        T.meet_shortcut coq_M **)
 
-    let prover_rhs = Flambda2_types.meet_naked_immediates
+    let prover_rhs = T.meet_naked_immediates
 
-    (** val unknown : Target_system.Machine_width.t -> op_ -> Flambda2_types.t
-        coq_M **)
+    (** val unknown : Target_system.Machine_width.t -> op_ -> T.t coq_M **)
 
     let unknown _ _ =
       match arg_kind with
-      | Flambda_kind.Standard_int_or_float.Tagged_immediate ->
-        Flambda2_types.any_tagged_immediate
-      | Flambda_kind.Standard_int_or_float.Naked_immediate ->
-        Flambda2_types.any_naked_immediate
-      | Flambda_kind.Standard_int_or_float.Naked_float32 ->
-        Flambda2_types.any_naked_float32
-      | Flambda_kind.Standard_int_or_float.Naked_float ->
-        Flambda2_types.any_naked_float
-      | Flambda_kind.Standard_int_or_float.Naked_int8 ->
-        Flambda2_types.any_naked_int8
-      | Flambda_kind.Standard_int_or_float.Naked_int16 ->
-        Flambda2_types.any_naked_int16
-      | Flambda_kind.Standard_int_or_float.Naked_int32 ->
-        Flambda2_types.any_naked_int32
-      | Flambda_kind.Standard_int_or_float.Naked_int64 ->
-        Flambda2_types.any_naked_int64
-      | Flambda_kind.Standard_int_or_float.Naked_nativeint ->
-        Flambda2_types.any_naked_nativeint
+      | K.Standard_int_or_float.Tagged_immediate -> T.any_tagged_immediate
+      | K.Standard_int_or_float.Naked_immediate -> T.any_naked_immediate
+      | K.Standard_int_or_float.Naked_float32 -> T.any_naked_float32
+      | K.Standard_int_or_float.Naked_float -> T.any_naked_float
+      | K.Standard_int_or_float.Naked_int8 -> T.any_naked_int8
+      | K.Standard_int_or_float.Naked_int16 -> T.any_naked_int16
+      | K.Standard_int_or_float.Naked_int32 -> T.any_naked_int32
+      | K.Standard_int_or_float.Naked_int64 -> T.any_naked_int64
+      | K.Standard_int_or_float.Naked_nativeint -> T.any_naked_nativeint
 
-    (** val these : I.Num.Set_.t -> (Flambda2_types.t * Simple.t option) coq_M **)
+    (** val these : I.Num.Set_.t -> (T.t * Simple.t option) coq_M **)
 
     let these s =
       let ty = I.these_unboxed s in
@@ -1110,51 +1055,50 @@ functor
 
     module Num = I.Num
 
-    (** val op : Target_system.Machine_width.t -> Flambda_primitive.int_shift_op
-        -> Num.t -> Target_ocaml_int.t -> Num.t option coq_M **)
+    (** val op : Target_system.Machine_width.t -> P.int_shift_op -> Num.t ->
+        Target_ocaml_int.t -> Num.t option coq_M **)
 
     let op _ op0 n1 n2 =
       let always_some = fun f -> Some (f n1 n2) in
       match op0 with
-      | Flambda_primitive.Lsl -> always_some Num.shift_left
-      | Flambda_primitive.Lsr -> always_some Num.shift_right_logical
-      | Flambda_primitive.Asr -> always_some Num.shift_right
+      | P.Lsl -> always_some Num.shift_left
+      | P.Lsr -> always_some Num.shift_right_logical
+      | P.Asr -> always_some Num.shift_right
 
-    (** val op_lhs_unknown : Target_system.Machine_width.t ->
-        Flambda_primitive.int_shift_op -> Target_ocaml_int.t -> Num.t
-        binary_arith_outcome_for_one_side_only coq_M **)
+    (** val op_lhs_unknown : Target_system.Machine_width.t -> P.int_shift_op ->
+        Target_ocaml_int.t -> Num.t binary_arith_outcome_for_one_side_only coq_M
+        **)
 
     let op_lhs_unknown machine_width op0 rhs =
       let rhs0 = rhs in
       match op0 with
-      | Flambda_primitive.Lsl ->
+      | P.Lsl ->
         if Target_ocaml_int.equal rhs0 (Target_ocaml_int.zero machine_width)
         then The_other_side
         else Cannot_simplify
-      | Flambda_primitive.Lsr ->
+      | P.Lsr ->
         if Target_ocaml_int.equal rhs0 (Target_ocaml_int.zero machine_width)
         then The_other_side
         else Cannot_simplify
-      | Flambda_primitive.Asr ->
+      | P.Asr ->
         if Target_ocaml_int.equal rhs0 (Target_ocaml_int.zero machine_width)
         then The_other_side
         else Cannot_simplify
 
-    (** val op_rhs_unknown : Target_system.Machine_width.t ->
-        Flambda_primitive.int_shift_op -> Num.t -> Num.t
-        binary_arith_outcome_for_one_side_only coq_M **)
+    (** val op_rhs_unknown : Target_system.Machine_width.t -> P.int_shift_op ->
+        Num.t -> Num.t binary_arith_outcome_for_one_side_only coq_M **)
 
     let op_rhs_unknown machine_width op0 lhs =
       match op0 with
-      | Flambda_primitive.Lsl ->
+      | P.Lsl ->
         if Num.equal lhs (Num.zero machine_width)
         then Exactly (Num.zero machine_width)
         else Cannot_simplify
-      | Flambda_primitive.Lsr ->
+      | P.Lsr ->
         if Num.equal lhs (Num.zero machine_width)
         then Exactly (Num.zero machine_width)
         else Cannot_simplify
-      | Flambda_primitive.Asr ->
+      | P.Asr ->
         if Num.equal lhs (Num.zero machine_width)
         then Exactly (Num.zero machine_width)
         else if Num.equal lhs (Num.minus_one machine_width)
@@ -1195,19 +1139,17 @@ functor
     module Rhs = I.Num
     module Result = As_container_types_S (Target_ocaml_int)
 
-    type op_ =
-      Flambda_primitive.signed_or_unsigned
-      Flambda_primitive.comparison_behaviour
+    type op_ = P.signed_or_unsigned P.comparison_behaviour
 
-    (** val arg_kind : Flambda_kind.Standard_int_or_float.t **)
+    (** val arg_kind : K.Standard_int_or_float.t **)
 
     let arg_kind = I.standard_int_or_float_kind
 
-    (** val result_kind : Flambda_kind.t **)
+    (** val result_kind : K.t **)
 
-    let result_kind = Flambda_kind.naked_immediate
+    let result_kind = K.naked_immediate
 
-    (** val ok_to_evaluate : Downwards_env.t -> bool coq_M **)
+    (** val ok_to_evaluate : DE.t -> bool coq_M **)
 
     let ok_to_evaluate _ = true
 
@@ -1221,22 +1163,19 @@ functor
 
     let prover_rhs = I.unboxed_prover
 
-    (** val unknown : Target_system.Machine_width.t -> op_ -> Flambda2_types.t
-        coq_M **)
+    (** val unknown : Target_system.Machine_width.t -> op_ -> T.t coq_M **)
 
     let unknown machine_width = function
-      | Flambda_primitive.Yielding_bool _ ->
-        Flambda2_types.these_naked_immediates
-          (Target_ocaml_int.all_bools machine_width)
-      | Flambda_primitive.Yielding_int_like_compare_functions _ ->
-        Flambda2_types.these_naked_immediates
+      | P.Yielding_bool _ ->
+        T.these_naked_immediates (Target_ocaml_int.all_bools machine_width)
+      | P.Yielding_int_like_compare_functions _ ->
+        T.these_naked_immediates
           (Target_ocaml_int.zero_one_and_minus_one machine_width)
 
-    (** val these : Target_ocaml_int.Set.t -> (Flambda2_types.t * Simple.t
-        option) coq_M **)
+    (** val these : Target_ocaml_int.Set.t -> (T.t * Simple.t option) coq_M **)
 
     let these s =
-      let ty = Flambda2_types.these_naked_immediates s in
+      let ty = T.these_naked_immediates s in
       let simple_opt =
         match Target_ocaml_int.Set.get_singleton s with
         | Some i -> Some (Simple.const (Reg_width_const.naked_immediate i))
@@ -1244,11 +1183,10 @@ functor
       in
       ty, simple_opt
 
-    (** val term : Target_ocaml_int.t -> Flambda.Named.t coq_M **)
+    (** val term : Target_ocaml_int.t -> Named.t coq_M **)
 
     let term imm =
-      Flambda.Named.create_simple
-        (Simple.const (Reg_width_const.naked_immediate imm))
+      Named.create_simple (Simple.const (Reg_width_const.naked_immediate imm))
 
     module Pair = I.Num.Pair
 
@@ -1259,50 +1197,44 @@ functor
 
     module Num = I.Num
 
-    (** val op : Target_system.Machine_width.t ->
-        Flambda_primitive.signed_or_unsigned
-        Flambda_primitive.comparison_behaviour -> Num.t -> Num.t ->
-        Target_ocaml_int.t option coq_M **)
+    (** val op : Target_system.Machine_width.t -> P.signed_or_unsigned
+        P.comparison_behaviour -> Num.t -> Num.t -> Target_ocaml_int.t option
+        coq_M **)
 
     let op machine_width op0 n1 n2 =
       match op0 with
-      | Flambda_primitive.Yielding_bool op1 ->
+      | P.Yielding_bool op1 ->
         let bool = fun b -> Target_ocaml_int.bool machine_width b in
         (fun f__1 f__2 f__3 f__4 f__5 f__6 x__0 ->
-          match (x__0 : _ Flambda_primitive.comparison) with
-          | Flambda_primitive.Eq -> f__1 ()
-          | Flambda_primitive.Neq -> f__2 ()
-          | Flambda_primitive.Lt x__1 -> f__3 x__1
-          | Flambda_primitive.Gt x__1 -> f__4 x__1
-          | Flambda_primitive.Le x__1 -> f__5 x__1
-          | Flambda_primitive.Ge x__1 -> f__6 x__1)
+          match (x__0 : _ P.comparison) with
+          | P.Eq -> f__1 ()
+          | P.Neq -> f__2 ()
+          | P.Lt x__1 -> f__3 x__1
+          | P.Gt x__1 -> f__4 x__1
+          | P.Le x__1 -> f__5 x__1
+          | P.Ge x__1 -> f__6 x__1)
           (fun _ -> Some (bool (Num.compare n1 n2 = 0)))
           (fun _ -> Some (bool (Num.compare n1 n2 <> 0)))
           (fun s ->
             match s with
-            | Flambda_primitive.Signed -> Some (bool (Num.compare n1 n2 < 0))
-            | Flambda_primitive.Unsigned ->
-              Some (bool (Num.compare_unsigned n1 n2 < 0)))
+            | P.Signed -> Some (bool (Num.compare n1 n2 < 0))
+            | P.Unsigned -> Some (bool (Num.compare_unsigned n1 n2 < 0)))
           (fun s ->
             match s with
-            | Flambda_primitive.Signed -> Some (bool (Num.compare n1 n2 > 0))
-            | Flambda_primitive.Unsigned ->
-              Some (bool (Num.compare_unsigned n1 n2 > 0)))
+            | P.Signed -> Some (bool (Num.compare n1 n2 > 0))
+            | P.Unsigned -> Some (bool (Num.compare_unsigned n1 n2 > 0)))
           (fun s ->
             match s with
-            | Flambda_primitive.Signed -> Some (bool (Num.compare n1 n2 <= 0))
-            | Flambda_primitive.Unsigned ->
-              Some (bool (Num.compare_unsigned n1 n2 <= 0)))
+            | P.Signed -> Some (bool (Num.compare n1 n2 <= 0))
+            | P.Unsigned -> Some (bool (Num.compare_unsigned n1 n2 <= 0)))
           (fun s ->
             match s with
-            | Flambda_primitive.Signed -> Some (bool (Num.compare n1 n2 >= 0))
-            | Flambda_primitive.Unsigned ->
-              Some (bool (Num.compare_unsigned n1 n2 >= 0)))
+            | P.Signed -> Some (bool (Num.compare n1 n2 >= 0))
+            | P.Unsigned -> Some (bool (Num.compare_unsigned n1 n2 >= 0)))
           op1
-      | Flambda_primitive.Yielding_int_like_compare_functions signed_or_unsigned
-        -> (
+      | P.Yielding_int_like_compare_functions signed_or_unsigned -> (
         match signed_or_unsigned with
-        | Flambda_primitive.Signed ->
+        | P.Signed ->
           let int = fun i -> Target_ocaml_int.of_int machine_width i in
           let c = Num.compare n1 n2 in
           if c < 0
@@ -1310,7 +1242,7 @@ functor
           else if c = 0
           then Some (int 0)
           else Some (int 1)
-        | Flambda_primitive.Unsigned ->
+        | P.Unsigned ->
           let int = fun i -> Target_ocaml_int.of_int machine_width i in
           let c = Num.compare_unsigned n1 n2 in
           if c < 0
@@ -1356,20 +1288,17 @@ module type Float_ops_for_binary_arith_gen_FP = sig
 
   val width : Flambda_primitive.float_bitwidth
 
-  val arg_kind : Flambda_kind.Standard_int_or_float.t
+  val arg_kind : K.Standard_int_or_float.t
 
   val result_kind : Flambda_kind.t
 
-  val prover :
-    Flambda2_types.Typing_env.t ->
-    Flambda2_types.t ->
-    F.Set_.t Flambda2_types.meet_shortcut coq_M
+  val prover : T.Typing_env.t -> T.t -> F.Set_.t T.meet_shortcut coq_M
 
-  val unknown : Flambda2_types.t
+  val unknown : T.t
 
-  val these : F.Set_.t -> Flambda2_types.t coq_M
+  val these : F.Set_.t -> T.t coq_M
 
-  val const : F.t -> Reg_width_const.t coq_M
+  val const : F.t -> Const.t coq_M
 end
 
 module Float_ops_for_binary_arith_gen =
@@ -1382,36 +1311,35 @@ functor
     module Rhs = F
     module Result = F
 
-    type op_ = Flambda_primitive.binary_float_arith_op
+    type op_ = P.binary_float_arith_op
 
-    (** val arg_kind : Flambda_kind.Standard_int_or_float.t **)
+    (** val arg_kind : K.Standard_int_or_float.t **)
 
     let arg_kind = FP.arg_kind
 
-    (** val result_kind : Flambda_kind.t **)
+    (** val result_kind : K.t **)
 
     let result_kind = FP.result_kind
 
-    (** val ok_to_evaluate : Downwards_env.t -> bool coq_M **)
+    (** val ok_to_evaluate : DE.t -> bool coq_M **)
 
-    let ok_to_evaluate = Downwards_env.propagating_float_consts
+    let ok_to_evaluate = DE.propagating_float_consts
 
-    (** val prover_lhs : Flambda2_types.Typing_env.t -> Flambda2_types.t ->
-        FP.F.Set_.t Flambda2_types.meet_shortcut coq_M **)
+    (** val prover_lhs : T.Typing_env.t -> T.t -> FP.F.Set_.t T.meet_shortcut
+        coq_M **)
 
     let prover_lhs = FP.prover
 
-    (** val prover_rhs : Flambda2_types.Typing_env.t -> Flambda2_types.t ->
-        FP.F.Set_.t Flambda2_types.meet_shortcut coq_M **)
+    (** val prover_rhs : T.Typing_env.t -> T.t -> FP.F.Set_.t T.meet_shortcut
+        coq_M **)
 
     let prover_rhs = FP.prover
 
-    (** val unknown : Target_system.Machine_width.t -> op_ -> Flambda2_types.t
-        coq_M **)
+    (** val unknown : Target_system.Machine_width.t -> op_ -> T.t coq_M **)
 
     let unknown _ _ = FP.unknown
 
-    (** val these : F.Set_.t -> (Flambda2_types.t * Simple.t option) coq_M **)
+    (** val these : F.Set_.t -> (T.t * Simple.t option) coq_M **)
 
     let these s =
       let ty = FP.these s in
@@ -1422,9 +1350,9 @@ functor
       in
       ty, simple_opt
 
-    (** val term : F.t -> Flambda.Named.t coq_M **)
+    (** val term : F.t -> Named.t coq_M **)
 
-    let term f = Flambda.Named.create_simple (Simple.const (FP.const f))
+    let term f = Named.create_simple (Simple.const (FP.const f))
 
     module Pair = F.Pair
 
@@ -1438,11 +1366,11 @@ functor
     let op _ op0 n1 n2 =
       let always_some = fun f -> Some (f n1 n2) in
       (fun f__1 f__2 f__3 f__4 x__0 ->
-        match (x__0 : Flambda_primitive.binary_float_arith_op) with
-        | Flambda_primitive.Add -> f__1 ()
-        | Flambda_primitive.Sub -> f__2 ()
-        | Flambda_primitive.Mul -> f__3 ()
-        | Flambda_primitive.Div -> f__4 ())
+        match (x__0 : P.binary_float_arith_op) with
+        | P.Add -> f__1 ()
+        | P.Sub -> f__2 ()
+        | P.Mul -> f__3 ()
+        | P.Div -> f__4 ())
         (fun _ -> always_some F.IEEE_semantics.add)
         (fun _ -> always_some F.IEEE_semantics.sub)
         (fun _ -> always_some F.IEEE_semantics.mul)
@@ -1471,11 +1399,11 @@ functor
 
     let op_lhs_unknown _ op0 rhs =
       (fun f__1 f__2 f__3 f__4 x__0 ->
-        match (x__0 : Flambda_primitive.binary_float_arith_op) with
-        | Flambda_primitive.Add -> f__1 ()
-        | Flambda_primitive.Sub -> f__2 ()
-        | Flambda_primitive.Mul -> f__3 ()
-        | Flambda_primitive.Div -> f__4 ())
+        match (x__0 : P.binary_float_arith_op) with
+        | P.Add -> f__1 ()
+        | P.Sub -> f__2 ()
+        | P.Mul -> f__3 ()
+        | P.Div -> f__4 ())
         (fun _ -> symmetric_op_one_side_unknown Add rhs)
         (fun _ -> Cannot_simplify)
         (fun _ -> symmetric_op_one_side_unknown Mul rhs)
@@ -1492,11 +1420,11 @@ functor
 
     let op_rhs_unknown _ op0 lhs =
       (fun f__1 f__2 f__3 f__4 x__0 ->
-        match (x__0 : Flambda_primitive.binary_float_arith_op) with
-        | Flambda_primitive.Add -> f__1 ()
-        | Flambda_primitive.Sub -> f__2 ()
-        | Flambda_primitive.Mul -> f__3 ()
-        | Flambda_primitive.Div -> f__4 ())
+        match (x__0 : P.binary_float_arith_op) with
+        | P.Add -> f__1 ()
+        | P.Sub -> f__2 ()
+        | P.Mul -> f__3 ()
+        | P.Div -> f__4 ())
         (fun _ -> symmetric_op_one_side_unknown Add lhs)
         (fun _ -> Cannot_simplify)
         (fun _ -> symmetric_op_one_side_unknown Mul lhs)
@@ -1511,28 +1439,26 @@ module Float_ops_for_binary_arith_FP = struct
 
   let width = Flambda_primitive.Float64
 
-  (** val arg_kind : Flambda_kind.Standard_int_or_float.t **)
+  (** val arg_kind : K.Standard_int_or_float.t **)
 
-  let arg_kind = Flambda_kind.Standard_int_or_float.Naked_float
+  let arg_kind = K.Standard_int_or_float.Naked_float
 
   (** val result_kind : Flambda_kind.t **)
 
-  let result_kind = Flambda_kind.naked_float
+  let result_kind = K.naked_float
 
-  (** val prover : Flambda2_types.Typing_env.t -> Flambda2_types.t ->
-      Numeric_types.Float_by_bit_pattern.Set.t Flambda2_types.meet_shortcut
-      coq_M **)
+  (** val prover : T.Typing_env.t -> T.t ->
+      Numeric_types.Float_by_bit_pattern.Set.t T.meet_shortcut coq_M **)
 
-  let prover = Flambda2_types.meet_naked_floats
+  let prover = T.meet_naked_floats
 
-  (** val unknown : Flambda2_types.t **)
+  (** val unknown : T.t **)
 
-  let unknown = Flambda2_types.any_naked_float
+  let unknown = T.any_naked_float
 
-  (** val these : Numeric_types.Float_by_bit_pattern.Set.t -> Flambda2_types.t
-      coq_M **)
+  (** val these : Numeric_types.Float_by_bit_pattern.Set.t -> T.t coq_M **)
 
-  let these = Flambda2_types.these_naked_floats
+  let these = T.these_naked_floats
 
   (** val const : Numeric_types.Float_by_bit_pattern.t -> Reg_width_const.t
       coq_M **)
@@ -1550,28 +1476,26 @@ module Float32_ops_for_binary_arith_FP = struct
 
   let width = Flambda_primitive.Float32
 
-  (** val arg_kind : Flambda_kind.Standard_int_or_float.t **)
+  (** val arg_kind : K.Standard_int_or_float.t **)
 
-  let arg_kind = Flambda_kind.Standard_int_or_float.Naked_float32
+  let arg_kind = K.Standard_int_or_float.Naked_float32
 
   (** val result_kind : Flambda_kind.t **)
 
-  let result_kind = Flambda_kind.naked_float32
+  let result_kind = K.naked_float32
 
-  (** val prover : Flambda2_types.Typing_env.t -> Flambda2_types.t ->
-      Numeric_types.Float32_by_bit_pattern.Set.t Flambda2_types.meet_shortcut
-      coq_M **)
+  (** val prover : T.Typing_env.t -> T.t ->
+      Numeric_types.Float32_by_bit_pattern.Set.t T.meet_shortcut coq_M **)
 
-  let prover = Flambda2_types.meet_naked_float32s
+  let prover = T.meet_naked_float32s
 
-  (** val unknown : Flambda2_types.t **)
+  (** val unknown : T.t **)
 
-  let unknown = Flambda2_types.any_naked_float32
+  let unknown = T.any_naked_float32
 
-  (** val these : Numeric_types.Float32_by_bit_pattern.Set.t -> Flambda2_types.t
-      coq_M **)
+  (** val these : Numeric_types.Float32_by_bit_pattern.Set.t -> T.t coq_M **)
 
-  let these = Flambda2_types.these_naked_float32s
+  let these = T.these_naked_float32s
 
   (** val const : Numeric_types.Float32_by_bit_pattern.t -> Reg_width_const.t
       coq_M **)
@@ -1587,12 +1511,9 @@ module Binary_float32_arith = Binary_arith_like (Float32_ops_for_binary_arith)
 module type Float_ops_for_binary_comp_gen_FP = sig
   module F : Numeric_types.Float_by_bit_pattern_
 
-  val arg_kind : Flambda_kind.Standard_int_or_float.t
+  val arg_kind : K.Standard_int_or_float.t
 
-  val prover :
-    Flambda2_types.Typing_env.t ->
-    Flambda2_types.t ->
-    F.Set_.t Flambda2_types.meet_shortcut coq_M
+  val prover : T.Typing_env.t -> T.t -> F.Set_.t T.meet_shortcut coq_M
 end
 
 module Float_ops_for_binary_comp_gen =
@@ -1605,47 +1526,44 @@ functor
     module Rhs = F
     module Result = As_container_types_S (Target_ocaml_int)
 
-    type op_ = unit Flambda_primitive.comparison_behaviour
+    type op_ = unit P.comparison_behaviour
 
-    (** val arg_kind : Flambda_kind.Standard_int_or_float.t **)
+    (** val arg_kind : K.Standard_int_or_float.t **)
 
     let arg_kind = FP.arg_kind
 
-    (** val result_kind : Flambda_kind.t **)
+    (** val result_kind : K.t **)
 
-    let result_kind = Flambda_kind.naked_immediate
+    let result_kind = K.naked_immediate
 
-    (** val ok_to_evaluate : Downwards_env.t -> bool coq_M **)
+    (** val ok_to_evaluate : DE.t -> bool coq_M **)
 
-    let ok_to_evaluate = Downwards_env.propagating_float_consts
+    let ok_to_evaluate = DE.propagating_float_consts
 
-    (** val prover_lhs : Flambda2_types.Typing_env.t -> Flambda2_types.t ->
-        FP.F.Set_.t Flambda2_types.meet_shortcut coq_M **)
+    (** val prover_lhs : T.Typing_env.t -> T.t -> FP.F.Set_.t T.meet_shortcut
+        coq_M **)
 
     let prover_lhs = FP.prover
 
-    (** val prover_rhs : Flambda2_types.Typing_env.t -> Flambda2_types.t ->
-        FP.F.Set_.t Flambda2_types.meet_shortcut coq_M **)
+    (** val prover_rhs : T.Typing_env.t -> T.t -> FP.F.Set_.t T.meet_shortcut
+        coq_M **)
 
     let prover_rhs = FP.prover
 
-    (** val unknown : Target_system.Machine_width.t -> op_ -> Flambda2_types.t
-        coq_M **)
+    (** val unknown : Target_system.Machine_width.t -> op_ -> T.t coq_M **)
 
     let unknown machine_width = function
-      | Flambda_primitive.Yielding_bool _ ->
-        Flambda2_types.these_naked_immediates
-          (Target_ocaml_int.all_bools machine_width)
-      | Flambda_primitive.Yielding_int_like_compare_functions u ->
+      | P.Yielding_bool _ ->
+        T.these_naked_immediates (Target_ocaml_int.all_bools machine_width)
+      | P.Yielding_int_like_compare_functions u ->
         let () = u in
-        Flambda2_types.these_naked_immediates
+        T.these_naked_immediates
           (Target_ocaml_int.zero_one_and_minus_one machine_width)
 
-    (** val these : Target_ocaml_int.Set.t -> (Flambda2_types.t * Simple.t
-        option) coq_M **)
+    (** val these : Target_ocaml_int.Set.t -> (T.t * Simple.t option) coq_M **)
 
     let these s =
-      let ty = Flambda2_types.these_naked_immediates s in
+      let ty = T.these_naked_immediates s in
       let simple_opt =
         match Target_ocaml_int.Set.get_singleton s with
         | Some i -> Some (Simple.const (Reg_width_const.naked_immediate i))
@@ -1653,11 +1571,10 @@ functor
       in
       ty, simple_opt
 
-    (** val term : Target_ocaml_int.t -> Flambda.Named.t coq_M **)
+    (** val term : Target_ocaml_int.t -> Named.t coq_M **)
 
     let term imm =
-      Flambda.Named.create_simple
-        (Simple.const (Reg_width_const.naked_immediate imm))
+      Named.create_simple (Simple.const (Reg_width_const.naked_immediate imm))
 
     module Pair = F.Pair
 
@@ -1670,17 +1587,17 @@ functor
 
     let op machine_width op0 n1 n2 =
       match op0 with
-      | Flambda_primitive.Yielding_bool op1 ->
+      | P.Yielding_bool op1 ->
         let has_nan = F.is_any_nan n1 || F.is_any_nan n2 in
         let bool = fun b -> Target_ocaml_int.bool machine_width b in
         (fun f__1 f__2 f__3 f__4 f__5 f__6 x__0 ->
-          match (x__0 : _ Flambda_primitive.comparison) with
-          | Flambda_primitive.Eq -> f__1 ()
-          | Flambda_primitive.Neq -> f__2 ()
-          | Flambda_primitive.Lt x__1 -> f__3 x__1
-          | Flambda_primitive.Gt x__1 -> f__4 x__1
-          | Flambda_primitive.Le x__1 -> f__5 x__1
-          | Flambda_primitive.Ge x__1 -> f__6 x__1)
+          match (x__0 : _ P.comparison) with
+          | P.Eq -> f__1 ()
+          | P.Neq -> f__2 ()
+          | P.Lt x__1 -> f__3 x__1
+          | P.Gt x__1 -> f__4 x__1
+          | P.Le x__1 -> f__5 x__1
+          | P.Ge x__1 -> f__6 x__1)
           (fun _ -> Some (bool (F.IEEE_semantics.equal n1 n2)))
           (fun _ -> Some (bool (not (F.IEEE_semantics.equal n1 n2))))
           (fun u ->
@@ -1704,7 +1621,7 @@ functor
             then Some (bool false)
             else Some (bool (F.IEEE_semantics.compare n1 n2 >= 0)))
           op1
-      | Flambda_primitive.Yielding_int_like_compare_functions u ->
+      | P.Yielding_int_like_compare_functions u ->
         let () = u in
         let int = fun i -> Target_ocaml_int.of_int machine_width i in
         let c = F.IEEE_semantics.compare n1 n2 in
@@ -1715,18 +1632,18 @@ functor
         else Some (int 1)
 
     (** val result_of_comparison_with_nan : Target_system.Machine_width.t ->
-        unit Flambda_primitive.comparison -> Target_ocaml_int.t
+        unit P.comparison -> Target_ocaml_int.t
         binary_arith_outcome_for_one_side_only coq_M **)
 
     let result_of_comparison_with_nan machine_width op0 =
       (fun f__1 f__2 f__3 f__4 f__5 f__6 x__0 ->
-        match (x__0 : _ Flambda_primitive.comparison) with
-        | Flambda_primitive.Eq -> f__1 ()
-        | Flambda_primitive.Neq -> f__2 ()
-        | Flambda_primitive.Lt x__1 -> f__3 x__1
-        | Flambda_primitive.Gt x__1 -> f__4 x__1
-        | Flambda_primitive.Le x__1 -> f__5 x__1
-        | Flambda_primitive.Ge x__1 -> f__6 x__1)
+        match (x__0 : _ P.comparison) with
+        | P.Eq -> f__1 ()
+        | P.Neq -> f__2 ()
+        | P.Lt x__1 -> f__3 x__1
+        | P.Gt x__1 -> f__4 x__1
+        | P.Le x__1 -> f__5 x__1
+        | P.Ge x__1 -> f__6 x__1)
         (fun _ -> Exactly (Target_ocaml_int.bool_false machine_width))
         (fun _ -> Exactly (Target_ocaml_int.bool_true machine_width))
         (fun u ->
@@ -1748,11 +1665,11 @@ functor
 
     let op_lhs_unknown machine_width op0 rhs =
       match op0 with
-      | Flambda_primitive.Yielding_bool op1 ->
+      | P.Yielding_bool op1 ->
         if F.is_any_nan rhs
         then result_of_comparison_with_nan machine_width op1
         else Cannot_simplify
-      | Flambda_primitive.Yielding_int_like_compare_functions u ->
+      | P.Yielding_int_like_compare_functions u ->
         let () = u in
         Cannot_simplify
 
@@ -1761,11 +1678,11 @@ functor
 
     let op_rhs_unknown machine_width op0 lhs =
       match op0 with
-      | Flambda_primitive.Yielding_bool op1 ->
+      | P.Yielding_bool op1 ->
         if F.is_any_nan lhs
         then result_of_comparison_with_nan machine_width op1
         else Cannot_simplify
-      | Flambda_primitive.Yielding_int_like_compare_functions u ->
+      | P.Yielding_int_like_compare_functions u ->
         let () = u in
         Cannot_simplify
   end
@@ -1773,15 +1690,14 @@ functor
 module Float_ops_for_binary_comp_FP = struct
   module F = Numeric_types.Float_by_bit_pattern
 
-  (** val arg_kind : Flambda_kind.Standard_int_or_float.t **)
+  (** val arg_kind : K.Standard_int_or_float.t **)
 
-  let arg_kind = Flambda_kind.Standard_int_or_float.Naked_float
+  let arg_kind = K.Standard_int_or_float.Naked_float
 
-  (** val prover : Flambda2_types.Typing_env.t -> Flambda2_types.t ->
-      Numeric_types.Float_by_bit_pattern.Set.t Flambda2_types.meet_shortcut
-      coq_M **)
+  (** val prover : T.Typing_env.t -> T.t ->
+      Numeric_types.Float_by_bit_pattern.Set.t T.meet_shortcut coq_M **)
 
-  let prover = Flambda2_types.meet_naked_floats
+  let prover = T.meet_naked_floats
 end
 
 module Float_ops_for_binary_comp =
@@ -1790,15 +1706,14 @@ module Float_ops_for_binary_comp =
 module Float32_ops_for_binary_comp_FP = struct
   module F = Numeric_types.Float32_by_bit_pattern
 
-  (** val arg_kind : Flambda_kind.Standard_int_or_float.t **)
+  (** val arg_kind : K.Standard_int_or_float.t **)
 
-  let arg_kind = Flambda_kind.Standard_int_or_float.Naked_float32
+  let arg_kind = K.Standard_int_or_float.Naked_float32
 
-  (** val prover : Flambda2_types.Typing_env.t -> Flambda2_types.t ->
-      Numeric_types.Float32_by_bit_pattern.Set.t Flambda2_types.meet_shortcut
-      coq_M **)
+  (** val prover : T.Typing_env.t -> T.t ->
+      Numeric_types.Float32_by_bit_pattern.Set.t T.meet_shortcut coq_M **)
 
-  let prover = Flambda2_types.meet_naked_float32s
+  let prover = T.meet_naked_float32s
 end
 
 module Float32_ops_for_binary_comp =
@@ -1806,70 +1721,54 @@ module Float32_ops_for_binary_comp =
 module Binary_float_comp = Binary_arith_like (Float_ops_for_binary_comp)
 module Binary_float32_comp = Binary_arith_like (Float32_ops_for_binary_comp)
 
-(** val simplify_phys_equal : Flambda_primitive.equality_comparison ->
-    Downwards_acc.t -> Flambda.Named.t -> Debuginfo.t -> Simple.t ->
-    Flambda2_types.t -> Simple.t -> Flambda2_types.t -> Bound_var.t ->
-    Simplify_primitive_result.t coq_M **)
+(** val simplify_phys_equal : P.equality_comparison -> DA.t -> Named.t ->
+    Debuginfo.t -> Simple.t -> T.t -> Simple.t -> T.t -> Bound_var.t -> SPR.t
+    coq_M **)
 
 let simplify_phys_equal op0 dacc original_term _ _ arg1_ty _ arg2_ty result_var
     =
-  let typing_env = Downwards_acc.typing_env dacc in
-  let machine_width = Downwards_env.machine_width (Downwards_acc.denv dacc) in
-  match Flambda2_types.prove_physical_equality typing_env arg1_ty arg2_ty with
-  | Flambda2_types.Proved bool ->
-    let result =
-      match op0 with
-      | Flambda_primitive.Eq -> bool
-      | Flambda_primitive.Neq -> not bool
-    in
+  let typing_env = DA.typing_env dacc in
+  let machine_width = DE.machine_width (DA.denv dacc) in
+  match T.prove_physical_equality typing_env arg1_ty arg2_ty with
+  | T.Proved bool ->
+    let result = match op0 with P.Eq -> bool | P.Neq -> not bool in
     let dacc0 =
-      Downwards_acc.add_variable dacc result_var
-        (Flambda2_types.this_naked_immediate
-           (Target_ocaml_int.bool machine_width result))
+      DA.add_variable dacc result_var
+        (T.this_naked_immediate (Target_ocaml_int.bool machine_width result))
     in
-    Simplify_primitive_result.create
-      (Flambda.Named.create_simple
-         (Simple.untagged_const_bool machine_width result))
+    SPR.create
+      (Named.create_simple (Simple.untagged_const_bool machine_width result))
       false dacc0
-  | Flambda2_types.Unknown ->
+  | T.Unknown ->
     let dacc0 =
-      Downwards_acc.add_variable dacc result_var
-        (Flambda2_types.these_naked_immediates
-           (Target_ocaml_int.all_bools machine_width))
+      DA.add_variable dacc result_var
+        (T.these_naked_immediates (Target_ocaml_int.all_bools machine_width))
     in
-    Simplify_primitive_result.create original_term false dacc0
+    SPR.create original_term false dacc0
 
-(** val simplify_array_load : Flambda_primitive.Array_kind.t ->
-    Flambda_primitive.Array_load_kind.t -> Mutability.t -> Downwards_acc.t ->
-    Flambda.Named.t -> Debuginfo.t -> Simple.t -> Flambda2_types.t -> Simple.t
-    -> Flambda2_types.t -> Bound_var.t -> Simplify_primitive_result.t coq_M **)
+(** val simplify_array_load : P.Array_kind.t -> P.Array_load_kind.t ->
+    Mutability.t -> DA.t -> Named.t -> Debuginfo.t -> Simple.t -> T.t ->
+    Simple.t -> T.t -> Bound_var.t -> SPR.t coq_M **)
 
 let simplify_array_load array_kind array_load_kind mutability dacc _ dbg array
     array_ty index index_ty result_var =
   let result_kind0 =
     match array_load_kind with
-    | Flambda_primitive.Array_load_kind.Immediates -> Flambda_kind.value
-    | Flambda_primitive.Array_load_kind.Gc_ignorable_values ->
-      Flambda_kind.value
-    | Flambda_primitive.Array_load_kind.Values -> Flambda_kind.value
-    | Flambda_primitive.Array_load_kind.Naked_floats -> Flambda_kind.naked_float
-    | Flambda_primitive.Array_load_kind.Naked_float32s ->
-      Flambda_kind.naked_float32
-    | Flambda_primitive.Array_load_kind.Naked_ints ->
-      Flambda_kind.naked_immediate
-    | Flambda_primitive.Array_load_kind.Naked_int8s -> Flambda_kind.naked_int8
-    | Flambda_primitive.Array_load_kind.Naked_int16s -> Flambda_kind.naked_int16
-    | Flambda_primitive.Array_load_kind.Naked_int32s -> Flambda_kind.naked_int32
-    | Flambda_primitive.Array_load_kind.Naked_int64s -> Flambda_kind.naked_int64
-    | Flambda_primitive.Array_load_kind.Naked_nativeints ->
-      Flambda_kind.naked_nativeint
-    | Flambda_primitive.Array_load_kind.Naked_vec128s ->
-      Flambda_kind.naked_vec128
-    | Flambda_primitive.Array_load_kind.Naked_vec256s ->
-      Flambda_kind.naked_vec256
-    | Flambda_primitive.Array_load_kind.Naked_vec512s ->
-      Flambda_kind.naked_vec512
-    | Flambda_primitive.Array_load_kind.Naked_masks -> Flambda_kind.naked_mask
+    | P.Array_load_kind.Immediates -> K.value
+    | P.Array_load_kind.Gc_ignorable_values -> K.value
+    | P.Array_load_kind.Values -> K.value
+    | P.Array_load_kind.Naked_floats -> K.naked_float
+    | P.Array_load_kind.Naked_float32s -> K.naked_float32
+    | P.Array_load_kind.Naked_ints -> K.naked_immediate
+    | P.Array_load_kind.Naked_int8s -> K.naked_int8
+    | P.Array_load_kind.Naked_int16s -> K.naked_int16
+    | P.Array_load_kind.Naked_int32s -> K.naked_int32
+    | P.Array_load_kind.Naked_int64s -> K.naked_int64
+    | P.Array_load_kind.Naked_nativeints -> K.naked_nativeint
+    | P.Array_load_kind.Naked_vec128s -> K.naked_vec128
+    | P.Array_load_kind.Naked_vec256s -> K.naked_vec256
+    | P.Array_load_kind.Naked_vec512s -> K.naked_vec512
+    | P.Array_load_kind.Naked_masks -> K.naked_mask
   in
   let array_kind0 =
     Simplify_common.specialise_array_kind dacc array_kind array_ty
@@ -1877,147 +1776,119 @@ let simplify_array_load array_kind array_load_kind mutability dacc _ dbg array
   match array_kind0 with
   | Or_bottom.Ok array_kind1 -> (
     let prim =
-      Flambda_primitive.Binary
-        ( Flambda_primitive.Array_load (array_kind1, array_load_kind, mutability),
-          array,
-          index )
+      P.Binary
+        (P.Array_load (array_kind1, array_load_kind, mutability), array, index)
     in
     let return_given_type =
      fun ty try_reify ->
-      let named = Flambda.Named.create_prim prim dbg in
-      let dacc0 = Downwards_acc.add_variable dacc result_var ty in
-      Simplify_primitive_result.create named try_reify dacc0
+      let named = Named.create_prim prim dbg in
+      let dacc0 = DA.add_variable dacc result_var ty in
+      SPR.create named try_reify dacc0
     in
     let contents_unknown =
-     fun _ ->
-      return_given_type
-        (Flambda2_types.unknown (Flambda_primitive.result_kind' prim))
-        false
+     fun _ -> return_given_type (T.unknown (P.result_kind' prim)) false
     in
-    match
-      Flambda2_types.prove_is_immutable_array
-        (Downwards_acc.typing_env dacc)
-        array_ty
-    with
-    | Flambda2_types.Proved t0 -> (
+    match T.prove_is_immutable_array (DA.typing_env dacc) array_ty with
+    | T.Proved t0 -> (
       let elt_kind, fields, _ = t0 in
       match elt_kind with
       | Or_unknown_or_bottom.Unknown -> contents_unknown ()
       | Or_unknown_or_bottom.Ok elt_kind0 -> (
-        if
-          not
-            (Flambda_kind.equal
-               (Flambda_kind.With_subkind.kind elt_kind0)
-               result_kind0)
+        if not (K.equal (K.With_subkind.kind elt_kind0) result_kind0)
         then contents_unknown ()
         else
           match
-            Flambda2_types.prove_equals_tagged_immediates
-              (Downwards_acc.typing_env dacc)
-              index_ty
+            T.prove_equals_tagged_immediates (DA.typing_env dacc) index_ty
           with
-          | Flambda2_types.Proved imms -> (
+          | T.Proved imms -> (
             match Target_ocaml_int.Set.get_singleton imms with
             | Some imm ->
-              let machine_width =
-                Downwards_env.machine_width (Downwards_acc.denv dacc)
-              in
+              let machine_width = DE.machine_width (DA.denv dacc) in
               if
                 Target_ocaml_int.( < ) imm (Target_ocaml_int.zero machine_width)
                 || Target_ocaml_int.( >= ) imm
                      (Target_ocaml_int.of_int machine_width
                         (Array.length fields))
-              then Simplify_primitive_result.create_invalid dacc
+              then SPR.create_invalid dacc
               else
                 return_given_type
                   (Array.get fields (Target_ocaml_int.to_int imm))
                   true
             | None -> contents_unknown ())
-          | Flambda2_types.Unknown -> contents_unknown ())
+          | T.Unknown -> contents_unknown ())
       | Or_unknown_or_bottom.Bottom -> contents_unknown ())
-    | Flambda2_types.Unknown -> contents_unknown ())
+    | T.Unknown -> contents_unknown ())
   | Or_bottom.Bottom ->
-    let ty = Flambda2_types.bottom result_kind0 in
-    let dacc0 = Downwards_acc.add_variable dacc result_var ty in
-    Simplify_primitive_result.create_invalid dacc0
+    let ty = T.bottom result_kind0 in
+    let dacc0 = DA.add_variable dacc result_var ty in
+    SPR.create_invalid dacc0
 
-(** val simplify_string_or_bigstring_load : Flambda_primitive.string_like_value
-    -> Flambda_primitive.string_accessor_width -> Flambda_primitive.t ->
-    Downwards_acc.t -> Flambda.Named.t -> Debuginfo.t -> Simple.t ->
-    Flambda2_types.t -> Simple.t -> Flambda2_types.t -> Bound_var.t ->
-    Simplify_primitive_result.t coq_M **)
+(** val simplify_string_or_bigstring_load : P.string_like_value ->
+    P.string_accessor_width -> P.t -> DA.t -> Named.t -> Debuginfo.t -> Simple.t
+    -> T.t -> Simple.t -> T.t -> Bound_var.t -> SPR.t coq_M **)
 
 let simplify_string_or_bigstring_load _ _ original_prim dacc original_term _ _ _
     _ _ result_var =
-  Simplify_primitive_result.create_unknown dacc result_var
-    (Flambda_primitive.result_kind' original_prim)
+  SPR.create_unknown dacc result_var
+    (P.result_kind' original_prim)
     original_term
 
-(** val simplify_bigarray_load : Flambda_primitive.num_dimensions ->
-    Flambda_primitive.Bigarray_kind.t -> Flambda_primitive.Bigarray_layout.t ->
-    Flambda_primitive.t -> Downwards_acc.t -> Flambda.Named.t -> Debuginfo.t ->
-    Simple.t -> Flambda2_types.t -> Simple.t -> Flambda2_types.t -> Bound_var.t
-    -> Simplify_primitive_result.t coq_M **)
+(** val simplify_bigarray_load : P.num_dimensions -> P.Bigarray_kind.t ->
+    P.Bigarray_layout.t -> P.t -> DA.t -> Named.t -> Debuginfo.t -> Simple.t ->
+    T.t -> Simple.t -> T.t -> Bound_var.t -> SPR.t coq_M **)
 
 let simplify_bigarray_load _ _ _ original_prim dacc original_term _ _ _ _ _
     result_var =
-  Simplify_primitive_result.create_unknown dacc result_var
-    (Flambda_primitive.result_kind' original_prim)
+  SPR.create_unknown dacc result_var
+    (P.result_kind' original_prim)
     original_term
 
-(** val simplify_bigarray_get_alignment : int -> Flambda_primitive.t ->
-    Downwards_acc.t -> Flambda.Named.t -> Debuginfo.t -> Simple.t ->
-    Flambda2_types.t -> Simple.t -> Flambda2_types.t -> Bound_var.t ->
-    Simplify_primitive_result.t coq_M **)
+(** val simplify_bigarray_get_alignment : int -> P.t -> DA.t -> Named.t ->
+    Debuginfo.t -> Simple.t -> T.t -> Simple.t -> T.t -> Bound_var.t -> SPR.t
+    coq_M **)
 
 let simplify_bigarray_get_alignment _ original_prim dacc original_term _ _ _ _ _
     result_var =
-  Simplify_primitive_result.create_unknown dacc result_var
-    (Flambda_primitive.result_kind' original_prim)
+  SPR.create_unknown dacc result_var
+    (P.result_kind' original_prim)
     original_term
 
-(** val simplify_atomic_load : Flambda_primitive.t -> Downwards_acc.t ->
-    Flambda.Named.t -> Debuginfo.t -> Simple.t -> Flambda2_types.t -> Simple.t
-    -> Flambda2_types.t -> Bound_var.t -> Simplify_primitive_result.t coq_M **)
+(** val simplify_atomic_load : P.t -> DA.t -> Named.t -> Debuginfo.t -> Simple.t
+    -> T.t -> Simple.t -> T.t -> Bound_var.t -> SPR.t coq_M **)
 
 let simplify_atomic_load original_prim dacc original_term _ _ _ _ _ result_var =
-  Simplify_primitive_result.create_unknown dacc result_var
-    (Flambda_primitive.result_kind' original_prim)
+  SPR.create_unknown dacc result_var
+    (P.result_kind' original_prim)
     original_term
 
-(** val simplify_block_set : Flambda_primitive.Block_access_kind.t ->
-    Flambda_primitive.Init_or_assign.t -> Target_ocaml_int.t -> Downwards_acc.t
-    -> Flambda.Named.t -> Debuginfo.t -> Simple.t -> Flambda2_types.t ->
-    Simple.t -> Flambda2_types.t -> Bound_var.t -> Simplify_primitive_result.t
-    coq_M **)
+(** val simplify_block_set : P.Block_access_kind.t -> P.Init_or_assign.t ->
+    Target_ocaml_int.t -> DA.t -> Named.t -> Debuginfo.t -> Simple.t -> T.t ->
+    Simple.t -> T.t -> Bound_var.t -> SPR.t coq_M **)
 
 let simplify_block_set _ _ _ dacc original_term _ _ _ _ _ result_var =
-  Simplify_primitive_result.create_unit dacc result_var original_term
+  SPR.create_unit dacc result_var original_term
 
-(** val simplify_poke : Downwards_acc.t -> Flambda.Named.t -> Debuginfo.t ->
-    Simple.t -> Flambda2_types.t -> Simple.t -> Flambda2_types.t -> Bound_var.t
-    -> Simplify_primitive_result.t coq_M **)
+(** val simplify_poke : DA.t -> Named.t -> Debuginfo.t -> Simple.t -> T.t ->
+    Simple.t -> T.t -> Bound_var.t -> SPR.t coq_M **)
 
 let simplify_poke dacc original_term _ _ _ _ _ result_var =
-  Simplify_primitive_result.create_unit dacc result_var original_term
+  SPR.create_unit dacc result_var original_term
 
-(** val simplify_read_offset : Flambda_primitive.t -> Downwards_acc.t ->
-    Flambda.Named.t -> Debuginfo.t -> Simple.t -> Flambda2_types.t -> Simple.t
-    -> Flambda2_types.t -> Bound_var.t -> Simplify_primitive_result.t coq_M **)
+(** val simplify_read_offset : P.t -> DA.t -> Named.t -> Debuginfo.t -> Simple.t
+    -> T.t -> Simple.t -> T.t -> Bound_var.t -> SPR.t coq_M **)
 
 let simplify_read_offset original_prim dacc original_term _ _ _ _ _ result_var =
-  Simplify_primitive_result.create_unknown dacc result_var
-    (Flambda_primitive.result_kind' original_prim)
+  SPR.create_unknown dacc result_var
+    (P.result_kind' original_prim)
     original_term
 
-(** val simplify_binary_primitive0 : Downwards_acc.t -> Flambda_primitive.t ->
-    Flambda_primitive.binary_primitive -> Simple.t -> Flambda2_types.t ->
-    Simple.t -> Flambda2_types.t -> Debuginfo.t -> Bound_var.t ->
-    Simplify_primitive_result.t coq_M **)
+(** val simplify_binary_primitive0 : DA.t -> P.t -> P.binary_primitive ->
+    Simple.t -> T.t -> Simple.t -> T.t -> Debuginfo.t -> Bound_var.t -> SPR.t
+    coq_M **)
 
 let simplify_binary_primitive0 dacc original_prim prim arg1 arg1_ty arg2 arg2_ty
     dbg result_var =
-  let original_term = Flambda.Named.create_prim original_prim dbg in
+  let original_term = Named.create_prim original_prim dbg in
   let simplifier =
     (fun f__1
       f__2
@@ -2035,25 +1906,22 @@ let simplify_binary_primitive0 dacc original_prim prim arg1 arg1_ty arg2 arg2_ty
       f__14
       x__0
     ->
-      match (x__0 : Flambda_primitive.binary_primitive) with
-      | Flambda_primitive.Block_set { kind = x__1; init = x__2; field = x__3 }
-        ->
+      match (x__0 : P.binary_primitive) with
+      | P.Block_set { kind = x__1; init = x__2; field = x__3 } ->
         f__1 x__1 x__2 x__3
-      | Flambda_primitive.Array_load (x__1, x__2, x__3) -> f__2 x__1 x__2 x__3
-      | Flambda_primitive.String_or_bigstring_load (x__1, x__2) ->
-        f__3 x__1 x__2
-      | Flambda_primitive.Bigarray_load (x__1, x__2, x__3) ->
-        f__4 x__1 x__2 x__3
-      | Flambda_primitive.Phys_equal x__1 -> f__5 x__1
-      | Flambda_primitive.Int_arith (x__1, x__2) -> f__6 x__1 x__2
-      | Flambda_primitive.Int_shift (x__1, x__2) -> f__7 x__1 x__2
-      | Flambda_primitive.Int_comp (x__1, x__2) -> f__8 x__1 x__2
-      | Flambda_primitive.Float_arith (x__1, x__2) -> f__9 x__1 x__2
-      | Flambda_primitive.Float_comp (x__1, x__2) -> f__10 x__1 x__2
-      | Flambda_primitive.Bigarray_get_alignment x__1 -> f__11 x__1
-      | Flambda_primitive.Atomic_load (x__1, x__2) -> f__12 x__1 x__2
-      | Flambda_primitive.Poke x__1 -> f__13 x__1
-      | Flambda_primitive.Read_offset (x__1, x__2) -> f__14 x__1 x__2)
+      | P.Array_load (x__1, x__2, x__3) -> f__2 x__1 x__2 x__3
+      | P.String_or_bigstring_load (x__1, x__2) -> f__3 x__1 x__2
+      | P.Bigarray_load (x__1, x__2, x__3) -> f__4 x__1 x__2 x__3
+      | P.Phys_equal x__1 -> f__5 x__1
+      | P.Int_arith (x__1, x__2) -> f__6 x__1 x__2
+      | P.Int_shift (x__1, x__2) -> f__7 x__1 x__2
+      | P.Int_comp (x__1, x__2) -> f__8 x__1 x__2
+      | P.Float_arith (x__1, x__2) -> f__9 x__1 x__2
+      | P.Float_comp (x__1, x__2) -> f__10 x__1 x__2
+      | P.Bigarray_get_alignment x__1 -> f__11 x__1
+      | P.Atomic_load (x__1, x__2) -> f__12 x__1 x__2
+      | P.Poke x__1 -> f__13 x__1
+      | P.Read_offset (x__1, x__2) -> f__14 x__1 x__2)
       (fun kind init field -> simplify_block_set kind init field)
       (fun array_kind width0 mutability ->
         simplify_array_load array_kind width0 mutability)
@@ -2114,12 +1982,12 @@ let simplify_binary_primitive0 dacc original_prim prim arg1 arg1_ty arg2 arg2_ty
           Binary_int_comp_nativeint.simplify op0)
       (fun f op0 ->
         match f with
-        | Flambda_primitive.Float32 -> Binary_float32_arith.simplify op0
-        | Flambda_primitive.Float64 -> Binary_float_arith.simplify op0)
+        | P.Float32 -> Binary_float32_arith.simplify op0
+        | P.Float64 -> Binary_float_arith.simplify op0)
       (fun f op0 ->
         match f with
-        | Flambda_primitive.Float32 -> Binary_float32_comp.simplify op0
-        | Flambda_primitive.Float64 -> Binary_float_comp.simplify op0)
+        | P.Float32 -> Binary_float32_comp.simplify op0
+        | P.Float64 -> Binary_float_comp.simplify op0)
       (fun align -> simplify_bigarray_get_alignment align original_prim)
       (fun _ _ -> simplify_atomic_load original_prim)
       (fun _ -> simplify_poke)
@@ -2128,9 +1996,8 @@ let simplify_binary_primitive0 dacc original_prim prim arg1 arg1_ty arg2 arg2_ty
   in
   simplifier dacc original_term dbg arg1 arg1_ty arg2 arg2_ty result_var
 
-(** val recover_comparison_primitive : Downwards_acc.t ->
-    Flambda_primitive.binary_primitive -> Simple.t -> Simple.t ->
-    Flambda_primitive.t option coq_M **)
+(** val recover_comparison_primitive : DA.t -> P.binary_primitive -> Simple.t ->
+    Simple.t -> P.t option coq_M **)
 
 let recover_comparison_primitive dacc prim arg1 arg2 =
   let try_one_direction =
@@ -2138,20 +2005,16 @@ let recover_comparison_primitive dacc prim arg1 arg2 =
     Simple.pattern_match right
       (fun _ _ -> None)
       (fun const0 ->
-        match Reg_width_const.descr const0 with
+        match Const.descr const0 with
         | Int_ids.Const.Descr.Naked_immediate _ -> None
         | Int_ids.Const.Descr.Tagged_immediate i ->
           if
             Target_ocaml_int.equal i
-              (Target_ocaml_int.zero
-                 (Downwards_env.machine_width (Downwards_acc.denv dacc)))
+              (Target_ocaml_int.zero (DE.machine_width (DA.denv dacc)))
           then
             Simple.pattern_match' left
               (fun var _ ->
-                match
-                  Downwards_env.find_comparison_result (Downwards_acc.denv dacc)
-                    var
-                with
+                match DE.find_comparison_result (DA.denv dacc) var with
                 | Some comp ->
                   Comparison_result.convert_result_compared_to_tagged_zero comp
                     op0
@@ -2195,22 +2058,22 @@ let recover_comparison_primitive dacc prim arg1 arg2 =
     f__14
     x__0
   ->
-    match (x__0 : Flambda_primitive.binary_primitive) with
-    | Flambda_primitive.Block_set { kind = x__1; init = x__2; field = x__3 } ->
+    match (x__0 : P.binary_primitive) with
+    | P.Block_set { kind = x__1; init = x__2; field = x__3 } ->
       f__1 x__1 x__2 x__3
-    | Flambda_primitive.Array_load (x__1, x__2, x__3) -> f__2 x__1 x__2 x__3
-    | Flambda_primitive.String_or_bigstring_load (x__1, x__2) -> f__3 x__1 x__2
-    | Flambda_primitive.Bigarray_load (x__1, x__2, x__3) -> f__4 x__1 x__2 x__3
-    | Flambda_primitive.Phys_equal x__1 -> f__5 x__1
-    | Flambda_primitive.Int_arith (x__1, x__2) -> f__6 x__1 x__2
-    | Flambda_primitive.Int_shift (x__1, x__2) -> f__7 x__1 x__2
-    | Flambda_primitive.Int_comp (x__1, x__2) -> f__8 x__1 x__2
-    | Flambda_primitive.Float_arith (x__1, x__2) -> f__9 x__1 x__2
-    | Flambda_primitive.Float_comp (x__1, x__2) -> f__10 x__1 x__2
-    | Flambda_primitive.Bigarray_get_alignment x__1 -> f__11 x__1
-    | Flambda_primitive.Atomic_load (x__1, x__2) -> f__12 x__1 x__2
-    | Flambda_primitive.Poke x__1 -> f__13 x__1
-    | Flambda_primitive.Read_offset (x__1, x__2) -> f__14 x__1 x__2)
+    | P.Array_load (x__1, x__2, x__3) -> f__2 x__1 x__2 x__3
+    | P.String_or_bigstring_load (x__1, x__2) -> f__3 x__1 x__2
+    | P.Bigarray_load (x__1, x__2, x__3) -> f__4 x__1 x__2 x__3
+    | P.Phys_equal x__1 -> f__5 x__1
+    | P.Int_arith (x__1, x__2) -> f__6 x__1 x__2
+    | P.Int_shift (x__1, x__2) -> f__7 x__1 x__2
+    | P.Int_comp (x__1, x__2) -> f__8 x__1 x__2
+    | P.Float_arith (x__1, x__2) -> f__9 x__1 x__2
+    | P.Float_comp (x__1, x__2) -> f__10 x__1 x__2
+    | P.Bigarray_get_alignment x__1 -> f__11 x__1
+    | P.Atomic_load (x__1, x__2) -> f__12 x__1 x__2
+    | P.Poke x__1 -> f__13 x__1
+    | P.Read_offset (x__1, x__2) -> f__14 x__1 x__2)
     (fun _ _ _ -> None)
     (fun _ _ _ -> None)
     (fun _ _ -> None)
@@ -2218,35 +2081,32 @@ let recover_comparison_primitive dacc prim arg1 arg2 =
     (fun op0 ->
       let op1 =
         match op0 with
-        | Flambda_primitive.Eq ->
-          (Flambda_primitive.Eq : _ Flambda_primitive.comparison)
-        | Flambda_primitive.Neq ->
-          (Flambda_primitive.Neq : _ Flambda_primitive.comparison)
+        | P.Eq -> (P.Eq : _ P.comparison)
+        | P.Neq -> (P.Neq : _ P.comparison)
       in
       try_both_directions op1 op1)
     (fun _ _ -> None)
     (fun _ _ -> None)
     (fun kind c ->
       match c with
-      | Flambda_primitive.Yielding_bool op0 -> (
+      | P.Yielding_bool op0 -> (
         match kind with
         | Flambda_kind.Standard_int.Tagged_immediate ->
           let swapped_op =
             (fun f__1 f__2 f__3 f__4 f__5 f__6 x__0 ->
-              match (x__0 : _ Flambda_primitive.comparison) with
-              | Flambda_primitive.Eq -> f__1 ()
-              | Flambda_primitive.Neq -> f__2 ()
-              | Flambda_primitive.Lt x__1 -> f__3 x__1
-              | Flambda_primitive.Gt x__1 -> f__4 x__1
-              | Flambda_primitive.Le x__1 -> f__5 x__1
-              | Flambda_primitive.Ge x__1 -> f__6 x__1)
-              (fun _ -> (Flambda_primitive.Eq : _ Flambda_primitive.comparison))
-              (fun _ ->
-                (Flambda_primitive.Neq : _ Flambda_primitive.comparison))
-              (fun s -> Flambda_primitive.Gt s)
-              (fun s -> Flambda_primitive.Lt s)
-              (fun s -> Flambda_primitive.Ge s)
-              (fun s -> Flambda_primitive.Le s)
+              match (x__0 : _ P.comparison) with
+              | P.Eq -> f__1 ()
+              | P.Neq -> f__2 ()
+              | P.Lt x__1 -> f__3 x__1
+              | P.Gt x__1 -> f__4 x__1
+              | P.Le x__1 -> f__5 x__1
+              | P.Ge x__1 -> f__6 x__1)
+              (fun _ -> (P.Eq : _ P.comparison))
+              (fun _ -> (P.Neq : _ P.comparison))
+              (fun s -> P.Gt s)
+              (fun s -> P.Lt s)
+              (fun s -> P.Ge s)
+              (fun s -> P.Le s)
               op0
           in
           try_both_directions op0 swapped_op
@@ -2256,7 +2116,7 @@ let recover_comparison_primitive dacc prim arg1 arg2 =
         | Flambda_kind.Standard_int.Naked_int32 -> None
         | Flambda_kind.Standard_int.Naked_int64 -> None
         | Flambda_kind.Standard_int.Naked_nativeint -> None)
-      | Flambda_primitive.Yielding_int_like_compare_functions _ -> None)
+      | P.Yielding_int_like_compare_functions _ -> None)
     (fun _ _ -> None)
     (fun _ _ -> None)
     (fun _ -> None)
@@ -2265,10 +2125,9 @@ let recover_comparison_primitive dacc prim arg1 arg2 =
     (fun _ _ -> None)
     prim
 
-(** val simplify_binary_primitive : Downwards_acc.t -> Flambda_primitive.t ->
-    Flambda_primitive.binary_primitive -> Simple.t -> Flambda2_types.t ->
-    Simple.t -> Flambda2_types.t -> Debuginfo.t -> Bound_var.t ->
-    Simplify_primitive_result.t coq_M **)
+(** val simplify_binary_primitive : DA.t -> P.t -> P.binary_primitive ->
+    Simple.t -> T.t -> Simple.t -> T.t -> Debuginfo.t -> Bound_var.t -> SPR.t
+    coq_M **)
 
 let simplify_binary_primitive dacc original_prim prim arg1 arg1_ty arg2 arg2_ty
     dbg result_var =
@@ -2276,13 +2135,13 @@ let simplify_binary_primitive dacc original_prim prim arg1 arg1_ty arg2 arg2_ty
     match recover_comparison_primitive dacc prim arg1 arg2 with
     | Some other_prim -> (
       match other_prim with
-      | Flambda_primitive.Nullary _ ->
+      | P.Nullary _ ->
         Misc.fatal_errorf "Recovered primitive %a is not a comparison"
           Flambda_primitive.print other_prim
-      | Flambda_primitive.Unary (_, _) ->
+      | P.Unary (_, _) ->
         Misc.fatal_errorf "Recovered primitive %a is not a comparison"
           Flambda_primitive.print other_prim
-      | Flambda_primitive.Binary (new_prim, new_arg1, new_arg2) -> (
+      | P.Binary (new_prim, new_arg1, new_arg2) -> (
         let min_name_mode = Bound_var.name_mode result_var in
         let arg1_ty_opt =
           Simplify_simple.simplify_simple_if_in_scope dacc new_arg1
@@ -2299,13 +2158,13 @@ let simplify_binary_primitive dacc original_prim prim arg1 arg1_ty arg2 arg2_ty
             other_prim, new_prim, new_arg1, new_arg1_ty, new_arg2, new_arg2_ty
           | None -> original_prim, prim, arg1, arg1_ty, arg2, arg2_ty)
         | None -> original_prim, prim, arg1, arg1_ty, arg2, arg2_ty)
-      | Flambda_primitive.Ternary (_, _, _, _) ->
+      | P.Ternary (_, _, _, _) ->
         Misc.fatal_errorf "Recovered primitive %a is not a comparison"
           Flambda_primitive.print other_prim
-      | Flambda_primitive.Quaternary (_, _, _, _, _) ->
+      | P.Quaternary (_, _, _, _, _) ->
         Misc.fatal_errorf "Recovered primitive %a is not a comparison"
           Flambda_primitive.print other_prim
-      | Flambda_primitive.Variadic (_, _) ->
+      | P.Variadic (_, _) ->
         Misc.fatal_errorf "Recovered primitive %a is not a comparison"
           Flambda_primitive.print other_prim)
     | None -> original_prim, prim, arg1, arg1_ty, arg2, arg2_ty

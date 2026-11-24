@@ -27,16 +27,15 @@ module DA = Downwards_acc
 module T = Flambda2_types
 module TE = T.Typing_env
 
-(** val simplify_simple0 : Downwards_acc.t -> Simple.t -> Name_mode.t ->
-    (Flambda2_types.t * Simple.t) coq_M **)
+(** val simplify_simple0 : DA.t -> Simple.t -> Name_mode.t -> (T.t * Simple.t)
+    coq_M **)
 
 let simplify_simple0 dacc simple min_name_mode =
-  let typing_env = Downwards_acc.typing_env dacc in
+  let typing_env = DA.typing_env dacc in
   Port_monad.match_exn
     (fun _ ->
       (fun x__1 x__2 x__3 ->
-        Flambda2_types.Typing_env.type_simple_in_term_exn x__1
-          ?min_name_mode:x__2 x__3)
+        TE.type_simple_in_term_exn x__1 ?min_name_mode:x__2 x__3)
         typing_env (Some min_name_mode) simple)
     Port_monad.not_found
     (fun _ ->
@@ -54,10 +53,10 @@ let simplify_simple0 dacc simple min_name_mode =
         let simple1 =
           Simple.with_coercion (Simple.without_coercion simple0) coercion0
         in
-        Flambda2_types.alias_type_of (Flambda2_types.kind ty) simple1, simple1)
+        T.alias_type_of (T.kind ty) simple1, simple1)
 
-(** val simplify_simple : Downwards_acc.t -> Simple.t -> Name_mode.t ->
-    (Flambda2_types.t * Simple.t) coq_M **)
+(** val simplify_simple : DA.t -> Simple.t -> Name_mode.t -> (T.t * Simple.t)
+    coq_M **)
 
 let simplify_simple dacc simple min_name_mode =
   Port_monad.match_exn
@@ -68,12 +67,11 @@ let simplify_simple dacc simple min_name_mode =
       Misc.fatal_errorf
         "No canonical [Simple] for %a exists at the@ requested name mode (%a) \
          or one greater.@ Downwards accumulator:@ %a"
-        Simple.print simple Name_mode.print min_name_mode Downwards_acc.print
-        dacc)
+        Simple.print simple Name_mode.print min_name_mode DA.print dacc)
     (fun res -> res)
 
-(** val simplify_simple_if_in_scope : Downwards_acc.t -> Simple.t -> Name_mode.t
-    -> Flambda2_types.t option coq_M **)
+(** val simplify_simple_if_in_scope : DA.t -> Simple.t -> Name_mode.t -> T.t
+    option coq_M **)
 
 let simplify_simple_if_in_scope dacc simple min_name_mode =
   Port_monad.match_exn
@@ -98,8 +96,8 @@ let simples s = s.simples
 
 let simple_tys s = s.simple_tys
 
-(** val simplify_simples : Downwards_acc.t -> Simple.t list ->
-    simplify_simples_result coq_M **)
+(** val simplify_simples : DA.t -> Simple.t list -> simplify_simples_result
+    coq_M **)
 
 let simplify_simples dacc simples0 =
   List.fold_right

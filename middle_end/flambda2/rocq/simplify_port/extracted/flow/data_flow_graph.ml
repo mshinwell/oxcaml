@@ -488,16 +488,16 @@ let add_continuation_info map0 return_continuation exn_continuation
         in
         let src = Name.var bound_var0 in
         (fun f__1 f__2 f__3 f__4 f__5 x__0 ->
-          match (x__0 : Flow_types.Mutable_prim.t) with
-          | Flow_types.Mutable_prim.Is_int x__1 -> f__1 x__1
-          | Flow_types.Mutable_prim.Get_tag x__1 -> f__2 x__1
-          | Flow_types.Mutable_prim.Block_load
+          match (x__0 : T.Mutable_prim.t) with
+          | T.Mutable_prim.Is_int x__1 -> f__1 x__1
+          | T.Mutable_prim.Get_tag x__1 -> f__2 x__1
+          | T.Mutable_prim.Block_load
               { bak = x__1; mut = x__2; block = x__3; field = x__4 } ->
             f__3 x__1 x__2 x__3 x__4
-          | Flow_types.Mutable_prim.Block_set
+          | T.Mutable_prim.Block_set
               { bak = x__1; block = x__2; field = x__3; value = x__4 } ->
             f__4 x__1 x__2 x__3 x__4
-          | Flow_types.Mutable_prim.Make_block
+          | T.Mutable_prim.Make_block
               { kind = x__1; mut = x__2; alloc_mode = x__3; fields = x__4 } ->
             f__5 x__1 x__2 x__3 x__4)
           (fun _ ->
@@ -542,10 +542,10 @@ let add_continuation_info map0 return_continuation exn_continuation
             Numeric_types.Int.Map.fold
               (fun _ cont_arg t9 ->
                 match cont_arg with
-                | Flow_types.Cont_arg.Function_result -> t9
-                | Flow_types.Cont_arg.Simple simple ->
+                | T.Cont_arg.Function_result -> t9
+                | T.Cont_arg.Simple simple ->
                   add_name_occurrences (Simple.free_names simple) t9
-                | Flow_types.Cont_arg.New_let_binding (var, prim_free_names) ->
+                | T.Cont_arg.New_let_binding (var, prim_free_names) ->
                   add_name_occurrences
                     (Name_occurrences.union prim_free_names
                        (Name_occurrences.singleton_variable var Name_mode.normal))
@@ -588,11 +588,11 @@ let add_continuation_info map0 return_continuation exn_continuation
               (fun i cont_arg t9 ->
                 let src = Name.var (Array.get params0 i) in
                 match cont_arg with
-                | Flow_types.Cont_arg.Function_result -> t9
-                | Flow_types.Cont_arg.Simple simple ->
+                | T.Cont_arg.Function_result -> t9
+                | T.Cont_arg.Simple simple ->
                   Name_occurrences.fold_names (Simple.free_names simple) t9
                     (fun t10 dst -> add_dependency src dst t10)
-                | Flow_types.Cont_arg.New_let_binding (var, prim_free_names) ->
+                | T.Cont_arg.New_let_binding (var, prim_free_names) ->
                   let t10 = add_dependency src (Name.var var) t9 in
                   Name_occurrences.fold_names prim_free_names t10
                     (fun t11 dst -> add_dependency (Name.var var) dst t11))

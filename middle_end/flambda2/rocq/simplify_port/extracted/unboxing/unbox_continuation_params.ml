@@ -26,17 +26,17 @@ open Port_monad
 module U = Unboxing_types
 module Decisions = U.Decisions
 
-(** val refine_decision_based_on_arg_types_at_uses : Unboxing_types.pass ->
+(** val refine_decision_based_on_arg_types_at_uses : U.pass ->
     Apply_cont_rewrite_id.Set.t -> Apply_cont_rewrite_id.Set.t ->
     Target_system.Machine_width.t -> int -> Continuation_uses.arg_at_use
-    Apply_cont_rewrite_id.Map.t -> Unboxing_types.decision ->
-    (Unboxing_types.decision * Apply_cont_rewrite_id.Set.t) coq_M **)
+    Apply_cont_rewrite_id.Map.t -> U.decision -> (U.decision *
+    Apply_cont_rewrite_id.Set.t) coq_M **)
 
 let refine_decision_based_on_arg_types_at_uses pass0 rewrite_ids_seen0
     rewrites_ids_known_as_invalid0 machine_width nth_arg arg_type_by_use_id
     decision =
   match decision with
-  | Unboxing_types.Unbox _ ->
+  | U.Unbox _ ->
     Apply_cont_rewrite_id.Map.fold
       (fun rewrite_id arg_at_use0 pat ->
         let decision0, invalids = pat in
@@ -52,9 +52,8 @@ let refine_decision_based_on_arg_types_at_uses pass0 rewrite_ids_seen0
             Port_monad.match_exn
               (fun _ ->
                 (fun x__1 x__2 x__3 x__4 ->
-                  Flambda2_types.Typing_env.get_alias_then_canonical_simple_exn
-                    x__1 ?min_name_mode:x__2 ?name_mode_of_existing_simple:x__3
-                    x__4)
+                  TE.get_alias_then_canonical_simple_exn x__1
+                    ?min_name_mode:x__2 ?name_mode_of_existing_simple:x__3 x__4)
                   typing_env_at_use (Some Name_mode.normal) None arg_type_at_use)
               Port_monad.not_found
               (fun _ ->
@@ -79,7 +78,7 @@ let refine_decision_based_on_arg_types_at_uses pass0 rewrite_ids_seen0
               decision0, Apply_cont_rewrite_id.Set.add rewrite_id invalids))
       arg_type_by_use_id
       (decision, rewrites_ids_known_as_invalid0)
-  | Unboxing_types.Do_not_unbox _ -> decision, rewrites_ids_known_as_invalid0
+  | U.Do_not_unbox _ -> decision, rewrites_ids_known_as_invalid0
 
 module List_ = struct
   (** val fold_left3 : ('a1 -> 'a2 -> 'a3 -> 'a4 -> 'a1 coq_M) -> 'a1 -> 'a2
@@ -106,9 +105,7 @@ end
 let make_do_not_unbox_decisions params =
   let decisions0 =
     List.map
-      (fun param0 ->
-        ( param0,
-          Unboxing_types.Do_not_unbox Unboxing_types.Unboxing_not_requested ))
+      (fun param0 -> param0, U.Do_not_unbox U.Unboxing_not_requested)
       (Bound_parameters.to_list params)
   in
   { Decisions.decisions = decisions0;
@@ -120,9 +117,8 @@ type continuation_arg_types =
   | Recursive
   | Non_recursive of Continuation_uses.arg_types_by_use_id
 
-(** val make_decisions_ : continuation_arg_types -> Downwards_env.t ->
-    Bound_parameters.t -> Flambda2_types.t list -> (Downwards_env.t *
-    Decisions.t) coq_M **)
+(** val make_decisions_ : continuation_arg_types -> DE.t -> Bound_parameters.t
+    -> T.t list -> (DE.t * Decisions.t) coq_M **)
 
 let make_decisions_ continuation_arg_types0 denv params params_types =
   let params0 = Bound_parameters.to_list params in
@@ -140,18 +136,16 @@ let make_decisions_ continuation_arg_types0 denv params params_types =
         fun param0 param_type arg_type_by_use_id ->
           let decision =
             Optimistic_unboxing_decision.make_optimistic_decision 0
-              continuation_is_recursive
-              (Downwards_env.typing_env denv0)
-              param_type
+              continuation_is_recursive (DE.typing_env denv0) param_type
           in
           let decision0, invalids0 =
             if continuation_is_recursive
             then decision, invalids
             else
-              let machine_width = Downwards_env.machine_width denv0 in
+              let machine_width = DE.machine_width denv0 in
               let decision0, invalids0 =
-                refine_decision_based_on_arg_types_at_uses Unboxing_types.Filter
-                  empty invalids machine_width nth arg_type_by_use_id decision
+                refine_decision_based_on_arg_types_at_uses U.Filter empty
+                  invalids machine_width nth arg_type_by_use_id decision
               in
               let decision1 =
                 Is_unboxing_beneficial.filter_non_beneficial_decisions decision0
@@ -159,9 +153,7 @@ let make_decisions_ continuation_arg_types0 denv params params_types =
               decision1, invalids0
           in
           let denv1 =
-            Build_unboxing_denv.denv_of_decision denv0
-              (Bound_parameter.var param0)
-              decision0
+            Build_unboxing_denv.denv_of_decision denv0 (BP.var param0) decision0
           in
           let seen0 =
             match seen with
@@ -190,9 +182,8 @@ let make_decisions_ continuation_arg_types0 denv params params_types =
       Decisions.rewrites_ids_known_as_invalid = invalids
     } )
 
-(** val make_decisions : continuation_arg_types -> Downwards_env.t ->
-    Bound_parameters.t -> Flambda2_types.t list -> (Downwards_env.t *
-    Decisions.t) coq_M **)
+(** val make_decisions : continuation_arg_types -> DE.t -> Bound_parameters.t ->
+    T.t list -> (DE.t * Decisions.t) coq_M **)
 
 let make_decisions continuation_arg_types0 denv params params_types =
   (fun x__1 x__2 x__3 x__4 ->
@@ -211,29 +202,27 @@ let make_decisions continuation_arg_types0 denv params params_types =
         (fun counters0 pat0 ->
           let _, decision = pat0 in
           match decision with
-          | Unboxing_types.Unbox _ -> Profile.Counters.incr "unbox" counters0
-          | Unboxing_types.Do_not_unbox d -> (
+          | U.Unbox _ -> Profile.Counters.incr "unbox" counters0
+          | U.Do_not_unbox d -> (
             match d with
-            | Unboxing_types.Not_beneficial ->
-              Profile.Counters.incr "do_not_unbox" counters0
-            | Unboxing_types.Max_depth_exceeded ->
+            | U.Not_beneficial -> Profile.Counters.incr "do_not_unbox" counters0
+            | U.Max_depth_exceeded ->
               Profile.Counters.incr "max_depth_exceeded" counters0
-            | Unboxing_types.Incomplete_parameter_type ->
+            | U.Incomplete_parameter_type ->
               Profile.Counters.incr "do_not_unbox" counters0
-            | Unboxing_types.Not_enough_information_at_use ->
+            | U.Not_enough_information_at_use ->
               Profile.Counters.incr "do_not_unbox" counters0
-            | Unboxing_types.Not_of_kind_value -> counters0
-            | Unboxing_types.Unboxing_not_requested -> counters0
-            | Unboxing_types.All_fields_invalid ->
+            | U.Not_of_kind_value -> counters0
+            | U.Unboxing_not_requested -> counters0
+            | U.All_fields_invalid ->
               Profile.Counters.incr "do_not_unbox" counters0))
         counters decisions0)
     "make_unboxing_decisions"
     (fun _ -> make_decisions_ continuation_arg_types0 denv params params_types)
 
 (** val compute_extra_params_and_args : Target_system.Machine_width.t ->
-    Decisions.t -> Continuation_uses.arg_types_by_use_id ->
-    Continuation_extra_params_and_args.t -> Continuation_extra_params_and_args.t
-    coq_M **)
+    Decisions.t -> Continuation_uses.arg_types_by_use_id -> EPA.t -> EPA.t coq_M
+    **)
 
 let compute_extra_params_and_args machine_width pat =
   let { Decisions.decisions = decisions0;
@@ -251,7 +240,7 @@ let compute_extra_params_and_args machine_width pat =
             let _, decision = pat1 in
             let decision0, invalids0 =
               refine_decision_based_on_arg_types_at_uses
-                Unboxing_types.Compute_all_extra_args rewrite_ids_seen0 invalids
+                U.Compute_all_extra_args rewrite_ids_seen0 invalids
                 machine_width nth arg_type_by_use_id decision
             in
             let extra_params_and_args0 =

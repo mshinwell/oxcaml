@@ -394,8 +394,8 @@ let minimize_extra_args_for_one_continuation source_info unboxed_blocks
     if
       elt.Flow_types.Continuation_info.recursive
       && not (Variable.Set.is_empty extra_args_for_aliases1)
-    then Flow_types.Continuation_param_aliases.Wrapper_needed
-    else Flow_types.Continuation_param_aliases.No_wrapper
+    then T.Continuation_param_aliases.Wrapper_needed
+    else T.Continuation_param_aliases.No_wrapper
   in
   let res =
     { T.Continuation_param_aliases.removed_aliased_params_and_extra_params =

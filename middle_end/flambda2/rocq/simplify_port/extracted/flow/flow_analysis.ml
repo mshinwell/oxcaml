@@ -74,7 +74,7 @@ let analyze speculative print_name machine_width return_continuation
         then
           Format.eprintf "PRESOURCE:@\nspec:%a@\n%a@\n@."
             (Continuation_callsite_map.print Continuation.print)
-            specialization_map Flow_types.Acc.print t0
+            specialization_map T.Acc.print t0
         else ()
       in
       let t1 = Flow_acc.normalize_acc specialization_map t0 in
@@ -96,7 +96,7 @@ let analyze speculative print_name machine_width return_continuation
       in
       let () =
         if Flambda_features.dump_flow ()
-        then Format.eprintf "SOURCE:@\n%a@\n@." Flow_types.Acc.print t1
+        then Format.eprintf "SOURCE:@\n%a@\n@." T.Acc.print t1
         else ()
       in
       let deps =
@@ -182,9 +182,7 @@ let analyze speculative print_name machine_width return_continuation
       in
       let () =
         if Flambda_features.dump_flow ()
-        then
-          Format.eprintf "/// result@\n%a@\n@." Flow_types.Flow_result.print
-            result
+        then Format.eprintf "/// result@\n%a@\n@." T.Flow_result.print result
         else ()
       in
       result)

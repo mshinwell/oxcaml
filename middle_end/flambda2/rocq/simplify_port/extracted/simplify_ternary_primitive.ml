@@ -23,11 +23,9 @@
 open! Simplify_import
 open Port_monad
 
-(** val simplify_array_set : Flambda_primitive.Array_kind.t ->
-    Flambda_primitive.Array_set_kind.t -> Downwards_acc.t -> Flambda.Named.t ->
-    Debuginfo.t -> Simple.t -> Flambda2_types.t -> Simple.t -> Flambda2_types.t
-    -> Simple.t -> Flambda2_types.t -> Bound_var.t ->
-    Simplify_primitive_result.t coq_M **)
+(** val simplify_array_set : P.Array_kind.t -> P.Array_set_kind.t -> DA.t ->
+    Named.t -> Debuginfo.t -> Simple.t -> T.t -> Simple.t -> T.t -> Simple.t ->
+    T.t -> Bound_var.t -> SPR.t coq_M **)
 
 let simplify_array_set array_kind array_set_kind dacc original_term dbg array
     array_ty index _ new_value _ result_var =
@@ -43,119 +41,91 @@ let simplify_array_set array_kind array_set_kind dacc original_term dbg array
       | Flambda_primitive.Array_kind.Gc_ignorable_values -> ()
       | Flambda_primitive.Array_kind.Values -> (
         match array_set_kind with
-        | Flambda_primitive.Array_set_kind.Immediates ->
+        | P.Array_set_kind.Immediates ->
           Misc.fatal_errorf
             "Didn't expect array specialisation to yield array kind %a from \
              array set kind %a (original array kind %a):@ %a"
-            Flambda_primitive.Array_kind.print array_kind1
-            Flambda_primitive.Array_set_kind.print array_set_kind
-            Flambda_primitive.Array_kind.print orig_array_kind
-            Flambda.Named.print original_term
-        | Flambda_primitive.Array_set_kind.Gc_ignorable_values ->
+            P.Array_kind.print array_kind1 P.Array_set_kind.print array_set_kind
+            P.Array_kind.print orig_array_kind Named.print original_term
+        | P.Array_set_kind.Gc_ignorable_values ->
           Misc.fatal_errorf
             "Didn't expect array specialisation to yield array kind %a from \
              array set kind %a (original array kind %a):@ %a"
-            Flambda_primitive.Array_kind.print array_kind1
-            Flambda_primitive.Array_set_kind.print array_set_kind
-            Flambda_primitive.Array_kind.print orig_array_kind
-            Flambda.Named.print original_term
-        | Flambda_primitive.Array_set_kind.Values _ -> ()
-        | Flambda_primitive.Array_set_kind.Naked_floats ->
+            P.Array_kind.print array_kind1 P.Array_set_kind.print array_set_kind
+            P.Array_kind.print orig_array_kind Named.print original_term
+        | P.Array_set_kind.Values _ -> ()
+        | P.Array_set_kind.Naked_floats ->
           Misc.fatal_errorf
             "Didn't expect array specialisation to yield array kind %a from \
              array set kind %a (original array kind %a):@ %a"
-            Flambda_primitive.Array_kind.print array_kind1
-            Flambda_primitive.Array_set_kind.print array_set_kind
-            Flambda_primitive.Array_kind.print orig_array_kind
-            Flambda.Named.print original_term
-        | Flambda_primitive.Array_set_kind.Naked_float32s ->
+            P.Array_kind.print array_kind1 P.Array_set_kind.print array_set_kind
+            P.Array_kind.print orig_array_kind Named.print original_term
+        | P.Array_set_kind.Naked_float32s ->
           Misc.fatal_errorf
             "Didn't expect array specialisation to yield array kind %a from \
              array set kind %a (original array kind %a):@ %a"
-            Flambda_primitive.Array_kind.print array_kind1
-            Flambda_primitive.Array_set_kind.print array_set_kind
-            Flambda_primitive.Array_kind.print orig_array_kind
-            Flambda.Named.print original_term
-        | Flambda_primitive.Array_set_kind.Naked_ints ->
+            P.Array_kind.print array_kind1 P.Array_set_kind.print array_set_kind
+            P.Array_kind.print orig_array_kind Named.print original_term
+        | P.Array_set_kind.Naked_ints ->
           Misc.fatal_errorf
             "Didn't expect array specialisation to yield array kind %a from \
              array set kind %a (original array kind %a):@ %a"
-            Flambda_primitive.Array_kind.print array_kind1
-            Flambda_primitive.Array_set_kind.print array_set_kind
-            Flambda_primitive.Array_kind.print orig_array_kind
-            Flambda.Named.print original_term
-        | Flambda_primitive.Array_set_kind.Naked_int8s ->
+            P.Array_kind.print array_kind1 P.Array_set_kind.print array_set_kind
+            P.Array_kind.print orig_array_kind Named.print original_term
+        | P.Array_set_kind.Naked_int8s ->
           Misc.fatal_errorf
             "Didn't expect array specialisation to yield array kind %a from \
              array set kind %a (original array kind %a):@ %a"
-            Flambda_primitive.Array_kind.print array_kind1
-            Flambda_primitive.Array_set_kind.print array_set_kind
-            Flambda_primitive.Array_kind.print orig_array_kind
-            Flambda.Named.print original_term
-        | Flambda_primitive.Array_set_kind.Naked_int16s ->
+            P.Array_kind.print array_kind1 P.Array_set_kind.print array_set_kind
+            P.Array_kind.print orig_array_kind Named.print original_term
+        | P.Array_set_kind.Naked_int16s ->
           Misc.fatal_errorf
             "Didn't expect array specialisation to yield array kind %a from \
              array set kind %a (original array kind %a):@ %a"
-            Flambda_primitive.Array_kind.print array_kind1
-            Flambda_primitive.Array_set_kind.print array_set_kind
-            Flambda_primitive.Array_kind.print orig_array_kind
-            Flambda.Named.print original_term
-        | Flambda_primitive.Array_set_kind.Naked_int32s ->
+            P.Array_kind.print array_kind1 P.Array_set_kind.print array_set_kind
+            P.Array_kind.print orig_array_kind Named.print original_term
+        | P.Array_set_kind.Naked_int32s ->
           Misc.fatal_errorf
             "Didn't expect array specialisation to yield array kind %a from \
              array set kind %a (original array kind %a):@ %a"
-            Flambda_primitive.Array_kind.print array_kind1
-            Flambda_primitive.Array_set_kind.print array_set_kind
-            Flambda_primitive.Array_kind.print orig_array_kind
-            Flambda.Named.print original_term
-        | Flambda_primitive.Array_set_kind.Naked_int64s ->
+            P.Array_kind.print array_kind1 P.Array_set_kind.print array_set_kind
+            P.Array_kind.print orig_array_kind Named.print original_term
+        | P.Array_set_kind.Naked_int64s ->
           Misc.fatal_errorf
             "Didn't expect array specialisation to yield array kind %a from \
              array set kind %a (original array kind %a):@ %a"
-            Flambda_primitive.Array_kind.print array_kind1
-            Flambda_primitive.Array_set_kind.print array_set_kind
-            Flambda_primitive.Array_kind.print orig_array_kind
-            Flambda.Named.print original_term
-        | Flambda_primitive.Array_set_kind.Naked_nativeints ->
+            P.Array_kind.print array_kind1 P.Array_set_kind.print array_set_kind
+            P.Array_kind.print orig_array_kind Named.print original_term
+        | P.Array_set_kind.Naked_nativeints ->
           Misc.fatal_errorf
             "Didn't expect array specialisation to yield array kind %a from \
              array set kind %a (original array kind %a):@ %a"
-            Flambda_primitive.Array_kind.print array_kind1
-            Flambda_primitive.Array_set_kind.print array_set_kind
-            Flambda_primitive.Array_kind.print orig_array_kind
-            Flambda.Named.print original_term
-        | Flambda_primitive.Array_set_kind.Naked_vec128s ->
+            P.Array_kind.print array_kind1 P.Array_set_kind.print array_set_kind
+            P.Array_kind.print orig_array_kind Named.print original_term
+        | P.Array_set_kind.Naked_vec128s ->
           Misc.fatal_errorf
             "Didn't expect array specialisation to yield array kind %a from \
              array set kind %a (original array kind %a):@ %a"
-            Flambda_primitive.Array_kind.print array_kind1
-            Flambda_primitive.Array_set_kind.print array_set_kind
-            Flambda_primitive.Array_kind.print orig_array_kind
-            Flambda.Named.print original_term
-        | Flambda_primitive.Array_set_kind.Naked_vec256s ->
+            P.Array_kind.print array_kind1 P.Array_set_kind.print array_set_kind
+            P.Array_kind.print orig_array_kind Named.print original_term
+        | P.Array_set_kind.Naked_vec256s ->
           Misc.fatal_errorf
             "Didn't expect array specialisation to yield array kind %a from \
              array set kind %a (original array kind %a):@ %a"
-            Flambda_primitive.Array_kind.print array_kind1
-            Flambda_primitive.Array_set_kind.print array_set_kind
-            Flambda_primitive.Array_kind.print orig_array_kind
-            Flambda.Named.print original_term
-        | Flambda_primitive.Array_set_kind.Naked_vec512s ->
+            P.Array_kind.print array_kind1 P.Array_set_kind.print array_set_kind
+            P.Array_kind.print orig_array_kind Named.print original_term
+        | P.Array_set_kind.Naked_vec512s ->
           Misc.fatal_errorf
             "Didn't expect array specialisation to yield array kind %a from \
              array set kind %a (original array kind %a):@ %a"
-            Flambda_primitive.Array_kind.print array_kind1
-            Flambda_primitive.Array_set_kind.print array_set_kind
-            Flambda_primitive.Array_kind.print orig_array_kind
-            Flambda.Named.print original_term
-        | Flambda_primitive.Array_set_kind.Naked_masks ->
+            P.Array_kind.print array_kind1 P.Array_set_kind.print array_set_kind
+            P.Array_kind.print orig_array_kind Named.print original_term
+        | P.Array_set_kind.Naked_masks ->
           Misc.fatal_errorf
             "Didn't expect array specialisation to yield array kind %a from \
              array set kind %a (original array kind %a):@ %a"
-            Flambda_primitive.Array_kind.print array_kind1
-            Flambda_primitive.Array_set_kind.print array_set_kind
-            Flambda_primitive.Array_kind.print orig_array_kind
-            Flambda.Named.print original_term)
+            P.Array_kind.print array_kind1 P.Array_set_kind.print array_set_kind
+            P.Array_kind.print orig_array_kind Named.print original_term)
       | Flambda_primitive.Array_kind.Naked_floats -> ()
       | Flambda_primitive.Array_kind.Naked_float32s -> ()
       | Flambda_primitive.Array_kind.Naked_ints -> ()
@@ -171,111 +141,91 @@ let simplify_array_set array_kind array_set_kind dacc original_term dbg array
       | Flambda_primitive.Array_kind.Unboxed_product _ -> ()
     in
     let named =
-      Flambda.Named.create_prim
-        (Flambda_primitive.Ternary
-           ( Flambda_primitive.Array_set (array_kind1, array_set_kind),
-             array,
-             index,
-             new_value ))
+      Named.create_prim
+        (P.Ternary
+           (P.Array_set (array_kind1, array_set_kind), array, index, new_value))
         dbg
     in
-    let machine_width = Downwards_env.machine_width (Downwards_acc.denv dacc) in
+    let machine_width = DE.machine_width (DA.denv dacc) in
     let unit_ty =
       Flambda2_types.this_tagged_immediate (Target_ocaml_int.zero machine_width)
     in
-    let dacc0 = Downwards_acc.add_variable dacc result_var unit_ty in
-    Simplify_primitive_result.create named false dacc0
-  | Or_bottom.Bottom -> Simplify_primitive_result.create_invalid dacc
+    let dacc0 = DA.add_variable dacc result_var unit_ty in
+    SPR.create named false dacc0
+  | Or_bottom.Bottom -> SPR.create_invalid dacc
 
-(** val simplify_bytes_or_bigstring_set : Flambda_primitive.bytes_like_value ->
-    Flambda_primitive.string_accessor_width -> Downwards_acc.t ->
-    Flambda.Named.t -> Debuginfo.t -> Simple.t -> Flambda2_types.t -> Simple.t
-    -> Flambda2_types.t -> Simple.t -> Flambda2_types.t -> Bound_var.t ->
-    Simplify_primitive_result.t coq_M **)
+(** val simplify_bytes_or_bigstring_set : P.bytes_like_value ->
+    P.string_accessor_width -> DA.t -> Named.t -> Debuginfo.t -> Simple.t -> T.t
+    -> Simple.t -> T.t -> Simple.t -> T.t -> Bound_var.t -> SPR.t coq_M **)
 
 let simplify_bytes_or_bigstring_set _ _ dacc original_term _ _ _ _ _ _ _
     result_var =
-  Simplify_primitive_result.create_unit dacc result_var original_term
+  SPR.create_unit dacc result_var original_term
 
-(** val simplify_bigarray_set : Flambda_primitive.num_dimensions ->
-    Flambda_primitive.Bigarray_kind.t -> Flambda_primitive.Bigarray_layout.t ->
-    Downwards_acc.t -> Flambda.Named.t -> Debuginfo.t -> Simple.t ->
-    Flambda2_types.t -> Simple.t -> Flambda2_types.t -> Simple.t ->
-    Flambda2_types.t -> Bound_var.t -> Simplify_primitive_result.t coq_M **)
+(** val simplify_bigarray_set : P.num_dimensions -> P.Bigarray_kind.t ->
+    P.Bigarray_layout.t -> DA.t -> Named.t -> Debuginfo.t -> Simple.t -> T.t ->
+    Simple.t -> T.t -> Simple.t -> T.t -> Bound_var.t -> SPR.t coq_M **)
 
 let simplify_bigarray_set _ _ _ dacc original_term _ _ _ _ _ _ _ result_var =
-  Simplify_primitive_result.create_unit dacc result_var original_term
+  SPR.create_unit dacc result_var original_term
 
-(** val simplify_atomic_int_arith : Flambda_primitive.int_atomic_op ->
-    Flambda_primitive.t -> Downwards_acc.t -> Flambda.Named.t -> Debuginfo.t ->
-    Simple.t -> Flambda2_types.t -> Simple.t -> Flambda2_types.t -> Simple.t ->
-    Flambda2_types.t -> Bound_var.t -> Simplify_primitive_result.t coq_M **)
+(** val simplify_atomic_int_arith : P.int_atomic_op -> P.t -> DA.t -> Named.t ->
+    Debuginfo.t -> Simple.t -> T.t -> Simple.t -> T.t -> Simple.t -> T.t ->
+    Bound_var.t -> SPR.t coq_M **)
 
 let simplify_atomic_int_arith _ original_prim dacc original_term _ _ _ _ _ _ _
     result_var =
-  Simplify_primitive_result.create_unknown dacc result_var
-    (Flambda_primitive.result_kind' original_prim)
+  SPR.create_unknown dacc result_var
+    (P.result_kind' original_prim)
     original_term
 
-(** val simplify_atomic_set : Flambda_primitive.t -> Downwards_acc.t ->
-    Flambda.Named.t -> Debuginfo.t -> Simple.t -> Flambda2_types.t -> Simple.t
-    -> Flambda2_types.t -> Simple.t -> Flambda2_types.t -> Bound_var.t ->
-    Simplify_primitive_result.t coq_M **)
+(** val simplify_atomic_set : P.t -> DA.t -> Named.t -> Debuginfo.t -> Simple.t
+    -> T.t -> Simple.t -> T.t -> Simple.t -> T.t -> Bound_var.t -> SPR.t coq_M **)
 
 let simplify_atomic_set original_prim dacc original_term _ _ _ _ _ _ _
     result_var =
-  Simplify_primitive_result.create_unknown dacc result_var
-    (Flambda_primitive.result_kind' original_prim)
+  SPR.create_unknown dacc result_var
+    (P.result_kind' original_prim)
     original_term
 
-(** val simplify_atomic_exchange : Flambda_primitive.t -> Downwards_acc.t ->
-    Flambda.Named.t -> Debuginfo.t -> Simple.t -> Flambda2_types.t -> Simple.t
-    -> Flambda2_types.t -> Simple.t -> Flambda2_types.t -> Bound_var.t ->
-    Simplify_primitive_result.t coq_M **)
+(** val simplify_atomic_exchange : P.t -> DA.t -> Named.t -> Debuginfo.t ->
+    Simple.t -> T.t -> Simple.t -> T.t -> Simple.t -> T.t -> Bound_var.t ->
+    SPR.t coq_M **)
 
 let simplify_atomic_exchange original_prim dacc original_term _ _ _ _ _ _ _
     result_var =
-  Simplify_primitive_result.create_unknown dacc result_var
-    (Flambda_primitive.result_kind' original_prim)
+  SPR.create_unknown dacc result_var
+    (P.result_kind' original_prim)
     original_term
 
-(** val simplify_write_offset : Flambda_primitive.t -> Downwards_acc.t ->
-    Flambda.Named.t -> Debuginfo.t -> Simple.t -> Flambda2_types.t -> Simple.t
-    -> Flambda2_types.t -> Simple.t -> Flambda2_types.t -> Bound_var.t ->
-    Simplify_primitive_result.t coq_M **)
+(** val simplify_write_offset : P.t -> DA.t -> Named.t -> Debuginfo.t ->
+    Simple.t -> T.t -> Simple.t -> T.t -> Simple.t -> T.t -> Bound_var.t ->
+    SPR.t coq_M **)
 
 let simplify_write_offset original_prim dacc original_term _ _ _ _ _ _ _
     result_var =
-  Simplify_primitive_result.create_unknown dacc result_var
-    (Flambda_primitive.result_kind' original_prim)
+  SPR.create_unknown dacc result_var
+    (P.result_kind' original_prim)
     original_term
 
-(** val simplify_ternary_primitive : Downwards_acc.t -> Flambda_primitive.t ->
-    Flambda_primitive.ternary_primitive -> Simple.t -> Flambda2_types.t ->
-    Simple.t -> Flambda2_types.t -> Simple.t -> Flambda2_types.t -> Debuginfo.t
-    -> Bound_var.t -> Simplify_primitive_result.t coq_M **)
+(** val simplify_ternary_primitive : DA.t -> P.t -> P.ternary_primitive ->
+    Simple.t -> T.t -> Simple.t -> T.t -> Simple.t -> T.t -> Debuginfo.t ->
+    Bound_var.t -> SPR.t coq_M **)
 
 let simplify_ternary_primitive dacc original_prim prim arg1 arg1_ty arg2 arg2_ty
     arg3 arg3_ty dbg result_var =
-  let original_term = Flambda.Named.create_prim original_prim dbg in
+  let original_term = Named.create_prim original_prim dbg in
   let simplifier =
     match prim with
-    | Flambda_primitive.Array_set (array_kind, width) ->
-      simplify_array_set array_kind width
-    | Flambda_primitive.Bytes_or_bigstring_set
-        (bytes_like_value, string_accessor_width) ->
+    | P.Array_set (array_kind, width) -> simplify_array_set array_kind width
+    | P.Bytes_or_bigstring_set (bytes_like_value, string_accessor_width) ->
       simplify_bytes_or_bigstring_set bytes_like_value string_accessor_width
-    | Flambda_primitive.Bigarray_set
-        (num_dimensions, bigarray_kind, bigarray_layout) ->
+    | P.Bigarray_set (num_dimensions, bigarray_kind, bigarray_layout) ->
       simplify_bigarray_set num_dimensions bigarray_kind bigarray_layout
-    | Flambda_primitive.Atomic_int_arith (_, op) ->
-      simplify_atomic_int_arith op original_prim
-    | Flambda_primitive.Atomic_set (_, _, _) ->
-      simplify_atomic_set original_prim
-    | Flambda_primitive.Atomic_exchange (_, _, _) ->
-      simplify_atomic_exchange original_prim
-    | Flambda_primitive.Write_offset (_, _, _) ->
-      simplify_write_offset original_prim
+    | P.Atomic_int_arith (_, op) -> simplify_atomic_int_arith op original_prim
+    | P.Atomic_set (_, _, _) -> simplify_atomic_set original_prim
+    | P.Atomic_exchange (_, _, _) -> simplify_atomic_exchange original_prim
+    | P.Write_offset (_, _, _) -> simplify_write_offset original_prim
   in
   simplifier dacc original_term dbg arg1 arg1_ty arg2 arg2_ty arg3 arg3_ty
     result_var

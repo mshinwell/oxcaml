@@ -31,48 +31,38 @@ let is_unboxing_beneficial_for_epa epa =
   Apply_cont_rewrite_id.Map.exists
     (fun _ extra_arg ->
       match extra_arg with
-      | Continuation_extra_params_and_args.Extra_arg.Already_in_scope simple ->
+      | EPA.Extra_arg.Already_in_scope simple ->
         Simple.pattern_match simple
           (fun _ _ -> true)
           (fun const ->
             match Reg_width_const.is_poison const with
             | Some _ -> false
             | None -> true)
-      | Continuation_extra_params_and_args.Extra_arg.New_let_binding (_, _) ->
-        false
-      | Continuation_extra_params_and_args.Extra_arg
-        .New_let_binding_with_named_args
-          (_, _) ->
-        false)
+      | EPA.Extra_arg.New_let_binding (_, _) -> false
+      | EPA.Extra_arg.New_let_binding_with_named_args (_, _) -> false)
     epa.Unboxing_types.Extra_param_and_args.args
 
-(** val filter_non_beneficial_decisions : Unboxing_types.decision ->
-    Unboxing_types.decision coq_M **)
+(** val filter_non_beneficial_decisions : U.decision -> U.decision coq_M **)
 
 let rec filter_non_beneficial_decisions decision =
   match decision with
-  | Unboxing_types.Unbox u ->
+  | U.Unbox u ->
     (fun f__1 f__2 f__3 f__4 x__0 ->
-      match (x__0 : Unboxing_types.unboxing_decision) with
-      | Unboxing_types.Unique_tag_and_size
-          { tag = x__1; shape = x__2; fields = x__3 } ->
+      match (x__0 : U.unboxing_decision) with
+      | U.Unique_tag_and_size { tag = x__1; shape = x__2; fields = x__3 } ->
         f__1 x__1 x__2 x__3
-      | Unboxing_types.Variant
-          { tag = x__1; const_ctors = x__2; fields_by_tag = x__3 } ->
+      | U.Variant { tag = x__1; const_ctors = x__2; fields_by_tag = x__3 } ->
         f__2 x__1 x__2 x__3
-      | Unboxing_types.Closure_single_entry
+      | U.Closure_single_entry
           { function_slot = x__1; vars_within_closure = x__2 } ->
         f__3 x__1 x__2
-      | Unboxing_types.Number (x__1, x__2) -> f__4 x__1 x__2)
+      | U.Number (x__1, x__2) -> f__4 x__1 x__2)
       (fun tag shape fields ->
         let is_unboxing_beneficial, fields0 =
           List.fold_left_map
             (fun is_unboxing_beneficial field_decision ->
               (fun x__0 f__1 ->
-                let { Unboxing_types.epa = x__1; decision = x__2; kind = x__3 }
-                    =
-                  x__0
-                in
+                let { U.epa = x__1; decision = x__2; kind = x__3 } = x__0 in
                 f__1 x__1 x__2 x__3) field_decision (fun epa decision0 kind ->
                   let is_unboxing_beneficial0 =
                     is_unboxing_beneficial || is_unboxing_beneficial_for_epa epa
@@ -80,22 +70,19 @@ let rec filter_non_beneficial_decisions decision =
                   let decision1 = filter_non_beneficial_decisions decision0 in
                   ( is_unboxing_beneficial0,
                     (fun x__1 x__2 x__3 ->
-                      { Unboxing_types.epa = x__1;
-                        decision = x__2;
-                        kind = x__3
-                      })
+                      { U.epa = x__1; decision = x__2; kind = x__3 })
                       epa decision1 kind )))
             false fields
         in
         if is_unboxing_beneficial
         then
-          Unboxing_types.Unbox
+          U.Unbox
             ((fun (x__1, x__2, x__3) ->
-               (Unboxing_types.Unique_tag_and_size
+               (U.Unique_tag_and_size
                   { tag = x__1; shape = x__2; fields = x__3 }
-                 : Unboxing_types.unboxing_decision))
+                 : U.unboxing_decision))
                (tag, shape, fields0))
-        else Unboxing_types.Do_not_unbox Unboxing_types.Not_beneficial)
+        else U.Do_not_unbox U.Not_beneficial)
       (fun tag const_ctors fields_by_tag ->
         let is_unboxing_beneficial = ref false in
         let fields_by_tag0 =
@@ -106,10 +93,7 @@ let rec filter_non_beneficial_decisions decision =
                 List.map
                   (fun field_decision ->
                     (fun x__0 f__1 ->
-                      let { Unboxing_types.epa = x__1;
-                            decision = x__2;
-                            kind = x__3
-                          } =
+                      let { U.epa = x__1; decision = x__2; kind = x__3 } =
                         x__0
                       in
                       f__1 x__1 x__2 x__3) field_decision
@@ -123,33 +107,27 @@ let rec filter_non_beneficial_decisions decision =
                           filter_non_beneficial_decisions decision0
                         in
                         (fun x__1 x__2 x__3 ->
-                          { Unboxing_types.epa = x__1;
-                            decision = x__2;
-                            kind = x__3
-                          })
+                          { U.epa = x__1; decision = x__2; kind = x__3 })
                           epa decision1 kind))
                   fields ))
             fields_by_tag
         in
         if !is_unboxing_beneficial
         then
-          Unboxing_types.Unbox
+          U.Unbox
             ((fun (x__1, x__2, x__3) ->
-               (Unboxing_types.Variant
+               (U.Variant
                   { tag = x__1; const_ctors = x__2; fields_by_tag = x__3 }
-                 : Unboxing_types.unboxing_decision))
+                 : U.unboxing_decision))
                (tag, const_ctors, fields_by_tag0))
-        else Unboxing_types.Do_not_unbox Unboxing_types.Not_beneficial)
+        else U.Do_not_unbox U.Not_beneficial)
       (fun function_slot vars_within_closure ->
         let is_unboxing_beneficial = ref false in
         let vars_within_closure0 =
           Value_slot.Map.map
             (fun field_decision ->
               (fun x__0 f__1 ->
-                let { Unboxing_types.epa = x__1; decision = x__2; kind = x__3 }
-                    =
-                  x__0
-                in
+                let { U.epa = x__1; decision = x__2; kind = x__3 } = x__0 in
                 f__1 x__1 x__2 x__3) field_decision (fun epa decision0 kind ->
                   let () =
                     is_unboxing_beneficial
@@ -158,65 +136,65 @@ let rec filter_non_beneficial_decisions decision =
                   in
                   let decision1 = filter_non_beneficial_decisions decision0 in
                   (fun x__1 x__2 x__3 ->
-                    { Unboxing_types.epa = x__1; decision = x__2; kind = x__3 })
+                    { U.epa = x__1; decision = x__2; kind = x__3 })
                     epa decision1 kind))
             vars_within_closure
         in
         if !is_unboxing_beneficial
         then
-          Unboxing_types.Unbox
+          U.Unbox
             ((fun (x__1, x__2) ->
-               (Unboxing_types.Closure_single_entry
+               (U.Closure_single_entry
                   { function_slot = x__1; vars_within_closure = x__2 }
-                 : Unboxing_types.unboxing_decision))
+                 : U.unboxing_decision))
                (function_slot, vars_within_closure0))
-        else Unboxing_types.Do_not_unbox Unboxing_types.Not_beneficial)
+        else U.Do_not_unbox U.Not_beneficial)
       (fun t0 epa ->
         match t0 with
         | Flambda_kind.Naked_number_kind.Naked_immediate -> decision
         | Flambda_kind.Naked_number_kind.Naked_float32 ->
           if is_unboxing_beneficial_for_epa epa
           then decision
-          else Unboxing_types.Do_not_unbox Unboxing_types.Not_beneficial
+          else U.Do_not_unbox U.Not_beneficial
         | Flambda_kind.Naked_number_kind.Naked_float ->
           if is_unboxing_beneficial_for_epa epa
           then decision
-          else Unboxing_types.Do_not_unbox Unboxing_types.Not_beneficial
+          else U.Do_not_unbox U.Not_beneficial
         | Flambda_kind.Naked_number_kind.Naked_int8 ->
           if is_unboxing_beneficial_for_epa epa
           then decision
-          else Unboxing_types.Do_not_unbox Unboxing_types.Not_beneficial
+          else U.Do_not_unbox U.Not_beneficial
         | Flambda_kind.Naked_number_kind.Naked_int16 ->
           if is_unboxing_beneficial_for_epa epa
           then decision
-          else Unboxing_types.Do_not_unbox Unboxing_types.Not_beneficial
+          else U.Do_not_unbox U.Not_beneficial
         | Flambda_kind.Naked_number_kind.Naked_int32 ->
           if is_unboxing_beneficial_for_epa epa
           then decision
-          else Unboxing_types.Do_not_unbox Unboxing_types.Not_beneficial
+          else U.Do_not_unbox U.Not_beneficial
         | Flambda_kind.Naked_number_kind.Naked_int64 ->
           if is_unboxing_beneficial_for_epa epa
           then decision
-          else Unboxing_types.Do_not_unbox Unboxing_types.Not_beneficial
+          else U.Do_not_unbox U.Not_beneficial
         | Flambda_kind.Naked_number_kind.Naked_nativeint ->
           if is_unboxing_beneficial_for_epa epa
           then decision
-          else Unboxing_types.Do_not_unbox Unboxing_types.Not_beneficial
+          else U.Do_not_unbox U.Not_beneficial
         | Flambda_kind.Naked_number_kind.Naked_vec128 ->
           if is_unboxing_beneficial_for_epa epa
           then decision
-          else Unboxing_types.Do_not_unbox Unboxing_types.Not_beneficial
+          else U.Do_not_unbox U.Not_beneficial
         | Flambda_kind.Naked_number_kind.Naked_vec256 ->
           if is_unboxing_beneficial_for_epa epa
           then decision
-          else Unboxing_types.Do_not_unbox Unboxing_types.Not_beneficial
+          else U.Do_not_unbox U.Not_beneficial
         | Flambda_kind.Naked_number_kind.Naked_vec512 ->
           if is_unboxing_beneficial_for_epa epa
           then decision
-          else Unboxing_types.Do_not_unbox Unboxing_types.Not_beneficial
+          else U.Do_not_unbox U.Not_beneficial
         | Flambda_kind.Naked_number_kind.Naked_mask ->
           if is_unboxing_beneficial_for_epa epa
           then decision
-          else Unboxing_types.Do_not_unbox Unboxing_types.Not_beneficial)
+          else U.Do_not_unbox U.Not_beneficial)
       u
-  | Unboxing_types.Do_not_unbox _ -> decision
+  | U.Do_not_unbox _ -> decision

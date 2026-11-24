@@ -149,9 +149,9 @@ let add_continuation_info map0 _ elt t0 return_continuation exn_continuation =
               (fun i dst t5 ->
                 let src = Array.get params0 i in
                 match dst with
-                | Flow_types.Cont_arg.Function_result -> add_root src t5
-                | Flow_types.Cont_arg.Simple dst0 -> add_edge src dst0 t5
-                | Flow_types.Cont_arg.New_let_binding (var, _) ->
+                | T.Cont_arg.Function_result -> add_root src t5
+                | T.Cont_arg.Simple dst0 -> add_edge src dst0 t5
+                | T.Cont_arg.New_let_binding (var, _) ->
                   let t6 = add_root var t5 in
                   add_edge src (Simple.var var) t6)
               args t4)

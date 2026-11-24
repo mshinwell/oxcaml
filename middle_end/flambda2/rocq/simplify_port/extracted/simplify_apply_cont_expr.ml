@@ -23,35 +23,32 @@
 open! Simplify_import
 open Port_monad
 
-(** val inline_linearly_used_continuation : Upwards_acc.t -> Bound_parameters.t
-    -> Rebuilt_expr.t -> Name_occurrences.t -> Cost_metrics.t ->
-    Flambda.Apply_cont.t -> (Rebuilt_expr.t, Cost_metrics.t, Name_occurrences.t)
-    Port_monad.tuple3 coq_M **)
+(** val inline_linearly_used_continuation : UA.t -> Bound_parameters.t -> RE.t
+    -> Name_occurrences.t -> Cost_metrics.t -> AC.t -> (RE.t, Cost_metrics.t,
+    Name_occurrences.t) Port_monad.tuple3 coq_M **)
 
 let inline_linearly_used_continuation uacc params' handler free_names_of_handler
     cost_metrics_of_handler apply_cont =
   let params = Bound_parameters.to_list params' in
-  let () =
-    assert (Option.is_none (Flambda.Apply_cont.trap_action apply_cont))
-  in
-  let args = Flambda.Apply_cont.args apply_cont in
+  let () = assert (Option.is_none (AC.trap_action apply_cont)) in
+  let args = AC.args apply_cont in
   let () =
     if List.compare_lengths params args <> 0
     then
       Misc.fatal_errorf
         "Parameter list@ [%a]@ does not match argument list@ [%a]@ when \
          inlining at [Apply_cont]:@ %a@ Handler to inline:@ %a"
-        Bound_parameters.print params' Simple.List.print args
-        Flambda.Apply_cont.print apply_cont
-        (Rebuilt_expr.print (Upwards_acc.are_rebuilding_terms uacc))
+        Bound_parameters.print params' Simple.List.print args Apply_cont.print
+        apply_cont
+        (RE.print (UA.are_rebuilding_terms uacc))
         handler
     else ()
   in
   let bindings_outermost_first =
     ListLabels.map2
       (fun param arg ->
-        let param_var, param_uid = Bound_parameter.var_and_uid param in
-        let named = Flambda.Named.create_simple arg in
+        let param_var, param_uid = BP.var_and_uid param in
+        let named = Named.create_simple arg in
         if Simple.equal arg (Simple.var param_var)
         then
           (fun x__1 ->
@@ -63,9 +60,7 @@ let inline_linearly_used_continuation uacc params' handler free_names_of_handler
             Bound_pattern.singleton
               (Bound_var.create param_var param_uid Name_mode.normal)
           in
-          let machine_width =
-            Upwards_env.machine_width (Upwards_acc.uenv uacc)
-          in
+          let machine_width = UE.machine_width (UA.uenv uacc) in
           (fun (x__1, x__2, x__3) ->
             (Simplified_named.Keep_binding
                { let_bound = x__1;
@@ -78,33 +73,33 @@ let inline_linearly_used_continuation uacc params' handler free_names_of_handler
   in
   let expr, uacc0 =
     let uacc0 =
-      Upwards_acc.with_cost_metrics cost_metrics_of_handler
-        (Upwards_acc.with_name_occurrences uacc free_names_of_handler)
+      UA.with_cost_metrics cost_metrics_of_handler
+        (UA.with_name_occurrences uacc free_names_of_handler)
     in
-    Expr_builder.make_new_let_bindings uacc0 bindings_outermost_first handler
+    EB.make_new_let_bindings uacc0 bindings_outermost_first handler
   in
-  expr, Upwards_acc.cost_metrics uacc0, Upwards_acc.name_occurrences uacc0
+  expr, UA.cost_metrics uacc0, UA.name_occurrences uacc0
 
 (** val rebuild_apply_cont : Simple.t list -> Apply_cont_rewrite_id.t ->
-    Apply_cont_expr.t -> Upwards_acc.t -> Simplify_common.after_rebuild ->
-    (Rebuilt_expr.t * Upwards_acc.t) coq_M **)
+    Apply_cont_expr.t -> UA.t -> Simplify_common.after_rebuild -> (RE.t * UA.t)
+    coq_M **)
 
 let rebuild_apply_cont args rewrite_id apply_cont uacc after_rebuild =
-  let uenv = Upwards_acc.uenv uacc in
+  let uenv = UA.uenv uacc in
   let cont, apply_cont0 =
-    let cont = Flambda.Apply_cont.continuation apply_cont in
+    let cont = AC.continuation apply_cont in
     Port_monad.match_exn
       (fun _ ->
         Continuation_callsite_map.find cont rewrite_id
-          (Upwards_acc.specialization_map uacc))
+          (UA.specialization_map uacc))
       Port_monad.not_found
       (fun _ -> cont, apply_cont)
       (fun specialized ->
-        specialized, Flambda.Apply_cont.with_continuation apply_cont specialized)
+        specialized, AC.with_continuation apply_cont specialized)
   in
-  let is_cold = Upwards_env.is_cold_continuation (Upwards_acc.uenv uacc) cont in
-  let apply_cont1 = Flambda.Apply_cont.update_args apply_cont0 args in
-  let rewrite = Upwards_env.find_apply_cont_rewrite uenv cont in
+  let is_cold = UE.is_cold_continuation (UA.uenv uacc) cont in
+  let apply_cont1 = AC.update_args apply_cont0 args in
+  let rewrite = UE.find_apply_cont_rewrite uenv cont in
   let create_apply_cont =
    fun apply_cont_to_expr ->
     let rewrite_use_result =
@@ -114,18 +109,17 @@ let rebuild_apply_cont args rewrite_id apply_cont uacc after_rebuild =
       in
       match rewrite with
       | Some rewrite0 ->
-        Expr_builder.rewrite_apply_cont uacc rewrite0 rewrite_id apply_cont2
-      | None ->
-        Expr_builder.no_rewrite_apply_cont (Upwards_acc.uenv uacc) apply_cont2
+        EB.rewrite_apply_cont uacc rewrite0 rewrite_id apply_cont2
+      | None -> EB.no_rewrite_apply_cont (UA.uenv uacc) apply_cont2
     in
     let expr, cost_metrics, free_names =
       (fun f__1 f__2 f__3 x__0 ->
-        match (x__0 : Expr_builder.rewrite_apply_cont_result) with
-        | Expr_builder.Invalid { message = x__1 } -> f__1 x__1
-        | Expr_builder.Apply_cont x__1 -> f__2 x__1
-        | Expr_builder.Expr x__1 -> f__3 x__1)
+        match (x__0 : EB.rewrite_apply_cont_result) with
+        | EB.Invalid { message = x__1 } -> f__1 x__1
+        | EB.Apply_cont x__1 -> f__2 x__1
+        | EB.Expr x__1 -> f__3 x__1)
         (fun message ->
-          ( Rebuilt_expr.create_invalid (Flambda.Invalid.Message message),
+          ( RE.create_invalid (Flambda.Invalid.Message message),
             Cost_metrics.zero,
             Name_occurrences.empty ))
         (fun apply_cont2 -> apply_cont_to_expr apply_cont2)
@@ -133,14 +127,13 @@ let rebuild_apply_cont args rewrite_id apply_cont uacc after_rebuild =
         rewrite_use_result
     in
     let uacc0 =
-      Upwards_acc.add_cost_metrics cost_metrics
-        (Upwards_acc.add_free_names uacc free_names)
+      UA.add_cost_metrics cost_metrics (UA.add_free_names uacc free_names)
     in
     after_rebuild expr uacc0
   in
   let apply_cont_to_expr =
    fun apply_cont2 ->
-    let cont0 = Flambda.Apply_cont.continuation apply_cont2 in
+    let cont0 = AC.continuation apply_cont2 in
     (fun f__1 f__2 f__3 f__4 f__5 x__0 ->
       match (x__0 : Continuation_in_env.t) with
       | Continuation_in_env.Linearly_used_and_inlinable
@@ -159,78 +152,72 @@ let rebuild_apply_cont args rewrite_id apply_cont uacc after_rebuild =
         f__4 x__1
       | Continuation_in_env.Invalid { arity = x__1 } -> f__5 x__1)
       (fun params handler free_names_of_handler cost_metrics_of_handler ->
-        let handler0 =
-          if is_cold then Rebuilt_expr.mark_as_cold handler else handler
-        in
+        let handler0 = if is_cold then RE.mark_as_cold handler else handler in
         inline_linearly_used_continuation uacc params handler0
           free_names_of_handler cost_metrics_of_handler apply_cont2)
       (fun _ ->
         let is_cold0 =
           is_cold
-          || Upwards_env.is_cold_continuation (Upwards_acc.uenv uacc)
-               (Flambda.Apply_cont.continuation apply_cont2)
+          || UE.is_cold_continuation (UA.uenv uacc)
+               (Apply_cont.continuation apply_cont2)
         in
-        ( Rebuilt_expr.create_apply_cont is_cold0 apply_cont2,
+        ( RE.create_apply_cont is_cold0 apply_cont2,
           Cost_metrics.from_size (Code_size.apply_cont apply_cont2),
-          Flambda.Apply_cont.free_names apply_cont2 ))
+          Apply_cont.free_names apply_cont2 ))
       (fun _ ->
         let is_cold0 =
           is_cold
-          || Upwards_env.is_cold_continuation (Upwards_acc.uenv uacc)
-               (Flambda.Apply_cont.continuation apply_cont2)
+          || UE.is_cold_continuation (UA.uenv uacc)
+               (Apply_cont.continuation apply_cont2)
         in
-        ( Rebuilt_expr.create_apply_cont is_cold0 apply_cont2,
+        ( RE.create_apply_cont is_cold0 apply_cont2,
           Cost_metrics.from_size (Code_size.apply_cont apply_cont2),
-          Flambda.Apply_cont.free_names apply_cont2 ))
+          Apply_cont.free_names apply_cont2 ))
       (fun _ ->
         let is_cold0 =
           is_cold
-          || Upwards_env.is_cold_continuation (Upwards_acc.uenv uacc)
-               (Flambda.Apply_cont.continuation apply_cont2)
+          || UE.is_cold_continuation (UA.uenv uacc)
+               (Apply_cont.continuation apply_cont2)
         in
-        ( Rebuilt_expr.create_apply_cont is_cold0 apply_cont2,
+        ( RE.create_apply_cont is_cold0 apply_cont2,
           Cost_metrics.from_size (Code_size.apply_cont apply_cont2),
-          Flambda.Apply_cont.free_names apply_cont2 ))
+          Apply_cont.free_names apply_cont2 ))
       (fun _ ->
-        ( Rebuilt_expr.create_invalid
+        ( RE.create_invalid
             (Flambda.Invalid.Apply_cont_of_unreachable_continuation cont0),
           Cost_metrics.zero,
           Name_occurrences.empty ))
-      (Upwards_env.find_continuation uenv cont0)
+      (UE.find_continuation uenv cont0)
   in
   create_apply_cont apply_cont_to_expr
 
-(** val simplify_apply_cont : Downwards_acc.t -> Flambda.Apply_cont.t ->
-    Simplified_expr.t Simplify_common.down_to_up -> (Simplified_expr.t *
-    Downwards_acc.t) coq_M **)
+(** val simplify_apply_cont : DA.t -> Apply_cont.t -> SE.t
+    Simplify_common.down_to_up -> (SE.t * DA.t) coq_M **)
 
 let simplify_apply_cont dacc apply_cont down_to_up0 =
   let { Simplify_simple.simples = args; Simplify_simple.simple_tys = arg_types }
       =
-    Simplify_simple.simplify_simples dacc (Flambda.Apply_cont.args apply_cont)
+    Simplify_simple.simplify_simples dacc (AC.args apply_cont)
   in
   let use_kind =
     Simplify_common.apply_cont_use_kind Simplify_common.Apply_cont_expr
       apply_cont
   in
   let dacc0, rewrite_id =
-    Downwards_acc.record_continuation_use dacc
-      (Flambda.Apply_cont.continuation apply_cont)
-      use_kind (Downwards_acc.denv dacc) arg_types
+    DA.record_continuation_use dacc
+      (AC.continuation apply_cont)
+      use_kind (DA.denv dacc) arg_types
   in
   let dacc1 =
     let record_args_for_data_flow =
      fun data_flow ->
       Flow.Acc.add_apply_cont_args rewrite_id
-        (Flambda.Apply_cont.continuation apply_cont)
+        (AC.continuation apply_cont)
         args data_flow
     in
-    Downwards_acc.map_flow_acc dacc0 record_args_for_data_flow
+    DA.map_flow_acc dacc0 record_args_for_data_flow
   in
-  let dbg = Flambda.Apply_cont.debuginfo apply_cont in
-  let dbg0 =
-    Downwards_env.add_inlined_debuginfo (Downwards_acc.denv dacc1) dbg
-  in
-  let apply_cont0 = Flambda.Apply_cont.with_debuginfo apply_cont dbg0 in
-  down_to_up0 dacc1
-    (Simplified_expr.simplified_apply_cont apply_cont0 args rewrite_id)
+  let dbg = AC.debuginfo apply_cont in
+  let dbg0 = DE.add_inlined_debuginfo (DA.denv dacc1) dbg in
+  let apply_cont0 = AC.with_debuginfo apply_cont dbg0 in
+  down_to_up0 dacc1 (SE.simplified_apply_cont apply_cont0 args rewrite_id)

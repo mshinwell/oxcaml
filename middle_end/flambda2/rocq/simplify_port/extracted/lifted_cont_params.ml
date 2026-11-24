@@ -24,14 +24,14 @@ module BP = Bound_parameter
 
 type t =
   { len : int;
-    new_params_indexed : Bound_parameter.t BP.Map.t
+    new_params_indexed : BP.t BP.Map.t
   }
 
 (** val len : t -> int **)
 
 let len t0 = t0.len
 
-(** val new_params_indexed : t -> Bound_parameter.t BP.Map.t **)
+(** val new_params_indexed : t -> BP.t BP.Map.t **)
 
 let new_params_indexed t0 = t0.new_params_indexed
 
@@ -40,12 +40,11 @@ let new_params_indexed t0 = t0.new_params_indexed
 let print ppf t0 =
   let { len = _; new_params_indexed = new_params_indexed0 } = t0 in
   Format.fprintf ppf "@[<hov 1>(@[<hov 1>(new_params_indexed@ %a)@])@]"
-    (Bound_parameter.Map.print Bound_parameter.print)
-    new_params_indexed0
+    (BP.Map.print BP.print) new_params_indexed0
 
 (** val empty : t **)
 
-let empty = { len = 0; new_params_indexed = Bound_parameter.Map.empty }
+let empty = { len = 0; new_params_indexed = BP.Map.empty }
 
 (** val is_empty : t -> bool coq_M **)
 
@@ -57,63 +56,57 @@ let is_empty t0 =
 
 let length t0 = t0.len
 
-(** val new_param : t -> Replay_history.t -> Bound_parameter.t -> t coq_M **)
+(** val new_param : t -> Replay_history.t -> BP.t -> t coq_M **)
 
 let new_param t0 replay_history bound_param =
   let key =
     match Replay_history.replay_variable_mapping replay_history with
     | Replay_history.Still_recording -> bound_param
     | Replay_history.Replayed variable_mapping ->
-      let param_var, param_duid = Bound_parameter.var_and_uid bound_param in
+      let param_var, param_duid = BP.var_and_uid bound_param in
       let original_var = Variable.Map.find param_var variable_mapping in
-      Bound_parameter.create original_var
-        (Bound_parameter.kind bound_param)
-        param_duid
+      BP.create original_var (BP.kind bound_param) param_duid
   in
-  let new_params_indexed0 =
-    Bound_parameter.Map.add key bound_param t0.new_params_indexed
-  in
+  let new_params_indexed0 = BP.Map.add key bound_param t0.new_params_indexed in
   { len = t0.len + 1; new_params_indexed = new_params_indexed0 }
 
 (** val rename : t -> (t * Renaming.t) coq_M **)
 
 let rename t0 =
-  let bindings = Bound_parameter.Map.bindings t0.new_params_indexed in
+  let bindings = BP.Map.bindings t0.new_params_indexed in
   let keys, bound_param_list = List.split bindings in
   let bound_params = Bound_parameters.create bound_param_list in
   let new_bound_params = Bound_parameters.rename bound_params in
   let renaming = Bound_parameters.renaming bound_params new_bound_params in
   let new_params_indexed0 =
-    Bound_parameter.Map.of_list
+    BP.Map.of_list
       (List.combine keys (Bound_parameters.to_list new_bound_params))
   in
   ( (fun t new_params_indexed -> { t with new_params_indexed })
       t0 new_params_indexed0,
     renaming )
 
-(** val fold_aux : 'a1 -> (Bound_parameter.t -> Bound_parameter.t -> 'a1 -> 'a1
-    coq_M) -> t -> 'a1 coq_M **)
+(** val fold_aux : 'a1 -> (BP.t -> BP.t -> 'a1 -> 'a1 coq_M) -> t -> 'a1 coq_M **)
 
 let fold_aux init f t0 =
   let { len = _; new_params_indexed = new_params_indexed0 } = t0 in
-  Bound_parameter.Map.fold f new_params_indexed0 init
+  BP.Map.fold f new_params_indexed0 init
 
-(** val fold : 'a1 -> (Bound_parameter.t -> 'a1 -> 'a1 coq_M) -> t -> 'a1 coq_M
-    **)
+(** val fold : 'a1 -> (BP.t -> 'a1 -> 'a1 coq_M) -> t -> 'a1 coq_M **)
 
 let fold init f t0 = fold_aux init (fun _ -> f) t0
 
-(** val find_arg : Bound_parameter.t -> t list -> Simple.t coq_M **)
+(** val find_arg : BP.t -> t list -> Simple.t coq_M **)
 
 let rec find_arg bp = function
   | [] ->
     Misc.fatal_errorf
       "Missing lifted param id: %a not found in lifted_cont_params stack"
-      Bound_parameter.print bp
+      BP.print bp
   | t0 :: r -> (
     let { len = _; new_params_indexed = new_params_indexed0 } = t0 in
-    match Bound_parameter.Map.find_opt bp new_params_indexed0 with
-    | Some param -> Bound_parameter.simple param
+    match BP.Map.find_opt bp new_params_indexed0 with
+    | Some param -> BP.simple param
     | None -> find_arg bp r)
 
 (** val args : t -> t list -> Simple.t list coq_M **)

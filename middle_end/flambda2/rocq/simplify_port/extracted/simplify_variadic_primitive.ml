@@ -23,24 +23,22 @@
 open! Simplify_import
 open Port_monad
 
-(** val simplify_make_block : Flambda_primitive.t ->
-    Flambda_primitive.Block_kind.t -> Mutability.t ->
-    Alloc_mode.For_allocations.t -> Downwards_acc.t -> Flambda.Named.t ->
-    Debuginfo.t -> (Simple.t * Flambda2_types.t) list -> Bound_var.t ->
-    Simplify_primitive_result.t coq_M **)
+(** val simplify_make_block : P.t -> P.Block_kind.t -> Mutability.t ->
+    Alloc_mode.For_allocations.t -> DA.t -> Named.t -> Debuginfo.t -> (Simple.t
+    * T.t) list -> Bound_var.t -> SPR.t coq_M **)
 
 let simplify_make_block original_prim block_kind mutable_or_immutable alloc_mode
     dacc original_term _ args_with_tys result_var =
-  let typing_env = Downwards_acc.typing_env dacc in
+  let typing_env = DA.typing_env dacc in
   let typing_env0 =
     match block_kind with
-    | Flambda_primitive.Block_kind.Values (_, field_kinds) ->
+    | P.Block_kind.Values (_, field_kinds) ->
       let () =
         if List.compare_lengths args_with_tys field_kinds <> 0
         then
           Misc.fatal_errorf
             "Shape in [Make_block] of different length from argument list:@ %a"
-            Flambda.Named.print original_term
+            Named.print original_term
         else ()
       in
       List.fold_left2
@@ -50,15 +48,12 @@ let simplify_make_block original_prim block_kind mutable_or_immutable alloc_mode
               Simple.pattern_match' arg
                 (fun _ _ ->
                   Or_bottom.Let_syntax.( let<+ )
-                    (Flambda2_types.meet typing_env1
-                       (Flambda2_types.alias_type_of
-                          (Flambda_kind.With_subkind.kind arg_kind)
-                          arg)
+                    (T.meet typing_env1
+                       (T.alias_type_of (K.With_subkind.kind arg_kind) arg)
                        ((fun x__1 x__2 x__3 ->
-                          Flambda2_types.unknown_with_subkind ?alloc_mode:x__1
-                            x__2 x__3)
+                          T.unknown_with_subkind ?alloc_mode:x__1 x__2 x__3)
                           None
-                          (Downwards_env.machine_width (Downwards_acc.denv dacc))
+                          (DE.machine_width (DA.denv dacc))
                           arg_kind))
                     (fun pat0 ->
                       let _, typing_env2 = pat0 in
@@ -66,69 +61,66 @@ let simplify_make_block original_prim block_kind mutable_or_immutable alloc_mode
                 (fun _ _ -> Or_bottom.Ok typing_env1)
                 (fun _ -> Or_bottom.Ok typing_env1)))
         (Or_bottom.Ok typing_env) field_kinds args_with_tys
-    | Flambda_primitive.Block_kind.Naked_floats -> Or_bottom.Ok typing_env
-    | Flambda_primitive.Block_kind.Mixed (_, _) -> Or_bottom.Ok typing_env
+    | P.Block_kind.Naked_floats -> Or_bottom.Ok typing_env
+    | P.Block_kind.Mixed (_, _) -> Or_bottom.Ok typing_env
   in
   match typing_env0 with
   | Or_bottom.Ok typing_env1 ->
     let dacc0 =
-      Downwards_acc.map_denv dacc (fun denv ->
-          Downwards_env.with_typing_env denv typing_env1)
+      DA.map_denv dacc (fun denv -> DE.with_typing_env denv typing_env1)
     in
     let ty =
       let fields = List.map snd args_with_tys in
       let alloc_mode0 = Alloc_mode.For_allocations.as_type alloc_mode in
-      let tag, shape = Flambda_primitive.Block_kind.to_shape block_kind in
+      let tag, shape = P.Block_kind.to_shape block_kind in
       match mutable_or_immutable with
-      | Mutability.Mutable -> Flambda2_types.mutable_block alloc_mode0
+      | Mutability.Mutable -> T.mutable_block alloc_mode0
       | Mutability.Immutable ->
-        Flambda2_types.immutable_block
-          (Downwards_env.machine_width (Downwards_acc.denv dacc0))
+        T.immutable_block
+          (DE.machine_width (DA.denv dacc0))
           false tag shape alloc_mode0 fields
       | Mutability.Immutable_unique ->
-        Flambda2_types.immutable_block
-          (Downwards_env.machine_width (Downwards_acc.denv dacc0))
+        T.immutable_block
+          (DE.machine_width (DA.denv dacc0))
           true tag shape alloc_mode0 fields
     in
-    let dacc1 = Downwards_acc.add_variable dacc0 result_var ty in
+    let dacc1 = DA.add_variable dacc0 result_var ty in
     let dacc2 =
       match mutable_or_immutable with
       | Mutability.Mutable -> dacc1
       | Mutability.Immutable -> (
-        match Flambda_primitive.Eligible_for_cse.create original_prim with
+        match P.Eligible_for_cse.create original_prim with
         | Some prim ->
-          Downwards_acc.map_denv dacc1 (fun denv ->
-              Downwards_env.add_cse denv prim
+          DA.map_denv dacc1 (fun denv ->
+              DE.add_cse denv prim
                 (Simple.var (Bound_var.var result_var))
                 (Bound_var.name_mode result_var))
         | None -> dacc1)
       | Mutability.Immutable_unique -> dacc1
     in
-    Simplify_primitive_result.create original_term true dacc2
-  | Or_bottom.Bottom -> Simplify_primitive_result.create_invalid dacc
+    SPR.create original_term true dacc2
+  | Or_bottom.Bottom -> SPR.create_invalid dacc
 
-(** val simplify_make_array : Flambda_primitive.Array_kind.t -> Mutability.t ->
-    Alloc_mode.For_allocations.t -> Downwards_acc.t -> Flambda.Named.t ->
-    Debuginfo.t -> (Simple.t * Flambda2_types.t) list -> Bound_var.t ->
-    Simplify_primitive_result.t coq_M **)
+(** val simplify_make_array : P.Array_kind.t -> Mutability.t ->
+    Alloc_mode.For_allocations.t -> DA.t -> Named.t -> Debuginfo.t -> (Simple.t
+    * T.t) list -> Bound_var.t -> SPR.t coq_M **)
 
 let simplify_make_array array_kind mutable_or_immutable alloc_mode dacc
     original_term dbg args_with_tys result_var =
   let args, tys = List.split args_with_tys in
   let length =
-    let machine_width = Downwards_env.machine_width (Downwards_acc.denv dacc) in
+    let machine_width = DE.machine_width (DA.denv dacc) in
     match Target_ocaml_int.of_int_option machine_width (List.length args) with
-    | Some ti -> Flambda2_types.this_tagged_immediate ti
-    | None -> Flambda2_types.unknown Flambda_kind.value
+    | Some ti -> T.this_tagged_immediate ti
+    | None -> T.unknown K.value
   in
-  let element_kinds = Flambda_primitive.Array_kind.element_kinds array_kind in
+  let element_kinds = P.Array_kind.element_kinds array_kind in
   let element_kind =
-    match Flambda_primitive.Array_kind.element_kinds array_kind with
+    match P.Array_kind.element_kinds array_kind with
     | [] ->
       Misc.fatal_errorf
         "Empty list of element kinds given for array kind:@ %a@ %a"
-        Flambda_primitive.Array_kind.print array_kind Debuginfo.print_compact
-        dbg
+        P.Array_kind.print array_kind Debuginfo.print_compact dbg
     | kind :: l -> ( match l with [] -> Some kind | _ :: _ -> None)
   in
   let num_element_kinds = List.length element_kinds in
@@ -138,27 +130,27 @@ let simplify_make_array array_kind mutable_or_immutable alloc_mode dacc
       Misc.fatal_errorf
         "Array length not a multiple of the length of the unboxed product kind \
          list:@ array_kind=%a@ num args=%d@ %a"
-        Flambda_primitive.Array_kind.print array_kind (List.length args)
-        Flambda.Named.print original_term
+        P.Array_kind.print array_kind (List.length args) Named.print
+        original_term
     else ()
   in
   let env_extension =
-    let typing_env = Downwards_acc.typing_env dacc in
+    let typing_env = DA.typing_env dacc in
     match element_kind with
     | Some element_kind0 ->
       let initial_element_type =
         (fun x__1 x__2 x__3 ->
-          Flambda2_types.unknown_with_subkind ?alloc_mode:x__1 x__2 x__3)
+          T.unknown_with_subkind ?alloc_mode:x__1 x__2 x__3)
           None
-          (Downwards_env.machine_width (Downwards_acc.denv dacc))
+          (DE.machine_width (DA.denv dacc))
           element_kind0
       in
       List.fold_left
         (fun typing_env0 element_type ->
           Or_bottom.Let_syntax.( let<* ) typing_env0 (fun typing_env1 ->
               Or_bottom.Let_syntax.( let<+ )
-                (Flambda2_types.meet typing_env1 initial_element_type
-                   element_type) (fun pat ->
+                (T.meet typing_env1 initial_element_type element_type)
+                (fun pat ->
                   let _, typing_env2 = pat in
                   typing_env2)))
         (Or_bottom.Ok typing_env) tys
@@ -174,54 +166,49 @@ let simplify_make_array array_kind mutable_or_immutable alloc_mode dacc
         | None -> Or_unknown_or_bottom.Unknown
       in
       match mutable_or_immutable with
-      | Mutability.Mutable ->
-        Flambda2_types.mutable_array element_kind0 length alloc_mode0
+      | Mutability.Mutable -> T.mutable_array element_kind0 length alloc_mode0
       | Mutability.Immutable ->
-        Flambda2_types.immutable_array element_kind0 tys alloc_mode0
-          (Downwards_env.machine_width (Downwards_acc.denv dacc))
+        T.immutable_array element_kind0 tys alloc_mode0
+          (DE.machine_width (DA.denv dacc))
       | Mutability.Immutable_unique ->
         Misc.fatal_errorf "Immutable_unique is not expected for arrays:@ %a"
-          Flambda.Named.print original_term
+          Named.print original_term
     in
     let named =
-      Flambda.Named.create_prim
-        (Flambda_primitive.Variadic
-           ( Flambda_primitive.Make_array
-               (array_kind, mutable_or_immutable, alloc_mode),
-             args ))
+      Named.create_prim
+        (P.Variadic
+           (P.Make_array (array_kind, mutable_or_immutable, alloc_mode), args))
         dbg
     in
     let dacc0 =
-      Downwards_acc.map_denv dacc (fun denv ->
-          let denv0 = Downwards_env.with_typing_env denv typing_env in
-          Downwards_env.add_variable denv0 result_var ty)
+      DA.map_denv dacc (fun denv ->
+          let denv0 = DE.with_typing_env denv typing_env in
+          DE.add_variable denv0 result_var ty)
     in
-    Simplify_primitive_result.create named true dacc0
-  | Or_bottom.Bottom -> Simplify_primitive_result.create_invalid dacc
+    SPR.create named true dacc0
+  | Or_bottom.Bottom -> SPR.create_invalid dacc
 
-(** val simplify_begin_region : Downwards_acc.t -> Flambda.Named.t ->
-    Debuginfo.t -> (Simple.t * Flambda2_types.t) list -> Bound_var.t ->
-    Simplify_primitive_result.t coq_M **)
+(** val simplify_begin_region : DA.t -> Named.t -> Debuginfo.t -> (Simple.t *
+    T.t) list -> Bound_var.t -> SPR.t coq_M **)
 
 let simplify_begin_region dacc original_term _ _ result_var =
-  let ty = Flambda2_types.any_region in
-  let dacc0 = Downwards_acc.add_variable dacc result_var ty in
+  let ty = T.any_region in
+  let dacc0 = DA.add_variable dacc result_var ty in
   Simplify_primitive_result.create original_term false dacc0
 
-(** val simplify_variadic_primitive : Downwards_acc.t -> Flambda_primitive.t ->
-    Flambda_primitive.variadic_primitive -> (Simple.t * Flambda2_types.t) list
-    -> Debuginfo.t -> Bound_var.t -> Simplify_primitive_result.t coq_M **)
+(** val simplify_variadic_primitive : DA.t -> P.t -> P.variadic_primitive ->
+    (Simple.t * T.t) list -> Debuginfo.t -> Bound_var.t -> SPR.t coq_M **)
 
 let simplify_variadic_primitive dacc original_prim prim args_with_tys dbg
     result_var =
-  let original_term = Flambda.Named.create_prim original_prim dbg in
+  let original_term = Named.create_prim original_prim dbg in
   let simplifier =
     (fun f__1 f__2 f__3 f__4 x__0 ->
-      match (x__0 : Flambda_primitive.variadic_primitive) with
-      | Flambda_primitive.Begin_region { ghost = x__1 } -> f__1 x__1
-      | Flambda_primitive.Begin_try_region { ghost = x__1 } -> f__2 x__1
-      | Flambda_primitive.Make_block (x__1, x__2, x__3) -> f__3 x__1 x__2 x__3
-      | Flambda_primitive.Make_array (x__1, x__2, x__3) -> f__4 x__1 x__2 x__3)
+      match (x__0 : P.variadic_primitive) with
+      | P.Begin_region { ghost = x__1 } -> f__1 x__1
+      | P.Begin_try_region { ghost = x__1 } -> f__2 x__1
+      | P.Make_block (x__1, x__2, x__3) -> f__3 x__1 x__2 x__3
+      | P.Make_array (x__1, x__2, x__3) -> f__4 x__1 x__2 x__3)
       (fun _ -> simplify_begin_region)
       (fun _ -> simplify_begin_region)
       (fun block_kind mutable_or_immutable alloc_mode ->

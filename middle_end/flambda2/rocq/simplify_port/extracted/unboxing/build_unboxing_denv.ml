@@ -24,57 +24,47 @@ open! Simplify_import
 open Port_monad
 module U = Unboxing_types
 
-(** val add_equation_on_var : Downwards_env.t -> Variable.t -> Flambda2_types.t
-    -> Downwards_env.t coq_M **)
+(** val add_equation_on_var : DE.t -> Variable.t -> T.t -> DE.t coq_M **)
 
 let add_equation_on_var denv var shape =
-  let kind = Flambda2_types.kind shape in
-  let var_type = Flambda2_types.alias_type_of kind (Simple.var var) in
-  match Flambda2_types.meet (Downwards_env.typing_env denv) var_type shape with
+  let kind = T.kind shape in
+  let var_type = T.alias_type_of kind (Simple.var var) in
+  match T.meet (DE.typing_env denv) var_type shape with
   | Or_bottom.Ok p ->
     let _, typing_env = p in
-    Downwards_env.with_typing_env denv typing_env
+    DE.with_typing_env denv typing_env
   | Or_bottom.Bottom ->
     Misc.fatal_errorf "Meet failed whereas prove and meet previously succeeded"
 
-(** val denv_of_number_decision : Flambda_kind.t -> Flambda2_types.t ->
-    Variable.t -> Flambda_debug_uid.t -> Variable.t -> Downwards_env.t ->
-    Downwards_env.t coq_M **)
+(** val denv_of_number_decision : K.t -> T.t -> Variable.t ->
+    Flambda_debug_uid.t -> Variable.t -> DE.t -> DE.t coq_M **)
 
 let denv_of_number_decision naked_kind shape param_var param_var_debug_uid
     naked_var denv =
-  let naked_name =
-    Bound_var.create naked_var param_var_debug_uid Name_mode.normal
-  in
-  let denv0 = Downwards_env.define_extra_variable denv naked_name naked_kind in
+  let naked_name = VB.create naked_var param_var_debug_uid Name_mode.normal in
+  let denv0 = DE.define_extra_variable denv naked_name naked_kind in
   add_equation_on_var denv0 param_var shape
 
-(** val denv_of_decision : Downwards_env.t -> Variable.t ->
-    Unboxing_types.decision -> Downwards_env.t coq_M **)
+(** val denv_of_decision : DE.t -> Variable.t -> U.decision -> DE.t coq_M **)
 
 let rec denv_of_decision denv param_var = function
-  | Unboxing_types.Unbox u ->
+  | U.Unbox u ->
     (fun f__1 f__2 f__3 f__4 x__0 ->
-      match (x__0 : Unboxing_types.unboxing_decision) with
-      | Unboxing_types.Unique_tag_and_size
-          { tag = x__1; shape = x__2; fields = x__3 } ->
+      match (x__0 : U.unboxing_decision) with
+      | U.Unique_tag_and_size { tag = x__1; shape = x__2; fields = x__3 } ->
         f__1 x__1 x__2 x__3
-      | Unboxing_types.Variant
-          { tag = x__1; const_ctors = x__2; fields_by_tag = x__3 } ->
+      | U.Variant { tag = x__1; const_ctors = x__2; fields_by_tag = x__3 } ->
         f__2 x__1 x__2 x__3
-      | Unboxing_types.Closure_single_entry
+      | U.Closure_single_entry
           { function_slot = x__1; vars_within_closure = x__2 } ->
         f__3 x__1 x__2
-      | Unboxing_types.Number (x__1, x__2) -> f__4 x__1 x__2)
+      | U.Number (x__1, x__2) -> f__4 x__1 x__2)
       (fun tag shape fields ->
         let denv0 =
           Misc.Stdlib.List.fold_lefti
             (fun index denv0 field ->
               (fun x__0 f__1 ->
-                let { Unboxing_types.epa = x__1; decision = x__2; kind = x__3 }
-                    =
-                  x__0
-                in
+                let { U.epa = x__1; decision = x__2; kind = x__3 } = x__0 in
                 f__1 x__1 x__2 x__3) field (fun pat ->
                   let { U.Extra_param_and_args.param = var;
                         U.Extra_param_and_args.param_debug_uid =
@@ -84,29 +74,23 @@ let rec denv_of_decision denv param_var = function
                     pat
                   in
                   fun _ _ ->
-                    let v =
-                      Bound_var.create var param_debug_uid0 Name_mode.normal
-                    in
-                    Downwards_env.define_extra_variable denv0 v
-                      (Flambda_kind.Block_shape.element_kind shape index)))
+                    let v = VB.create var param_debug_uid0 Name_mode.normal in
+                    DE.define_extra_variable denv0 v
+                      (K.Block_shape.element_kind shape index)))
             denv fields
         in
         let type_of_var =
          fun index field ->
           (fun x__0 f__1 ->
-            let { Unboxing_types.epa = x__1; decision = x__2; kind = x__3 } =
-              x__0
-            in
+            let { U.epa = x__1; decision = x__2; kind = x__3 } = x__0 in
             f__1 x__1 x__2 x__3) field (fun epa _ _ ->
-              Flambda2_types.alias_type_of
-                (Flambda_kind.Block_shape.element_kind shape index)
+              T.alias_type_of
+                (K.Block_shape.element_kind shape index)
                 (Simple.var epa.Unboxing_types.Extra_param_and_args.param))
         in
         let field_types = List.mapi type_of_var fields in
         let shape0 =
-          Flambda2_types.immutable_block
-            (Downwards_env.machine_width denv0)
-            false tag shape
+          T.immutable_block (DE.machine_width denv0) false tag shape
             (Alloc_mode.For_types.unknown ())
             field_types
         in
@@ -114,67 +98,58 @@ let rec denv_of_decision denv param_var = function
         List.fold_left
           (fun denv2 field ->
             (fun x__0 f__1 ->
-              let { Unboxing_types.epa = x__1; decision = x__2; kind = x__3 } =
-                x__0
-              in
+              let { U.epa = x__1; decision = x__2; kind = x__3 } = x__0 in
               f__1 x__1 x__2 x__3) field (fun epa decision0 _ ->
                 denv_of_decision denv2
                   epa.Unboxing_types.Extra_param_and_args.param decision0))
           denv1 fields)
       (fun tag const_ctors fields_by_tag ->
         let tag_v =
-          Bound_var.create tag.Unboxing_types.Extra_param_and_args.param
+          VB.create tag.Unboxing_types.Extra_param_and_args.param
             tag.Unboxing_types.Extra_param_and_args.param_debug_uid
             Name_mode.normal
         in
-        let denv0 =
-          Downwards_env.define_extra_variable denv tag_v
-            Flambda_kind.naked_immediate
-        in
+        let denv0 = DE.define_extra_variable denv tag_v K.naked_immediate in
         let denv1 =
-          Downwards_env.map_typing_env denv0 (fun tenv ->
-              Flambda2_types.Typing_env.add_get_tag_relation tenv
+          DE.map_typing_env denv0 (fun tenv ->
+              TE.add_get_tag_relation tenv
                 (Name.var tag.Unboxing_types.Extra_param_and_args.param)
                 (Simple.var param_var))
         in
         let get_tag_prim =
-          Flambda_primitive.Eligible_for_cse.create_get_tag (Name.var param_var)
+          P.Eligible_for_cse.create_get_tag (Name.var param_var)
         in
         let denv2 =
-          Downwards_env.add_cse denv1 get_tag_prim
+          DE.add_cse denv1 get_tag_prim
             (Simple.var tag.Unboxing_types.Extra_param_and_args.param)
             Name_mode.normal
         in
         let denv3 =
           (fun f__1 f__2 x__0 ->
-            match (x__0 : Unboxing_types.const_ctors_decision) with
-            | Unboxing_types.Zero -> f__1 ()
-            | Unboxing_types.At_least_one { is_int = x__1; ctor = x__2 } ->
-              f__2 x__1 x__2)
+            match (x__0 : U.const_ctors_decision) with
+            | U.Zero -> f__1 ()
+            | U.At_least_one { is_int = x__1; ctor = x__2 } -> f__2 x__1 x__2)
             (fun _ -> denv2)
             (fun is_int _ ->
               let is_int_v =
-                Bound_var.create
-                  is_int.Unboxing_types.Extra_param_and_args.param
+                VB.create is_int.Unboxing_types.Extra_param_and_args.param
                   is_int.Unboxing_types.Extra_param_and_args.param_debug_uid
                   Name_mode.normal
               in
               let denv3 =
-                Downwards_env.define_extra_variable denv2 is_int_v
-                  Flambda_kind.naked_immediate
+                DE.define_extra_variable denv2 is_int_v K.naked_immediate
               in
               let denv4 =
-                Downwards_env.map_typing_env denv3 (fun tenv ->
-                    Flambda2_types.Typing_env.add_is_int_relation tenv
+                DE.map_typing_env denv3 (fun tenv ->
+                    TE.add_is_int_relation tenv
                       (Name.var is_int.Unboxing_types.Extra_param_and_args.param)
                       (Simple.var param_var))
               in
               let is_int_prim =
-                Flambda_primitive.Eligible_for_cse.create_is_int true
-                  (Name.var param_var)
+                P.Eligible_for_cse.create_is_int true (Name.var param_var)
               in
               let denv5 =
-                Downwards_env.add_cse denv4 is_int_prim
+                DE.add_cse denv4 is_int_prim
                   (Simple.var is_int.Unboxing_types.Extra_param_and_args.param)
                   Name_mode.normal
               in
@@ -183,27 +158,26 @@ let rec denv_of_decision denv param_var = function
         in
         let denv4, const_ctors0 =
           (fun f__1 f__2 x__0 ->
-            match (x__0 : Unboxing_types.const_ctors_decision) with
-            | Unboxing_types.Zero -> f__1 ()
-            | Unboxing_types.At_least_one { is_int = x__1; ctor = x__2 } ->
-              f__2 x__1 x__2)
-            (fun _ -> denv3, Flambda2_types.bottom Flambda_kind.naked_immediate)
+            match (x__0 : U.const_ctors_decision) with
+            | U.Zero -> f__1 ()
+            | U.At_least_one { is_int = x__1; ctor = x__2 } -> f__2 x__1 x__2)
+            (fun _ -> denv3, T.bottom K.naked_immediate)
             (fun _ d ->
               match d with
-              | Unboxing_types.Unbox u0 ->
+              | U.Unbox u0 ->
                 (fun f__1 f__2 f__3 f__4 x__0 ->
-                  match (x__0 : Unboxing_types.unboxing_decision) with
-                  | Unboxing_types.Unique_tag_and_size
+                  match (x__0 : U.unboxing_decision) with
+                  | U.Unique_tag_and_size
                       { tag = x__1; shape = x__2; fields = x__3 } ->
                     f__1 x__1 x__2 x__3
-                  | Unboxing_types.Variant
+                  | U.Variant
                       { tag = x__1; const_ctors = x__2; fields_by_tag = x__3 }
                     ->
                     f__2 x__1 x__2 x__3
-                  | Unboxing_types.Closure_single_entry
+                  | U.Closure_single_entry
                       { function_slot = x__1; vars_within_closure = x__2 } ->
                     f__3 x__1 x__2
-                  | Unboxing_types.Number (x__1, x__2) -> f__4 x__1 x__2)
+                  | U.Number (x__1, x__2) -> f__4 x__1 x__2)
                   (fun _ _ _ ->
                     Misc.fatal_errorf
                       "Variant constant constructor unboxed with a kind other \
@@ -220,19 +194,17 @@ let rec denv_of_decision denv param_var = function
                     match t0 with
                     | Flambda_kind.Naked_number_kind.Naked_immediate ->
                       let v =
-                        Bound_var.create
+                        VB.create
                           ctor_epa.Unboxing_types.Extra_param_and_args.param
                           ctor_epa
                             .Unboxing_types.Extra_param_and_args.param_debug_uid
                           Name_mode.normal
                       in
                       let denv4 =
-                        Downwards_env.define_extra_variable denv3 v
-                          Flambda_kind.naked_immediate
+                        DE.define_extra_variable denv3 v K.naked_immediate
                       in
                       let ty =
-                        Flambda2_types.alias_type_of
-                          Flambda_kind.naked_immediate
+                        T.alias_type_of K.naked_immediate
                           (Simple.var
                              ctor_epa.Unboxing_types.Extra_param_and_args.param)
                       in
@@ -282,8 +254,7 @@ let rec denv_of_decision denv param_var = function
                         "Variant constant constructor unboxed with a kind \
                          other than naked_immediate.")
                   u0
-              | Unboxing_types.Do_not_unbox _ ->
-                denv3, Flambda2_types.unknown Flambda_kind.naked_immediate)
+              | U.Do_not_unbox _ -> denv3, T.unknown K.naked_immediate)
             const_ctors
         in
         let denv5 =
@@ -294,10 +265,7 @@ let rec denv_of_decision denv param_var = function
                 Misc.Stdlib.List.fold_lefti
                   (fun index denv6 field ->
                     (fun x__0 f__1 ->
-                      let { Unboxing_types.epa = x__1;
-                            decision = x__2;
-                            kind = x__3
-                          } =
+                      let { U.epa = x__1; decision = x__2; kind = x__3 } =
                         x__0
                       in
                       f__1 x__1 x__2 x__3) field (fun pat0 ->
@@ -310,11 +278,10 @@ let rec denv_of_decision denv param_var = function
                         in
                         fun _ _ ->
                           let v =
-                            Bound_var.create var param_debug_uid0
-                              Name_mode.normal
+                            VB.create var param_debug_uid0 Name_mode.normal
                           in
-                          Downwards_env.define_extra_variable denv6 v
-                            (Flambda_kind.Block_shape.element_kind shape index)))
+                          DE.define_extra_variable denv6 v
+                            (K.Block_shape.element_kind shape index)))
                   denv5 block_fields)
             fields_by_tag denv4
         in
@@ -326,24 +293,19 @@ let rec denv_of_decision denv param_var = function
                 List.mapi
                   (fun i field ->
                     (fun x__0 f__1 ->
-                      let { Unboxing_types.epa = x__1;
-                            decision = x__2;
-                            kind = x__3
-                          } =
+                      let { U.epa = x__1; decision = x__2; kind = x__3 } =
                         x__0
                       in
                       f__1 x__1 x__2 x__3) field (fun epa _ _ ->
-                        Flambda2_types.alias_type_of
-                          (Flambda_kind.Block_shape.element_kind shape i)
+                        T.alias_type_of
+                          (K.Block_shape.element_kind shape i)
                           (Simple.var
                              epa.Unboxing_types.Extra_param_and_args.param)))
                   block_fields ))
             fields_by_tag
         in
         let shape =
-          Flambda2_types.variant
-            (Downwards_env.machine_width denv5)
-            const_ctors0 non_const_ctors
+          T.variant (DE.machine_width denv5) const_ctors0 non_const_ctors
             (Alloc_mode.For_types.unknown ())
         in
         let denv6 = add_equation_on_var denv5 param_var shape in
@@ -354,12 +316,7 @@ let rec denv_of_decision denv param_var = function
               List.fold_left
                 (fun denv8 field ->
                   (fun x__0 f__1 ->
-                    let { Unboxing_types.epa = x__1;
-                          decision = x__2;
-                          kind = x__3
-                        } =
-                      x__0
-                    in
+                    let { U.epa = x__1; decision = x__2; kind = x__3 } = x__0 in
                     f__1 x__1 x__2 x__3) field (fun epa decision0 _ ->
                       denv_of_decision denv8
                         epa.Unboxing_types.Extra_param_and_args.param decision0))
@@ -370,10 +327,7 @@ let rec denv_of_decision denv param_var = function
           Value_slot.Map.fold
             (fun _ field denv0 ->
               (fun x__0 f__1 ->
-                let { Unboxing_types.epa = x__1; decision = x__2; kind = x__3 }
-                    =
-                  x__0
-                in
+                let { U.epa = x__1; decision = x__2; kind = x__3 } = x__0 in
                 f__1 x__1 x__2 x__3) field (fun pat ->
                   let { U.Extra_param_and_args.param = var;
                         U.Extra_param_and_args.param_debug_uid =
@@ -383,21 +337,15 @@ let rec denv_of_decision denv param_var = function
                     pat
                   in
                   fun _ kind ->
-                    let v =
-                      Bound_var.create var param_debug_uid0 Name_mode.normal
-                    in
-                    Downwards_env.define_extra_variable denv0 v
-                      (Flambda_kind.With_subkind.kind kind)))
+                    let v = VB.create var param_debug_uid0 Name_mode.normal in
+                    DE.define_extra_variable denv0 v (K.With_subkind.kind kind)))
             vars_within_closure denv
         in
         let map =
           Value_slot.Map.map
             (fun field ->
               (fun x__0 f__1 ->
-                let { Unboxing_types.epa = x__1; decision = x__2; kind = x__3 }
-                    =
-                  x__0
-                in
+                let { U.epa = x__1; decision = x__2; kind = x__3 } = x__0 in
                 f__1 x__1 x__2 x__3) field (fun pat ->
                   let { U.Extra_param_and_args.param = var;
                         U.Extra_param_and_args.param_debug_uid = _;
@@ -405,20 +353,17 @@ let rec denv_of_decision denv param_var = function
                       } =
                     pat
                   in
-                  fun _ kind -> var, Flambda_kind.With_subkind.kind kind))
+                  fun _ kind -> var, K.With_subkind.kind kind))
             vars_within_closure
         in
         let shape =
-          Flambda2_types.closure_with_at_least_these_value_slots function_slot
-            map
+          T.closure_with_at_least_these_value_slots function_slot map
         in
         let denv1 = add_equation_on_var denv0 param_var shape in
         Value_slot.Map.fold
           (fun _ field denv2 ->
             (fun x__0 f__1 ->
-              let { Unboxing_types.epa = x__1; decision = x__2; kind = x__3 } =
-                x__0
-              in
+              let { U.epa = x__1; decision = x__2; kind = x__3 } = x__0 in
               f__1 x__1 x__2 x__3) field (fun epa decision0 _ ->
                 denv_of_decision denv2
                   epa.Unboxing_types.Extra_param_and_args.param decision0))
@@ -432,10 +377,8 @@ let rec denv_of_decision denv param_var = function
               } =
             t1
           in
-          let shape =
-            Flambda2_types.tagged_immediate_alias_to naked_immediate
-          in
-          denv_of_number_decision Flambda_kind.naked_immediate shape param_var
+          let shape = T.tagged_immediate_alias_to naked_immediate in
+          denv_of_number_decision K.naked_immediate shape param_var
             param_debug_uid0 naked_immediate denv
         | Flambda_kind.Naked_number_kind.Naked_float32 ->
           let { U.Extra_param_and_args.param = naked_float32;
@@ -445,10 +388,10 @@ let rec denv_of_decision denv param_var = function
             t1
           in
           let shape =
-            Flambda2_types.boxed_float32_alias_to naked_float32
+            T.boxed_float32_alias_to naked_float32
               (Alloc_mode.For_types.unknown ())
           in
-          denv_of_number_decision Flambda_kind.naked_float32 shape param_var
+          denv_of_number_decision K.naked_float32 shape param_var
             param_debug_uid0 naked_float32 denv
         | Flambda_kind.Naked_number_kind.Naked_float ->
           let { U.Extra_param_and_args.param = naked_float;
@@ -458,11 +401,10 @@ let rec denv_of_decision denv param_var = function
             t1
           in
           let shape =
-            Flambda2_types.boxed_float_alias_to naked_float
-              (Alloc_mode.For_types.unknown ())
+            T.boxed_float_alias_to naked_float (Alloc_mode.For_types.unknown ())
           in
-          denv_of_number_decision Flambda_kind.naked_float shape param_var
-            param_debug_uid0 naked_float denv
+          denv_of_number_decision K.naked_float shape param_var param_debug_uid0
+            naked_float denv
         | Flambda_kind.Naked_number_kind.Naked_int8 ->
           let { U.Extra_param_and_args.param = naked_int8;
                 U.Extra_param_and_args.param_debug_uid = param_debug_uid0;
@@ -470,9 +412,9 @@ let rec denv_of_decision denv param_var = function
               } =
             t1
           in
-          let shape = Flambda2_types.any_naked_int8 in
-          denv_of_number_decision Flambda_kind.naked_int8 shape param_var
-            param_debug_uid0 naked_int8 denv
+          let shape = T.any_naked_int8 in
+          denv_of_number_decision K.naked_int8 shape param_var param_debug_uid0
+            naked_int8 denv
         | Flambda_kind.Naked_number_kind.Naked_int16 ->
           let { U.Extra_param_and_args.param = naked_int16;
                 U.Extra_param_and_args.param_debug_uid = param_debug_uid0;
@@ -480,9 +422,9 @@ let rec denv_of_decision denv param_var = function
               } =
             t1
           in
-          let shape = Flambda2_types.any_naked_int16 in
-          denv_of_number_decision Flambda_kind.naked_int16 shape param_var
-            param_debug_uid0 naked_int16 denv
+          let shape = T.any_naked_int16 in
+          denv_of_number_decision K.naked_int16 shape param_var param_debug_uid0
+            naked_int16 denv
         | Flambda_kind.Naked_number_kind.Naked_int32 ->
           let { U.Extra_param_and_args.param = naked_int32;
                 U.Extra_param_and_args.param_debug_uid = param_debug_uid0;
@@ -491,11 +433,10 @@ let rec denv_of_decision denv param_var = function
             t1
           in
           let shape =
-            Flambda2_types.boxed_int32_alias_to naked_int32
-              (Alloc_mode.For_types.unknown ())
+            T.boxed_int32_alias_to naked_int32 (Alloc_mode.For_types.unknown ())
           in
-          denv_of_number_decision Flambda_kind.naked_int32 shape param_var
-            param_debug_uid0 naked_int32 denv
+          denv_of_number_decision K.naked_int32 shape param_var param_debug_uid0
+            naked_int32 denv
         | Flambda_kind.Naked_number_kind.Naked_int64 ->
           let { U.Extra_param_and_args.param = naked_int64;
                 U.Extra_param_and_args.param_debug_uid = param_debug_uid0;
@@ -504,11 +445,10 @@ let rec denv_of_decision denv param_var = function
             t1
           in
           let shape =
-            Flambda2_types.boxed_int64_alias_to naked_int64
-              (Alloc_mode.For_types.unknown ())
+            T.boxed_int64_alias_to naked_int64 (Alloc_mode.For_types.unknown ())
           in
-          denv_of_number_decision Flambda_kind.naked_int64 shape param_var
-            param_debug_uid0 naked_int64 denv
+          denv_of_number_decision K.naked_int64 shape param_var param_debug_uid0
+            naked_int64 denv
         | Flambda_kind.Naked_number_kind.Naked_nativeint ->
           let { U.Extra_param_and_args.param = naked_nativeint;
                 U.Extra_param_and_args.param_debug_uid = param_debug_uid0;
@@ -517,10 +457,10 @@ let rec denv_of_decision denv param_var = function
             t1
           in
           let shape =
-            Flambda2_types.boxed_nativeint_alias_to naked_nativeint
+            T.boxed_nativeint_alias_to naked_nativeint
               (Alloc_mode.For_types.unknown ())
           in
-          denv_of_number_decision Flambda_kind.naked_nativeint shape param_var
+          denv_of_number_decision K.naked_nativeint shape param_var
             param_debug_uid0 naked_nativeint denv
         | Flambda_kind.Naked_number_kind.Naked_vec128 ->
           let { U.Extra_param_and_args.param = naked_vec128;
@@ -530,10 +470,10 @@ let rec denv_of_decision denv param_var = function
             t1
           in
           let shape =
-            Flambda2_types.boxed_vec128_alias_to naked_vec128
+            T.boxed_vec128_alias_to naked_vec128
               (Alloc_mode.For_types.unknown ())
           in
-          denv_of_number_decision Flambda_kind.naked_vec128 shape param_var
+          denv_of_number_decision K.naked_vec128 shape param_var
             param_debug_uid0 naked_vec128 denv
         | Flambda_kind.Naked_number_kind.Naked_vec256 ->
           let { U.Extra_param_and_args.param = naked_vec256;
@@ -543,10 +483,10 @@ let rec denv_of_decision denv param_var = function
             t1
           in
           let shape =
-            Flambda2_types.boxed_vec256_alias_to naked_vec256
+            T.boxed_vec256_alias_to naked_vec256
               (Alloc_mode.For_types.unknown ())
           in
-          denv_of_number_decision Flambda_kind.naked_vec256 shape param_var
+          denv_of_number_decision K.naked_vec256 shape param_var
             param_debug_uid0 naked_vec256 denv
         | Flambda_kind.Naked_number_kind.Naked_vec512 ->
           let { U.Extra_param_and_args.param = naked_vec512;
@@ -556,10 +496,10 @@ let rec denv_of_decision denv param_var = function
             t1
           in
           let shape =
-            Flambda2_types.boxed_vec512_alias_to naked_vec512
+            T.boxed_vec512_alias_to naked_vec512
               (Alloc_mode.For_types.unknown ())
           in
-          denv_of_number_decision Flambda_kind.naked_vec512 shape param_var
+          denv_of_number_decision K.naked_vec512 shape param_var
             param_debug_uid0 naked_vec512 denv
         | Flambda_kind.Naked_number_kind.Naked_mask ->
           let { U.Extra_param_and_args.param = naked_mask;
@@ -569,10 +509,9 @@ let rec denv_of_decision denv param_var = function
             t1
           in
           let shape =
-            Flambda2_types.boxed_mask_alias_to naked_mask
-              (Alloc_mode.For_types.unknown ())
+            T.boxed_mask_alias_to naked_mask (Alloc_mode.For_types.unknown ())
           in
-          denv_of_number_decision Flambda_kind.naked_mask shape param_var
-            param_debug_uid0 naked_mask denv)
+          denv_of_number_decision K.naked_mask shape param_var param_debug_uid0
+            naked_mask denv)
       u
-  | Unboxing_types.Do_not_unbox _ -> denv
+  | U.Do_not_unbox _ -> denv

@@ -23,9 +23,8 @@
 open! Simplify_import
 open Port_monad
 
-(** val rebuild_terminator : Simplified_expr.simplified_terminator ->
-    Upwards_acc.t -> Simplify_common.after_rebuild -> (Rebuilt_expr.t *
-    Upwards_acc.t) coq_M **)
+(** val rebuild_terminator : Simplified_expr.simplified_terminator -> UA.t ->
+    Simplify_common.after_rebuild -> (RE.t * UA.t) coq_M **)
 
 let rebuild_terminator terminator uacc after_rebuild =
   match terminator with
@@ -44,10 +43,10 @@ let rebuild_terminator terminator uacc after_rebuild =
   | Simplified_expr.Simplified_switch simplified_switch ->
     Simplify_switch_expr.rebuild_switch simplified_switch uacc after_rebuild
   | Simplified_expr.Simplified_invalid invalid ->
-    Expr_builder.rebuild_invalid uacc invalid after_rebuild
+    EB.rebuild_invalid uacc invalid after_rebuild
 
-(** val rebuild_expr : Simplified_expr.t -> Upwards_acc.t ->
-    Simplify_common.after_rebuild -> (Rebuilt_expr.t * Upwards_acc.t) coq_M **)
+(** val rebuild_expr : Simplified_expr.t -> UA.t ->
+    Simplify_common.after_rebuild -> (RE.t * UA.t) coq_M **)
 
 let rec rebuild_expr expr uacc after_rebuild =
   (fun x__0 f__1 ->
@@ -68,21 +67,17 @@ let rec rebuild_expr expr uacc after_rebuild =
       let rec rebuild_lets_and_let_conts simplified_lets_and_let_conts0 uacc0
           after_rebuild0 =
         match simplified_lets_and_let_conts0 with
-        | Simplified_expr.Simplified_terminator ->
+        | SE.Simplified_terminator ->
           rebuild_terminator simplified_terminator uacc0 (fun expr0 uacc1 ->
-              let uacc2 = Upwards_acc.notify_removed removed_operations uacc1 in
-              let expr1 =
-                if is_cold then Rebuilt_expr.mark_as_cold expr0 else expr0
-              in
+              let uacc2 = UA.notify_removed removed_operations uacc1 in
+              let expr1 = if is_cold then RE.mark_as_cold expr0 else expr0 in
               after_rebuild0 expr1 uacc2)
-        | Simplified_expr.Simplified_let
-            (simplified_let, simplified_lets_and_let_conts1) ->
+        | SE.Simplified_let (simplified_let, simplified_lets_and_let_conts1) ->
           rebuild_lets_and_let_conts simplified_lets_and_let_conts1 uacc0
             (fun body uacc1 ->
               Simplify_let_expr.rebuild_let (simplified_let, body) uacc1
                 after_rebuild0)
-        | Simplified_expr.Simplified_let_cont
-            (let_cont, simplified_lets_and_let_conts1) ->
+        | SE.Simplified_let_cont (let_cont, simplified_lets_and_let_conts1) ->
           Simplify_let_cont_expr.rebuild_let_cont rebuild_lets_and_let_conts
             rebuild_expr
             (let_cont, simplified_lets_and_let_conts1)
@@ -91,11 +86,10 @@ let rec rebuild_expr expr uacc after_rebuild =
       rebuild_lets_and_let_conts simplified_lets_and_let_conts uacc
         after_rebuild)
 
-(** val simplify_toplevel_common : Downwards_acc.t -> (Downwards_acc.t ->
-    Simplified_expr.t Simplify_common.down_to_up -> (Simplified_expr.t *
-    Downwards_acc.t) coq_M) -> Bound_parameters.t -> Bound_parameters.t ->
-    Continuation.t -> (_) Flambda_arity.t -> Continuation.t -> (Rebuilt_expr.t *
-    Upwards_acc.t) coq_M **)
+(** val simplify_toplevel_common : DA.t -> (DA.t -> SE.t
+    Simplify_common.down_to_up -> (SE.t * DA.t) coq_M) -> Bound_parameters.t ->
+    Bound_parameters.t -> Continuation.t -> (_) Flambda_arity.t ->
+    Continuation.t -> (RE.t * UA.t) coq_M **)
 
 let simplify_toplevel_common dacc simplify params implicit_params
     return_continuation return_arity exn_continuation =
@@ -104,31 +98,30 @@ let simplify_toplevel_common dacc simplify params implicit_params
       None (Some "dummy_toplevel_continuation") ()
   in
   let dacc0 =
-    Downwards_acc.with_flow_acc
+    DA.with_flow_acc
       (Flow.Acc.init_toplevel dummy_toplevel_cont
          (Bound_parameters.append params implicit_params))
-      (Downwards_acc.with_are_lifting_conts dacc
+      (DA.with_are_lifting_conts dacc
          (Are_lifting_conts.no_lifting Are_lifting_conts.At_toplevel))
   in
   let dacc1 =
-    Downwards_acc.record_continuation dacc0 return_continuation
+    DA.record_continuation dacc0 return_continuation
       (Flambda_arity.unarize_t return_arity)
   in
   let dacc2 =
-    Downwards_acc.record_continuation dacc1 exn_continuation
+    DA.record_continuation dacc1 exn_continuation
       (Flambda_arity.create
          ((fun x__1 -> Flambda_arity.Component_for_creation.Singleton x__1)
-            Flambda_kind.With_subkind.any_value
+            K.With_subkind.any_value
          :: []))
   in
   let expr, dacc3 = simplify dacc2 (fun dacc3 expr -> expr, dacc3) in
   let expr0, uacc =
     let dacc4 =
-      Downwards_acc.map_flow_acc dacc3
-        (Flow.Acc.exit_continuation dummy_toplevel_cont)
+      DA.map_flow_acc dacc3 (Flow.Acc.exit_continuation dummy_toplevel_cont)
     in
-    let data_flow = Downwards_acc.flow_acc dacc4 in
-    let closure_info = Downwards_env.closure_info (Downwards_acc.denv dacc4) in
+    let data_flow = DA.flow_acc dacc4 in
+    let closure_info = DE.closure_info (DA.denv dacc4) in
     let code_age_relation, used_value_slots, print_name =
       (fun f__1 f__2 f__3 x__0 ->
         match (x__0 : Closure_info.t) with
@@ -144,14 +137,12 @@ let simplify_toplevel_common dacc simplify params implicit_params
             } ->
           f__3 x__1 x__2 x__3 x__4 x__5)
         (fun _ ->
-          ( Downwards_acc.code_age_relation dacc4,
-            Or_unknown.Known (Downwards_acc.used_value_slots dacc4),
+          ( DA.code_age_relation dacc4,
+            Or_unknown.Known (DA.used_value_slots dacc4),
             "toplevel" ))
         (fun _ -> assert false)
         (fun code_id _ _ _ _ ->
-          ( Flambda2_types.Code_age_relation.empty,
-            Or_unknown.Unknown,
-            Code_id.name code_id ))
+          T.Code_age_relation.empty, Or_unknown.Unknown, Code_id.name code_id)
         closure_info
     in
     let flow_result =
@@ -159,56 +150,49 @@ let simplify_toplevel_common dacc simplify params implicit_params
         Flow.Analysis.analyze ?speculative:x__1 ?print_name:x__2 x__3 x__4 x__5
           x__6 x__7 x__8 x__9 x__10)
         None (Some print_name)
-        (Downwards_env.machine_width (Downwards_acc.denv dacc4))
+        (DE.machine_width (DA.denv dacc4))
         return_continuation exn_continuation code_age_relation used_value_slots
-        (Downwards_acc.code_ids_to_never_delete dacc4)
-        (Downwards_acc.specialization_map dacc4)
+        (DA.code_ids_to_never_delete dacc4)
+        (DA.specialization_map dacc4)
         data_flow
     in
     let continuation_is_cold =
      fun cont ->
-      match
-        Continuation_uses_env.get_continuation_uses
-          (Downwards_acc.continuation_uses_env dacc4)
-          cont
-      with
+      match CUE.get_continuation_uses (DA.continuation_uses_env dacc4) cont with
       | Some uses ->
         List.for_all
-          (fun use ->
-            Downwards_env.is_cold (One_continuation_use.env_at_use use))
+          (fun use -> DE.is_cold (One_continuation_use.env_at_use use))
           (Continuation_uses.get_uses uses)
       | None -> false
     in
     let uenv =
-      Upwards_env.add_function_return_or_exn_continuation
-        (Upwards_env.create
-           (Downwards_acc.are_rebuilding_terms dacc4)
-           (Downwards_env.machine_width (Downwards_acc.denv dacc4)))
+      UE.add_function_return_or_exn_continuation
+        (UE.create
+           (DA.are_rebuilding_terms dacc4)
+           (DE.machine_width (DA.denv dacc4)))
         return_continuation
         (continuation_is_cold return_continuation)
         (Flambda_arity.unarize_t return_arity)
     in
     let uenv0 =
-      Upwards_env.add_function_return_or_exn_continuation uenv exn_continuation
+      UE.add_function_return_or_exn_continuation uenv exn_continuation
         (continuation_is_cold exn_continuation)
-        (Flambda_arity.create_singletons
-           (Flambda_kind.With_subkind.any_value :: []))
+        (Flambda_arity.create_singletons (K.With_subkind.any_value :: []))
     in
-    let uacc = Upwards_acc.create flow_result true uenv0 dacc4 in
+    let uacc = UA.create flow_result true uenv0 dacc4 in
     let uacc0 =
       if
         Flow.Analysis.did_perform_mutable_unboxing flow_result
-        || Flow.Analysis.added_useful_alias_in_loop
-             (Downwards_acc.typing_env dacc4)
+        || Flow.Analysis.added_useful_alias_in_loop (DA.typing_env dacc4)
              data_flow flow_result
-      then Upwards_acc.set_resimplify uacc
+      then UA.set_resimplify uacc
       else uacc
     in
     rebuild_expr expr uacc0 (fun expr0 uacc1 -> expr0, uacc1)
   in
   let () =
-    Name_occurrences.fold_continuations_including_in_trap_actions
-      (Upwards_acc.name_occurrences uacc) () (fun _ cont ->
+    NO.fold_continuations_including_in_trap_actions (UA.name_occurrences uacc)
+      () (fun _ cont ->
         if
           (not (Continuation.equal cont return_continuation))
           && not (Continuation.equal cont exn_continuation)
@@ -217,15 +201,15 @@ let simplify_toplevel_common dacc simplify params implicit_params
             "Continuation %a should not be free in toplevel expression after \
              simplification (return continuation %a, exn continuation %a):@ %a"
             Continuation.print cont
-            (Rebuilt_expr.print (Upwards_acc.are_rebuilding_terms uacc))
+            (RE.print (UA.are_rebuilding_terms uacc))
             expr0 Continuation.print return_continuation Continuation.print
             exn_continuation
         else ())
   in
   expr0, uacc
 
-(** val simplify_expr : Downwards_acc.t -> Flambda.Expr.t -> Simplified_expr.t
-    Simplify_common.down_to_up -> (Simplified_expr.t * Downwards_acc.t) coq_M **)
+(** val simplify_expr : DA.t -> Expr.t -> SE.t Simplify_common.down_to_up ->
+    (Simplified_expr.t * Downwards_acc.t) coq_M **)
 
 let rec simplify_expr dacc expr down_to_up0 =
   (fun f__1 f__2 f__3 f__4 f__5 f__6 x__0 ->
@@ -249,12 +233,11 @@ let rec simplify_expr dacc expr down_to_up0 =
     (fun message ->
       down_to_up0 dacc
         (Simplified_expr.simplified_invalid (Flambda.Invalid.Message message)))
-    (Flambda.Expr.descr expr)
+    (Expr.descr expr)
 
-(** val simplify_function_body : Downwards_acc.t -> Flambda.Expr.t ->
-    Continuation.t -> (_) Flambda_arity.t -> Continuation.t -> Loopify_state.t
-    -> Bound_parameters.t -> Bound_parameters.t -> (Rebuilt_expr.t *
-    Upwards_acc.t) coq_M **)
+(** val simplify_function_body : DA.t -> Expr.t -> Continuation.t -> (_)
+    Flambda_arity.t -> Continuation.t -> Loopify_state.t -> Bound_parameters.t
+    -> Bound_parameters.t -> (RE.t * UA.t) coq_M **)
 
 and simplify_function_body dacc expr return_continuation return_arity
     exn_continuation loopify_state params implicit_params =
@@ -266,15 +249,14 @@ and simplify_function_body dacc expr return_continuation return_arity
   | Loopify_state.Loopify cont ->
     let call_self_cont_expr =
       let args = Bound_parameters.simples params in
-      Flambda.Expr.create_apply_cont
+      Expr.create_apply_cont
         ((fun x__1 x__2 x__3 x__4 ->
            Apply_cont_expr.create ?trap_action:x__1 x__2 x__3 x__4)
            None cont args Debuginfo.none)
     in
     let handlers =
       Continuation.Lmap.singleton cont
-        (Flambda.Continuation_handler.create params expr Or_unknown.Unknown
-           false false)
+        (Continuation_handler.create params expr Or_unknown.Unknown false false)
     in
     simplify_toplevel_common dacc
       (fun dacc0 down_to_up0 ->
@@ -284,16 +266,15 @@ and simplify_function_body dacc expr return_continuation return_arity
           down_to_up0)
       params implicit_params return_continuation return_arity exn_continuation
 
-(** val simplify_let : Downwards_acc.t -> Flambda.Let.t -> Simplified_expr.t
-    Simplify_common.down_to_up -> (Simplified_expr.t * Downwards_acc.t) coq_M **)
+(** val simplify_let : DA.t -> Let.t -> SE.t Simplify_common.down_to_up ->
+    (Simplified_expr.t * Downwards_acc.t) coq_M **)
 
 and simplify_let dacc let_expr down_to_up0 =
   Simplify_let_expr.simplify_let simplify_expr simplify_function_body dacc
     let_expr down_to_up0
 
-(** val simplify_toplevel : Downwards_acc.t -> Flambda.Expr.t -> Continuation.t
-    -> (_) Flambda_arity.t -> Continuation.t -> (Rebuilt_expr.t * Upwards_acc.t)
-    coq_M **)
+(** val simplify_toplevel : DA.t -> Expr.t -> Continuation.t -> (_)
+    Flambda_arity.t -> Continuation.t -> (RE.t * UA.t) coq_M **)
 
 let simplify_toplevel dacc expr return_continuation return_arity
     exn_continuation =

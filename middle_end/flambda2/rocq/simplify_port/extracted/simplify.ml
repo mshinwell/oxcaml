@@ -35,33 +35,27 @@ open Port_monad
     Slot_offsets.t Code_id.Map.t -> Flambda_unit.t -> simplify_result coq_M **)
 
 let run cmx_loader machine_width round code_slot_offsets unit0 =
-  let return_continuation = Flambda_unit.return_continuation unit0 in
-  let exn_continuation = Flambda_unit.exn_continuation unit0 in
-  let toplevel_my_alloc_region = Flambda_unit.toplevel_my_alloc_region unit0 in
-  let module_symbol = Flambda_unit.module_symbol unit0 in
+  let return_continuation = FU.return_continuation unit0 in
+  let exn_continuation = FU.exn_continuation unit0 in
+  let toplevel_my_alloc_region = FU.toplevel_my_alloc_region unit0 in
+  let module_symbol = FU.module_symbol unit0 in
   let resolver = Flambda_cmx.load_cmx_file_contents cmx_loader in
   let get_imported_code = Flambda_cmx.get_imported_code cmx_loader in
   let denv =
-    Downwards_env.create round machine_width resolver get_imported_code
+    DE.create round machine_width resolver get_imported_code
       (Flambda_features.float_const_prop ())
       exn_continuation return_continuation toplevel_my_alloc_region
   in
-  let dacc =
-    Downwards_acc.create denv code_slot_offsets Continuation_uses_env.empty
-  in
+  let dacc = DA.create denv code_slot_offsets Continuation_uses_env.empty in
   let body, uacc =
-    Simplify_expr.simplify_toplevel dacc (Flambda_unit.body unit0)
-      return_continuation
-      (Flambda_arity.create_singletons
-         (Flambda_kind.With_subkind.any_value :: []))
+    Simplify_expr.simplify_toplevel dacc (FU.body unit0) return_continuation
+      (Flambda_arity.create_singletons (K.With_subkind.any_value :: []))
       exn_continuation
   in
-  let body0 =
-    Rebuilt_expr.to_expr body (Upwards_acc.are_rebuilding_terms uacc)
-  in
-  let name_occurrences = Upwards_acc.name_occurrences uacc in
+  let body0 = Rebuilt_expr.to_expr body (UA.are_rebuilding_terms uacc) in
+  let name_occurrences = UA.name_occurrences uacc in
   let () =
-    Name_occurrences.fold_names name_occurrences () (fun _ name ->
+    NO.fold_names name_occurrences () (fun _ name ->
         Name.pattern_match name
           (fun var ->
             if not (Variable.equal var toplevel_my_alloc_region)
@@ -69,50 +63,42 @@ let run cmx_loader machine_width round code_slot_offsets unit0 =
               Misc.fatal_errorf
                 "Variable %a not expected to be free in whole-compilation-unit \
                  term:@ %a"
-                Variable.print var Flambda.Expr.print body0
+                Variable.print var Expr.print body0
             else ())
           (fun _ -> ()))
   in
   let () =
-    if not (Lifted_constant_state.is_empty (Upwards_acc.lifted_constants uacc))
+    if not (LCS.is_empty (UA.lifted_constants uacc))
     then
       Misc.fatal_errorf "Lifted constants accumulator should be empty:@ %a"
-        Upwards_acc.print uacc
+        UA.print uacc
     else ()
   in
   let final_typing_env =
-    let cont_uses_env =
-      Downwards_acc.continuation_uses_env (Upwards_acc.creation_dacc uacc)
-    in
+    let cont_uses_env = DA.continuation_uses_env (UA.creation_dacc uacc) in
     match
       Continuation_uses_env.get_typing_env_no_more_than_one_use cont_uses_env
         return_continuation
     with
     | Some final_typing_env -> final_typing_env
     | None ->
-      Flambda2_types.Typing_env.add_symbol_definition
-        (Flambda2_types.Typing_env.create machine_width resolver)
-        module_symbol
+      TE.add_symbol_definition (TE.create machine_width resolver) module_symbol
   in
-  let () =
-    Flambda2_types.Typing_env.notify_test_observer final_typing_env
-      return_continuation
-  in
+  let () = TE.notify_test_observer final_typing_env return_continuation in
   let all_code =
-    Exported_code.merge
-      (Upwards_acc.all_code uacc)
+    Exported_code.merge (UA.all_code uacc)
       (Exported_code.mark_as_imported (get_imported_code ()))
   in
-  let name_occurrences0 = Upwards_acc.name_occurrences uacc in
+  let name_occurrences0 = UA.name_occurrences uacc in
   let slot_offsets =
-    match Upwards_acc.slot_offsets uacc with
+    match UA.slot_offsets uacc with
     | Or_unknown.Known slot_offsets -> slot_offsets
     | Or_unknown.Unknown ->
       Misc.fatal_error "Slot offsets must be computed and cannot be unknown"
   in
   let unit1 =
-    Flambda_unit.create return_continuation exn_continuation
-      toplevel_my_alloc_region body0 module_symbol
+    FU.create return_continuation exn_continuation toplevel_my_alloc_region
+      body0 module_symbol
   in
   (fun x__1 x__2 x__3 x__4 x__5 ->
     { free_names = x__1;

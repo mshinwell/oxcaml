@@ -33,8 +33,7 @@ type used =
 type t =
   { original_params_usage : used list;
     extra_params_usage : used list;
-    extra_args :
-      Continuation_extra_params_and_args.Extra_arg.t list Or_invalid.t Id.Map.t;
+    extra_args : EA.t list Or_invalid.t Id.Map.t;
     original_params : Bound_parameters.t;
     extra_params : Bound_parameters.t
   }
@@ -47,8 +46,7 @@ let original_params_usage t0 = t0.original_params_usage
 
 let extra_params_usage t0 = t0.extra_params_usage
 
-(** val extra_args : t -> Continuation_extra_params_and_args.Extra_arg.t list
-    Or_invalid.t Id.Map.t **)
+(** val extra_args : t -> EA.t list Or_invalid.t Id.Map.t **)
 
 let extra_args t0 = t0.extra_args
 
@@ -99,12 +97,11 @@ let print ppf pat =
     (original_params0, original_params_usage0)
     print_params_used
     (extra_params0, extra_params_usage0)
-    (Apply_cont_rewrite_id.Map.print
+    (Id.Map.print
        (Or_invalid.print
           ((fun x__1 x__2 x__3 x__4 ->
              Format.pp_print_list ?pp_sep:x__1 x__2 x__3 x__4)
-             (Some Format.pp_print_space)
-             Continuation_extra_params_and_args.Extra_arg.print)))
+             (Some Format.pp_print_space) EA.print)))
     extra_args0
 
 (** val does_nothing : t -> bool coq_M **)
@@ -122,16 +119,12 @@ let does_nothing t0 =
          | Used_as_invariant -> false)
        t0.extra_params_usage
 
-(** val create : Bound_parameters.t -> Continuation_extra_params_and_args.t ->
-    (Bound_parameter.t -> used coq_M) -> t coq_M **)
+(** val create : Bound_parameters.t -> EPA.t -> (Bound_parameter.t -> used
+    coq_M) -> t coq_M **)
 
 let create original_params0 extra_params_and_args decide_param_usage =
-  let extra_params0 =
-    Continuation_extra_params_and_args.extra_params extra_params_and_args
-  in
-  let extra_args0 =
-    Continuation_extra_params_and_args.extra_args extra_params_and_args
-  in
+  let extra_params0 = EPA.extra_params extra_params_and_args in
+  let extra_args0 = EPA.extra_args extra_params_and_args in
   let () = Bound_parameters.check_no_duplicates original_params0 in
   let () = Bound_parameters.check_no_duplicates extra_params0 in
   let original_params_usage0 =
@@ -236,12 +229,11 @@ type rewrite_apply_cont_ctx =
   | Apply_cont
   | Apply_expr of Simple.t list
 
-(** val extra_args_list : t -> Apply_cont_rewrite_id.t ->
-    Continuation_extra_params_and_args.Extra_arg.t list Or_invalid.t coq_M **)
+(** val extra_args_list : t -> Id.t -> EA.t list Or_invalid.t coq_M **)
 
 let extra_args_list rewrite id =
   Port_monad.try_with
-    (fun _ -> Apply_cont_rewrite_id.Map.find id rewrite.extra_args)
+    (fun _ -> Id.Map.find id rewrite.extra_args)
     Port_monad.not_found
     (fun _ ->
       match rewrite.extra_params_usage with
@@ -253,9 +245,9 @@ let extra_args_list rewrite id =
           Apply_cont_rewrite_id.print id)
 
 (** val make_rewrite : t -> Target_system.Machine_width.t ->
-    rewrite_apply_cont_ctx -> Apply_cont_rewrite_id.t -> Simple.t list ->
-    ((Bound_var.t, Code_size.t, Flambda.Named.t) Port_monad.tuple3 list *
-    Simple.t list) Or_invalid.t coq_M **)
+    rewrite_apply_cont_ctx -> Id.t -> Simple.t list -> ((Bound_var.t,
+    Code_size.t, Flambda.Named.t) Port_monad.tuple3 list * Simple.t list)
+    Or_invalid.t coq_M **)
 
 let make_rewrite rewrite machine_width ctx id args =
   let invariant_args, args0 =
@@ -275,11 +267,9 @@ let make_rewrite rewrite machine_width ctx id args =
           fun arg used0 ->
             let extra_arg, extra_let, free_names, defined_names =
               match arg with
-              | Continuation_extra_params_and_args.Extra_arg.Already_in_scope
-                  simple ->
+              | EA.Already_in_scope simple ->
                 simple, [], Simple.free_names simple, Name_occurrences.empty
-              | Continuation_extra_params_and_args.Extra_arg.New_let_binding
-                  (temp, prim) ->
+              | EA.New_let_binding (temp, prim) ->
                 let temp_duid = Flambda_debug_uid.none in
                 let extra_let =
                   ( Bound_var.create temp temp_duid Name_mode.normal,
@@ -290,9 +280,7 @@ let make_rewrite rewrite machine_width ctx id args =
                   extra_let :: [],
                   Flambda_primitive.free_names prim,
                   Name_occurrences.singleton_variable temp Name_mode.normal )
-              | Continuation_extra_params_and_args.Extra_arg
-                .New_let_binding_with_named_args
-                  (temp, gen_prim) ->
+              | EA.New_let_binding_with_named_args (temp, gen_prim) ->
                 let temp_duid = Flambda_debug_uid.none in
                 let prim =
                   match ctx with
@@ -346,8 +334,8 @@ let make_rewrite rewrite machine_width ctx id args =
         @ List.rev extra_args_rev )
   | Or_invalid.Invalid -> Or_invalid.Invalid
 
-(** val rewrite_exn_continuation : t -> Apply_cont_rewrite_id.t ->
-    Exn_continuation.t -> Exn_continuation.t coq_M **)
+(** val rewrite_exn_continuation : t -> Id.t -> Exn_continuation.t ->
+    Exn_continuation.t coq_M **)
 
 let rewrite_exn_continuation rewrite id exn_cont =
   let exn_cont_arity = Exn_continuation.arity exn_cont in
@@ -406,17 +394,13 @@ let rewrite_exn_continuation rewrite id exn_cont =
         List.map2
           (fun arg extra_param ->
             match arg with
-            | Continuation_extra_params_and_args.Extra_arg.Already_in_scope
-                simple ->
+            | EA.Already_in_scope simple ->
               simple, Bound_parameter.kind extra_param
-            | Continuation_extra_params_and_args.Extra_arg.New_let_binding (_, _)
-              ->
+            | EA.New_let_binding (_, _) ->
               Misc.fatal_error
                 "[New_let_binding] are currently forbidden for exn \
                  continuation rewrites"
-            | Continuation_extra_params_and_args.Extra_arg
-              .New_let_binding_with_named_args
-                (_, _) ->
+            | EA.New_let_binding_with_named_args (_, _) ->
               Misc.fatal_error
                 "[New_let_binding] are currently forbidden for exn \
                  continuation rewrites")

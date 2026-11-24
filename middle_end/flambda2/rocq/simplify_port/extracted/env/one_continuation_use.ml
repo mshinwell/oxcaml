@@ -27,8 +27,8 @@ module T = Flambda2_types
 type t =
   { id : Apply_cont_rewrite_id.t;
     kind : Continuation_use_kind.t;
-    arg_types : Flambda2_types.t list;
-    env : Downwards_env.t
+    arg_types : T.t list;
+    env : DE.t
   }
 
 (** val id : t -> Apply_cont_rewrite_id.t **)
@@ -39,16 +39,16 @@ let id t0 = t0.id
 
 let kind t0 = t0.kind
 
-(** val arg_types : t -> Flambda2_types.t list **)
+(** val arg_types : t -> T.t list **)
 
 let arg_types t0 = t0.arg_types
 
-(** val env : t -> Downwards_env.t **)
+(** val env : t -> DE.t **)
 
 let env t0 = t0.env
 
-(** val create : Continuation_use_kind.t -> Downwards_env.t ->
-    Apply_cont_rewrite_id.t -> Flambda2_types.t list -> t coq_M **)
+(** val create : Continuation_use_kind.t -> DE.t -> Apply_cont_rewrite_id.t ->
+    T.t list -> t coq_M **)
 
 let create kind0 env0 id0 arg_types0 =
   { id = id0; kind = kind0; arg_types = arg_types0; env = env0 }
@@ -69,7 +69,7 @@ let print ppf t0 =
 
 let use_kind t0 = t0.kind
 
-(** val env_at_use : t -> Downwards_env.t coq_M **)
+(** val env_at_use : t -> DE.t coq_M **)
 
 let env_at_use t0 = t0.env
 

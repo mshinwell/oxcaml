@@ -22,26 +22,23 @@
 open! Simplify_import
 open Port_monad
 
-(** val simplify_nullary_primitive : Downwards_acc.t -> Flambda_primitive.t ->
-    Flambda_primitive.nullary_primitive -> Debuginfo.t -> Bound_var.t ->
-    Simplify_primitive_result.t coq_M **)
+(** val simplify_nullary_primitive : DA.t -> P.t -> P.nullary_primitive ->
+    Debuginfo.t -> Bound_var.t -> Simplify_primitive_result.t coq_M **)
 
 let simplify_nullary_primitive dacc original_prim prim dbg result_var =
   (fun f__1 f__2 f__3 f__4 f__5 f__6 f__7 f__8 f__9 x__0 ->
-    match (x__0 : Flambda_primitive.nullary_primitive) with
-    | Flambda_primitive.Invalid x__1 -> f__1 x__1
-    | Flambda_primitive.Optimised_out x__1 -> f__2 x__1
-    | Flambda_primitive.Probe_is_enabled { name = x__1; enabled_at_init = x__2 }
-      ->
+    match (x__0 : P.nullary_primitive) with
+    | P.Invalid x__1 -> f__1 x__1
+    | P.Optimised_out x__1 -> f__2 x__1
+    | P.Probe_is_enabled { name = x__1; enabled_at_init = x__2 } ->
       f__3 x__1 x__2
-    | Flambda_primitive.Enter_inlined_apply
-        { dbg = x__1; inlined_attribute = x__2 } ->
+    | P.Enter_inlined_apply { dbg = x__1; inlined_attribute = x__2 } ->
       f__4 x__1 x__2
-    | Flambda_primitive.Dls_get -> f__5 ()
-    | Flambda_primitive.Tls_get -> f__6 ()
-    | Flambda_primitive.Domain_index -> f__7 ()
-    | Flambda_primitive.Poll -> f__8 ()
-    | Flambda_primitive.Cpu_relax -> f__9 ())
+    | P.Dls_get -> f__5 ()
+    | P.Tls_get -> f__6 ()
+    | P.Domain_index -> f__7 ()
+    | P.Poll -> f__8 ()
+    | P.Cpu_relax -> f__9 ())
     (fun _ -> Simplify_primitive_result.create_invalid dacc)
     (fun result_kind ->
       let () =
@@ -56,71 +53,51 @@ let simplify_nullary_primitive dacc original_prim prim dbg result_var =
             "The [Optimised_out] primitive should only be used in bindings of \
              phantom variables"
       in
-      let named = Flambda.Named.create_prim original_prim dbg in
-      let ty = Flambda2_types.unknown result_kind in
-      let dacc0 = Downwards_acc.add_variable dacc result_var ty in
+      let named = Named.create_prim original_prim dbg in
+      let ty = T.unknown result_kind in
+      let dacc0 = DA.add_variable dacc result_var ty in
       Simplify_primitive_result.create named false dacc0)
     (fun _ _ ->
-      let named = Flambda.Named.create_prim original_prim dbg in
-      let ty =
-        Flambda2_types.any_naked_bool
-          (Downwards_env.machine_width (Downwards_acc.denv dacc))
-      in
-      let dacc0 = Downwards_acc.add_variable dacc result_var ty in
+      let named = Named.create_prim original_prim dbg in
+      let ty = T.any_naked_bool (DE.machine_width (DA.denv dacc)) in
+      let dacc0 = DA.add_variable dacc result_var ty in
       Simplify_primitive_result.create named false dacc0)
     (fun dbg0 inlined_attribute ->
       let dacc0 =
-        Downwards_acc.map_denv dacc (fun denv ->
-            Downwards_env.merge_inlined_debuginfo_and_forward_inlined_attribute
-              denv dbg0 inlined_attribute)
+        DA.map_denv dacc (fun denv ->
+            DE.merge_inlined_debuginfo_and_forward_inlined_attribute denv dbg0
+              inlined_attribute)
       in
-      let machine_width =
-        Downwards_env.machine_width (Downwards_acc.denv dacc0)
-      in
-      let named =
-        Flambda.Named.create_simple (Simple.const_unit machine_width)
-      in
-      let ty =
-        Flambda2_types.this_tagged_immediate
-          (Target_ocaml_int.zero machine_width)
-      in
-      let dacc1 = Downwards_acc.add_variable dacc0 result_var ty in
+      let machine_width = DE.machine_width (DA.denv dacc0) in
+      let named = Named.create_simple (Simple.const_unit machine_width) in
+      let ty = T.this_tagged_immediate (Target_ocaml_int.zero machine_width) in
+      let dacc1 = DA.add_variable dacc0 result_var ty in
       Simplify_primitive_result.create named false dacc1)
     (fun _ ->
-      let named = Flambda.Named.create_prim original_prim dbg in
-      let ty = Flambda2_types.any_value in
-      let dacc0 = Downwards_acc.add_variable dacc result_var ty in
+      let named = Named.create_prim original_prim dbg in
+      let ty = T.any_value in
+      let dacc0 = DA.add_variable dacc result_var ty in
       Simplify_primitive_result.create named false dacc0)
     (fun _ ->
-      let named = Flambda.Named.create_prim original_prim dbg in
-      let ty = Flambda2_types.any_value in
-      let dacc0 = Downwards_acc.add_variable dacc result_var ty in
+      let named = Named.create_prim original_prim dbg in
+      let ty = T.any_value in
+      let dacc0 = DA.add_variable dacc result_var ty in
       Simplify_primitive_result.create named false dacc0)
     (fun _ ->
-      let named = Flambda.Named.create_prim original_prim dbg in
-      let ty = Flambda2_types.any_naked_immediate in
-      let dacc0 = Downwards_acc.add_variable dacc result_var ty in
+      let named = Named.create_prim original_prim dbg in
+      let ty = T.any_naked_immediate in
+      let dacc0 = DA.add_variable dacc result_var ty in
       Simplify_primitive_result.create named false dacc0)
     (fun _ ->
-      let named = Flambda.Named.create_prim original_prim dbg in
-      let machine_width =
-        Downwards_env.machine_width (Downwards_acc.denv dacc)
-      in
-      let ty =
-        Flambda2_types.this_tagged_immediate
-          (Target_ocaml_int.zero machine_width)
-      in
-      let dacc0 = Downwards_acc.add_variable dacc result_var ty in
+      let named = Named.create_prim original_prim dbg in
+      let machine_width = DE.machine_width (DA.denv dacc) in
+      let ty = T.this_tagged_immediate (Target_ocaml_int.zero machine_width) in
+      let dacc0 = DA.add_variable dacc result_var ty in
       Simplify_primitive_result.create named false dacc0)
     (fun _ ->
-      let named = Flambda.Named.create_prim original_prim dbg in
-      let machine_width =
-        Downwards_env.machine_width (Downwards_acc.denv dacc)
-      in
-      let ty =
-        Flambda2_types.this_tagged_immediate
-          (Target_ocaml_int.zero machine_width)
-      in
-      let dacc0 = Downwards_acc.add_variable dacc result_var ty in
+      let named = Named.create_prim original_prim dbg in
+      let machine_width = DE.machine_width (DA.denv dacc) in
+      let ty = T.this_tagged_immediate (Target_ocaml_int.zero machine_width) in
+      let dacc0 = DA.add_variable dacc result_var ty in
       Simplify_primitive_result.create named false dacc0)
     prim

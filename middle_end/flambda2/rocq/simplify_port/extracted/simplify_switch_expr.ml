@@ -31,7 +31,7 @@ module Alias_set = TE.Alias_set
 module RWC = Reg_width_const
 
 type alias_set =
-  | Aliases of Flambda2_types.Typing_env.Alias_set.t
+  | Aliases of Alias_set.t
   | Poison of Flambda_kind.t
 
 type mergeable_arms =
@@ -48,8 +48,7 @@ let inter_alias_set alias1 alias2 =
   match alias1 with
   | Aliases alias -> (
     match alias2 with
-    | Aliases alias3 ->
-      Aliases (Flambda2_types.Typing_env.Alias_set.inter alias alias3)
+    | Aliases alias3 -> Aliases (Alias_set.inter alias alias3)
     | Poison _ -> Aliases alias)
   | Poison kind1 -> (
     match alias2 with
@@ -63,17 +62,14 @@ let inter_alias_set alias1 alias2 =
            and %a"
           Flambda_kind.print kind1 Flambda_kind.print kind2)
 
-(** val find_all_aliases : Flambda2_types.Typing_env.t -> Simple.t -> alias_set
-    coq_M **)
+(** val find_all_aliases : TE.t -> Simple.t -> alias_set coq_M **)
 
 let find_all_aliases env arg =
   let find_all_aliases0 =
-   fun _ ->
-    Aliases
-      (Flambda2_types.Typing_env.aliases_of_simple env Name_mode.normal arg)
+   fun _ -> Aliases (TE.aliases_of_simple env NM.normal arg)
   in
   Simple.pattern_match' arg
-    (fun _ _ -> Aliases (Flambda2_types.Typing_env.Alias_set.singleton arg))
+    (fun _ _ -> Aliases (TE.Alias_set.singleton arg))
     (fun _ _ -> find_all_aliases0 ())
     (fun cst ->
       match Reg_width_const.is_poison cst with
@@ -82,8 +78,8 @@ let find_all_aliases env arg =
         Poison kind
       | None -> find_all_aliases0 ())
 
-(** val rebuild_arm : Upwards_acc.t -> Target_ocaml_int.t -> (Apply_cont_expr.t
-    * annotations:Branch_annotations.t * Apply_cont_rewrite_id.t * [ `Unarized ]
+(** val rebuild_arm : UA.t -> TI.t -> (Apply_cont_expr.t *
+    annotations:Branch_annotations.t * Apply_cont_rewrite_id.t * [ `Unarized ]
     Flambda_arity.t * Flambda2_types.Typing_env.t) ->
     (Simplify_import.EB.new_let_cont list, Switch_arm.t TI.Map.t,
     mergeable_arms) Port_monad.tuple3 -> (Simplify_import.EB.new_let_cont list,
@@ -103,24 +99,24 @@ let rebuild_arm uacc arm pat pat0 =
        fun action1 ->
         let annotations0 =
           if
-            Upwards_env.is_cold_continuation (Upwards_acc.uenv uacc)
-              (Flambda.Apply_cont.continuation action1)
+            UE.is_cold_continuation (UA.uenv uacc)
+              (Apply_cont.continuation action1)
           then Branch_annotations.with_likelihood annotations Likelihood.cold
           else annotations
         in
         Switch_arm.create annotations0 action1
       in
       (fun f__1 f__2 f__3 x__0 ->
-        match (x__0 : Expr_builder.rewrite_switch_arm_result) with
-        | Expr_builder.Invalid { message = x__1 } -> f__1 x__1
-        | Expr_builder.Apply_cont x__1 -> f__2 x__1
-        | Expr_builder.New_wrapper x__1 -> f__3 x__1)
+        match (x__0 : EB.rewrite_switch_arm_result) with
+        | EB.Invalid { message = x__1 } -> f__1 x__1
+        | EB.Apply_cont x__1 -> f__2 x__1
+        | EB.New_wrapper x__1 -> f__3 x__1)
         (fun _ -> new_let_conts, arms0, mergeable_arms0)
         (fun action1 ->
           let action2 =
-            let cont0 = Flambda.Apply_cont.continuation action1 in
+            let cont0 = Apply_cont.continuation action1 in
             let cont_info_from_uenv =
-              Upwards_env.find_continuation (Upwards_acc.uenv uacc) cont0
+              UE.find_continuation (UA.uenv uacc) cont0
             in
             (fun f__1 f__2 f__3 f__4 f__5 x__0 ->
               match (x__0 : Continuation_in_env.t) with
@@ -143,12 +139,12 @@ let rebuild_arm uacc arm pat pat0 =
                 f__4 x__1
               | Continuation_in_env.Invalid { arity = x__1 } -> f__5 x__1)
               (fun _ _ _ _ ->
-                if not (Flambda.Apply_cont.is_goto action1)
+                if not (Apply_cont.is_goto action1)
                 then Some action1
                 else
                   let check_handler =
                    fun handler action2 ->
-                    match Rebuilt_expr.to_apply_cont handler with
+                    match RE.to_apply_cont handler with
                     | Some action3 -> Some action3
                     | None -> Some action2
                   in
@@ -184,17 +180,17 @@ let rebuild_arm uacc arm pat pat0 =
                       Misc.fatal_errorf
                         "Inconsistency for %a between [Apply_cont.is_goto] and \
                          continuation environment in [UA]:@ %a"
-                        Continuation.print cont0 Upwards_acc.print uacc)
+                        Continuation.print cont0 UA.print uacc)
                     (fun _ -> Some action1)
                     (fun _ -> None)
                     cont_info_from_uenv)
               (fun _ ->
-                if not (Flambda.Apply_cont.is_goto action1)
+                if not (Apply_cont.is_goto action1)
                 then Some action1
                 else
                   let check_handler =
                    fun handler action2 ->
-                    match Rebuilt_expr.to_apply_cont handler with
+                    match RE.to_apply_cont handler with
                     | Some action3 -> Some action3
                     | None -> Some action2
                   in
@@ -230,17 +226,17 @@ let rebuild_arm uacc arm pat pat0 =
                       Misc.fatal_errorf
                         "Inconsistency for %a between [Apply_cont.is_goto] and \
                          continuation environment in [UA]:@ %a"
-                        Continuation.print cont0 Upwards_acc.print uacc)
+                        Continuation.print cont0 UA.print uacc)
                     (fun _ -> Some action1)
                     (fun _ -> None)
                     cont_info_from_uenv)
               (fun _ ->
-                if not (Flambda.Apply_cont.is_goto action1)
+                if not (Apply_cont.is_goto action1)
                 then Some action1
                 else
                   let check_handler =
                    fun handler action2 ->
-                    match Rebuilt_expr.to_apply_cont handler with
+                    match RE.to_apply_cont handler with
                     | Some action3 -> Some action3
                     | None -> Some action2
                   in
@@ -276,17 +272,17 @@ let rebuild_arm uacc arm pat pat0 =
                       Misc.fatal_errorf
                         "Inconsistency for %a between [Apply_cont.is_goto] and \
                          continuation environment in [UA]:@ %a"
-                        Continuation.print cont0 Upwards_acc.print uacc)
+                        Continuation.print cont0 UA.print uacc)
                     (fun _ -> Some action1)
                     (fun _ -> None)
                     cont_info_from_uenv)
               (fun _ ->
-                if not (Flambda.Apply_cont.is_goto action1)
+                if not (Apply_cont.is_goto action1)
                 then Some action1
                 else
                   let check_handler =
                    fun handler action2 ->
-                    match Rebuilt_expr.to_apply_cont handler with
+                    match RE.to_apply_cont handler with
                     | Some action3 -> Some action3
                     | None -> Some action2
                   in
@@ -322,7 +318,7 @@ let rebuild_arm uacc arm pat pat0 =
                       Misc.fatal_errorf
                         "Inconsistency for %a between [Apply_cont.is_goto] and \
                          continuation environment in [UA]:@ %a"
-                        Continuation.print cont0 Upwards_acc.print uacc)
+                        Continuation.print cont0 UA.print uacc)
                     (fun _ -> Some action1)
                     (fun _ -> None)
                     cont_info_from_uenv)
@@ -331,10 +327,8 @@ let rebuild_arm uacc arm pat pat0 =
           in
           match action2 with
           | Some action3 ->
-            let arms1 =
-              Target_ocaml_int.Map.add arm (create_arm action3) arms0
-            in
-            if Option.is_some (Flambda.Apply_cont.trap_action action3)
+            let arms1 = TI.Map.add arm (create_arm action3) arms0 in
+            if Option.is_some (Apply_cont.trap_action action3)
             then new_let_conts, arms1, Not_mergeable
             else
               (fun f__1 f__2 f__3 x__0 ->
@@ -343,13 +337,12 @@ let rebuild_arm uacc arm pat pat0 =
                 | Mergeable { cont = x__1; args = x__2 } -> f__2 x__1 x__2
                 | Not_mergeable -> f__3 ())
                 (fun _ ->
-                  let cont0 = Flambda.Apply_cont.continuation action3 in
+                  let cont0 = Apply_cont.continuation action3 in
                   let args =
                     List.map
                       (fun arg ->
-                        Target_ocaml_int.Map.singleton arm
-                          (find_all_aliases env_at_use arg))
-                      (Flambda.Apply_cont.args action3)
+                        TI.Map.singleton arm (find_all_aliases env_at_use arg))
+                      (Apply_cont.args action3)
                   in
                   ( new_let_conts,
                     arms1,
@@ -359,17 +352,16 @@ let rebuild_arm uacc arm pat pat0 =
                   if
                     not
                       (Continuation.equal cont0
-                         (Flambda.Apply_cont.continuation action3))
+                         (Apply_cont.continuation action3))
                   then new_let_conts, arms1, Not_mergeable
                   else
                     let args0 =
                       List.map2
                         (fun arg_set arg ->
-                          Target_ocaml_int.Map.add arm
+                          TI.Map.add arm
                             (find_all_aliases env_at_use arg)
                             arg_set)
-                        args
-                        (Flambda.Apply_cont.args action3)
+                        args (Apply_cont.args action3)
                     in
                     ( new_let_conts,
                       arms1,
@@ -381,12 +373,10 @@ let rebuild_arm uacc arm pat pat0 =
           | None -> new_let_conts, arms0, mergeable_arms0)
         (fun new_let_cont0 ->
           let new_let_conts0 = new_let_cont0 :: new_let_conts in
-          let action1 =
-            Flambda.Apply_cont.goto new_let_cont0.Expr_builder.cont
-          in
-          let arms1 = Target_ocaml_int.Map.add arm (create_arm action1) arms0 in
+          let action1 = Apply_cont.goto new_let_cont0.Expr_builder.cont in
+          let arms1 = TI.Map.add arm (create_arm action1) arms0 in
           new_let_conts0, arms1, Not_mergeable)
-        (Expr_builder.rewrite_switch_arm uacc action0 use_id arity))
+        (EB.rewrite_switch_arm uacc action0 use_id arity))
     pat
 
 (** val filter_and_choose_alias : Name.Set.t -> alias_set -> Simple.t option
@@ -395,25 +385,24 @@ let rebuild_arm uacc arm pat pat0 =
 let filter_and_choose_alias required_names = function
   | Aliases alias_set1 ->
     let available_alias_set =
-      Flambda2_types.Typing_env.Alias_set.filter alias_set1 (fun alias ->
+      Alias_set.filter alias_set1 (fun alias ->
           Simple.pattern_match alias
             (fun name _ -> Name.Set.mem name required_names)
             (fun _ -> true))
     in
-    Flambda2_types.Typing_env.Alias_set.find_best available_alias_set
+    Alias_set.find_best available_alias_set
   | Poison kind ->
     Some (Simple.const (Reg_width_const.const_poison kind "rebuild_switch"))
 
 (** val find_cse_simple : bool option -> Common_subexpression_elimination.t ->
-    Flambda2_types.Typing_env.t -> Name.Set.t ->
-    Common_subexpression_elimination.t -> Flambda_primitive.t -> Simple.t option
-    coq_M **)
+    TE.t -> Name.Set.t -> Common_subexpression_elimination.t -> P.t -> Simple.t
+    option coq_M **)
 
 let find_cse_simple required cse typing_env required_names local_cse prim =
   let required0 =
     match required with Some required0 -> required0 | None -> true
   in
-  match Flambda_primitive.Eligible_for_cse.create prim with
+  match P.Eligible_for_cse.create prim with
   | Some with_fixed_value -> (
     let try_local_cse =
      fun _ -> Common_subexpression_elimination.find local_cse with_fixed_value
@@ -432,7 +421,7 @@ let find_cse_simple required cse typing_env required_names local_cse prim =
         Misc.fatal_errorf
           "Expected@ primitive@ not@ found@ in@ CSE@ environment@ while@ \
            simplifying switch:@ %a"
-          Flambda_primitive.print prim
+          P.print prim
       else try_local_cse ())
   | None -> None
 
@@ -443,8 +432,8 @@ let fields_to_simples dbg simples0 =
   List.map (fun simple -> Simple.With_debuginfo.create simple dbg) simples0
 
 (** val fields_to_or_variables : Debuginfo.t -> Target_system.Machine_width.t ->
-    (Reg_width_const.t -> 'a1 option coq_M) -> Simple.t list -> 'a1
-    Or_variable.t list coq_M **)
+    (RWC.t -> 'a1 option coq_M) -> Simple.t list -> 'a1 Or_variable.t list coq_M
+    **)
 
 let fields_to_or_variables dbg machine_width prover simples0 =
   ListLabels.map
@@ -453,11 +442,10 @@ let fields_to_or_variables dbg machine_width prover simples0 =
         (fun _ _ -> assert false)
         (fun cst ->
           let cst0 =
-            match Reg_width_const.is_poison cst with
+            match RWC.is_poison cst with
             | Some p ->
               let kind, name = p in
-              Reg_width_const.of_int_of_kind machine_width kind
-                (String.hash name)
+              RWC.of_int_of_kind machine_width kind (String.hash name)
             | None -> cst
           in
           let cst1 =
@@ -466,88 +454,74 @@ let fields_to_or_variables dbg machine_width prover simples0 =
             | None ->
               Misc.fatal_errorf
                 "Unexpected kind of constant (%a) in switch table at %a"
-                Reg_width_const.print cst0 Debuginfo.print_compact dbg
+                RWC.print cst0 Debuginfo.print_compact dbg
           in
           Or_variable.Const cst1))
     simples0
 
 (** val naked_number_array : Debuginfo.t -> Are_rebuilding_terms.t -> Simple.t
     list -> Target_system.Machine_width.t -> (Are_rebuilding_terms.t -> 'a1
-    Or_variable.t list -> Rebuilt_static_const.t coq_M) -> (Reg_width_const.t ->
-    'a1 option coq_M) -> Rebuilt_static_const.t coq_M **)
+    Or_variable.t list -> RSC.t coq_M) -> (RWC.t -> 'a1 option coq_M) -> RSC.t
+    coq_M **)
 
 let naked_number_array dbg rebuilding simples0 machine_width creator prover =
   creator rebuilding (fields_to_or_variables dbg machine_width prover simples0)
 
-(** val create_lookup_table_array_const : Debuginfo.t ->
-    Flambda_primitive.Array_kind.t -> Are_rebuilding_terms.t -> Simple.t list ->
-    Target_system.Machine_width.t -> Rebuilt_static_const.t coq_M **)
+(** val create_lookup_table_array_const : Debuginfo.t -> P.Array_kind.t ->
+    Are_rebuilding_terms.t -> Simple.t list -> Target_system.Machine_width.t ->
+    RSC.t coq_M **)
 
 let create_lookup_table_array_const dbg array_kind rebuilding simples0
     machine_width =
   match array_kind with
-  | Flambda_primitive.Array_kind.Immediates ->
-    Rebuilt_static_const.create_immutable_value_array rebuilding
-      (fields_to_simples dbg simples0)
-  | Flambda_primitive.Array_kind.Gc_ignorable_values ->
+  | P.Array_kind.Immediates ->
+    RSC.create_immutable_value_array rebuilding (fields_to_simples dbg simples0)
+  | P.Array_kind.Gc_ignorable_values ->
     Misc.fatal_errorf
       "Unexpected array kind %a when rebuilding switch lookup table at %a"
-      Flambda_primitive.Array_kind.print array_kind Debuginfo.print_compact dbg
-  | Flambda_primitive.Array_kind.Values ->
-    Rebuilt_static_const.create_immutable_value_array rebuilding
-      (fields_to_simples dbg simples0)
-  | Flambda_primitive.Array_kind.Naked_floats ->
+      P.Array_kind.print array_kind Debuginfo.print_compact dbg
+  | P.Array_kind.Values ->
+    RSC.create_immutable_value_array rebuilding (fields_to_simples dbg simples0)
+  | P.Array_kind.Naked_floats ->
     naked_number_array dbg rebuilding simples0 machine_width
-      Rebuilt_static_const.create_immutable_float_array
-      Reg_width_const.is_naked_float
-  | Flambda_primitive.Array_kind.Naked_float32s ->
+      RSC.create_immutable_float_array RWC.is_naked_float
+  | P.Array_kind.Naked_float32s ->
     naked_number_array dbg rebuilding simples0 machine_width
-      Rebuilt_static_const.create_immutable_float32_array
-      Reg_width_const.is_naked_float32
-  | Flambda_primitive.Array_kind.Naked_ints ->
+      RSC.create_immutable_float32_array RWC.is_naked_float32
+  | P.Array_kind.Naked_ints ->
     naked_number_array dbg rebuilding simples0 machine_width
-      Rebuilt_static_const.create_immutable_int_array
-      Reg_width_const.is_naked_immediate
-  | Flambda_primitive.Array_kind.Naked_int8s ->
+      RSC.create_immutable_int_array RWC.is_naked_immediate
+  | P.Array_kind.Naked_int8s ->
     naked_number_array dbg rebuilding simples0 machine_width
-      Rebuilt_static_const.create_immutable_int8_array
-      Reg_width_const.is_naked_int8
-  | Flambda_primitive.Array_kind.Naked_int16s ->
+      RSC.create_immutable_int8_array RWC.is_naked_int8
+  | P.Array_kind.Naked_int16s ->
     naked_number_array dbg rebuilding simples0 machine_width
-      Rebuilt_static_const.create_immutable_int16_array
-      Reg_width_const.is_naked_int16
-  | Flambda_primitive.Array_kind.Naked_int32s ->
+      RSC.create_immutable_int16_array RWC.is_naked_int16
+  | P.Array_kind.Naked_int32s ->
     naked_number_array dbg rebuilding simples0 machine_width
-      Rebuilt_static_const.create_immutable_int32_array
-      Reg_width_const.is_naked_int32
-  | Flambda_primitive.Array_kind.Naked_int64s ->
+      RSC.create_immutable_int32_array RWC.is_naked_int32
+  | P.Array_kind.Naked_int64s ->
     naked_number_array dbg rebuilding simples0 machine_width
-      Rebuilt_static_const.create_immutable_int64_array
-      Reg_width_const.is_naked_int64
-  | Flambda_primitive.Array_kind.Naked_nativeints ->
+      RSC.create_immutable_int64_array RWC.is_naked_int64
+  | P.Array_kind.Naked_nativeints ->
     naked_number_array dbg rebuilding simples0 machine_width
-      Rebuilt_static_const.create_immutable_nativeint_array
-      Reg_width_const.is_naked_nativeint
-  | Flambda_primitive.Array_kind.Naked_vec128s ->
+      RSC.create_immutable_nativeint_array RWC.is_naked_nativeint
+  | P.Array_kind.Naked_vec128s ->
     naked_number_array dbg rebuilding simples0 machine_width
-      Rebuilt_static_const.create_immutable_vec128_array
-      Reg_width_const.is_naked_vec128
-  | Flambda_primitive.Array_kind.Naked_vec256s ->
+      RSC.create_immutable_vec128_array RWC.is_naked_vec128
+  | P.Array_kind.Naked_vec256s ->
     naked_number_array dbg rebuilding simples0 machine_width
-      Rebuilt_static_const.create_immutable_vec256_array
-      Reg_width_const.is_naked_vec256
-  | Flambda_primitive.Array_kind.Naked_vec512s ->
+      RSC.create_immutable_vec256_array RWC.is_naked_vec256
+  | P.Array_kind.Naked_vec512s ->
     naked_number_array dbg rebuilding simples0 machine_width
-      Rebuilt_static_const.create_immutable_vec512_array
-      Reg_width_const.is_naked_vec512
-  | Flambda_primitive.Array_kind.Naked_masks ->
+      RSC.create_immutable_vec512_array RWC.is_naked_vec512
+  | P.Array_kind.Naked_masks ->
     naked_number_array dbg rebuilding simples0 machine_width
-      Rebuilt_static_const.create_immutable_mask_array
-      Reg_width_const.is_naked_mask
-  | Flambda_primitive.Array_kind.Unboxed_product _ ->
+      RSC.create_immutable_mask_array RWC.is_naked_mask
+  | P.Array_kind.Unboxed_product _ ->
     Misc.fatal_errorf
       "Unexpected array kind %a when rebuilding switch lookup table at %a"
-      Flambda_primitive.Array_kind.print array_kind Debuginfo.print_compact dbg
+      P.Array_kind.print array_kind Debuginfo.print_compact dbg
 
 type named =
   | Simple of Simple.t
@@ -564,14 +538,12 @@ type named =
 
 let bound_simple simple = Simple simple
 
-(** val bound_prim : string -> Flambda_kind.t -> Flambda_primitive.t ->
-    Debuginfo.t -> named coq_M **)
+(** val bound_prim : string -> K.t -> P.t -> Debuginfo.t -> named coq_M **)
 
 let bound_prim name kind prim dbg = Prim (name, kind, prim, dbg)
 
-(** val bound_lookup_table : string -> Flambda_kind.With_subkind.t ->
-    Flambda_primitive.Array_kind.t -> Simple.t list -> Debuginfo.t -> named
-    coq_M **)
+(** val bound_lookup_table : string -> KS.t -> P.Array_kind.t -> Simple.t list
+    -> Debuginfo.t -> named coq_M **)
 
 let bound_lookup_table name element_kind array_kind simples0 dbg =
   (fun (x__1, x__2, x__3, x__4, x__5) ->
@@ -584,19 +556,15 @@ let bound_lookup_table name element_kind array_kind simples0 dbg =
       })
     (name, array_kind, element_kind, simples0, dbg)
 
-(** val let_op_dollar : named -> (Simple.t -> (Upwards_acc.t -> Symbol.t
-    Static_const.Map.t -> Flambda2_types.Typing_env.t ->
-    Common_subexpression_elimination.t -> Common_subexpression_elimination.t ->
-    (Rebuilt_expr.t * Upwards_acc.t) coq_M) coq_M) -> (Upwards_acc.t -> Symbol.t
-    Static_const.Map.t -> Flambda2_types.Typing_env.t ->
-    Common_subexpression_elimination.t -> Common_subexpression_elimination.t ->
-    (Rebuilt_expr.t * Upwards_acc.t) coq_M) coq_M **)
+(** val let_op_dollar : named -> (Simple.t -> (UA.t -> Symbol.t
+    Static_const.Map.t -> TE.t -> Common_subexpression_elimination.t ->
+    Common_subexpression_elimination.t -> (RE.t * UA.t) coq_M) coq_M) -> (UA.t
+    -> Symbol.t Static_const.Map.t -> TE.t -> Common_subexpression_elimination.t
+    -> Common_subexpression_elimination.t -> (RE.t * UA.t) coq_M) coq_M **)
 
 let let_op_dollar expr k uacc shareable_constants0 typing_env_before_switch0
     cse_before_switch0 local_cse =
-  let machine_width =
-    Flambda2_types.Typing_env.machine_width typing_env_before_switch0
-  in
+  let machine_width = TE.machine_width typing_env_before_switch0 in
   let already_bound =
    fun simple ->
     k simple uacc shareable_constants0 typing_env_before_switch0
@@ -618,27 +586,24 @@ let let_op_dollar expr k uacc shareable_constants0 typing_env_before_switch0
     (fun name kind prim dbg ->
       match
         find_cse_simple (Some false) cse_before_switch0
-          typing_env_before_switch0
-          (Upwards_acc.required_names uacc)
-          local_cse prim
+          typing_env_before_switch0 (UA.required_names uacc) local_cse prim
       with
       | Some simple -> already_bound simple
       | None ->
-        let named0 = Flambda.Named.create_prim prim dbg in
+        let named0 = Named.create_prim prim dbg in
         let var =
           (fun x__1 x__2 x__3 -> Variable.create ?user_visible:x__1 x__2 x__3)
             None name kind
         in
         let uacc0 =
-          Upwards_acc.add_free_names uacc
-            (Name_occurrences.singleton_variable var Name_mode.normal)
+          UA.add_free_names uacc (NO.singleton_variable var NM.normal)
         in
         let local_cse0 =
-          match Flambda_primitive.Eligible_for_cse.create prim with
+          match P.Eligible_for_cse.create prim with
           | Some with_fixed_value ->
             Common_subexpression_elimination.add local_cse with_fixed_value
               (Simple.var var)
-              (Flambda2_types.Typing_env.current_scope typing_env_before_switch0)
+              (TE.current_scope typing_env_before_switch0)
           | None -> local_cse
         in
         let body, uacc1 =
@@ -646,16 +611,12 @@ let let_op_dollar expr k uacc shareable_constants0 typing_env_before_switch0
             typing_env_before_switch0 cse_before_switch0 local_cse0
         in
         let duid = Flambda_debug_uid.none in
-        let machine_width0 =
-          Upwards_env.machine_width (Upwards_acc.uenv uacc1)
-        in
+        let machine_width0 = UE.machine_width (UA.uenv uacc1) in
         let binding =
           let simplified_defining_expr =
             Simplified_named.create machine_width0 named0
           in
-          let let_bound =
-            Bound_pattern.singleton (Bound_var.create var duid Name_mode.normal)
-          in
+          let let_bound = BPt.singleton (BV.create var duid NM.normal) in
           (fun (x__1, x__2, x__3) ->
             (Simplified_named.Keep_binding
                { let_bound = x__1;
@@ -665,11 +626,11 @@ let let_op_dollar expr k uacc shareable_constants0 typing_env_before_switch0
               : Simplified_named.binding_to_place))
             (let_bound, simplified_defining_expr, None)
         in
-        Expr_builder.make_new_let_bindings uacc1 (binding :: []) body)
+        EB.make_new_let_bindings uacc1 (binding :: []) body)
     (fun name array_kind element_kind simples0 dbg ->
       let array_const =
         create_lookup_table_array_const dbg array_kind
-          (Upwards_acc.are_rebuilding_terms uacc)
+          (UA.are_rebuilding_terms uacc)
           simples0 machine_width
       in
       let create_lookup_table =
@@ -684,24 +645,21 @@ let let_op_dollar expr k uacc shareable_constants0 typing_env_before_switch0
           | None -> shareable_constants0
         in
         let fields =
-          List.map
-            (Flambda2_types.alias_type_of
-               (Flambda_kind.With_subkind.kind element_kind))
-            simples0
+          List.map (T.alias_type_of (KS.kind element_kind)) simples0
         in
         let block_type =
-          Flambda2_types.immutable_array (Or_unknown_or_bottom.Ok element_kind)
-            fields Alloc_mode.For_types.heap machine_width
+          T.immutable_array (Or_unknown_or_bottom.Ok element_kind) fields
+            Alloc_mode.For_types.heap machine_width
         in
         let uacc0 =
-          Upwards_acc.add_lifted_constant uacc
-            (Lifted_constant.create_block_like symbol Variable.Map.empty
-               array_const typing_env_before_switch0 block_type)
+          UA.add_lifted_constant uacc
+            (LC.create_block_like symbol Variable.Map.empty array_const
+               typing_env_before_switch0 block_type)
         in
         k (Simple.symbol symbol) uacc0 shareable_constants1
           typing_env_before_switch0 cse_before_switch0 local_cse
       in
-      match Rebuilt_static_const.to_const array_const with
+      match RSC.to_const array_const with
       | Some t0 -> (
         match t0 with
         | Flambda.Code _ -> Misc.fatal_error "Cannot bind code"
@@ -713,22 +671,20 @@ let let_op_dollar expr k uacc shareable_constants0 typing_env_before_switch0
       | None -> create_lookup_table None)
     expr
 
-(** val return_ : Code_size.t -> Name_occurrences.t -> Rebuilt_expr.t ->
-    (Upwards_acc.t -> Symbol.t Static_const.Map.t -> Flambda2_types.Typing_env.t
-    -> Common_subexpression_elimination.t -> Common_subexpression_elimination.t
-    -> (Rebuilt_expr.t * Upwards_acc.t) coq_M) coq_M **)
+(** val return_ : Code_size.t -> NO.t -> RE.t -> (UA.t -> Symbol.t
+    Static_const.Map.t -> TE.t -> Common_subexpression_elimination.t ->
+    Common_subexpression_elimination.t -> (RE.t * UA.t) coq_M) coq_M **)
 
 let return_ added_code_size free_names expr uacc _ _ _ _ =
-  let uacc0 = Upwards_acc.notify_added added_code_size uacc in
-  let uacc1 = Upwards_acc.add_free_names uacc0 free_names in
+  let uacc0 = UA.notify_added added_code_size uacc in
+  let uacc1 = UA.add_free_names uacc0 free_names in
   expr, uacc1
 
-(** val run : Upwards_acc.t -> Symbol.t Static_const.Map.t ->
-    Flambda2_types.Typing_env.t -> Common_subexpression_elimination.t ->
-    (Upwards_acc.t -> Symbol.t Static_const.Map.t -> Flambda2_types.Typing_env.t
-    -> Common_subexpression_elimination.t -> Common_subexpression_elimination.t
-    -> (Rebuilt_expr.t * Upwards_acc.t) coq_M) -> (Rebuilt_expr.t *
-    Upwards_acc.t) coq_M **)
+(** val run : UA.t -> Symbol.t Static_const.Map.t -> TE.t ->
+    Common_subexpression_elimination.t -> (UA.t -> Symbol.t Static_const.Map.t
+    -> TE.t -> Common_subexpression_elimination.t ->
+    Common_subexpression_elimination.t -> (RE.t * UA.t) coq_M) -> (RE.t * UA.t)
+    coq_M **)
 
 let run uacc shareable_constants0 typing_env_before_switch0 cse_before_switch0 k
     =
@@ -748,20 +704,20 @@ let equal_affine_immediate_kind kind1 kind2 =
   | Naked -> ( match kind2 with Tagged -> false | Naked -> true)
 
 (** val affine_immediate_kind_to_standard_int : affine_immediate_kind ->
-    Flambda_kind.Standard_int.t coq_M **)
+    K.Standard_int.t coq_M **)
 
 let affine_immediate_kind_to_standard_int = function
-  | Tagged -> Flambda_kind.Standard_int.Tagged_immediate
-  | Naked -> Flambda_kind.Standard_int.Naked_immediate
+  | Tagged -> K.Standard_int.Tagged_immediate
+  | Naked -> K.Standard_int.Naked_immediate
 
 type affine_argument_of_mergeable_arm =
   | Not_affine
   | Maybe_affine
-  | Constant of affine_immediate_kind * Target_ocaml_int.t * Target_ocaml_int.t
-  | Affine of affine_immediate_kind * Target_ocaml_int.t * Target_ocaml_int.t
+  | Constant of affine_immediate_kind * TI.t * TI.t
+  | Affine of affine_immediate_kind * TI.t * TI.t
 
-(** val recognize_affine_immediate_const : Reg_width_const.t ->
-    (affine_immediate_kind * Target_ocaml_int.t) option coq_M **)
+(** val recognize_affine_immediate_const : RWC.t -> (affine_immediate_kind *
+    TI.t) option coq_M **)
 
 let recognize_affine_immediate_const const =
   match Reg_width_const.descr const with
@@ -782,8 +738,8 @@ let recognize_affine_immediate_const const =
   | Int_ids.Const.Descr.Poison (_, _) -> None
 
 (** val recognize_affine_argument : Target_system.Machine_width.t ->
-    affine_argument_of_mergeable_arm -> Target_ocaml_int.t -> Reg_width_const.t
-    -> affine_argument_of_mergeable_arm coq_M **)
+    affine_argument_of_mergeable_arm -> TI.t -> RWC.t ->
+    affine_argument_of_mergeable_arm coq_M **)
 
 let recognize_affine_argument machine_width affine_argument discr const =
   let affine = fun kind offset slope -> Affine (kind, offset, slope) in
@@ -805,17 +761,12 @@ let recognize_affine_argument machine_width affine_argument discr const =
         then Misc.fatal_error "Inconsistent kinds for mergeable switch argument"
         else ()
       in
-      let arg_diff = Target_ocaml_int.sub imm arg in
-      let arm_diff = Target_ocaml_int.sub discr arm in
-      if
-        Target_ocaml_int.equal
-          (Target_ocaml_int.zero machine_width)
-          (Target_ocaml_int.mod_ arg_diff arm_diff)
+      let arg_diff = TI.sub imm arg in
+      let arm_diff = TI.sub discr arm in
+      if TI.equal (TI.zero machine_width) (TI.mod_ arg_diff arm_diff)
       then
-        let slope = Target_ocaml_int.div arg_diff arm_diff in
-        let offset =
-          Target_ocaml_int.sub arg (Target_ocaml_int.mul slope arm)
-        in
+        let slope = TI.div arg_diff arm_diff in
+        let offset = TI.sub arg (TI.mul slope arm) in
         affine kind offset slope
       else Not_affine
     | None -> Not_affine)
@@ -828,9 +779,7 @@ let recognize_affine_argument machine_width affine_argument discr const =
         then Misc.fatal_error "Inconsistent kinds for mergeable switch argument"
         else ()
       in
-      if
-        Target_ocaml_int.equal imm
-          (Target_ocaml_int.add (Target_ocaml_int.mul discr slope) offset)
+      if TI.equal imm (TI.add (TI.mul discr slope) offset)
       then affine kind offset slope
       else Not_affine
     | None -> Not_affine)
@@ -878,18 +827,16 @@ let enough_arms num_arms x =
 (** val bound_tagged_scrutinee : Simple.t -> Debuginfo.t -> named coq_M **)
 
 let bound_tagged_scrutinee scrutinee0 dbg =
-  bound_prim "tagged_scrutinee" Flambda_kind.value
-    (Flambda_primitive.Unary (Flambda_primitive.Tag_immediate, scrutinee0))
+  bound_prim "tagged_scrutinee" K.value
+    (P.Unary (P.Tag_immediate, scrutinee0))
     dbg
 
 (** val rebuild_mergeable_argument : Target_system.Machine_width.t -> Simple.t
-    -> mergeable_argument -> (Simple.t -> (Upwards_acc.t -> Symbol.t
-    Static_const.Map.t -> Flambda2_types.Typing_env.t ->
-    Common_subexpression_elimination.t -> Common_subexpression_elimination.t ->
-    (Rebuilt_expr.t * Upwards_acc.t) coq_M) coq_M) -> (Upwards_acc.t -> Symbol.t
-    Static_const.Map.t -> Flambda2_types.Typing_env.t ->
-    Common_subexpression_elimination.t -> Common_subexpression_elimination.t ->
-    (Rebuilt_expr.t * Upwards_acc.t) coq_M) coq_M **)
+    -> mergeable_argument -> (Simple.t -> (UA.t -> Symbol.t Static_const.Map.t
+    -> TE.t -> Common_subexpression_elimination.t ->
+    Common_subexpression_elimination.t -> (RE.t * UA.t) coq_M) coq_M) -> (UA.t
+    -> Symbol.t Static_const.Map.t -> TE.t -> Common_subexpression_elimination.t
+    -> Common_subexpression_elimination.t -> (RE.t * UA.t) coq_M) coq_M **)
 
 let rebuild_mergeable_argument machine_width scrutinee0 mergeable_argument0 k =
   let dbg = Debuginfo.none in
@@ -913,53 +860,40 @@ let rebuild_mergeable_argument machine_width scrutinee0 mergeable_argument0 k =
       let_op_dollar (bound_tagged_scrutinee scrutinee0 dbg)
         (fun tagged_scrutinee ->
           let_op_dollar
-            (bound_prim "not_scrutinee" Flambda_kind.value
-               (Flambda_primitive.Unary
-                  (Flambda_primitive.Boolean_not, tagged_scrutinee))
+            (bound_prim "not_scrutinee" K.value
+               (P.Unary (P.Boolean_not, tagged_scrutinee))
                dbg)
             k))
     (fun kind offset slope ->
       let rebuild_affine_expr =
        fun scrutinee1 const ->
         let standard_int = affine_immediate_kind_to_standard_int kind in
-        let kind0 = Flambda_kind.Standard_int.to_kind standard_int in
+        let kind0 = K.Standard_int.to_kind standard_int in
         let must_negate, slope0 =
-          if Target_ocaml_int.is_non_negative slope
-          then false, slope
-          else true, Target_ocaml_int.neg slope
+          if TI.is_non_negative slope then false, slope else true, TI.neg slope
         in
         let_op_dollar
-          (if Target_ocaml_int.equal slope0 (Target_ocaml_int.one machine_width)
+          (if TI.equal slope0 (TI.one machine_width)
            then bound_simple scrutinee1
            else
              bound_prim "scaled_arg" kind0
-               (Flambda_primitive.Binary
-                  ( Flambda_primitive.Int_arith
-                      ( standard_int,
-                        (Flambda_primitive.Mul
-                          : Flambda_primitive.binary_int_arith_op) ),
+               (P.Binary
+                  ( P.Int_arith (standard_int, (P.Mul : P.binary_int_arith_op)),
                     scrutinee1,
                     Simple.const (const slope0) ))
                dbg)
           (fun scaled_arg ->
             let_op_dollar
-              (if
-                 Target_ocaml_int.equal offset
-                   (Target_ocaml_int.zero machine_width)
-                 && not must_negate
+              (if TI.equal offset (TI.zero machine_width) && not must_negate
                then bound_simple scaled_arg
                else
                  bound_prim "final_arg" kind0
-                   (Flambda_primitive.Binary
-                      ( Flambda_primitive.Int_arith
+                   (P.Binary
+                      ( P.Int_arith
                           ( standard_int,
                             if must_negate
-                            then
-                              (Flambda_primitive.Sub
-                                : Flambda_primitive.binary_int_arith_op)
-                            else
-                              (Flambda_primitive.Add
-                                : Flambda_primitive.binary_int_arith_op) ),
+                            then (P.Sub : P.binary_int_arith_op)
+                            else (P.Add : P.binary_int_arith_op) ),
                         Simple.const (const offset),
                         scaled_arg ))
                    dbg)
@@ -969,44 +903,38 @@ let rebuild_mergeable_argument machine_width scrutinee0 mergeable_argument0 k =
       | Tagged ->
         let_op_dollar (bound_tagged_scrutinee scrutinee0 dbg)
           (fun tagged_scrutinee ->
-            rebuild_affine_expr tagged_scrutinee
-              Reg_width_const.tagged_immediate)
-      | Naked -> rebuild_affine_expr scrutinee0 Reg_width_const.naked_immediate)
+            rebuild_affine_expr tagged_scrutinee RWC.tagged_immediate)
+      | Naked -> rebuild_affine_expr scrutinee0 RWC.naked_immediate)
     (fun array_kind array_load_kind first_discriminant simples0 ->
       let element_kind =
-        Flambda_primitive.Array_load_kind.kind_of_loaded_value array_load_kind
+        P.Array_load_kind.kind_of_loaded_value array_load_kind
       in
-      let loaded_kind = Flambda_kind.With_subkind.kind element_kind in
+      let loaded_kind = KS.kind element_kind in
       let_op_dollar
         (bound_lookup_table "switch_block" element_kind array_kind simples0 dbg)
         (fun switch_block ->
           let_op_dollar
-            (bound_prim "tagged_scrutinee" Flambda_kind.value
-               (Flambda_primitive.Unary
-                  (Flambda_primitive.Tag_immediate, scrutinee0))
+            (bound_prim "tagged_scrutinee" K.value
+               (P.Unary (P.Tag_immediate, scrutinee0))
                dbg)
             (fun tagged_scrutinee ->
               let_op_dollar
-                (if
-                   Target_ocaml_int.equal first_discriminant
-                     (Target_ocaml_int.zero machine_width)
+                (if TI.equal first_discriminant (TI.zero machine_width)
                  then bound_simple tagged_scrutinee
                  else
-                   bound_prim "offset_scrutinee" Flambda_kind.value
-                     (Flambda_primitive.Binary
-                        ( Flambda_primitive.Int_arith
-                            ( Flambda_kind.Standard_int.Tagged_immediate,
-                              (Flambda_primitive.Add
-                                : Flambda_primitive.binary_int_arith_op) ),
+                   bound_prim "offset_scrutinee" K.value
+                     (P.Binary
+                        ( P.Int_arith
+                            ( K.Standard_int.Tagged_immediate,
+                              (P.Add : P.binary_int_arith_op) ),
                           tagged_scrutinee,
-                          Simple.const_int
-                            (Target_ocaml_int.neg first_discriminant) ))
+                          Simple.const_int (TI.neg first_discriminant) ))
                      dbg)
                 (fun offset_scrutinee ->
                   let_op_dollar
                     (bound_prim "arg" loaded_kind
-                       (Flambda_primitive.Binary
-                          ( Flambda_primitive.Array_load
+                       (P.Binary
+                          ( P.Array_load
                               (array_kind, array_load_kind, Mutability.Immutable),
                             switch_block,
                             offset_scrutinee ))
@@ -1019,7 +947,7 @@ let rebuild_mergeable_argument machine_width scrutinee0 mergeable_argument0 k =
 
 let recognize_invariant_argument required_names arg =
   let shared_alias_set =
-    Target_ocaml_int.Map.fold
+    TI.Map.fold
       (fun _ alias_set0 shared_alias_set ->
         match shared_alias_set with
         | Some shared_alias_set0 ->
@@ -1052,14 +980,10 @@ let recognize_mergeable_argument machine_width scrutinee0 required_names dbg arg
       match args_rev_and_expected_discr with
       | Some p ->
         let args_rev, expected_discr = p in
-        if not (Target_ocaml_int.equal discr expected_discr)
+        if not (TI.equal discr expected_discr)
         then constant_arg, None
         else
-          let expected_discr0 =
-            Target_ocaml_int.add
-              (Target_ocaml_int.one machine_width)
-              expected_discr
-          in
+          let expected_discr0 = TI.add (TI.one machine_width) expected_discr in
           constant_arg, Some (simple :: args_rev, expected_discr0)
       | None -> constant_arg, None
     in
@@ -1072,7 +996,7 @@ let recognize_mergeable_argument machine_width scrutinee0 required_names dbg arg
     in
     match alias_set0 with
     | Aliases aliases -> (
-      match Flambda2_types.Typing_env.Alias_set.find_best aliases with
+      match Alias_set.find_best aliases with
       | Some simple -> (
         match
           Simple.pattern_match' simple
@@ -1085,10 +1009,7 @@ let recognize_mergeable_argument machine_width scrutinee0 required_names dbg arg
                 ())
             (fun _ coercion ->
               let () =
-                if
-                  not
-                    (Name_occurrences.no_variables
-                       (Coercion.free_names coercion))
+                if not (NO.no_variables (Coercion.free_names coercion))
                 then
                   Port_monad.raise_
                     ( (fun () -> Argument_cannot_be_used_in_lookup_table),
@@ -1106,35 +1027,32 @@ let recognize_mergeable_argument machine_width scrutinee0 required_names dbg arg
       | None -> Misc.fatal_error "Unexpected empty argument")
     | Poison kind ->
       maybe_table_lookup_arg affine_arg
-        (Simple.const (Reg_width_const.const_poison kind "rebuild_switch"))
+        (Simple.const (RWC.const_poison kind "rebuild_switch"))
   in
   match recognize_invariant_argument required_names arg with
   | Some simple -> Some (Invariant_argument simple)
   | None ->
     let first_discr =
       Port_monad.try_with
-        (fun _ -> fst (Target_ocaml_int.Map.min_binding arg))
+        (fun _ -> fst (TI.Map.min_binding arg))
         Port_monad.not_found
-        (fun _ -> Target_ocaml_int.zero machine_width)
+        (fun _ -> TI.zero machine_width)
     in
     let affine_is_identity =
      fun offset slope ->
-      Target_ocaml_int.equal offset (Target_ocaml_int.zero machine_width)
-      && Target_ocaml_int.equal slope (Target_ocaml_int.one machine_width)
+      TI.equal offset (TI.zero machine_width)
+      && TI.equal slope (TI.one machine_width)
     in
     let affine_is_boolean_not =
      fun offset slope ->
-      Target_ocaml_int.equal offset (Target_ocaml_int.one machine_width)
-      && Target_ocaml_int.equal slope (Target_ocaml_int.minus_one machine_width)
-      && Target_ocaml_int.Map.subset_domain arg
-           (Target_ocaml_int.Map.of_set
-              (fun _ -> ())
-              (Target_ocaml_int.all_bools machine_width))
+      TI.equal offset (TI.one machine_width)
+      && TI.equal slope (TI.minus_one machine_width)
+      && TI.Map.subset_domain arg
+           (TI.Map.of_set (fun _ -> ()) (TI.all_bools machine_width))
     in
     Port_monad.match_exn
       (fun _ ->
-        Target_ocaml_int.Map.fold check_arm arg
-          (Maybe_affine, Some ([], first_discr)))
+        TI.Map.fold check_arm arg (Maybe_affine, Some ([], first_discr)))
       ( (fun () -> Argument_cannot_be_used_in_lookup_table),
         function
         | Argument_cannot_be_used_in_lookup_table -> Some ()
@@ -1158,14 +1076,14 @@ let recognize_mergeable_argument machine_width scrutinee0 required_names dbg arg
                   (fun _ _ ->
                     Misc.fatal_errorf "Variable (%a) was not expected here: %a"
                       Simple.print simple Debuginfo.print_compact dbg)
-                  (fun _ _ -> Flambda_kind.value)
-                  Reg_width_const.kind
+                  (fun _ _ -> K.value)
+                  RWC.kind
               in
               let first_kind = kind_of (List.hd args) in
               if
                 not
                   (List.for_all
-                     (fun arg0 -> Flambda_kind.equal (kind_of arg0) first_kind)
+                     (fun arg0 -> K.equal (kind_of arg0) first_kind)
                      args)
               then None
               else
@@ -1182,61 +1100,59 @@ let recognize_mergeable_argument machine_width scrutinee0 required_names dbg arg
                        (array_kind, array_load_kind, first_discr, args))
                 in
                 match first_kind with
-                | Flambda_kind.Value ->
+                | K.Value ->
                   if
                     List.for_all
                       (fun simple ->
                         Option.is_some
                           (Option.bind
                              (Simple.must_be_const simple)
-                             Reg_width_const.is_tagged_immediate))
+                             RWC.is_tagged_immediate))
                       args
                   then
-                    single_kind Flambda_primitive.Array_kind.Immediates
-                      Flambda_primitive.Array_load_kind.Immediates
-                  else
-                    single_kind Flambda_primitive.Array_kind.Values
-                      Flambda_primitive.Array_load_kind.Values
-                | Flambda_kind.Naked_number nn -> (
+                    single_kind P.Array_kind.Immediates
+                      P.Array_load_kind.Immediates
+                  else single_kind P.Array_kind.Values P.Array_load_kind.Values
+                | K.Naked_number nn -> (
                   match nn with
-                  | Flambda_kind.Naked_number_kind.Naked_immediate ->
-                    single_kind Flambda_primitive.Array_kind.Naked_ints
-                      Flambda_primitive.Array_load_kind.Naked_ints
-                  | Flambda_kind.Naked_number_kind.Naked_float32 ->
-                    single_kind Flambda_primitive.Array_kind.Naked_float32s
-                      Flambda_primitive.Array_load_kind.Naked_float32s
-                  | Flambda_kind.Naked_number_kind.Naked_float ->
-                    single_kind Flambda_primitive.Array_kind.Naked_floats
-                      Flambda_primitive.Array_load_kind.Naked_floats
-                  | Flambda_kind.Naked_number_kind.Naked_int8 ->
-                    single_kind Flambda_primitive.Array_kind.Naked_int8s
-                      Flambda_primitive.Array_load_kind.Naked_int8s
-                  | Flambda_kind.Naked_number_kind.Naked_int16 ->
-                    single_kind Flambda_primitive.Array_kind.Naked_int16s
-                      Flambda_primitive.Array_load_kind.Naked_int16s
-                  | Flambda_kind.Naked_number_kind.Naked_int32 ->
-                    single_kind Flambda_primitive.Array_kind.Naked_int32s
-                      Flambda_primitive.Array_load_kind.Naked_int32s
-                  | Flambda_kind.Naked_number_kind.Naked_int64 ->
-                    single_kind Flambda_primitive.Array_kind.Naked_int64s
-                      Flambda_primitive.Array_load_kind.Naked_int64s
-                  | Flambda_kind.Naked_number_kind.Naked_nativeint ->
-                    single_kind Flambda_primitive.Array_kind.Naked_nativeints
-                      Flambda_primitive.Array_load_kind.Naked_nativeints
-                  | Flambda_kind.Naked_number_kind.Naked_vec128 ->
-                    single_kind Flambda_primitive.Array_kind.Naked_vec128s
-                      Flambda_primitive.Array_load_kind.Naked_vec128s
-                  | Flambda_kind.Naked_number_kind.Naked_vec256 ->
-                    single_kind Flambda_primitive.Array_kind.Naked_vec256s
-                      Flambda_primitive.Array_load_kind.Naked_vec256s
-                  | Flambda_kind.Naked_number_kind.Naked_vec512 ->
-                    single_kind Flambda_primitive.Array_kind.Naked_vec512s
-                      Flambda_primitive.Array_load_kind.Naked_vec512s
-                  | Flambda_kind.Naked_number_kind.Naked_mask ->
-                    single_kind Flambda_primitive.Array_kind.Naked_masks
-                      Flambda_primitive.Array_load_kind.Naked_masks)
-                | Flambda_kind.Region -> None
-                | Flambda_kind.Rec_info -> None))
+                  | K.Naked_number_kind.Naked_immediate ->
+                    single_kind P.Array_kind.Naked_ints
+                      P.Array_load_kind.Naked_ints
+                  | K.Naked_number_kind.Naked_float32 ->
+                    single_kind P.Array_kind.Naked_float32s
+                      P.Array_load_kind.Naked_float32s
+                  | K.Naked_number_kind.Naked_float ->
+                    single_kind P.Array_kind.Naked_floats
+                      P.Array_load_kind.Naked_floats
+                  | K.Naked_number_kind.Naked_int8 ->
+                    single_kind P.Array_kind.Naked_int8s
+                      P.Array_load_kind.Naked_int8s
+                  | K.Naked_number_kind.Naked_int16 ->
+                    single_kind P.Array_kind.Naked_int16s
+                      P.Array_load_kind.Naked_int16s
+                  | K.Naked_number_kind.Naked_int32 ->
+                    single_kind P.Array_kind.Naked_int32s
+                      P.Array_load_kind.Naked_int32s
+                  | K.Naked_number_kind.Naked_int64 ->
+                    single_kind P.Array_kind.Naked_int64s
+                      P.Array_load_kind.Naked_int64s
+                  | K.Naked_number_kind.Naked_nativeint ->
+                    single_kind P.Array_kind.Naked_nativeints
+                      P.Array_load_kind.Naked_nativeints
+                  | K.Naked_number_kind.Naked_vec128 ->
+                    single_kind P.Array_kind.Naked_vec128s
+                      P.Array_load_kind.Naked_vec128s
+                  | K.Naked_number_kind.Naked_vec256 ->
+                    single_kind P.Array_kind.Naked_vec256s
+                      P.Array_load_kind.Naked_vec256s
+                  | K.Naked_number_kind.Naked_vec512 ->
+                    single_kind P.Array_kind.Naked_vec512s
+                      P.Array_load_kind.Naked_vec512s
+                  | K.Naked_number_kind.Naked_mask ->
+                    single_kind P.Array_kind.Naked_masks
+                      P.Array_load_kind.Naked_masks)
+                | K.Region -> None
+                | K.Rec_info -> None))
           | None -> None)
         | Maybe_affine -> Misc.fatal_error "Unexpected invariant argument"
         | Constant (_, _, _) -> Misc.fatal_error "Unexpected invariant argument"
@@ -1263,8 +1179,8 @@ let recognize_mergeable_argument machine_width scrutinee0 required_names dbg arg
                    Affine_argument { kind = x__1; offset = x__2; slope = x__3 })
                    (kind, offset, slope))))
 
-(** val rebuild_switch : Simplified_expr.simplified_switch_ -> Upwards_acc.t ->
-    Simplify_common.after_rebuild -> (Rebuilt_expr.t * Upwards_acc.t) coq_M **)
+(** val rebuild_switch : Simplified_expr.simplified_switch_ -> UA.t ->
+    Simplify_common.after_rebuild -> (RE.t * UA.t) coq_M **)
 
 let rebuild_switch pat uacc after_rebuild =
   let { Simplified_expr.arms = arms0;
@@ -1277,14 +1193,11 @@ let rebuild_switch pat uacc after_rebuild =
       } =
     pat
   in
-  let machine_width =
-    Flambda2_types.Typing_env.machine_width typing_env_before_switch0
-  in
+  let machine_width = TE.machine_width typing_env_before_switch0 in
   let new_let_conts, arms1, mergeable_arms0 =
-    Target_ocaml_int.Map.fold (rebuild_arm uacc) arms0
-      ([], Target_ocaml_int.Map.empty, No_arms)
+    TI.Map.fold (rebuild_arm uacc) arms0 ([], TI.Map.empty, No_arms)
   in
-  let num_arms = Target_ocaml_int.Map.cardinal arms1 in
+  let num_arms = TI.Map.cardinal arms1 in
   let switch_merged =
     (fun f__1 f__2 f__3 x__0 ->
       match x__0 with
@@ -1297,8 +1210,7 @@ let rebuild_switch pat uacc after_rebuild =
         let mergeable_args =
           List.filter_map
             (recognize_mergeable_argument machine_width scrutinee0
-               (Upwards_acc.required_names uacc)
-               condition_dbg0)
+               (UA.required_names uacc) condition_dbg0)
             args
         in
         if
@@ -1312,14 +1224,14 @@ let rebuild_switch pat uacc after_rebuild =
   let body, uacc0 =
     if num_arms < 1
     then
-      let uacc0 = Upwards_acc.notify_removed Removed_operations.branch uacc in
-      Rebuilt_expr.create_invalid Flambda.Invalid.Zero_switch_arms, uacc0
+      let uacc0 = UA.notify_removed Removed_operations.branch uacc in
+      RE.create_invalid Flambda.Invalid.Zero_switch_arms, uacc0
     else
       let dbg = Debuginfo.none in
       let normal_case =
        fun uacc0 ->
         let expr, uacc1 =
-          Expr_builder.create_switch uacc0 condition_dbg0 scrutinee0 arms1
+          EB.create_switch uacc0 condition_dbg0 scrutinee0 arms1
         in
         let () =
           if
@@ -1329,8 +1241,8 @@ let rebuild_switch pat uacc after_rebuild =
             Misc.fatal_errorf
               "[Switch] with constant scrutinee (type: %a) should have been \
                simplified away:@ %a"
-              Flambda2_types.print scrutinee_ty0
-              (Rebuilt_expr.print (Upwards_acc.are_rebuilding_terms uacc1))
+              T.print scrutinee_ty0
+              (RE.print (UA.are_rebuilding_terms uacc1))
               expr
           else ()
         in
@@ -1339,25 +1251,23 @@ let rebuild_switch pat uacc after_rebuild =
       match switch_merged with
       | Some p ->
         let dest, args = p in
-        let uacc0 = Upwards_acc.notify_removed Removed_operations.branch uacc in
+        let uacc0 = UA.notify_removed Removed_operations.branch uacc in
         run uacc0 shareable_constants0 typing_env_before_switch0
           cse_before_switch0
           (let rec rebuild_merged_switch mergeable_args args_rev =
              match mergeable_args with
              | [] ->
                let args0 = List.rev args_rev in
-               let is_cold =
-                 Upwards_env.is_cold_continuation (Upwards_acc.uenv uacc0) dest
-               in
+               let is_cold = UE.is_cold_continuation (UA.uenv uacc0) dest in
                let apply_cont =
                  (fun x__1 x__2 x__3 x__4 ->
-                   Flambda.Apply_cont.create ?trap_action:x__1 x__2 x__3 x__4)
+                   Apply_cont.create ?trap_action:x__1 x__2 x__3 x__4)
                    None dest args0 dbg
                in
                return_
                  (Code_size.apply_cont apply_cont)
-                 (Flambda.Apply_cont.free_names apply_cont)
-                 (Rebuilt_expr.create_apply_cont is_cold apply_cont)
+                 (Apply_cont.free_names apply_cont)
+                 (RE.create_apply_cont is_cold apply_cont)
              | special_arg :: special_args ->
                rebuild_mergeable_argument machine_width scrutinee0 special_arg
                  (fun arg ->
@@ -1366,66 +1276,56 @@ let rebuild_switch pat uacc after_rebuild =
            rebuild_merged_switch args [])
       | None -> normal_case uacc
   in
-  let uacc1, expr = Expr_builder.bind_let_conts uacc0 body new_let_conts in
+  let uacc1, expr = EB.bind_let_conts uacc0 body new_let_conts in
   after_rebuild expr uacc1
 
-(** val simplify_arm : Target_ocaml_int.t -> (Switch_arm.t *
-    Flambda2_types.Typing_env.t) -> ((Apply_cont_expr.t *
+(** val simplify_arm : TI.t -> (Switch_arm.t * TE.t) -> ((Apply_cont_expr.t *
     annotations:Branch_annotations.t * Apply_cont_rewrite_id.t * [ `Unarized ]
-    Flambda_arity.t * Flambda2_types.Typing_env.t) TI.Map.t * Downwards_acc.t)
-    -> ((Apply_cont_expr.t * annotations:Branch_annotations.t *
+    Flambda_arity.t * Flambda2_types.Typing_env.t) TI.Map.t * DA.t) ->
+    ((Apply_cont_expr.t * annotations:Branch_annotations.t *
     Apply_cont_rewrite_id.t * [ `Unarized ] Flambda_arity.t *
-    Flambda2_types.Typing_env.t) TI.Map.t * Downwards_acc.t) coq_M **)
+    Flambda2_types.Typing_env.t) TI.Map.t * DA.t) coq_M **)
 
 let simplify_arm arm pat pat0 =
   let switch_arm, env_at_use = pat in
   let arms0, dacc = pat0 in
   let action = Switch_arm.action switch_arm in
   let annotations = Switch_arm.annotations switch_arm in
-  let denv_at_use =
-    Downwards_env.with_typing_env (Downwards_acc.denv dacc) env_at_use
-  in
-  let args = Flambda.Apply_cont.args action in
+  let denv_at_use = DE.with_typing_env (DA.denv dacc) env_at_use in
+  let args = AC.args action in
   let use_kind =
     Simplify_common.apply_cont_use_kind Simplify_common.Switch_branch action
   in
   let { Simplify_simple.simples = args0;
         Simplify_simple.simple_tys = arg_types
       } =
-    Simplify_simple.simplify_simples
-      (Downwards_acc.with_denv dacc denv_at_use)
-      args
+    Simplify_simple.simplify_simples (DA.with_denv dacc denv_at_use) args
   in
   let denv_at_use0 =
     if Switch_arm.is_cold switch_arm
-    then Downwards_env.mark_as_cold denv_at_use
+    then DE.mark_as_cold denv_at_use
     else denv_at_use
   in
   let dacc0, rewrite_id =
-    Downwards_acc.record_continuation_use dacc
-      (Flambda.Apply_cont.continuation action)
-      use_kind denv_at_use0 arg_types
+    DA.record_continuation_use dacc (AC.continuation action) use_kind
+      denv_at_use0 arg_types
   in
   let arity =
     Flambda_arity.create_singletons
-      (List.map
-         (fun ty -> Flambda_kind.With_subkind.anything (Flambda2_types.kind ty))
-         arg_types)
+      (List.map (fun ty -> K.With_subkind.anything (T.kind ty)) arg_types)
   in
-  let action0 = Flambda.Apply_cont.update_args action args0 in
-  let dbg = Flambda.Apply_cont.debuginfo action0 in
-  let dbg0 =
-    Downwards_env.add_inlined_debuginfo (Downwards_acc.denv dacc0) dbg
-  in
-  let action1 = Flambda.Apply_cont.with_debuginfo action0 dbg0 in
+  let action0 = Apply_cont.update_args action args0 in
+  let dbg = AC.debuginfo action0 in
+  let dbg0 = DE.add_inlined_debuginfo (DA.denv dacc0) dbg in
+  let action1 = AC.with_debuginfo action0 dbg0 in
   let dacc1 =
-    Downwards_acc.map_flow_acc dacc0
+    DA.map_flow_acc dacc0
       (Flow.Acc.add_apply_cont_args rewrite_id
-         (Flambda.Apply_cont.continuation action1)
+         (Apply_cont.continuation action1)
          args0)
   in
   let arms1 =
-    Target_ocaml_int.Map.add arm
+    TI.Map.add arm
       ((fun (x__1, x__2, x__3, x__4, x__5) ->
          x__1, ~annotations:x__2, x__3, x__4, x__5)
          (action1, annotations, rewrite_id, arity, env_at_use))
@@ -1433,8 +1333,7 @@ let simplify_arm arm pat pat0 =
   in
   arms1, dacc1
 
-(** val decide_continuation_specialization0 : Downwards_acc.t ->
-    Flambda.Switch.t -> Simple.t ->
+(** val decide_continuation_specialization0 : DA.t -> Switch.t -> Simple.t ->
     [ `Disabled | `Single_use | `Exn_handler | `Toplevel | `All_unknown |
      `No_reason_to_spec | `Not_lifting | `Cannot_specialize |
      `Insufficient_lifting_budget | `Not_enough_join_info |
@@ -1456,10 +1355,10 @@ let decide_continuation_specialization0 dacc switch scrutinee0 =
       then `Single_use
       else if is_exn_handler
       then `Exn_handler
-      else if Downwards_env.at_unit_toplevel (Downwards_acc.denv dacc)
+      else if DE.at_unit_toplevel (DA.denv dacc)
       then `Toplevel
       else
-        let denv = Downwards_acc.denv dacc in
+        let denv = DA.denv dacc in
         (fun f__1 f__2 x__0 ->
           match (x__0 : Specialization_cost.t) with
           | Specialization_cost.Can_specialize x__1 -> f__1 x__1
@@ -1473,33 +1372,27 @@ let decide_continuation_specialization0 dacc switch scrutinee0 =
                    arguments), this code path should not have been reached."
               else ()
             in
-            let lifting_budget =
-              Downwards_acc.get_continuation_lifting_budget dacc
-            in
+            let lifting_budget = DA.get_continuation_lifting_budget dacc in
             let lifting_cost =
-              Downwards_env.cost_of_lifting_continuations_out_of_current_one
-                denv
+              DE.cost_of_lifting_continuations_out_of_current_one denv
             in
             if not (lifting_budget > 0 && lifting_cost <= lifting_budget)
             then `Insufficient_lifting_budget
             else
               let join_analysis_result0 =
-                match Downwards_env.join_analysis denv with
+                match DE.join_analysis denv with
                 | Some join_analysis -> (
                   match
-                    Flambda2_types.Join_analysis.simple_refined_at_join
-                      join_analysis
-                      (Downwards_env.typing_env denv)
-                      scrutinee0
+                    T.Join_analysis.simple_refined_at_join join_analysis
+                      (DE.typing_env denv) scrutinee0
                   with
-                  | Flambda2_types.Join_analysis.Not_refined_at_join ->
-                    `Not_enough_join_info
-                  | Flambda2_types.Join_analysis.Invariant_in_all_uses _ ->
+                  | T.Join_analysis.Not_refined_at_join -> `Not_enough_join_info
+                  | T.Join_analysis.Invariant_in_all_uses _ ->
                     `No_reason_to_spec
-                  | Flambda2_types.Join_analysis.Variable_refined_at_these_uses
-                      var_analysis ->
+                  | T.Join_analysis.Variable_refined_at_these_uses var_analysis
+                    ->
                     let specialized, generic =
-                      Flambda2_types.Join_analysis.Variable_refined_at_join
+                      T.Join_analysis.Variable_refined_at_join
                       .fold_values_at_uses
                         (fun id value pat ->
                           let specialized, generic = pat in
@@ -1527,13 +1420,12 @@ let decide_continuation_specialization0 dacc switch scrutinee0 =
               | `No_reason_to_spec -> `No_reason_to_spec
               | `Spec (join_analysis, specialized, generic) ->
                 let cost_metrics =
-                  Specialization_cost.cost_metrics
-                    (Downwards_env.typing_env denv)
-                    switch join_analysis specialized generic spec_cost
+                  Specialization_cost.cost_metrics (DE.typing_env denv) switch
+                    join_analysis specialized generic spec_cost
                 in
                 let final_cost =
                   Cost_metrics.evaluate
-                    (Downwards_env.inlining_arguments denv)
+                    (DE.inlining_arguments denv)
                     cost_metrics
                 in
                 let threshold =
@@ -1552,16 +1444,15 @@ let decide_continuation_specialization0 dacc switch scrutinee0 =
             | Specialization_cost.At_toplevel -> `Toplevel
             | Specialization_cost.Contains_static_consts -> `Cannot_specialize
             | Specialization_cost.Contains_set_of_closures -> `Cannot_specialize)
-          (Downwards_env.specialization_cost denv))
+          (DE.specialization_cost denv))
     (fun _ ->
       Misc.fatal_errorf
         "[Are_lifting_cont] values in the dacc cannot be [Lifting_out_of _] \
          when going downwards through a [Switch] expression. See the \
          explanation in [are_lifting_conts.mli].")
-    (Downwards_acc.are_lifting_conts dacc)
+    (DA.are_lifting_conts dacc)
 
-(** val decide_continuation_specialization : Downwards_acc.t -> Flambda.Switch.t
-    -> Simple.t ->
+(** val decide_continuation_specialization : DA.t -> Switch.t -> Simple.t ->
     [ `Disabled | `Single_use | `Exn_handler | `Toplevel | `All_unknown |
      `No_reason_to_spec | `Not_lifting | `Cannot_specialize |
      `Insufficient_lifting_budget | `Not_enough_join_info |
@@ -1594,56 +1485,46 @@ let decide_continuation_specialization dacc switch scrutinee0 =
     (fun _ -> decide_continuation_specialization0 dacc switch scrutinee0)
     ()
 
-(** val simplify_switch : Downwards_acc.t -> Flambda.Switch.t ->
-    Simplified_expr.t Simplify_common.down_to_up -> (Simplified_expr.t *
-    Downwards_acc.t) coq_M **)
+(** val simplify_switch : DA.t -> Switch.t -> SE.t Simplify_common.down_to_up ->
+    (SE.t * DA.t) coq_M **)
 
 let simplify_switch dacc switch down_to_up0 =
-  let scrutinee0 = Flambda.Switch.scrutinee switch in
-  let scrutinee_ty0, scrutinee1 =
-    Simplify_simple.simplify_simple dacc scrutinee0 Name_mode.normal
-  in
+  let scrutinee0 = Switch.scrutinee switch in
+  let scrutinee_ty0, scrutinee1 = S.simplify_simple dacc scrutinee0 NM.normal in
   let dacc_before_switch = dacc in
-  let typing_env_at_use = Downwards_acc.typing_env dacc in
+  let typing_env_at_use = DA.typing_env dacc in
   let arms0 =
-    Target_ocaml_int.Map.filter_map
+    TI.Map.filter_map
       (fun arm action ->
-        let shape = Flambda2_types.this_naked_immediate arm in
-        match Flambda2_types.meet typing_env_at_use scrutinee_ty0 shape with
+        let shape = T.this_naked_immediate arm in
+        match T.meet typing_env_at_use scrutinee_ty0 shape with
         | Or_bottom.Ok p ->
           let _, env_at_use = p in
           Some (action, env_at_use)
         | Or_bottom.Bottom -> None)
-      (Flambda.Switch.arms switch)
+      (Switch.arms switch)
   in
-  match Target_ocaml_int.Map.get_singleton arms0 with
+  match TI.Map.get_singleton arms0 with
   | Some p ->
     let _, p0 = p in
     let arm, env_at_use = p0 in
-    let denv_at_use =
-      Downwards_env.with_typing_env (Downwards_acc.denv dacc) env_at_use
-    in
-    let dacc0 = Downwards_acc.with_denv dacc denv_at_use in
+    let denv_at_use = DE.with_typing_env (DA.denv dacc) env_at_use in
+    let dacc0 = DA.with_denv dacc denv_at_use in
     Simplify_apply_cont_expr.simplify_apply_cont dacc0 (Switch_arm.action arm)
       (fun dacc1 simplified_expr ->
         down_to_up0 dacc1
-          (Simplified_expr.notify_removed Removed_operations.branch
-             simplified_expr))
+          (SE.notify_removed Removed_operations.branch simplified_expr))
   | None ->
-    let arms1, dacc0 =
-      Target_ocaml_int.Map.fold simplify_arm arms0
-        (Target_ocaml_int.Map.empty, dacc)
-    in
+    let arms1, dacc0 = TI.Map.fold simplify_arm arms0 (TI.Map.empty, dacc) in
     let dacc1 =
-      if Target_ocaml_int.Map.cardinal arms1 <= 1
+      if TI.Map.cardinal arms1 <= 1
       then dacc0
       else
-        Downwards_acc.map_flow_acc dacc0
+        DA.map_flow_acc dacc0
           (Flow.Acc.add_used_in_current_handler (Simple.free_names scrutinee1))
     in
     let condition_dbg0 =
-      Downwards_env.add_inlined_debuginfo (Downwards_acc.denv dacc1)
-        (Flambda.Switch.condition_dbg switch)
+      DE.add_inlined_debuginfo (DA.denv dacc1) (Switch.condition_dbg switch)
     in
     let dacc2 =
       match decide_continuation_specialization dacc1 switch scrutinee1 with
@@ -1661,27 +1542,18 @@ let simplify_switch dacc switch down_to_up0 =
       | `Too_costly -> dacc1
       | `Specialized (continuation, lifting_cost) ->
         let dacc2 =
-          Downwards_acc.decrease_continuation_lifting_budget dacc1 lifting_cost
+          DA.decrease_continuation_lifting_budget dacc1 lifting_cost
         in
         let dacc3 =
-          Downwards_acc.with_are_lifting_conts dacc2
+          DA.with_are_lifting_conts dacc2
             (Are_lifting_conts.lift_continuations_out_of continuation)
         in
-        let dacc4 =
-          Downwards_acc.add_continuation_to_specialize dacc3 continuation
-        in
+        let dacc4 = DA.add_continuation_to_specialize dacc3 continuation in
         dacc4
     in
-    let shareable_constants0 =
-      Downwards_acc.shareable_constants dacc_before_switch
-    in
-    let typing_env_before_switch0 =
-      Downwards_acc.typing_env dacc_before_switch
-    in
-    let cse_before_switch0 =
-      Downwards_env.cse (Downwards_acc.denv dacc_before_switch)
-    in
+    let shareable_constants0 = DA.shareable_constants dacc_before_switch in
+    let typing_env_before_switch0 = DA.typing_env dacc_before_switch in
+    let cse_before_switch0 = DE.cse (DA.denv dacc_before_switch) in
     down_to_up0 dacc2
-      (Simplified_expr.simplified_switch arms1 condition_dbg0 scrutinee1
-         scrutinee_ty0 shareable_constants0 typing_env_before_switch0
-         cse_before_switch0)
+      (SE.simplified_switch arms1 condition_dbg0 scrutinee1 scrutinee_ty0
+         shareable_constants0 typing_env_before_switch0 cse_before_switch0)

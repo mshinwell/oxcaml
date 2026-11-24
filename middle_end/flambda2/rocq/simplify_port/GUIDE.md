@@ -21,6 +21,13 @@ files beside the donors first. Points marked HUMAN are the human's to judge.
   short module names: `DA`, `UA`, `T`, ...) and `From SimplifyPort.decl
   Require` (without `Import`) of each other module that the file names;
   never of the file's own module.
+- NAMES OF OTHER MODULES: write each as the compiler's file writes it at
+  that place, with the short module name (`DA.denv`, `T.meet`, `AC.args`)
+  or whole (`Downwards_acc.denv`). The extracted file prints it as you
+  wrote it (section 7, ABBREVIATIONS). A short name that the compiler's
+  file makes itself (`module U = Unboxing_types`) is Rocq's `Module U :=
+  Unboxing_types.` at the left margin, outside any module and before its
+  first use: Rocq prints the OCaml line there.
 - The compiler's definitions in the compiler's ORDER, each under its NAME,
   with its arguments' names; before each, a comment with the donor's lines
   (`(* 19-29 *)`). The donor's COMMENTS stay at their places, in the
@@ -285,8 +292,10 @@ Simplifys do not treat alike. Never commit that tree.
 WHERE THE EXTRACTED TEXT IS NOT THE COMPILER'S (directives alone cannot):
 no labels; `let () = e in` for `e;`; a variable that is bound again gets a
 number (`dacc0`, `dacc1`), also one with the name of a field of a record
-that the file defines; the short names of Simplify_import are written out
-(`Downwards_acc.denv`); the cases of a match are in the order of the type;
+that the file defines; a constructor in a pattern under another pattern,
+and a name that a text of `decl/` holds besides its own, have the whole
+module name (`Flambda_kind.Boxable_number.Naked_float32`) even where the
+file writes the short one; the cases of a match are in the order of the type;
 `a :: []` for `[a]`; an optional argument is the applied text `(fun x__1
 x__2 -> F.f ?l:x__1 x__2) None a`; a match on a variant with an inline
 record, and the building of such a constructor, are applied functions (`(fun
@@ -302,6 +311,28 @@ with its Rocq type. The only `open` that Rocq writes is `open Port_monad`:
 each file of `decl/` ends with an empty module of its own name, and Rocq
 then opens no declared unit and prints each declared name in full (so no
 name of the file or of OCaml's library can be hidden by such a line).
+
+ABBREVIATIONS OF MODULES (`tools/aliases.py`, run by `make` for the
+extraction of each file; facts found by trying). Rocq keeps the OCaml text
+of a declared name under the name by which the file REACHES it, and when an
+abbreviation of a module is made (`Module UA := Upwards_acc.`) the texts of
+that module are copied for the new names. So `UA.uenv` and
+`Upwards_acc.uenv` have each a text, and a directive given later for the
+one does not change the other. The tool gives, for the extraction of one
+file, the directive `Extract Inlined Constant ...Simplify_import.UA.uenv =>
+"UA.uenv".` (and `Extract Inductive` likewise) for each name of each
+module that has an abbreviation: the text of `decl/` with the module's
+path replaced by the abbreviation. It knows two kinds of abbreviation: those
+of `Simplify_import`, when the file says `Require Import Simplify_import`
+and its OCaml head says `open! Simplify_import` (one of them is left out
+if the OCaml head binds a module of that name); and those that the file
+makes at its left margin, outside any module. In both, the module must be
+one that `decl/` declares outside functors and module types. What it
+cannot reach: the name that Rocq itself chooses for the type of a match
+(the type of the matched value as `decl/` wrote it, whole), and an
+abbreviation that is only OCaml text in the head of the file (Rocq does not
+know it: the names stay whole). An abbreviation made inside a module of
+the file is not handled either.
 
 KNOWN PROBLEMS OF THE EXTRACTION (the human has put them off; none is
 checked by a tool, but the first in part). In the identity build `M A` is
