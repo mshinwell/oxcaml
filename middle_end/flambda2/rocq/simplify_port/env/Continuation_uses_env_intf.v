@@ -25,12 +25,6 @@ From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Apply_cont_rewrite_id Continuation
   Continuation_use_kind Downwards_env Flambda2_types Flambda_arity.
 
-(* PORT-GAP(decl): decl/Flambda_arity.v prints the type of an arity as
-   [(_) Flambda_arity.t], which OCaml refuses in a signature. This name is
-   the same type in Rocq and is printed with the compiler's index. *)
-Definition unarized_arity : Type := Flambda_arity.t.
-Extract Inlined Constant unarized_arity => "[ `Unarized ] Flambda_arity.t".
-
 (* 17-39 *)
 Module Type S.
   (* 18 *)
@@ -38,10 +32,11 @@ Module Type S.
 
   (* 20-21 *)
   Parameter record_continuation :
-    t -> Continuation.t -> unarized_arity -> M t.
+    t -> Continuation.t -> Flambda_arity.t_Unarized -> M t.
 
-  (* 23-29. PORT-GAP(loose): the labels [~env_at_use] and [~arg_types] are
-     not kept. *)
+  (* 23-29 *)
+  (* PORT-GAP(loose): the labels [~env_at_use] and [~arg_types] are not
+     kept. *)
   Parameter record_continuation_use :
     t ->
     Continuation.t ->
