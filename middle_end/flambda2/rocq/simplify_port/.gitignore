@@ -1,0 +1,9 @@
+# What the port's Makefile makes and does not keep.
+*.vo
+*.vos
+*.vok
+*.glob
+.*.aux
+.lia.cache
+.nia.cache
+/_build/
