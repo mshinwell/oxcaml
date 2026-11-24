@@ -49,14 +49,6 @@ open! Simplify_import
 exception Argument_cannot_be_used_in_lookup_table
 OCAML*)
 
-(* PORT-GAP(decl): Rocq writes [open Target_ocaml_int] at the head of the
-   extracted file (the file names the type [TI.Map.t]), and that module has
-   its own [<], [<=] and [>=]: the kit's comparisons of integers would be
-   taken for them. For this file they are given with the full path. *)
-Extract Inlined Constant Z.ltb => "Stdlib.( < )".
-Extract Inlined Constant Z.leb => "Stdlib.( <= )".
-Extract Inlined Constant Z.geb => "Stdlib.( >= )".
-
 (* 18-21 *)
 Module TE := Flambda2_types.Typing_env.
 Module TI := Target_ocaml_int.

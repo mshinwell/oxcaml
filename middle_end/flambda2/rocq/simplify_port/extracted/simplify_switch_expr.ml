@@ -870,8 +870,8 @@ let enough_arms num_arms x =
     (fun _ -> true)
     (fun _ -> true)
     (fun _ -> true)
-    (fun _ _ _ -> Stdlib.( >= ) num_arms 3)
-    (fun _ _ _ _ -> Stdlib.( >= ) num_arms 3)
+    (fun _ _ _ -> num_arms >= 3)
+    (fun _ _ _ _ -> num_arms >= 3)
     x
 
 (** val bound_tagged_scrutinee : Simple.t -> Debuginfo.t -> named coq_M **)
@@ -1150,9 +1150,7 @@ let recognize_mergeable_argument machine_width scrutinee0 required_names dbg arg
             | [] -> None
             | _ :: _ -> (
               let args = List.rev args_rev in
-              let () =
-                assert (Stdlib.( >= ) (List.compare_length_with args 1) 0)
-              in
+              let () = assert (List.compare_length_with args 1 >= 0) in
               let kind_of =
                fun simple ->
                 Simple.pattern_match' simple
@@ -1311,7 +1309,7 @@ let rebuild_switch pat uacc after_rebuild =
       mergeable_arms0
   in
   let body, uacc0 =
-    if Stdlib.( < ) num_arms 1
+    if num_arms < 1
     then
       let uacc0 = Upwards_acc.notify_removed Removed_operations.branch uacc in
       Rebuilt_expr.create_invalid Flambda.Invalid.Zero_switch_arms, uacc0
@@ -1453,7 +1451,7 @@ let decide_continuation_specialization0 dacc switch scrutinee0 =
     (fun _ -> `Not_lifting)
     (fun continuation is_exn_handler uses ->
       let n_uses = Continuation_uses.number_of_uses uses in
-      if Stdlib.( <= ) n_uses 1
+      if n_uses <= 1
       then `Single_use
       else if is_exn_handler
       then `Exn_handler
@@ -1481,9 +1479,7 @@ let decide_continuation_specialization0 dacc switch scrutinee0 =
               Downwards_env.cost_of_lifting_continuations_out_of_current_one
                 denv
             in
-            if
-              not
-                (lifting_budget > 0 && Stdlib.( <= ) lifting_cost lifting_budget)
+            if not (lifting_budget > 0 && lifting_cost <= lifting_budget)
             then `Insufficient_lifting_budget
             else
               let join_analysis_result0 =
@@ -1543,7 +1539,7 @@ let decide_continuation_specialization0 dacc switch scrutinee0 =
                   Flambda_features.Expert.cont_spec_threshold ()
                 in
                 if
-                  Stdlib.( < ) (Float.compare threshold 0.) 0
+                  Float.compare threshold 0. < 0
                   || Float.compare final_cost threshold > 0
                 then `Too_costly
                 else `Specialized (continuation, lifting_cost)
@@ -1638,7 +1634,7 @@ let simplify_switch dacc switch down_to_up0 =
         (Target_ocaml_int.Map.empty, dacc)
     in
     let dacc1 =
-      if Stdlib.( <= ) (Target_ocaml_int.Map.cardinal arms1) 1
+      if Target_ocaml_int.Map.cardinal arms1 <= 1
       then dacc0
       else
         Downwards_acc.map_flow_acc dacc0
