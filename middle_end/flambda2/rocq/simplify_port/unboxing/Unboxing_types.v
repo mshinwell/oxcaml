@@ -64,6 +64,17 @@ Module Extra_param_and_args.
          args := Apply_cont_rewrite_id.Map.empty
       |}.
 
+  (* PORT-GAP(update): 47, [{ t with args }]. *)
+  Definition update_args (t : Extra_param_and_args.t)
+      (args : Apply_cont_rewrite_id.Map.t EPA.Extra_arg.t)
+      : Extra_param_and_args.t :=
+    {| param := t.(param);
+       param_debug_uid := t.(param_debug_uid);
+       args := args
+    |}.
+  Extract Inlined Constant update_args =>
+    "(fun t x__1 -> { t with args = x__1 })".
+
   (* 44-47 *)
   Definition update_param_args (t : Extra_param_and_args.t)
       (rewrite_id : Apply_cont_rewrite_id.t) (extra_arg : EPA.Extra_arg.t)
@@ -71,11 +82,7 @@ Module Extra_param_and_args.
     (let! tmp1 := Apply_cont_rewrite_id.Map.mem rewrite_id t.(args) in
      assert_ (negb tmp1)) ;;
     let* args := Apply_cont_rewrite_id.Map.add rewrite_id extra_arg t.(args) in
-    ret
-      {| param := t.(param);
-         param_debug_uid := t.(param_debug_uid);
-         args := args
-      |}.
+    ret (update_args t args).
 
   (* 49-55 *)
   Definition print (fmt : Format.formatter)
