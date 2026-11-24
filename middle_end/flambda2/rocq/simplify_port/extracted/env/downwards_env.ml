@@ -21,13 +21,6 @@
    middle_end/flambda2/rocq/simplify_port. *)
 
 open! Flambda.Import
-module CSE = Common_subexpression_elimination
-module K = Flambda_kind
-module BP = Bound_parameter
-module T = Flambda2_types
-module TE = Flambda2_types.Typing_env
-module LCS = Lifted_constant_state
-module LC = Lifted_constant
 
 type resolver =
   Compilation_unit.t -> Flambda2_types.Typing_env.Serializable.t option
@@ -35,6 +28,13 @@ type resolver =
 type get_imported_code = unit -> Exported_code.t
 
 open Port_monad
+module CSE = Common_subexpression_elimination
+module K = Flambda_kind
+module BP = Bound_parameter
+module T = Flambda2_types
+module TE = Flambda2_types.Typing_env
+module LCS = Lifted_constant_state
+module LC = Lifted_constant
 
 module Disable_inlining_reason = struct
   type t =
@@ -65,7 +65,7 @@ end
 type t =
   { round : int;
     machine_width : Target_system.Machine_width.t;
-    typing_env : Flambda2_types.Typing_env.t;
+    typing_env : TE.t;
     inlined_debuginfo : Inlined_debuginfo.t;
     disable_inlining : Disable_inlining.t;
     disable_partial_application_stub_generation : bool;
@@ -78,7 +78,7 @@ type t =
     unit_toplevel_exn_continuation : Continuation.t;
     unit_toplevel_alloc_region : Variable.t;
     variables_defined_at_toplevel : Variable.Set.t;
-    cse : Common_subexpression_elimination.t;
+    cse : CSE.t;
     comparison_results : Comparison_result.t Variable_.Map.t;
     are_rebuilding_terms : Are_rebuilding_terms.t;
     closure_info : Closure_info.t;
@@ -88,8 +88,7 @@ type t =
     loopify_state : Loopify_state.t;
     replay_history : Replay_history.t;
     specialization_cost : Specialization_cost.t;
-    join_analysis :
-      Apply_cont_rewrite_id.t Flambda2_types.Join_analysis.t option;
+    join_analysis : Apply_cont_rewrite_id.t T.Join_analysis.t option;
     defined_variables_by_scope : Lifted_cont_params.t list;
     lifted : Variable.Set.t;
     cost_of_lifting_continuations_out_of_current_one : int;
@@ -105,7 +104,7 @@ let round t0 = t0.round
 
 let machine_width t0 = t0.machine_width
 
-(** val typing_env : t -> Flambda2_types.Typing_env.t **)
+(** val typing_env : t -> TE.t **)
 
 let typing_env t0 = t0.typing_env
 
@@ -155,7 +154,7 @@ let unit_toplevel_alloc_region t0 = t0.unit_toplevel_alloc_region
 
 let variables_defined_at_toplevel t0 = t0.variables_defined_at_toplevel
 
-(** val cse : t -> Common_subexpression_elimination.t **)
+(** val cse : t -> CSE.t **)
 
 let cse t0 = t0.cse
 
@@ -195,8 +194,7 @@ let replay_history t0 = t0.replay_history
 
 let specialization_cost t0 = t0.specialization_cost
 
-(** val join_analysis : t -> Apply_cont_rewrite_id.t
-    Flambda2_types.Join_analysis.t option **)
+(** val join_analysis : t -> Apply_cont_rewrite_id.t T.Join_analysis.t option **)
 
 let join_analysis t0 = t0.join_analysis
 
@@ -267,7 +265,7 @@ let print ppf t0 =
       (fun x__1 x__2 x__3 x__4 -> Misc.Sexp.a ?colour:x__1 x__2 x__3 x__4)
         None "machine_width" machine_width0 Target_system.Machine_width.print;
       (fun x__1 x__2 x__3 x__4 -> Misc.Sexp.a ?colour:x__1 x__2 x__3 x__4)
-        None "typing_env" typing_env0 Flambda2_types.Typing_env.print;
+        None "typing_env" typing_env0 TE.print;
       (fun x__1 x__2 x__3 x__4 -> Misc.Sexp.a ?colour:x__1 x__2 x__3 x__4)
         None "inlined_debuginfo" inlined_debuginfo0 Inlined_debuginfo.print;
       (fun x__1 x__2 x__3 x__4 -> Misc.Sexp.a ?colour:x__1 x__2 x__3 x__4)
@@ -303,7 +301,7 @@ let print ppf t0 =
         None "variables_defined_at_toplevel" variables_defined_at_toplevel0
         Variable.Set.print;
       (fun x__1 x__2 x__3 x__4 -> Misc.Sexp.a ?colour:x__1 x__2 x__3 x__4)
-        None "cse" cse0 Common_subexpression_elimination.print;
+        None "cse" cse0 CSE.print;
       (fun x__1 x__2 x__3 x__4 -> Misc.Sexp.a ?colour:x__1 x__2 x__3 x__4)
         None "comparison_results" comparison_results0
         (Variable.Map.print Comparison_result.print);
@@ -327,7 +325,7 @@ let print ppf t0 =
         ((fun x__1 x__2 x__3 x__4 ->
            Format.pp_print_option ?none:x__1 x__2 x__3 x__4)
            (Some (fun ppf0 _ -> Format.fprintf ppf0 "()"))
-           Flambda2_types.Join_analysis.print);
+           T.Join_analysis.print);
       (fun x__1 x__2 x__3 x__4 -> Misc.Sexp.a ?colour:x__1 x__2 x__3 x__4)
         None "defined_variables_by_scope" defined_variables_by_scope0
         ((fun x__1 x__2 x__3 x__4 ->
@@ -350,8 +348,7 @@ let define_continuations can_be_lifted t0 conts =
   in
   (fun t replay_history -> { t with replay_history }) t0 replay_history0
 
-(** val define_variable0 : bool -> t -> Bound_var.t -> Flambda_kind.t -> t coq_M
-    **)
+(** val define_variable0 : bool -> t -> Bound_var.t -> K.t -> t coq_M **)
 
 let define_variable0 extra t0 var kind =
   let replay_history0 =
@@ -377,7 +374,7 @@ let define_variable0 extra t0 var kind =
   in
   let typing_env0 =
     let var0 = Bound_name.create_var var in
-    Flambda2_types.Typing_env.add_definition t0.typing_env var0 kind
+    TE.add_definition t0.typing_env var0 kind
   in
   let variables_defined_at_toplevel0 =
     if t0.at_unit_toplevel
@@ -399,11 +396,11 @@ let define_variable0 extra t0 var kind =
     t0 typing_env0 replay_history0 variables_defined_at_toplevel0
     defined_variables_by_scope0
 
-(** val define_variable : t -> Bound_var.t -> Flambda_kind.t -> t coq_M **)
+(** val define_variable : t -> Bound_var.t -> K.t -> t coq_M **)
 
 let define_variable t0 var kind = define_variable0 false t0 var kind
 
-(** val define_extra_variable : t -> Bound_var.t -> Flambda_kind.t -> t coq_M **)
+(** val define_extra_variable : t -> Bound_var.t -> K.t -> t coq_M **)
 
 let define_extra_variable t0 var kind = define_variable0 true t0 var kind
 
@@ -414,7 +411,7 @@ let define_extra_variable t0 var kind = define_variable0 true t0 var kind
 let create round0 machine_width0 resolver0 get_imported_code0
     propagating_float_consts0 unit_toplevel_exn_continuation0
     unit_toplevel_return_continuation0 toplevel_my_alloc_region =
-  let typing_env0 = Flambda2_types.Typing_env.create machine_width0 resolver0 in
+  let typing_env0 = TE.create machine_width0 resolver0 in
   let specialization_cost0 =
     Specialization_cost.cannot_specialize Specialization_cost.At_toplevel
   in
@@ -436,7 +433,7 @@ let create round0 machine_width0 resolver0 get_imported_code0
     unit_toplevel_exn_continuation = unit_toplevel_exn_continuation0;
     unit_toplevel_alloc_region = toplevel_my_alloc_region;
     variables_defined_at_toplevel = Variable.Set.empty;
-    cse = Common_subexpression_elimination.empty;
+    cse = CSE.empty;
     comparison_results = Variable.Map.empty;
     are_rebuilding_terms = Are_rebuilding_terms.are_rebuilding;
     closure_info = Closure_info.not_in_a_closure;
@@ -456,12 +453,11 @@ let create round0 machine_width0 resolver0 get_imported_code0
 
 (** val resolver : t -> resolver coq_M **)
 
-let resolver t0 = Flambda2_types.Typing_env.resolver t0.typing_env
+let resolver t0 = TE.resolver t0.typing_env
 
 (** val get_continuation_scope : t -> Scope.t coq_M **)
 
-let get_continuation_scope t0 =
-  Flambda2_types.Typing_env.current_scope t0.typing_env
+let get_continuation_scope t0 = TE.current_scope t0.typing_env
 
 (** val set_at_unit_toplevel_state : t -> bool -> t coq_M **)
 
@@ -498,14 +494,14 @@ let set_inlining_history_tracker inlining_history_tracker0 t0 =
 let increment_continuation_scope t0 =
   (fun t typing_env -> { t with typing_env })
     t0
-    (Flambda2_types.Typing_env.increment_scope t0.typing_env)
+    (TE.increment_scope t0.typing_env)
 
 (** val bump_current_level_scope : t -> t coq_M **)
 
 let bump_current_level_scope t0 =
   (fun t typing_env -> { t with typing_env })
     t0
-    (Flambda2_types.Typing_env.bump_current_level_scope t0.typing_env)
+    (TE.bump_current_level_scope t0.typing_env)
 
 (** val enter_stub_function : t -> t coq_M **)
 
@@ -556,7 +552,7 @@ let enter_set_of_closures t0 =
   let specialization_cost0 =
     Specialization_cost.cannot_specialize Specialization_cost.At_toplevel
   in
-  let typing_env1 = Flambda2_types.Typing_env.closure_env typing_env0 in
+  let typing_env1 = TE.closure_env typing_env0 in
   { round = round0;
     machine_width = machine_width0;
     typing_env = typing_env1;
@@ -572,7 +568,7 @@ let enter_set_of_closures t0 =
     unit_toplevel_exn_continuation = unit_toplevel_exn_continuation0;
     unit_toplevel_alloc_region = unit_toplevel_alloc_region0;
     variables_defined_at_toplevel = variables_defined_at_toplevel0;
-    cse = Common_subexpression_elimination.empty;
+    cse = CSE.empty;
     comparison_results = Variable.Map.empty;
     are_rebuilding_terms = are_rebuilding_terms0;
     closure_info = Closure_info.in_a_set_of_closures;
@@ -590,16 +586,16 @@ let enter_set_of_closures t0 =
     is_cold = false
   }
 
-(** val define_symbol : t -> Symbol.t -> Flambda_kind.t -> t coq_M **)
+(** val define_symbol : t -> Symbol.t -> K.t -> t coq_M **)
 
 let define_symbol t0 sym kind =
   let typing_env0 =
     let sym0 = Bound_name.create (Name.symbol sym) Name_mode.normal in
-    Flambda2_types.Typing_env.add_definition t0.typing_env sym0 kind
+    TE.add_definition t0.typing_env sym0 kind
   in
   (fun t typing_env -> { t with typing_env }) t0 typing_env0
 
-(** val define_name : t -> Bound_name.t -> Flambda_kind.t -> t coq_M **)
+(** val define_name : t -> Bound_name.t -> K.t -> t coq_M **)
 
 let define_name t0 name kind =
   Name.pattern_match (Bound_name.name name)
@@ -610,30 +606,27 @@ let define_name t0 name kind =
         kind)
     (fun sym -> define_symbol t0 sym kind)
 
-(** val add_variable0 : bool -> t -> Bound_var.t -> Flambda2_types.t -> t coq_M
-    **)
+(** val add_variable0 : bool -> t -> Bound_var.t -> T.t -> t coq_M **)
 
 let add_variable0 extra t0 var ty =
-  let t1 = define_variable0 extra t0 var (Flambda2_types.kind ty) in
+  let t1 = define_variable0 extra t0 var (T.kind ty) in
   (fun t typing_env -> { t with typing_env })
     t1
-    (Flambda2_types.Typing_env.add_equation t1.typing_env
-       (Name.var (Bound_var.var var))
-       ty)
+    (TE.add_equation t1.typing_env (Name.var (Bound_var.var var)) ty)
 
-(** val add_variable : t -> Bound_var.t -> Flambda2_types.t -> t coq_M **)
+(** val add_variable : t -> Bound_var.t -> T.t -> t coq_M **)
 
 let add_variable t0 var ty = add_variable0 false t0 var ty
 
-(** val add_symbol : t -> Symbol.t -> Flambda2_types.t -> t coq_M **)
+(** val add_symbol : t -> Symbol.t -> T.t -> t coq_M **)
 
 let add_symbol t0 sym ty =
-  let t1 = define_symbol t0 sym (Flambda2_types.kind ty) in
+  let t1 = define_symbol t0 sym (T.kind ty) in
   (fun t typing_env -> { t with typing_env })
     t1
-    (Flambda2_types.Typing_env.add_equation t1.typing_env (Name.symbol sym) ty)
+    (TE.add_equation t1.typing_env (Name.symbol sym) ty)
 
-(** val add_name : t -> Bound_name.t -> Flambda2_types.t -> t coq_M **)
+(** val add_name : t -> Bound_name.t -> T.t -> t coq_M **)
 
 let add_name t0 name ty =
   Name.pattern_match (Bound_name.name name)
@@ -644,35 +637,30 @@ let add_name t0 name ty =
         ty)
     (fun sym -> add_symbol t0 sym ty)
 
-(** val add_equation_on_variable : t -> Variable.t -> Flambda2_types.t -> t
-    coq_M **)
+(** val add_equation_on_variable : t -> Variable.t -> T.t -> t coq_M **)
 
 let add_equation_on_variable t0 var ty =
-  let typing_env0 =
-    Flambda2_types.Typing_env.add_equation t0.typing_env (Name.var var) ty
-  in
+  let typing_env0 = TE.add_equation t0.typing_env (Name.var var) ty in
   (fun t typing_env -> { t with typing_env }) t0 typing_env0
 
 (** val mem_name : t -> Name.t -> bool coq_M **)
 
 let mem_name t0 name =
-  (fun x__1 x__2 x__3 ->
-    Flambda2_types.Typing_env.mem ?min_name_mode:x__1 x__2 x__3)
+  (fun x__1 x__2 x__3 -> TE.mem ?min_name_mode:x__1 x__2 x__3)
     None t0.typing_env name
 
 (** val mem_variable : t -> Variable.t -> bool coq_M **)
 
 let mem_variable t0 var =
-  (fun x__1 x__2 x__3 ->
-    Flambda2_types.Typing_env.mem ?min_name_mode:x__1 x__2 x__3)
+  (fun x__1 x__2 x__3 -> TE.mem ?min_name_mode:x__1 x__2 x__3)
     None t0.typing_env (Name.var var)
 
-(** val add_equation_on_symbol : t -> Symbol.t -> Flambda2_types.t -> t coq_M **)
+(** val add_equation_on_symbol : t -> Symbol.t -> T.t -> t coq_M **)
 
 let add_equation_on_symbol t0 sym ty =
   let typing_env0 =
     let sym0 = Name.symbol sym in
-    Flambda2_types.Typing_env.add_equation t0.typing_env sym0 ty
+    TE.add_equation t0.typing_env sym0 ty
   in
   (fun t typing_env -> { t with typing_env }) t0 typing_env0
 
@@ -680,11 +668,9 @@ let add_equation_on_symbol t0 sym ty =
 
 let mem_symbol t0 sym = mem_name t0 (Name.symbol sym)
 
-(** val find_symbol : t -> Symbol.t -> Flambda2_types.t coq_M **)
+(** val find_symbol : t -> Symbol.t -> T.t coq_M **)
 
-let find_symbol t0 sym =
-  Flambda2_types.Typing_env.find t0.typing_env (Name.symbol sym)
-    (Some Flambda_kind.value)
+let find_symbol t0 sym = TE.find t0.typing_env (Name.symbol sym) (Some K.value)
 
 (** val add_symbol_projection : t -> Variable.t -> Symbol_projection.t -> t
     coq_M **)
@@ -692,31 +678,26 @@ let find_symbol t0 sym =
 let add_symbol_projection t0 var proj =
   (fun t typing_env -> { t with typing_env })
     t0
-    (Flambda2_types.Typing_env.add_symbol_projection t0.typing_env var proj)
+    (TE.add_symbol_projection t0.typing_env var proj)
 
 (** val find_symbol_projection : t -> Variable.t -> Symbol_projection.t option
     coq_M **)
 
-let find_symbol_projection t0 var =
-  Flambda2_types.Typing_env.find_symbol_projection t0.typing_env var
+let find_symbol_projection t0 var = TE.find_symbol_projection t0.typing_env var
 
-(** val define_name_if_undefined : t -> Bound_name.t -> Flambda_kind.t -> t
-    coq_M **)
+(** val define_name_if_undefined : t -> Bound_name.t -> K.t -> t coq_M **)
 
 let define_name_if_undefined t0 name kind =
   if
-    (fun x__1 x__2 x__3 ->
-      Flambda2_types.Typing_env.mem ?min_name_mode:x__1 x__2 x__3)
+    (fun x__1 x__2 x__3 -> TE.mem ?min_name_mode:x__1 x__2 x__3)
       None t0.typing_env (Bound_name.name name)
   then t0
   else define_name t0 name kind
 
-(** val add_equation_on_name : t -> Name.t -> Flambda2_types.t -> t coq_M **)
+(** val add_equation_on_name : t -> Name.t -> T.t -> t coq_M **)
 
 let add_equation_on_name t0 name ty =
-  let typing_env0 =
-    Flambda2_types.Typing_env.add_equation t0.typing_env name ty
-  in
+  let typing_env0 = TE.add_equation t0.typing_env name ty in
   (fun t typing_env -> { t with typing_env }) t0 typing_env0
 
 (** val define_parameters : bool -> t -> Bound_parameters.t -> t coq_M **)
@@ -724,15 +705,14 @@ let add_equation_on_name t0 name ty =
 let define_parameters extra t0 params =
   List.fold_left
     (fun t1 param ->
-      let param_var, param_duid = Bound_parameter.var_and_uid param in
+      let param_var, param_duid = BP.var_and_uid param in
       let var = Bound_var.create param_var param_duid Name_mode.normal in
-      define_variable0 extra t1 var
-        (Flambda_kind.With_subkind.kind (Bound_parameter.kind param)))
+      define_variable0 extra t1 var (K.With_subkind.kind (BP.kind param)))
     t0
     (Bound_parameters.to_list params)
 
 (** val add_parameters : bool -> Name_mode.t option -> t -> Bound_parameters.t
-    -> Flambda2_types.t list -> t coq_M **)
+    -> T.t list -> t coq_M **)
 
 let add_parameters extra name_mode t0 params param_types =
   let name_mode0 =
@@ -750,13 +730,13 @@ let add_parameters extra name_mode t0 params param_types =
         Bound_parameters.print params'
         ((fun x__1 x__2 x__3 x__4 ->
            Format.pp_print_list ?pp_sep:x__1 x__2 x__3 x__4)
-           (Some Format.pp_print_space) Flambda2_types.print)
+           (Some Format.pp_print_space) T.print)
         param_types
     else ()
   in
   List.fold_left2
     (fun t1 param param_type ->
-      let param_var, param_duid = Bound_parameter.var_and_uid param in
+      let param_var, param_duid = BP.var_and_uid param in
       let var = Bound_var.create param_var param_duid name_mode0 in
       add_variable0 extra t1 var param_type)
     t0 params0 param_types
@@ -784,9 +764,8 @@ let add_parameters_with_unknown_types extra alloc_modes name_mode t0 params =
     ListLabels.map2
       (fun param alloc_mode ->
         (fun x__1 x__2 x__3 ->
-          Flambda2_types.unknown_with_subkind ?alloc_mode:x__1 x__2 x__3)
-          (Some alloc_mode) t0.machine_width
-          (Bound_parameter.kind param))
+          T.unknown_with_subkind ?alloc_mode:x__1 x__2 x__3)
+          (Some alloc_mode) t0.machine_width (BP.kind param))
       params0 alloc_modes0
   in
   add_parameters extra name_mode t0 params' param_types
@@ -803,21 +782,19 @@ let mark_parameters_as_toplevel t0 params =
     t0 variables_defined_at_toplevel0
 
 (** val extend_typing_environment : t ->
-    Flambda2_types.Typing_env_extension.With_extra_variables.t -> t coq_M **)
+    T.Typing_env_extension.With_extra_variables.t -> t coq_M **)
 
-let extend_typing_environment t0 env_extension =
+let extend_typing_environment t0 env_extension0 =
   let typing_env0 =
-    Flambda2_types.Typing_env.add_env_extension_with_extra_variables
-      t0.typing_env env_extension
+    TE.add_env_extension_with_extra_variables t0.typing_env env_extension0
   in
   (fun t typing_env -> { t with typing_env }) t0 typing_env0
 
-(** val with_typing_env : t -> Flambda2_types.Typing_env.t -> t coq_M **)
+(** val with_typing_env : t -> TE.t -> t coq_M **)
 
 let with_typing_env = fun t typing_env -> { t with typing_env }
 
-(** val map_typing_env : t -> (Flambda2_types.Typing_env.t ->
-    Flambda2_types.Typing_env.t coq_M) -> t coq_M **)
+(** val map_typing_env : t -> (TE.t -> TE.t coq_M) -> t coq_M **)
 
 let map_typing_env t0 f = with_typing_env t0 (f t0.typing_env)
 
@@ -826,8 +803,7 @@ let map_typing_env t0 f = with_typing_env t0 (f t0.typing_env)
 let check_name_is_bound t0 name =
   if
     not
-      ((fun x__1 x__2 x__3 ->
-         Flambda2_types.Typing_env.mem ?min_name_mode:x__1 x__2 x__3)
+      ((fun x__1 x__2 x__3 -> TE.mem ?min_name_mode:x__1 x__2 x__3)
          None t0.typing_env name)
   then
     Misc.fatal_errorf "Unbound name %a in environment:@ %a" Name.print name
@@ -858,10 +834,7 @@ let find_code_metadata_exn t0 id =
         (fun _ -> Exported_code.find_exn (t0.get_imported_code ()) id)
         Port_monad.not_found
         (fun _ ->
-          let _ =
-            Flambda2_types.Typing_env.resolver t0.typing_env
-              (Code_id.get_compilation_unit id)
-          in
+          let _ = TE.resolver t0.typing_env (Code_id.get_compilation_unit id) in
           Code_or_metadata.code_metadata
             (Exported_code.find_exn (t0.get_imported_code ()) id))
         Code_or_metadata.code_metadata)
@@ -872,10 +845,7 @@ let find_code_metadata_exn t0 id =
 let find_code_exn t0 id =
   match Code_id.Map.find_or_null id t0.all_code with
   | Or_null.Null ->
-    let _ =
-      Flambda2_types.Typing_env.resolver t0.typing_env
-        (Code_id.get_compilation_unit id)
-    in
+    let _ = TE.resolver t0.typing_env (Code_id.get_compilation_unit id) in
     Exported_code.find_exn (t0.get_imported_code ()) id
   | Or_null.This code -> Code_or_metadata.create code
 
@@ -898,7 +868,7 @@ let define_code t0 code_id code =
     else ()
   in
   let typing_env0 =
-    Flambda2_types.Typing_env.add_to_code_age_relation t0.typing_env code_id
+    TE.add_to_code_age_relation t0.typing_env code_id
       (Code.newer_version_of code)
   in
   let all_code0 = Code_id.Map.add code_id code t0.all_code in
@@ -913,9 +883,7 @@ let add_cse t0 prim bound_to name_mode =
   then t0
   else
     let scope = get_continuation_scope t0 in
-    let cse0 =
-      Common_subexpression_elimination.add t0.cse prim bound_to scope
-    in
+    let cse0 = CSE.add t0.cse prim bound_to scope in
     let comparison_results0 =
       let prim0 = Flambda_primitive.Eligible_for_cse.to_primitive prim in
       let bound_to_var = Simple.must_be_var bound_to in
@@ -937,7 +905,7 @@ let add_cse t0 prim bound_to name_mode =
 (** val find_cse : t -> Flambda_primitive.Eligible_for_cse.t -> Simple.t option
     coq_M **)
 
-let find_cse t0 prim = Common_subexpression_elimination.find t0.cse prim
+let find_cse t0 prim = CSE.find t0.cse prim
 
 (** val find_comparison_result : t -> Variable.t -> Comparison_result.t option
     coq_M **)
@@ -945,7 +913,7 @@ let find_cse t0 prim = Common_subexpression_elimination.find t0.cse prim
 let find_comparison_result t0 var =
   Variable.Map.find_opt var t0.comparison_results
 
-(** val with_cse : t -> Common_subexpression_elimination.t -> t coq_M **)
+(** val with_cse : t -> CSE.t -> t coq_M **)
 
 let with_cse = fun t cse -> { t with cse }
 
@@ -1118,17 +1086,15 @@ let generate_phantom_lets t0 =
 let set_loopify_state loopify_state0 t0 =
   (fun t loopify_state -> { t with loopify_state }) t0 loopify_state0
 
-(** val with_code_age_relation : Flambda2_types.Code_age_relation.t -> t -> t
-    coq_M **)
+(** val with_code_age_relation : T.Code_age_relation.t -> t -> t coq_M **)
 
 let with_code_age_relation code_age_relation t0 =
   (fun t typing_env -> { t with typing_env })
     t0
-    (Flambda2_types.Typing_env.with_code_age_relation t0.typing_env
-       code_age_relation)
+    (TE.with_code_age_relation t0.typing_env code_age_relation)
 
-(** val with_join_analysis : Apply_cont_rewrite_id.t
-    Flambda2_types.Join_analysis.t option -> t -> t coq_M **)
+(** val with_join_analysis : Apply_cont_rewrite_id.t T.Join_analysis.t option ->
+    t -> t coq_M **)
 
 let with_join_analysis join_analysis0 t0 =
   (fun t join_analysis -> { t with join_analysis }) t0 join_analysis0
@@ -1172,8 +1138,7 @@ let enter_continuation_handler lifted_params t0 =
     0 false
     (Specialization_cost.can_specialize ())
 
-(** val add_lifted_constant_state : unit option -> t -> Lifted_constant_state.t
-    -> t coq_M **)
+(** val add_lifted_constant_state : unit option -> t -> LCS.t -> t coq_M **)
 
 let add_lifted_constant_state maybe_already_defined denv lifted0 =
   let initial_denv = denv in
@@ -1185,25 +1150,20 @@ let add_lifted_constant_state maybe_already_defined denv lifted0 =
     | None -> false
   in
   let denv0 =
-    Lifted_constant_state.fold lifted0 denv (fun denv0 lifted_constant ->
-        let types_of_symbols =
-          Lifted_constant.types_of_symbols lifted_constant
-        in
+    LCS.fold lifted0 denv (fun denv0 lifted_constant ->
+        let types_of_symbols = LC.types_of_symbols lifted_constant in
         Symbol.Map.fold
           (fun sym pat denv1 ->
             let _, typ = pat in
             if maybe_already_defined0 && mem_symbol denv1 sym
             then denv1
-            else define_symbol denv1 sym (Flambda2_types.kind typ))
+            else define_symbol denv1 sym (T.kind typ))
           types_of_symbols denv0)
   in
   let typing_env0 =
     let typing_env0 = denv0.typing_env in
-    Lifted_constant_state.fold lifted0 typing_env0
-      (fun typing_env1 lifted_constant ->
-        let types_of_symbols =
-          Lifted_constant.types_of_symbols lifted_constant
-        in
+    LCS.fold lifted0 typing_env0 (fun typing_env1 lifted_constant ->
+        let types_of_symbols = LC.types_of_symbols lifted_constant in
         Symbol.Map.fold
           (fun sym pat typing_env2 ->
             let typing_env_at_definition, typ = pat in
@@ -1211,21 +1171,19 @@ let add_lifted_constant_state maybe_already_defined denv lifted0 =
             then typing_env2
             else
               let sym0 = Name.symbol sym in
-              let env_extension =
-                Flambda2_types.make_suitable_for_environment
-                  typing_env_at_definition
-                  (Flambda2_types.Everything_not_in typing_env2)
-                  ((sym0, typ) :: [])
+              let env_extension0 =
+                T.make_suitable_for_environment typing_env_at_definition
+                  (T.Everything_not_in typing_env2) ((sym0, typ) :: [])
               in
-              Flambda2_types.Typing_env.add_env_extension_with_extra_variables
-                typing_env2 env_extension)
+              TE.add_env_extension_with_extra_variables typing_env2
+                env_extension0)
           types_of_symbols typing_env1)
   in
-  Lifted_constant_state.fold lifted0 (with_typing_env denv0 typing_env0)
+  LCS.fold lifted0 (with_typing_env denv0 typing_env0)
     (fun denv1 lifted_constant ->
       let pieces_of_code =
         Rebuilt_static_const.Group.pieces_of_code_including_those_not_rebuilt
-          (Lifted_constant.defining_exprs lifted_constant)
+          (LC.defining_exprs lifted_constant)
       in
       Code_id.Map.fold
         (fun code_id code denv2 ->

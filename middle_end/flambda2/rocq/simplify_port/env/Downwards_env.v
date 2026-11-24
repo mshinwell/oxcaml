@@ -36,29 +36,29 @@ From SimplifyPort.decl Require Alloc_mode Apply_cont_rewrite_id Apply_expr
   Misc Name Name_mode Option Or_null Rebuilt_static_const Replay_history
   Scope Simple Specialization_cost Symbol Symbol_projection Target_system
   Variable_.
-(* 17 *)
 Import Flambda.Import_.
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 Local Open Scope list_scope.
 
-(* PORT-GAP(verbatim): 18-24, the seven abbreviations of modules are the
-   compiler's text, and the Rocq text below writes the modules' own names
-   (as Rocq modules they would make Rocq write an [open] line for each of
-   them, which can hide a name that the rest of the extracted file uses).
-   26-29, the two types have the names of a function and of a field of the
-   file: they are the compiler's text too, and in Rocq they are [resolver_]
-   and [get_imported_code_]. *)
+(* 17 *)
 (*OCAML
 open! Flambda.Import
-module CSE = Common_subexpression_elimination
-module K = Flambda_kind
-module BP = Bound_parameter
-module T = Flambda2_types
-module TE = Flambda2_types.Typing_env
-module LCS = Lifted_constant_state
-module LC = Lifted_constant
+OCAML*)
 
+(* 18-24 *)
+Module CSE := Common_subexpression_elimination.
+Module K := Flambda_kind.
+Module BP := Bound_parameter.
+Module T := Flambda2_types.
+Module TE := Flambda2_types.Typing_env.
+Module LCS := Lifted_constant_state.
+Module LC := Lifted_constant.
+
+(* PORT-GAP(verbatim): 26-29, the two types have the names of a function and
+   of a field of the file: they are the compiler's text, and in Rocq they are
+   [resolver_] and [get_imported_code_]. *)
+(*OCAML
 type resolver =
   Compilation_unit.t -> Flambda2_types.Typing_env.Serializable.t option
 
@@ -116,7 +116,7 @@ Extract Inductive attribute_to_forward => "(Inlined_attribute.t * forwarded_from
 Record t : Type :=
   { round : int;
     machine_width : Target_system.Machine_width.t;
-    typing_env : Flambda2_types.Typing_env.t;
+    typing_env : TE.t;
     inlined_debuginfo : Inlined_debuginfo.t;
     disable_inlining : Disable_inlining.t;
     disable_partial_application_stub_generation : bool;
@@ -128,7 +128,7 @@ Record t : Type :=
     unit_toplevel_exn_continuation : Continuation.t;
     unit_toplevel_alloc_region : Variable_.t;
     variables_defined_at_toplevel : Variable_.Set_.t;
-    cse : Common_subexpression_elimination.t;
+    cse : CSE.t;
     comparison_results : Variable_.Map.t Comparison_result.t;
     are_rebuilding_terms : Are_rebuilding_terms.t;
     closure_info : Closure_info.t;
@@ -142,8 +142,7 @@ Record t : Type :=
     (* Accumulator to record whether the handler of the current continuation can
        be specialized, or whether there are reasons why it could not (or rather
        why it would not be beneficial) *);
-    join_analysis :
-      option (Flambda2_types.Join_analysis.t Apply_cont_rewrite_id.t)
+    join_analysis : option (T.Join_analysis.t Apply_cont_rewrite_id.t)
     (* Analysis from the latest join point. *);
     defined_variables_by_scope : list Lifted_cont_params.t
     (* Stack of variables defined. The first element of the list refers to
@@ -259,7 +258,7 @@ Definition print (ppf : Format.formatter) (t : Downwards_env.t) : M unit :=
         (Some
            (fun (ppf : Format.formatter) (_ : unit) =>
              Format.fprintf0 ppf "()"))
-        Flambda2_types.Join_analysis.print
+        T.Join_analysis.print
     in
     let! tmp7 := Misc.Sexp.a None "join_analysis" join_analysis tmp6 in
     let! tmp8 :=
@@ -289,9 +288,7 @@ Definition print (ppf : Format.formatter) (t : Downwards_env.t) : M unit :=
     let! tmp16 :=
       Misc.Sexp.a None "comparison_results" comparison_results tmp15
     in
-    let! tmp17 :=
-      Misc.Sexp.a None "cse" cse Common_subexpression_elimination.print
-    in
+    let! tmp17 := Misc.Sexp.a None "cse" cse CSE.print in
     let! tmp18 :=
       Misc.Sexp.a None "variables_defined_at_toplevel"
         variables_defined_at_toplevel Variable_.Set_.print
@@ -337,10 +334,7 @@ Definition print (ppf : Format.formatter) (t : Downwards_env.t) : M unit :=
       Misc.Sexp.a None "inlined_debuginfo" inlined_debuginfo
         Inlined_debuginfo.print
     in
-    let! tmp29 :=
-      Misc.Sexp.a None "typing_env" typing_env
-        Flambda2_types.Typing_env.print
-    in
+    let! tmp29 := Misc.Sexp.a None "typing_env" typing_env TE.print in
     let! tmp30 :=
       Misc.Sexp.a None "machine_width" machine_width
         Target_system.Machine_width.print
@@ -399,7 +393,7 @@ Definition define_continuations (can_be_lifted : bool) (t : Downwards_env.t)
 (* PORT-GAP(update): 227-232, [{ t with typing_env; replay_history;
    variables_defined_at_toplevel; defined_variables_by_scope }]. *)
 Definition update_typing_env_replay_history_variables_defined_at_toplevel_defined_variables_by_scope
-    (t : Downwards_env.t) (typing_env : Flambda2_types.Typing_env.t)
+    (t : Downwards_env.t) (typing_env : TE.t)
     (replay_history : Replay_history.t)
     (variables_defined_at_toplevel : Variable_.Set_.t)
     (defined_variables_by_scope : list Lifted_cont_params.t)
@@ -442,7 +436,7 @@ Extract Inlined Constant update_typing_env_replay_history_variables_defined_at_t
 
 (* 196-232. In the compiler: [~extra t var kind]. *)
 Definition define_variable0 (extra : bool) (t : Downwards_env.t)
-    (var : Bound_var.t) (kind : Flambda_kind.t) : M Downwards_env.t :=
+    (var : Bound_var.t) (kind : K.t) : M Downwards_env.t :=
   let* replay_history :=
     if extra
     then ret t.(Downwards_env.replay_history)
@@ -477,8 +471,7 @@ Definition define_variable0 (extra : bool) (t : Downwards_env.t)
   (* 218-221 *)
   let* typing_env :=
     let* var := Bound_name.create_var var in
-    Flambda2_types.Typing_env.add_definition t.(Downwards_env.typing_env) var
-      kind
+    TE.add_definition t.(Downwards_env.typing_env) var kind
   in
   let* variables_defined_at_toplevel :=
     if t.(Downwards_env.at_unit_toplevel)
@@ -496,12 +489,12 @@ Definition define_variable0 (extra : bool) (t : Downwards_env.t)
 (* PORT-GAP(loose): the attribute [@inlined hint] is not kept, here and at
    238, 414, 420, 423, 429 and 432. *)
 Definition define_variable (t : Downwards_env.t) (var : Bound_var.t)
-    (kind : Flambda_kind.t) : M Downwards_env.t :=
+    (kind : K.t) : M Downwards_env.t :=
   define_variable0 false t var kind.
 
 (* 237-238 *)
 Definition define_extra_variable (t : Downwards_env.t) (var : Bound_var.t)
-    (kind : Flambda_kind.t) : M Downwards_env.t :=
+    (kind : K.t) : M Downwards_env.t :=
   define_variable0 true t var kind.
 
 (* 240-276. In the compiler: [~round ~machine_width ~(resolver : resolver)
@@ -514,7 +507,7 @@ Definition create (round : int)
     (unit_toplevel_exn_continuation : Continuation.t)
     (unit_toplevel_return_continuation : Continuation.t)
     (toplevel_my_alloc_region : Variable_.t) : M Downwards_env.t :=
-  let* typing_env := Flambda2_types.Typing_env.create machine_width resolver in
+  let* typing_env := TE.create machine_width resolver in
   (* PORT-GAP(record-order): 245-276, three fields of the record have a
      call: [specialization_cost], the last of them in the type, first; then
      [inlining_history_tracker]; then [inlining_state]. *)
@@ -541,7 +534,7 @@ Definition create (round : int)
        unit_toplevel_exn_continuation := unit_toplevel_exn_continuation;
        unit_toplevel_alloc_region := toplevel_my_alloc_region;
        variables_defined_at_toplevel := Variable_.Set_.empty;
-       cse := Common_subexpression_elimination.empty;
+       cse := CSE.empty;
        comparison_results := Variable_.Map.empty;
        are_rebuilding_terms := Are_rebuilding_terms.are_rebuilding;
        closure_info := Closure_info.not_in_a_closure;
@@ -562,11 +555,11 @@ Definition create (round : int)
 (* 282 *)
 (* PORT-GAP(papp): [TE.resolver] is given its first argument only. *)
 Definition resolver (t : Downwards_env.t) : M resolver_ :=
-  papp1 Flambda2_types.Typing_env.resolver t.(Downwards_env.typing_env).
+  papp1 TE.resolver t.(Downwards_env.typing_env).
 
 (* 288 *)
 Definition get_continuation_scope (t : Downwards_env.t) : M Scope.t :=
-  Flambda2_types.Typing_env.current_scope t.(Downwards_env.typing_env).
+  TE.current_scope t.(Downwards_env.typing_env).
 
 (* PORT-GAP(update): 307, [{ t with at_unit_toplevel }]. *)
 Definition update_at_unit_toplevel (t : Downwards_env.t)
@@ -707,8 +700,8 @@ Definition set_inlining_history_tracker
 
 (* PORT-GAP(update): 327, 330, 409, 424-426, 433, 448, 459, 466, 477, 540, 542
    and 765-767, [{ t with typing_env }]. *)
-Definition update_typing_env (t : Downwards_env.t)
-    (typing_env : Flambda2_types.Typing_env.t) : Downwards_env.t :=
+Definition update_typing_env (t : Downwards_env.t) (typing_env : TE.t)
+    : Downwards_env.t :=
   {| round := t.(round); machine_width := t.(machine_width);
      typing_env := typing_env; inlined_debuginfo := t.(inlined_debuginfo);
      disable_inlining := t.(disable_inlining);
@@ -744,18 +737,13 @@ Extract Inlined Constant update_typing_env =>
 (* 326-327 *)
 Definition increment_continuation_scope (t : Downwards_env.t)
     : M Downwards_env.t :=
-  let! tmp1 :=
-    Flambda2_types.Typing_env.increment_scope t.(Downwards_env.typing_env)
-  in
+  let! tmp1 := TE.increment_scope t.(Downwards_env.typing_env) in
   ret (update_typing_env t tmp1).
 
 (* 329-330 *)
 Definition bump_current_level_scope (t : Downwards_env.t)
     : M Downwards_env.t :=
-  let! tmp1 :=
-    Flambda2_types.Typing_env.bump_current_level_scope
-      t.(Downwards_env.typing_env)
-  in
+  let! tmp1 := TE.bump_current_level_scope t.(Downwards_env.typing_env) in
   ret (update_typing_env t tmp1).
 
 (* PORT-GAP(update): 333-338, [{ t with disable_inlining;
@@ -849,7 +837,7 @@ Definition enter_set_of_closures (t : Downwards_env.t) : M Downwards_env.t :=
     let* specialization_cost :=
       Specialization_cost.cannot_specialize Specialization_cost.At_toplevel
     in
-    let* typing_env := Flambda2_types.Typing_env.closure_env typing_env in
+    let* typing_env := TE.closure_env typing_env in
     ret
       {| round := round;
          machine_width := machine_width;
@@ -867,7 +855,7 @@ Definition enter_set_of_closures (t : Downwards_env.t) : M Downwards_env.t :=
          unit_toplevel_exn_continuation := unit_toplevel_exn_continuation;
          unit_toplevel_alloc_region := unit_toplevel_alloc_region;
          variables_defined_at_toplevel := variables_defined_at_toplevel;
-         cse := Common_subexpression_elimination.empty;
+         cse := CSE.empty;
          comparison_results := Variable_.Map.empty;
          are_rebuilding_terms := are_rebuilding_terms;
          closure_info := Closure_info.in_a_set_of_closures;
@@ -887,15 +875,14 @@ Definition enter_set_of_closures (t : Downwards_env.t) : M Downwards_env.t :=
   end.
 
 (* 404-409 *)
-Definition define_symbol (t : Downwards_env.t) (sym : Symbol.t)
-    (kind : Flambda_kind.t) : M Downwards_env.t :=
+Definition define_symbol (t : Downwards_env.t) (sym : Symbol.t) (kind : K.t)
+    : M Downwards_env.t :=
   let* typing_env :=
     let* sym :=
       let! tmp1 := Name.symbol sym in
       Bound_name.create tmp1 Name_mode.normal
     in
-    Flambda2_types.Typing_env.add_definition t.(Downwards_env.typing_env) sym
-      kind
+    TE.add_definition t.(Downwards_env.typing_env) sym kind
   in
   ret (update_typing_env t typing_env).
 
@@ -903,8 +890,8 @@ Definition define_symbol (t : Downwards_env.t) (sym : Symbol.t)
    the order of the interface. *)
 (* PORT-GAP(loose): 413 and 420, the attribute [@inline] of the two
    functions is not kept. *)
-Definition define_name (t : Downwards_env.t) (name : Bound_name.t)
-    (kind : Flambda_kind.t) : M Downwards_env.t :=
+Definition define_name (t : Downwards_env.t) (name : Bound_name.t) (kind : K.t)
+    : M Downwards_env.t :=
   let! tmp1 := Bound_name.name name in
   Name.pattern_match tmp1
     (fun var =>
@@ -915,43 +902,37 @@ Definition define_name (t : Downwards_env.t) (name : Bound_name.t)
 
 (* 422-426. In the compiler: [~extra t var ty]. *)
 Definition add_variable0 (extra : bool) (t : Downwards_env.t)
-    (var : Bound_var.t) (ty : Flambda2_types.t) : M Downwards_env.t :=
+    (var : Bound_var.t) (ty : T.t) : M Downwards_env.t :=
   let* t :=
-    let! tmp1 := Flambda2_types.kind ty in
+    let! tmp1 := T.kind ty in
     define_variable0 extra t var tmp1
   in
   let! tmp1 := Bound_var.var var in
   let! tmp2 := Name.var tmp1 in
-  let! tmp3 :=
-    Flambda2_types.Typing_env.add_equation t.(Downwards_env.typing_env) tmp2
-      ty
-  in
+  let! tmp3 := TE.add_equation t.(Downwards_env.typing_env) tmp2 ty in
   ret (update_typing_env t tmp3).
 
 (* 428-429 *)
-Definition add_variable (t : Downwards_env.t) (var : Bound_var.t)
-    (ty : Flambda2_types.t) : M Downwards_env.t :=
+Definition add_variable (t : Downwards_env.t) (var : Bound_var.t) (ty : T.t)
+    : M Downwards_env.t :=
   add_variable0 false t var ty.
 
 (* 431-433 *)
-Definition add_symbol (t : Downwards_env.t) (sym : Symbol.t)
-    (ty : Flambda2_types.t) : M Downwards_env.t :=
+Definition add_symbol (t : Downwards_env.t) (sym : Symbol.t) (ty : T.t)
+    : M Downwards_env.t :=
   let* t :=
-    let! tmp1 := Flambda2_types.kind ty in
+    let! tmp1 := T.kind ty in
     define_symbol t sym tmp1
   in
   let! tmp1 := Name.symbol sym in
-  let! tmp2 :=
-    Flambda2_types.Typing_env.add_equation t.(Downwards_env.typing_env) tmp1
-      ty
-  in
+  let! tmp2 := TE.add_equation t.(Downwards_env.typing_env) tmp1 ty in
   ret (update_typing_env t tmp2).
 
 (* 435-444 *)
 (* PORT-GAP(loose): 437 and 444, the attribute [@inline] of the two
    functions is not kept. *)
-Definition add_name (t : Downwards_env.t) (name : Bound_name.t)
-    (ty : Flambda2_types.t) : M Downwards_env.t :=
+Definition add_name (t : Downwards_env.t) (name : Bound_name.t) (ty : T.t)
+    : M Downwards_env.t :=
   let! tmp1 := Bound_name.name name in
   Name.pattern_match tmp1
     (fun var =>
@@ -962,29 +943,28 @@ Definition add_name (t : Downwards_env.t) (name : Bound_name.t)
 
 (* 446-448 *)
 Definition add_equation_on_variable (t : Downwards_env.t) (var : Variable_.t)
-    (ty : Flambda2_types.t) : M Downwards_env.t :=
+    (ty : T.t) : M Downwards_env.t :=
   let* typing_env :=
     let! tmp1 := Name.var var in
-    Flambda2_types.Typing_env.add_equation t.(Downwards_env.typing_env) tmp1
-      ty
+    TE.add_equation t.(Downwards_env.typing_env) tmp1 ty
   in
   ret (update_typing_env t typing_env).
 
 (* 450 *)
 Definition mem_name (t : Downwards_env.t) (name : Name.t) : M bool :=
-  Flambda2_types.Typing_env.mem None t.(Downwards_env.typing_env) name.
+  TE.mem None t.(Downwards_env.typing_env) name.
 
 (* 452 *)
 Definition mem_variable (t : Downwards_env.t) (var : Variable_.t) : M bool :=
   let! tmp1 := Name.var var in
-  Flambda2_types.Typing_env.mem None t.(Downwards_env.typing_env) tmp1.
+  TE.mem None t.(Downwards_env.typing_env) tmp1.
 
 (* 454-459 *)
 Definition add_equation_on_symbol (t : Downwards_env.t) (sym : Symbol.t)
-    (ty : Flambda2_types.t) : M Downwards_env.t :=
+    (ty : T.t) : M Downwards_env.t :=
   let* typing_env :=
     let* sym := Name.symbol sym in
-    Flambda2_types.Typing_env.add_equation t.(Downwards_env.typing_env) sym ty
+    TE.add_equation t.(Downwards_env.typing_env) sym ty
   in
   ret (update_typing_env t typing_env).
 
@@ -994,43 +974,32 @@ Definition mem_symbol (t : Downwards_env.t) (sym : Symbol.t) : M bool :=
   mem_name t tmp1.
 
 (* 463 *)
-Definition find_symbol (t : Downwards_env.t) (sym : Symbol.t)
-    : M Flambda2_types.t :=
+Definition find_symbol (t : Downwards_env.t) (sym : Symbol.t) : M T.t :=
   let! tmp1 := Name.symbol sym in
-  Flambda2_types.Typing_env.find t.(Downwards_env.typing_env) tmp1
-    (Some Flambda_kind.value).
+  TE.find t.(Downwards_env.typing_env) tmp1 (Some K.value).
 
 (* 465-466 *)
 Definition add_symbol_projection (t : Downwards_env.t) (var : Variable_.t)
     (proj : Symbol_projection.t) : M Downwards_env.t :=
-  let! tmp1 :=
-    Flambda2_types.Typing_env.add_symbol_projection
-      t.(Downwards_env.typing_env) var proj
-  in
+  let! tmp1 := TE.add_symbol_projection t.(Downwards_env.typing_env) var proj in
   ret (update_typing_env t tmp1).
 
 (* 468 *)
 Definition find_symbol_projection (t : Downwards_env.t) (var : Variable_.t)
     : M (option Symbol_projection.t) :=
-  Flambda2_types.Typing_env.find_symbol_projection
-    t.(Downwards_env.typing_env) var.
+  TE.find_symbol_projection t.(Downwards_env.typing_env) var.
 
 (* 470-473 *)
-Definition define_name_if_undefined (t : Downwards_env.t)
-    (name : Bound_name.t) (kind : Flambda_kind.t) : M Downwards_env.t :=
+Definition define_name_if_undefined (t : Downwards_env.t) (name : Bound_name.t)
+    (kind : K.t) : M Downwards_env.t :=
   let! tmp1 := Bound_name.name name in
-  let! tmp2 :=
-    Flambda2_types.Typing_env.mem None t.(Downwards_env.typing_env) tmp1
-  in
+  let! tmp2 := TE.mem None t.(Downwards_env.typing_env) tmp1 in
   if tmp2 then ret t else define_name t name kind.
 
 (* 475-477 *)
-Definition add_equation_on_name (t : Downwards_env.t) (name : Name.t)
-    (ty : Flambda2_types.t) : M Downwards_env.t :=
-  let* typing_env :=
-    Flambda2_types.Typing_env.add_equation t.(Downwards_env.typing_env) name
-      ty
-  in
+Definition add_equation_on_name (t : Downwards_env.t) (name : Name.t) (ty : T.t)
+    : M Downwards_env.t :=
+  let* typing_env := TE.add_equation t.(Downwards_env.typing_env) name ty in
   ret (update_typing_env t typing_env).
 
 (* 479-486. In the compiler: [~extra t ~params]. *)
@@ -1039,10 +1008,10 @@ Definition define_parameters (extra : bool) (t : Downwards_env.t)
   let! tmp1 := Bound_parameters.to_list params in
   List.fold_left
     (fun (t : Downwards_env.t) param =>
-      let* '(param_var, param_duid) := Bound_parameter.var_and_uid param in
+      let* '(param_var, param_duid) := BP.var_and_uid param in
       let* var := Bound_var.create param_var param_duid Name_mode.normal in
-      let! tmp2 := Bound_parameter.kind param in
-      let! tmp3 := Flambda_kind.With_subkind.kind tmp2 in
+      let! tmp2 := BP.kind param in
+      let! tmp3 := K.With_subkind.kind tmp2 in
       define_variable0 extra t var tmp3)
     t tmp1.
 
@@ -1050,8 +1019,8 @@ Definition define_parameters (extra : bool) (t : Downwards_env.t)
    params ~param_types]; the default of [name_mode] is the first line of
    the body. *)
 Definition add_parameters (extra : bool) (name_mode : option Name_mode.t)
-    (t : Downwards_env.t) (params : Bound_parameters.t)
-    (param_types : list Flambda2_types.t) : M Downwards_env.t :=
+    (t : Downwards_env.t) (params : Bound_parameters.t) (param_types : list T.t)
+    : M Downwards_env.t :=
   let& name_mode :=
     match name_mode with
     | Some name_mode => name_mode
@@ -1066,8 +1035,7 @@ Definition add_parameters (extra : bool) (name_mode : option Name_mode.t)
      (* PORT-GAP(papp): [Format.pp_print_list] is given its first two
         arguments only. *)
      let! tmp2 :=
-       papp2 Format.pp_print_list (Some Format.pp_print_space)
-         Flambda2_types.print
+       papp2 Format.pp_print_list (Some Format.pp_print_space) T.print
      in
      fatal_errorf4
        "Mismatch between number of [params] and [param_types]:@ (%a)@ and@ %a"
@@ -1075,7 +1043,7 @@ Definition add_parameters (extra : bool) (name_mode : option Name_mode.t)
    else ret tt) ;;
   List.fold_left2
     (fun (t : Downwards_env.t) param param_type =>
-      let* '(param_var, param_duid) := Bound_parameter.var_and_uid param in
+      let* '(param_var, param_duid) := BP.var_and_uid param in
       let* var := Bound_var.create param_var param_duid name_mode in
       add_variable0 extra t var param_type)
     t params param_types.
@@ -1112,8 +1080,8 @@ Definition add_parameters_with_unknown_types (extra : bool)
   let* param_types :=
     ListLabels.map2
       (fun param alloc_mode =>
-        let! tmp1 := Bound_parameter.kind param in
-        Flambda2_types.unknown_with_subkind (Some alloc_mode)
+        let! tmp1 := BP.kind param in
+        T.unknown_with_subkind (Some alloc_mode)
           t.(Downwards_env.machine_width) tmp1)
       params alloc_modes
   in
@@ -1173,26 +1141,24 @@ Definition mark_parameters_as_toplevel (t : Downwards_env.t)
 
 (* 533-540 *)
 Definition extend_typing_environment (t : Downwards_env.t)
-    (env_extension :
-      Flambda2_types.Typing_env_extension.With_extra_variables.t)
+    (env_extension : T.Typing_env_extension.With_extra_variables.t)
     : M Downwards_env.t :=
   (* There doesn't seem any need to augment [t.variables_defined_at_toplevel]
      here for the existential variables, since they will have [In_types]
      mode. *)
   let* typing_env :=
-    Flambda2_types.Typing_env.add_env_extension_with_extra_variables
+    TE.add_env_extension_with_extra_variables
       t.(Downwards_env.typing_env) env_extension
   in
   ret (update_typing_env t typing_env).
 
 (* 542 *)
-Definition with_typing_env (t : Downwards_env.t)
-    (typing_env : Flambda2_types.Typing_env.t) : M Downwards_env.t :=
+Definition with_typing_env (t : Downwards_env.t) (typing_env : TE.t)
+    : M Downwards_env.t :=
   ret (update_typing_env t typing_env).
 
 (* 544. In the compiler: [t ~f]. *)
-Definition map_typing_env (t : Downwards_env.t)
-    (f : Flambda2_types.Typing_env.t -> M Flambda2_types.Typing_env.t)
+Definition map_typing_env (t : Downwards_env.t) (f : TE.t -> M TE.t)
     : M Downwards_env.t :=
   let! tmp1 := f t.(Downwards_env.typing_env) in
   with_typing_env t tmp1.
@@ -1200,9 +1166,7 @@ Definition map_typing_env (t : Downwards_env.t)
 (* 546-550 *)
 Definition check_name_is_bound (t : Downwards_env.t) (name : Name.t)
     : M unit :=
-  let! tmp1 :=
-    Flambda2_types.Typing_env.mem None t.(Downwards_env.typing_env) name
-  in
+  let! tmp1 := TE.mem None t.(Downwards_env.typing_env) name in
   if negb tmp1
   then
     fatal_errorf4 "Unbound name %a in environment:@ %a" Name.print name print
@@ -1243,8 +1207,7 @@ Definition find_code_metadata_exn (t : Downwards_env.t) (id : Code_id.t)
              loading it. *)
           let* _ :=
             let! tmp1 := Code_id.get_compilation_unit id in
-            Flambda2_types.Typing_env.resolver t.(Downwards_env.typing_env)
-              tmp1
+            TE.resolver t.(Downwards_env.typing_env) tmp1
           in
           let! tmp1 := t.(Downwards_env.get_imported_code) tt in
           let! tmp2 := Exported_code.find_exn tmp1 id in
@@ -1266,15 +1229,14 @@ Definition find_code_exn (t : Downwards_env.t) (id : Code_id.t)
        missing). *)
     let* _ :=
       let! tmp1 := Code_id.get_compilation_unit id in
-      Flambda2_types.Typing_env.resolver t.(Downwards_env.typing_env) tmp1
+      TE.resolver t.(Downwards_env.typing_env) tmp1
     in
     let! tmp1 := t.(Downwards_env.get_imported_code) tt in
     Exported_code.find_exn tmp1 id
   end.
 
 (* PORT-GAP(update): 604, [{ t with typing_env; all_code }]. *)
-Definition update_typing_env_all_code (t : Downwards_env.t)
-    (typing_env : Flambda2_types.Typing_env.t)
+Definition update_typing_env_all_code (t : Downwards_env.t) (typing_env : TE.t)
     (all_code : Code_id.Map.t Code.t) : Downwards_env.t :=
   {| round := t.(round); machine_width := t.(machine_width);
      typing_env := typing_env; inlined_debuginfo := t.(inlined_debuginfo);
@@ -1328,15 +1290,13 @@ Definition define_code (t : Downwards_env.t) (code_id : Code_id.t)
    else ret tt) ;;
   let* typing_env :=
     let! tmp1 := Code.newer_version_of code in
-    Flambda2_types.Typing_env.add_to_code_age_relation
-      t.(Downwards_env.typing_env) code_id tmp1
+    TE.add_to_code_age_relation t.(Downwards_env.typing_env) code_id tmp1
   in
   let* all_code := Code_id.Map.add code_id code t.(Downwards_env.all_code) in
   ret (update_typing_env_all_code t typing_env all_code).
 
 (* PORT-GAP(update): 626, [{ t with cse; comparison_results }]. *)
-Definition update_cse_comparison_results (t : Downwards_env.t)
-    (cse : Common_subexpression_elimination.t)
+Definition update_cse_comparison_results (t : Downwards_env.t) (cse : CSE.t)
     (comparison_results : Variable_.Map.t Comparison_result.t)
     : Downwards_env.t :=
   {| round := t.(round); machine_width := t.(machine_width);
@@ -1383,10 +1343,7 @@ Definition add_cse (t : Downwards_env.t)
   then ret t
   else
     let* scope := get_continuation_scope t in
-    let* cse :=
-      Common_subexpression_elimination.add t.(Downwards_env.cse) prim bound_to
-        scope
-    in
+    let* cse := CSE.add t.(Downwards_env.cse) prim bound_to scope in
     let* comparison_results :=
       let* prim := Flambda_primitive.Eligible_for_cse.to_primitive prim in
       let* bound_to_var := Simple.must_be_var bound_to in
@@ -1404,7 +1361,7 @@ Definition add_cse (t : Downwards_env.t)
 (* 628 *)
 Definition find_cse (t : Downwards_env.t)
     (prim : Flambda_primitive.Eligible_for_cse.t) : M (option Simple.t) :=
-  Common_subexpression_elimination.find t.(Downwards_env.cse) prim.
+  CSE.find t.(Downwards_env.cse) prim.
 
 (* 630-631 *)
 Definition find_comparison_result (t : Downwards_env.t) (var : Variable_.t)
@@ -1412,8 +1369,7 @@ Definition find_comparison_result (t : Downwards_env.t) (var : Variable_.t)
   Variable_.Map.find_opt var t.(Downwards_env.comparison_results).
 
 (* PORT-GAP(update): 633, [{ t with cse }]. *)
-Definition update_cse (t : Downwards_env.t)
-    (cse : Common_subexpression_elimination.t) : Downwards_env.t :=
+Definition update_cse (t : Downwards_env.t) (cse : CSE.t) : Downwards_env.t :=
   {| round := t.(round); machine_width := t.(machine_width);
      typing_env := t.(typing_env); inlined_debuginfo := t.(inlined_debuginfo);
      disable_inlining := t.(disable_inlining);
@@ -1446,8 +1402,7 @@ Definition update_cse (t : Downwards_env.t)
 Extract Inlined Constant update_cse => "(fun t cse -> { t with cse = cse })".
 
 (* 633 *)
-Definition with_cse (t : Downwards_env.t)
-    (cse : Common_subexpression_elimination.t) : M Downwards_env.t :=
+Definition with_cse (t : Downwards_env.t) (cse : CSE.t) : M Downwards_env.t :=
   ret (update_cse t cse).
 
 (* PORT-GAP(update): 636-639, [{ t with are_rebuilding_terms;
@@ -1925,19 +1880,16 @@ Definition set_loopify_state (loopify_state : Loopify_state.t)
   ret (update_loopify_state t loopify_state).
 
 (* 764-767 *)
-Definition with_code_age_relation
-    (code_age_relation : Flambda2_types.Code_age_relation.t)
+Definition with_code_age_relation (code_age_relation : T.Code_age_relation.t)
     (t : Downwards_env.t) : M Downwards_env.t :=
   let! tmp1 :=
-    Flambda2_types.Typing_env.with_code_age_relation
-      t.(Downwards_env.typing_env) code_age_relation
+    TE.with_code_age_relation t.(Downwards_env.typing_env) code_age_relation
   in
   ret (update_typing_env t tmp1).
 
 (* PORT-GAP(update): 769, [{ t with join_analysis }]. *)
 Definition update_join_analysis (t : Downwards_env.t)
-    (join_analysis :
-      option (Flambda2_types.Join_analysis.t Apply_cont_rewrite_id.t))
+    (join_analysis : option (T.Join_analysis.t Apply_cont_rewrite_id.t))
     : Downwards_env.t :=
   {| round := t.(round); machine_width := t.(machine_width);
      typing_env := t.(typing_env); inlined_debuginfo := t.(inlined_debuginfo);
@@ -1973,8 +1925,7 @@ Extract Inlined Constant update_join_analysis =>
 
 (* 769 *)
 Definition with_join_analysis
-    (join_analysis :
-      option (Flambda2_types.Join_analysis.t Apply_cont_rewrite_id.t))
+    (join_analysis : option (T.Join_analysis.t Apply_cont_rewrite_id.t))
     (t : Downwards_env.t) : M Downwards_env.t :=
   ret (update_join_analysis t join_analysis).
 
@@ -2065,19 +2016,16 @@ Definition enter_continuation_handler (lifted_params : Lifted_cont_params.t)
 (* 803-851. [LCS.fold lifted ~init ~f]: the arguments are in the order of
    the interface. *)
 Definition add_lifted_constant_state (maybe_already_defined : option unit)
-    (denv : Downwards_env.t) (lifted : Lifted_constant_state.t)
-    : M Downwards_env.t :=
+    (denv : Downwards_env.t) (lifted : LCS.t) : M Downwards_env.t :=
   let& initial_denv := denv in
   let& maybe_already_defined :=
     match maybe_already_defined with None => false | Some tt => true end
   in
   (* 808-817 *)
   let* denv :=
-    Lifted_constant_state.fold lifted denv
+    LCS.fold lifted denv
       (fun (denv : Downwards_env.t) lifted_constant =>
-        let* types_of_symbols :=
-          Lifted_constant.types_of_symbols lifted_constant
-        in
+        let* types_of_symbols := LC.types_of_symbols lifted_constant in
         Symbol.Map.fold
           (fun sym pat (denv : Downwards_env.t) =>
             let* '(_denv, typ) := ret pat in
@@ -2087,18 +2035,16 @@ Definition add_lifted_constant_state (maybe_already_defined : option unit)
             if tmp1
             then ret denv
             else
-              let! tmp2 := Flambda2_types.kind typ in
+              let! tmp2 := T.kind typ in
               define_symbol denv sym tmp2)
           types_of_symbols denv)
   in
   (* 818-839 *)
   let* typing_env :=
     let& typing_env := denv.(Downwards_env.typing_env) in
-    Lifted_constant_state.fold lifted typing_env
+    LCS.fold lifted typing_env
       (fun typing_env lifted_constant =>
-        let* types_of_symbols :=
-          Lifted_constant.types_of_symbols lifted_constant
-        in
+        let* types_of_symbols := LC.types_of_symbols lifted_constant in
         Symbol.Map.fold
           (fun sym pat typing_env =>
             let* '(typing_env_at_definition, typ) := ret pat in
@@ -2110,21 +2056,19 @@ Definition add_lifted_constant_state (maybe_already_defined : option unit)
             else
               let* sym := Name.symbol sym in
               let* env_extension :=
-                Flambda2_types.make_suitable_for_environment
-                  typing_env_at_definition
-                  (Flambda2_types.Everything_not_in typing_env)
-                  [(sym, typ)]
+                T.make_suitable_for_environment typing_env_at_definition
+                  (T.Everything_not_in typing_env) [(sym, typ)]
               in
-              Flambda2_types.Typing_env.add_env_extension_with_extra_variables
+              TE.add_env_extension_with_extra_variables
                 typing_env env_extension)
           types_of_symbols typing_env)
   in
   (* 840-851 *)
   let! tmp1 := with_typing_env denv typing_env in
-  Lifted_constant_state.fold lifted tmp1
+  LCS.fold lifted tmp1
     (fun (denv : Downwards_env.t) lifted_constant =>
       let* pieces_of_code :=
-        let! tmp2 := Lifted_constant.defining_exprs lifted_constant in
+        let! tmp2 := LC.defining_exprs lifted_constant in
         Rebuilt_static_const.Group.pieces_of_code_including_those_not_rebuilt
           tmp2
       in
