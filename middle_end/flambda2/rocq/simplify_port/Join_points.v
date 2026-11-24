@@ -291,6 +291,31 @@ Definition join (cut_after : option Scope.t) (denv : DE.t)
   in
   (* 186-253 *)
   let* '(denv, extra_params_and_args) :=
+    (* If we have a join analysis available (i.e. if we are using the new n-way
+       join), use it to introduce additional extra params and args after
+       performing the typing env join.
+
+       More specifically, we introduce variables at the "normal" name mode for
+       all of the variables introduced during the typing env join that have a
+       value at the "normal" name mode in all uses.
+
+       This is a more precise implementation of the CSE join specifically for
+       the projections that are tracked in the typing env (such as `Is_int` and
+       `Get_tag`), but also does part of the work of unboxing (specifically,
+       unboxing where all of the unboxed fields exist at the "normal" name mode
+       in all uses).
+
+       This fixes a regression in the new join: since the new join is better
+       than the old one at recovering aliases, there are situations where the
+       CSE join (which lives {b outside} the alias environment) gets confused
+       and fails to join e.g. equations `y = Is_int(x)` with `y = Is_int(1)`,
+       where we know that `x = 1` in the second environment. See:
+
+       https://github.com/oxcaml/oxcaml/issues/5721
+
+       and
+
+       https://github.com/oxcaml/oxcaml/issues/3181 *)
     match join_analysis with
     | None => ret (denv, extra_params_and_args)
     | Some analysis =>
@@ -363,6 +388,9 @@ Definition add_equations_on_params (typing_env : TE.t) (is_recursive : bool)
               let! tmp1 := T.meet typing_env type_from_kind param_type in
               match tmp1 with
               | Or_bottom.Bottom =>
+                (* This should really replace the corresponding uses with
+                   [Invalid], but this seems an unusual situation, so we don't do
+                   that currently. *)
                 let! tmp1 := T.bottom raw_kind in
                 TE.add_equation typing_env name tmp1
               | Or_bottom.Ok (meet_ty, typing_env) =>
@@ -414,6 +442,12 @@ Definition compute_handler_env (replay : option (Replay_history.t * bool))
       let! tmp1 := papp3 compute_use_env_with_ids None is_recursive params in
       List.map tmp1 uses
     in
+    (* This is the general case.
+
+       The lifted constants are put into the _fork_ environment now because it
+       overall makes things easier; the join operation can just discard any
+       equation about a lifted constant (any such equation could not be
+       materially more precise anyway). *)
     let* denv := DE.with_replay_history replay env_at_fork in
     let* denv :=
       DE.add_lifted_constant_state None denv consts_lifted_after_fork
@@ -432,12 +466,15 @@ Definition compute_handler_env (replay : option (Replay_history.t * bool))
     let* '(T3 handler_env join_analysis extra_params_and_args) :=
       if should_do_join
       then
+        (* No need to add equations, as they will be computed from the use
+           environments *)
         let* denv := DE.define_parameters false denv params in
         Profile.record_call (Some true) "join"
           (fun _ =>
             join cut_after denv params consts_lifted_after_fork
               use_envs_with_ids previous_extra_params_and_args)
       else
+        (* Define parameters with basic equations from the subkinds *)
         let* denv :=
           DE.add_parameters_with_unknown_types false None None denv params
         in
@@ -472,6 +509,8 @@ Definition compute_handler_env (replay : option (Replay_history.t * bool))
          is_single_inlinable_use := false;
          escapes := escapes |}
   in
+  (* Augment the environment at each use with the parameter definitions and
+     associated equations. *)
   match uses with
   | [use] =>
     (* 323-327: the guard. *)
@@ -485,6 +524,7 @@ Definition compute_handler_env (replay : option (Replay_history.t * bool))
     in
     if tmp1
     then
+      (* First add the extra params and args equations in the typing env *)
       (* 329-331: [let ((use_env, _use_id, _use_kind) as use) = ...] *)
       let* use := compute_use_env_with_ids replay is_recursive params use in
       let* '(T3 use_env _use_id _use_kind) := ret use in
@@ -500,10 +540,25 @@ Definition compute_handler_env (replay : option (Replay_history.t * bool))
         end
       in
       let* use_env := DE.with_typing_env use_env use_tenv in
+      (* There is only one use of the continuation and it is inlinable. No join
+         calculations are required.
+
+         We need to make sure any lifted constants generated during the
+         simplification of the body are in the returned environment for the
+         handler. Otherwise we might share a constant based on information in [DA]
+         but then find the definition of the corresponding constant isn't in [DE].
+         Note that some of the constants may already be defined (for example
+         because they were defined on the path between the fork point and this
+         particular use). *)
       (* 358-361 *)
       let* handler_env :=
         DE.add_lifted_constant_state (Some tt) use_env consts_lifted_after_fork
       in
+      (* The use environment might have a deeper inlining depth increment than the
+         fork environment. (e.g. where an [Apply] was inlined, revealing the
+         linear inlinable use of the continuation). We need to make sure the
+         handler is simplified using the depth from the fork environment. Likewise
+         for the inlining history tracker and debuginfo. *)
       let* handler_env :=
         let! tmp1 := DE.get_inlining_state env_at_fork in
         DE.set_inlining_state handler_env tmp1
