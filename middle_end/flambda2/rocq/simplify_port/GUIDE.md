@@ -60,9 +60,10 @@ where the `tmpN` is, so an unused one would vanish and one under a `fun`
 would move. `make` only COUNTS WORDS (`tools/lint.py`): after its `let!`,
 the word `tmpN` must stand once before the next `let! tmpN`; so do not bind
 a `tmpN` again before it is used, and give no other variable that name. The
-scrutinee of
-a `match` or `if` that is a call is a `let!` before it. A value at the end
-is `ret v`. Never: a call as an argument; Rocq's own `let x := f a in`; a
+scrutinee of a `match` or `if` that is a call is a `let!` before it; BUT in
+a match on several values (`match a, f x with`) the call is a `let*`: as a
+`let!` Rocq moves it into the cases of `a` and DROPS it in a case that does
+not look at it. A value at the end is `ret v`. Never: a call as an argument; Rocq's own `let x := f a in`; a
 `Definition x : M T` without arguments; a computation in a pair, a list or a
 record, or passed as an argument (but `or_else`, `and_then`). `a |> f b` is
 `f b a`.
@@ -108,7 +109,7 @@ its interface. A ported recursive function passed as a value
 | `a / b`, `a mod b` on integers | `int_div a b`, `int_mod a b` (calls: they may raise) |
 | `E v` as a value (`raise_with_backtrace E bt`) | `exn_make M.E v` |
 | `f ?opt:None x`, `f ~opt:v x` (optional argument) | `f None x`, `f (Some v) x` by place |
-| `p when c -> e` | the pattern, then `if c then e else` the other cases |
+| `p when c -> e` | the pattern, then `if c then e else` the other cases; a `c` of constants and parameters only may be a second scrutinee (`match x, c with p, true => e`), marked loose |
 
 ## 3. Recursion
 
@@ -240,8 +241,10 @@ of `decl/` whose records it uses.
 KNOWN PROBLEMS OF THE EXTRACTION (the human has put them off; none is
 checked by a tool, but the first in part). In the identity build `M A` is `A`, and
 Rocq's extraction takes every term for a pure one:
-1. A `let!` that is not used is DROPPED with its call; used twice it stays a
-   `let`; used under a `fun` or in a branch the call MOVES there
+1. A `let!` that is not used is DROPPED with its call (also one that is the
+   second value of a `match a, tmp1 with`, in the cases of `a` that do not
+   look at it); used twice it stays a `let`; used under a `fun` or in a
+   branch the call MOVES there
    (`let! tmp1 := f x in g (fun y => h tmp1 y)` gives `g (fun y -> h (f x)
    y)`). `make` counts the words only: it does not know scopes or
    shadowing, and it does not look at branches or `fun`s.
