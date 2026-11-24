@@ -407,12 +407,15 @@ module Closure_field = struct
   (** val unboxer : Function_slot.t -> Value_slot.t -> unboxer coq_M **)
 
   let unboxer function_slot value_slot =
+    let poison_const0 =
+      Reg_width_const.const_poison
+        (Value_slot.kind value_slot)
+        "variant_unboxing_closure_field"
+    in
+    let var_kind0 = Value_slot.kind value_slot in
     { var_name = "closure_field_at_use";
-      var_kind = Value_slot.kind value_slot;
-      poison_const =
-        Reg_width_const.const_poison
-          (Value_slot.kind value_slot)
-          "variant_unboxing_closure_field";
+      var_kind = var_kind0;
+      poison_const = poison_const0;
       Coq__1.unboxing_prim =
         (fun closure -> unboxing_prim function_slot closure value_slot);
       prove_simple =

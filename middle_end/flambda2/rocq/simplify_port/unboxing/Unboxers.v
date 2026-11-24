@@ -383,14 +383,17 @@ Module Closure_field.
       (value_slot : Value_slot.t) : M Unboxers.unboxer :=
     (* PORT-GAP(record-order): 249-253, two fields of the record have
        calls, [var_kind] and [poison_const]: they are taken in the order of
-       the type, the last field first. *)
-    let! tmp1 := Value_slot.kind value_slot in
-    let! tmp2 := Const.const_poison tmp1 "variant_unboxing_closure_field" in
-    let! tmp3 := Value_slot.kind value_slot in
+       the type, the last field first, and each is bound before the record
+       is built. *)
+    let* poison_const :=
+      let! tmp1 := Value_slot.kind value_slot in
+      Const.const_poison tmp1 "variant_unboxing_closure_field"
+    in
+    let* var_kind := Value_slot.kind value_slot in
     ret
       {| var_name := "closure_field_at_use";
-         var_kind := tmp3;
-         poison_const := tmp2;
+         Unboxers.var_kind := var_kind;
+         Unboxers.poison_const := poison_const;
          Unboxers.unboxing_prim :=
            fun closure => unboxing_prim function_slot closure value_slot;
          prove_simple :=
