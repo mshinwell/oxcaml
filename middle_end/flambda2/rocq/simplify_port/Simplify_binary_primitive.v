@@ -20,18 +20,17 @@
    the compiler's names; the numbers in the comments are the lines of that
    file. What is not from that file: the form (the monad, the temporaries
    [tmpN] and their order) is that of GUIDE.md; the functors of the file are
-   Rocq functors, their module types are what the file uses of the
-   compiler's module types, and three modules of the compiler are declared
-   again (see the gaps below); the two sets that the compiler makes inside a
-   functor by applying a functor of its library are lists, written here. No
-   proof. *)
+   Rocq functors, over the module types and the modules of decl/; an OCaml
+   text at the head gives OCaml the names that Rocq prints for them (see
+   the gap below); the two sets that the compiler makes inside a functor by
+   applying a functor of its library are lists, written here. No proof. *)
 
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Import Simplify_import.
-From SimplifyPort.decl Require Array Bound_var Comparison_result Debuginfo
-  Int_ids List Mutability Number_adjuncts Numeric_types Or_bottom
-  Or_unknown_or_bottom Reg_width_const Scalar Simple Simplify_common
-  Target_ocaml_int Target_system.
+From SimplifyPort.decl Require Array Bound_var Comparison_result
+  Container_types Debuginfo Int_ids List Mutability Number_adjuncts
+  Numeric_types Or_bottom Or_unknown_or_bottom Reg_width_const Scalar Simple
+  Simplify_common Target_ocaml_int Target_system.
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 
@@ -40,13 +39,117 @@ open! Simplify_import
 OCAML*)
 
 (* PORT-GAP(verbatim): not from the compiler's file. Rocq cannot name a
-   module [Set]: the declarations and the module types of this file say
-   [Set_]. For the seven modules of [Number_adjuncts] that the functors of
-   this file are applied to, this OCaml text gives the sets that name too,
-   so that each module has the module type that Rocq prints. *)
+   module [Set], nor give a module type the name of a module: decl/ says
+   [Set_] and [Float_by_bit_pattern_], and Rocq prints these names for what
+   a functor uses of its parameter. This OCaml text gives OCaml the same
+   names. The module types [Container_types.S], [A.Int_number_kind] and
+   [Numeric_types.Float_by_bit_pattern_] are the compiler's, with [Set_] as
+   a second name of [Set]; so are the ten modules that the file gives to
+   its functors. The text of [Int_number_kind] is the compiler's
+   (number_adjuncts.mli, 91-125), copied so that OCaml reads it with the
+   [Num_common] above it; the rest names the compiler's definitions. *)
 (*OCAML
+module Container_types = struct
+  include Container_types
+
+  module type S = sig
+    include S
+
+    module Set_ = Set
+  end
+end
+
+module Target_ocaml_int = struct
+  include Target_ocaml_int
+  module Set_ = Set
+end
+
+module Numeric_types = struct
+  include Numeric_types
+
+  module type Float_by_bit_pattern_ = sig
+    type t
+
+    module Pair : Container_types.S with type t = t * t
+
+    include Float_by_bit_pattern with type t := t and module Pair := Pair
+
+    module Set_ = Set
+  end
+
+  module Float_by_bit_pattern = struct
+    include Float_by_bit_pattern
+    module Set_ = Set
+
+    module Pair = struct
+      include Pair
+      module Set_ = Set
+    end
+  end
+
+  module Float32_by_bit_pattern = struct
+    include Float32_by_bit_pattern
+    module Set_ = Set
+
+    module Pair = struct
+      include Pair
+      module Set_ = Set
+    end
+  end
+end
+
 module Number_adjuncts = struct
   include Number_adjuncts
+
+  module type Num_common = sig
+    type t
+
+    module Pair : sig
+      type nonrec t = t * t
+
+      include Container_types.S with type t := t
+    end
+
+    include Num_common with type t := t and module Pair := Pair
+
+    module Set_ = Set
+  end
+
+  module type Int_number_kind = sig
+    module Num : sig
+      include Num_common
+
+      val and_ : t -> t -> t
+
+      val or_ : t -> t -> t
+
+      val xor : t -> t -> t
+
+      val not_ : t -> t
+
+      val unsigned_div : t -> t -> t option
+
+      val unsigned_mod : t -> t -> t option
+
+      val shift_left : t -> Target_ocaml_int.t -> t
+
+      (* [shift_right] is arithmetic shift right, matching [Int32], [Int64],
+         etc. *)
+      val shift_right : t -> Target_ocaml_int.t -> t
+
+      val shift_right_logical : t -> Target_ocaml_int.t -> t
+
+      val swap_byte_endianness : t -> t
+
+      val neg : t -> t
+
+      val compare_unsigned : t -> t -> int
+    end
+
+    include Number_kind_common with module Num := Num
+
+    val standard_int_kind : Flambda_kind.Standard_int.t
+  end
 
   module For_tagged_immediates = struct
     include For_tagged_immediates
@@ -163,174 +266,6 @@ Parameter K_Standard_int_or_float_to_kind : K.Standard_int_or_float.t -> K.t.
 Extract Inlined Constant K_Standard_int_or_float_to_kind =>
   "Flambda_kind.Standard_int_or_float.to_kind".
 
-(* PORT-GAP(decl): three modules of the compiler that decl/ has in part
-   only (it declares what the files call, and a functor needs the whole of
-   what its module type names). They are declared again here, with [Set_]
-   for [Set]; the OCaml definitions are not inlined, so that Rocq prints
-   each as a module of the compiler's own values. *)
-Module Target_ocaml_int_.
-  Definition t : Type := Target_ocaml_int.t.
-  Parameter compare : t -> t -> M int.
-  Extract Constant compare => "Target_ocaml_int.compare".
-  Module Set_.
-    Definition elt : Type := Target_ocaml_int.t.
-    Definition t : Type := Target_ocaml_int.Set_.t.
-    Parameter is_empty : t -> M bool.
-    Extract Constant is_empty => "Target_ocaml_int.Set.is_empty".
-    Parameter cardinal : t -> M int.
-    Extract Constant cardinal => "Target_ocaml_int.Set.cardinal".
-    Parameter fold : forall {A : Type}, (elt -> A -> M A) -> t -> A -> M A.
-    Extract Constant fold => "Target_ocaml_int.Set.fold".
-    Parameter of_list : list elt -> M t.
-    Extract Constant of_list => "Target_ocaml_int.Set.of_list".
-    Parameter get_singleton : t -> M (option elt).
-    Extract Constant get_singleton => "Target_ocaml_int.Set.get_singleton".
-  End Set_.
-End Target_ocaml_int_.
-
-Module Float_by_bit_pattern.
-  Definition t : Type := Numeric_types.Float_by_bit_pattern.t.
-  Parameter equal : t -> t -> M bool.
-  Extract Constant equal => "Numeric_types.Float_by_bit_pattern.equal".
-  Parameter compare : t -> t -> M int.
-  Extract Constant compare => "Numeric_types.Float_by_bit_pattern.compare".
-  Module Set_.
-    Definition elt : Type := Numeric_types.Float_by_bit_pattern.t.
-    Definition t : Type := Numeric_types.Float_by_bit_pattern.Set_.t.
-    Parameter is_empty : t -> M bool.
-    Extract Constant is_empty =>
-      "Numeric_types.Float_by_bit_pattern.Set.is_empty".
-    Parameter cardinal : t -> M int.
-    Extract Constant cardinal =>
-      "Numeric_types.Float_by_bit_pattern.Set.cardinal".
-    Parameter fold : forall {A : Type}, (elt -> A -> M A) -> t -> A -> M A.
-    Extract Constant fold => "Numeric_types.Float_by_bit_pattern.Set.fold".
-    Parameter of_list : list elt -> M t.
-    Extract Constant of_list =>
-      "Numeric_types.Float_by_bit_pattern.Set.of_list".
-    Parameter get_singleton : t -> M (option elt).
-    Extract Constant get_singleton =>
-      "Numeric_types.Float_by_bit_pattern.Set.get_singleton".
-  End Set_.
-  Parameter one : t.
-  Extract Constant one => "Numeric_types.Float_by_bit_pattern.one".
-  Parameter minus_one : t.
-  Extract Constant minus_one => "Numeric_types.Float_by_bit_pattern.minus_one".
-  Parameter is_any_nan : t -> M bool.
-  Extract Constant is_any_nan =>
-    "Numeric_types.Float_by_bit_pattern.is_any_nan".
-  Module IEEE_semantics.
-    Parameter add : t -> t -> M t.
-    Extract Constant add =>
-      "Numeric_types.Float_by_bit_pattern.IEEE_semantics.add".
-    Parameter sub : t -> t -> M t.
-    Extract Constant sub =>
-      "Numeric_types.Float_by_bit_pattern.IEEE_semantics.sub".
-    Parameter mul : t -> t -> M t.
-    Extract Constant mul =>
-      "Numeric_types.Float_by_bit_pattern.IEEE_semantics.mul".
-    Parameter div : t -> t -> M t.
-    Extract Constant div =>
-      "Numeric_types.Float_by_bit_pattern.IEEE_semantics.div".
-    Parameter equal : t -> t -> M bool.
-    Extract Constant equal =>
-      "Numeric_types.Float_by_bit_pattern.IEEE_semantics.equal".
-    Parameter compare : t -> t -> M int.
-    Extract Constant compare =>
-      "Numeric_types.Float_by_bit_pattern.IEEE_semantics.compare".
-  End IEEE_semantics.
-  Module Pair.
-    Definition t : Type :=
-      (Numeric_types.Float_by_bit_pattern.t
-       * Numeric_types.Float_by_bit_pattern.t)%type.
-    Module Set_.
-      Definition elt : Type :=
-        (Numeric_types.Float_by_bit_pattern.t
-         * Numeric_types.Float_by_bit_pattern.t)%type.
-      Parameter t : Type.
-      Extract Constant t => "Numeric_types.Float_by_bit_pattern.Pair.Set.t".
-      Parameter fold : forall {A : Type}, (elt -> A -> M A) -> t -> A -> M A.
-      Extract Constant fold =>
-        "Numeric_types.Float_by_bit_pattern.Pair.Set.fold".
-    End Set_.
-  End Pair.
-  Parameter cross_product : Set_.t -> Set_.t -> M Pair.Set_.t.
-  Extract Constant cross_product =>
-    "Numeric_types.Float_by_bit_pattern.cross_product".
-End Float_by_bit_pattern.
-
-Module Float32_by_bit_pattern.
-  Definition t : Type := Numeric_types.Float32_by_bit_pattern.t.
-  Parameter equal : t -> t -> M bool.
-  Extract Constant equal => "Numeric_types.Float32_by_bit_pattern.equal".
-  Parameter compare : t -> t -> M int.
-  Extract Constant compare => "Numeric_types.Float32_by_bit_pattern.compare".
-  Module Set_.
-    Definition elt : Type := Numeric_types.Float32_by_bit_pattern.t.
-    Definition t : Type := Numeric_types.Float32_by_bit_pattern.Set_.t.
-    Parameter is_empty : t -> M bool.
-    Extract Constant is_empty =>
-      "Numeric_types.Float32_by_bit_pattern.Set.is_empty".
-    Parameter cardinal : t -> M int.
-    Extract Constant cardinal =>
-      "Numeric_types.Float32_by_bit_pattern.Set.cardinal".
-    Parameter fold : forall {A : Type}, (elt -> A -> M A) -> t -> A -> M A.
-    Extract Constant fold => "Numeric_types.Float32_by_bit_pattern.Set.fold".
-    Parameter of_list : list elt -> M t.
-    Extract Constant of_list =>
-      "Numeric_types.Float32_by_bit_pattern.Set.of_list".
-    Parameter get_singleton : t -> M (option elt).
-    Extract Constant get_singleton =>
-      "Numeric_types.Float32_by_bit_pattern.Set.get_singleton".
-  End Set_.
-  Parameter one : t.
-  Extract Constant one => "Numeric_types.Float32_by_bit_pattern.one".
-  Parameter minus_one : t.
-  Extract Constant minus_one =>
-    "Numeric_types.Float32_by_bit_pattern.minus_one".
-  Parameter is_any_nan : t -> M bool.
-  Extract Constant is_any_nan =>
-    "Numeric_types.Float32_by_bit_pattern.is_any_nan".
-  Module IEEE_semantics.
-    Parameter add : t -> t -> M t.
-    Extract Constant add =>
-      "Numeric_types.Float32_by_bit_pattern.IEEE_semantics.add".
-    Parameter sub : t -> t -> M t.
-    Extract Constant sub =>
-      "Numeric_types.Float32_by_bit_pattern.IEEE_semantics.sub".
-    Parameter mul : t -> t -> M t.
-    Extract Constant mul =>
-      "Numeric_types.Float32_by_bit_pattern.IEEE_semantics.mul".
-    Parameter div : t -> t -> M t.
-    Extract Constant div =>
-      "Numeric_types.Float32_by_bit_pattern.IEEE_semantics.div".
-    Parameter equal : t -> t -> M bool.
-    Extract Constant equal =>
-      "Numeric_types.Float32_by_bit_pattern.IEEE_semantics.equal".
-    Parameter compare : t -> t -> M int.
-    Extract Constant compare =>
-      "Numeric_types.Float32_by_bit_pattern.IEEE_semantics.compare".
-  End IEEE_semantics.
-  Module Pair.
-    Definition t : Type :=
-      (Numeric_types.Float32_by_bit_pattern.t
-       * Numeric_types.Float32_by_bit_pattern.t)%type.
-    Module Set_.
-      Definition elt : Type :=
-        (Numeric_types.Float32_by_bit_pattern.t
-         * Numeric_types.Float32_by_bit_pattern.t)%type.
-      Parameter t : Type.
-      Extract Constant t => "Numeric_types.Float32_by_bit_pattern.Pair.Set.t".
-      Parameter fold : forall {A : Type}, (elt -> A -> M A) -> t -> A -> M A.
-      Extract Constant fold =>
-        "Numeric_types.Float32_by_bit_pattern.Pair.Set.fold".
-    End Set_.
-  End Pair.
-  Parameter cross_product : Set_.t -> Set_.t -> M Pair.Set_.t.
-  Extract Constant cross_product =>
-    "Numeric_types.Float32_by_bit_pattern.cross_product".
-End Float32_by_bit_pattern.
-
 (* 20-27 *)
 Inductive binary_arith_outcome_for_one_side_only (a : Type) : Type :=
 | Exactly : a -> binary_arith_outcome_for_one_side_only a
@@ -350,26 +285,12 @@ Arguments Float_negation_of_the_other_side {a} _.
 Arguments Cannot_simplify {a}.
 Arguments Invalid {a}.
 
-(* PORT-GAP(decl): the module types of the compiler that the functors of
-   this file name ([Container_types.S], [A.Int_number_kind],
-   [Numeric_types.Float_by_bit_pattern]) are not declared in decl/. These
-   four module types have what the file uses of them, with [Set_] for
-   [Set]. [Pair_S] is [Container_types.S] for a module of pairs: its type
-   and the fold of its sets. *)
-Module Type Container_types_S.
-  Parameter t : Type.
-  Parameter compare : t -> t -> M int.
-  Module Set_.
-    Definition elt : Type := t.
-    Parameter t : Type.
-    Parameter is_empty : t -> M bool.
-    Parameter cardinal : t -> M int.
-    Parameter fold : forall {A : Type}, (elt -> A -> M A) -> t -> A -> M A.
-    Parameter of_list : list elt -> M t.
-    Parameter get_singleton : t -> M (option elt).
-  End Set_.
-End Container_types_S.
-
+(* PORT-GAP(loose): 34, in the compiler the module type of [Pair] is
+   [Container_types.S with type t = Lhs.t * Rhs.t]. Here it is [Pair_S],
+   which has what the file uses of a module of pairs: its type, and the
+   type and the fold of its sets. The pairs of [Int_ops_for_binary_shift]
+   (508-512) are made in this file, as a list, and do not have all that
+   [Container_types.S] names. *)
 Module Type Pair_S.
   Parameter t : Type.
   Module Set_.
@@ -379,87 +300,16 @@ Module Type Pair_S.
   End Set_.
 End Pair_S.
 
-Module Type Int_number_kind.
-  Module Num.
-    Parameter t : Type.
-    Parameter equal : t -> t -> M bool.
-    Parameter compare : t -> t -> M int.
-    Module Set_.
-      Definition elt : Type := t.
-      Parameter t : Type.
-      Parameter is_empty : t -> M bool.
-      Parameter cardinal : t -> M int.
-      Parameter fold : forall {A : Type}, (elt -> A -> M A) -> t -> A -> M A.
-      Parameter of_list : list elt -> M t.
-      Parameter get_singleton : t -> M (option elt).
-    End Set_.
-    Declare Module Pair : Pair_S with Definition t := (t * t)%type.
-    Parameter cross_product : Set_.t -> Set_.t -> M Pair.Set_.t.
-    Parameter zero : Target_system.Machine_width.t -> M t.
-    Parameter one : Target_system.Machine_width.t -> M t.
-    Parameter minus_one : Target_system.Machine_width.t -> M t.
-    Parameter add : t -> t -> M t.
-    Parameter sub : t -> t -> M t.
-    Parameter mul : t -> t -> M t.
-    Parameter div : t -> t -> M (option t).
-    Parameter mod_ : t -> t -> M (option t).
-    Parameter to_const : t -> M Reg_width_const.t.
-    Parameter and_ : t -> t -> M t.
-    Parameter or_ : t -> t -> M t.
-    Parameter xor : t -> t -> M t.
-    Parameter unsigned_div : t -> t -> M (option t).
-    Parameter unsigned_mod : t -> t -> M (option t).
-    Parameter shift_left : t -> Target_ocaml_int.t -> M t.
-    Parameter shift_right : t -> Target_ocaml_int.t -> M t.
-    Parameter shift_right_logical : t -> Target_ocaml_int.t -> M t.
-    Parameter compare_unsigned : t -> t -> M int.
-  End Num.
-  Parameter standard_int_or_float_kind : K.Standard_int_or_float.t.
-  Parameter unboxed_prover :
-    T.Typing_env.t -> T.t -> M (T.meet_shortcut Num.Set_.t).
-  Parameter these_unboxed : Num.Set_.t -> M T.t.
-  Parameter term_unboxed : Num.t -> M Named.t.
-  Parameter standard_int_kind : K.Standard_int.t.
-End Int_number_kind.
-
-Module Type Numeric_types_Float_by_bit_pattern.
-  Parameter t : Type.
-  Parameter equal : t -> t -> M bool.
-  Parameter compare : t -> t -> M int.
-  Module Set_.
-    Definition elt : Type := t.
-    Parameter t : Type.
-    Parameter is_empty : t -> M bool.
-    Parameter cardinal : t -> M int.
-    Parameter fold : forall {A : Type}, (elt -> A -> M A) -> t -> A -> M A.
-    Parameter of_list : list elt -> M t.
-    Parameter get_singleton : t -> M (option elt).
-  End Set_.
-  Parameter one : t.
-  Parameter minus_one : t.
-  Parameter is_any_nan : t -> M bool.
-  Module IEEE_semantics.
-    Parameter add : t -> t -> M t.
-    Parameter sub : t -> t -> M t.
-    Parameter mul : t -> t -> M t.
-    Parameter div : t -> t -> M t.
-    Parameter equal : t -> t -> M bool.
-    Parameter compare : t -> t -> M int.
-  End IEEE_semantics.
-  Declare Module Pair : Pair_S with Definition t := (t * t)%type.
-  Parameter cross_product : Set_.t -> Set_.t -> M Pair.Set_.t.
-End Numeric_types_Float_by_bit_pattern.
-
 (* 29-76. The type [op] has the name of a value of the module type: it gets
    one [_]. The arguments are by place. *)
 Module Type Binary_arith_like_sig.
-  Declare Module Lhs : Container_types_S.
+  Declare Module Lhs : Container_types.S.
 
-  Declare Module Rhs : Container_types_S.
+  Declare Module Rhs : Container_types.S.
 
   Declare Module Pair : Pair_S with Definition t := (Lhs.t * Rhs.t)%type.
 
-  Declare Module Result : Container_types_S.
+  Declare Module Result : Container_types.S.
 
   Parameter ok_to_evaluate : DE.t -> M bool.
 
@@ -841,7 +691,8 @@ End Binary_arith_like.
    ([Binary_arith_like_sig with type op = P.binary_int_arith_op]) is checked
    by Rocq ([<:]) and not printed; 439, the attribute [@@inline always] is
    not kept. *)
-Module Int_ops_for_binary_arith (I : Int_number_kind) <: Binary_arith_like_sig.
+Module Int_ops_for_binary_arith (I : A.Int_number_kind)
+  <: Binary_arith_like_sig.
   (* 282-284 *)
   Module Lhs := I.Num.
   Module Rhs := I.Num.
@@ -1117,10 +968,11 @@ Module Binary_int_arith_nativeint :=
 (* PORT-GAP(loose): 465-467, the signature of the functor is checked by
    Rocq ([<:]) and not printed; 567, the attribute [@@inline always] is not
    kept. *)
-Module Int_ops_for_binary_shift (I : Int_number_kind) <: Binary_arith_like_sig.
+Module Int_ops_for_binary_shift (I : A.Int_number_kind)
+  <: Binary_arith_like_sig.
   (* 468-470 *)
   Module Lhs := I.Num.
-  Module Rhs := Target_ocaml_int_.
+  Module Rhs := Target_ocaml_int.
   Module Result := I.Num.
 
   (* 472 *)
@@ -1324,11 +1176,12 @@ Module Binary_int_shift_nativeint :=
 (* PORT-GAP(loose): 593-597, the signature of the functor is checked by
    Rocq ([<:]) and not printed; 679, the attribute [@@inline always] is not
    kept. *)
-Module Int_ops_for_binary_comp (I : Int_number_kind) <: Binary_arith_like_sig.
+Module Int_ops_for_binary_comp (I : A.Int_number_kind)
+  <: Binary_arith_like_sig.
   (* 598-600 *)
   Module Lhs := I.Num.
   Module Rhs := I.Num.
-  Module Result := Target_ocaml_int_.
+  Module Result := Target_ocaml_int.
 
   (* 602 *)
   Definition op_ : Type := P.comparison_behaviour P.signed_or_unsigned.
@@ -1524,7 +1377,7 @@ Module Binary_int_comp_nativeint :=
    which the compiler writes in place, has a name; the signature of the
    functor is checked by Rocq ([<:]) and not printed. *)
 Module Type Float_ops_for_binary_arith_gen_FP.
-  Declare Module F : Numeric_types_Float_by_bit_pattern.
+  Declare Module F : Numeric_types.Float_by_bit_pattern_.
 
   Parameter width : Flambda_primitive.float_bitwidth.
 
@@ -1679,7 +1532,7 @@ End Float_ops_for_binary_arith_gen.
 (* PORT-GAP(loose): 815-849, the argument of each application, which the
    compiler writes in place, is a module with a name. *)
 Module Float_ops_for_binary_arith_FP.
-  Module F := Float_by_bit_pattern.
+  Module F := Numeric_types.Float_by_bit_pattern.
 
   Definition width : Flambda_primitive.float_bitwidth :=
     Flambda_primitive.Float64.
@@ -1703,7 +1556,7 @@ Module Float_ops_for_binary_arith :=
 
 (* 833-849 *)
 Module Float32_ops_for_binary_arith_FP.
-  Module F := Float32_by_bit_pattern.
+  Module F := Numeric_types.Float32_by_bit_pattern.
 
   Definition width : Flambda_primitive.float_bitwidth :=
     Flambda_primitive.Float32.
@@ -1734,7 +1587,7 @@ Module Binary_float32_arith := Binary_arith_like (Float32_ops_for_binary_arith).
    which the compiler writes in place, has a name; the signature of the
    functor is checked by Rocq ([<:]) and not printed. *)
 Module Type Float_ops_for_binary_comp_gen_FP.
-  Declare Module F : Numeric_types_Float_by_bit_pattern.
+  Declare Module F : Numeric_types.Float_by_bit_pattern_.
 
   Parameter arg_kind : K.Standard_int_or_float.t.
 
@@ -1747,7 +1600,7 @@ Module Float_ops_for_binary_comp_gen (FP : Float_ops_for_binary_comp_gen_FP)
   Module F := FP.F.
   Module Lhs := F.
   Module Rhs := F.
-  Module Result := Target_ocaml_int_.
+  Module Result := Target_ocaml_int.
 
   (* 868 *)
   Definition op_ : Type := P.comparison_behaviour unit.
@@ -1928,7 +1781,7 @@ End Float_ops_for_binary_comp_gen.
 (* PORT-GAP(loose): 962-976, the argument of each application, which the
    compiler writes in place, is a module with a name. *)
 Module Float_ops_for_binary_comp_FP.
-  Module F := Float_by_bit_pattern.
+  Module F := Numeric_types.Float_by_bit_pattern.
 
   Definition arg_kind : K.Standard_int_or_float.t :=
     K.Standard_int_or_float.Naked_float.
@@ -1941,7 +1794,7 @@ Module Float_ops_for_binary_comp :=
 
 (* 970-976 *)
 Module Float32_ops_for_binary_comp_FP.
-  Module F := Float32_by_bit_pattern.
+  Module F := Numeric_types.Float32_by_bit_pattern.
 
   Definition arg_kind : K.Standard_int_or_float.t :=
     K.Standard_int_or_float.Naked_float32.

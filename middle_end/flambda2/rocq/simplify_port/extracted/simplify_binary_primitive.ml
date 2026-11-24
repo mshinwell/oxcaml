@@ -22,8 +22,107 @@
 
 open! Simplify_import
 
+module Container_types = struct
+  include Container_types
+
+  module type S = sig
+    include S
+
+    module Set_ = Set
+  end
+end
+
+module Target_ocaml_int = struct
+  include Target_ocaml_int
+  module Set_ = Set
+end
+
+module Numeric_types = struct
+  include Numeric_types
+
+  module type Float_by_bit_pattern_ = sig
+    type t
+
+    module Pair : Container_types.S with type t = t * t
+
+    include Float_by_bit_pattern with type t := t and module Pair := Pair
+
+    module Set_ = Set
+  end
+
+  module Float_by_bit_pattern = struct
+    include Float_by_bit_pattern
+    module Set_ = Set
+
+    module Pair = struct
+      include Pair
+      module Set_ = Set
+    end
+  end
+
+  module Float32_by_bit_pattern = struct
+    include Float32_by_bit_pattern
+    module Set_ = Set
+
+    module Pair = struct
+      include Pair
+      module Set_ = Set
+    end
+  end
+end
+
 module Number_adjuncts = struct
   include Number_adjuncts
+
+  module type Num_common = sig
+    type t
+
+    module Pair : sig
+      type nonrec t = t * t
+
+      include Container_types.S with type t := t
+    end
+
+    include Num_common with type t := t and module Pair := Pair
+
+    module Set_ = Set
+  end
+
+  module type Int_number_kind = sig
+    module Num : sig
+      include Num_common
+
+      val and_ : t -> t -> t
+
+      val or_ : t -> t -> t
+
+      val xor : t -> t -> t
+
+      val not_ : t -> t
+
+      val unsigned_div : t -> t -> t option
+
+      val unsigned_mod : t -> t -> t option
+
+      val shift_left : t -> Target_ocaml_int.t -> t
+
+      (* [shift_right] is arithmetic shift right, matching [Int32], [Int64],
+         etc. *)
+      val shift_right : t -> Target_ocaml_int.t -> t
+
+      val shift_right_logical : t -> Target_ocaml_int.t -> t
+
+      val swap_byte_endianness : t -> t
+
+      val neg : t -> t
+
+      val compare_unsigned : t -> t -> int
+    end
+
+    include Number_kind_common with module Num := Num
+
+    val standard_int_kind : Flambda_kind.Standard_int.t
+  end
 
   module For_tagged_immediates = struct
     include For_tagged_immediates
@@ -127,236 +226,6 @@ end
 open Port_monad
 module A = Number_adjuncts
 
-module Target_ocaml_int_ = struct
-  type t = Target_ocaml_int.t
-
-  (** val compare : t -> t -> int coq_M **)
-
-  let compare = Target_ocaml_int.compare
-
-  module Set_ = struct
-    type elt = Target_ocaml_int.t
-
-    type t = Target_ocaml_int.Set.t
-
-    (** val is_empty : t -> bool coq_M **)
-
-    let is_empty = Target_ocaml_int.Set.is_empty
-
-    (** val cardinal : t -> int coq_M **)
-
-    let cardinal = Target_ocaml_int.Set.cardinal
-
-    (** val fold : (elt -> 'a1 -> 'a1 coq_M) -> t -> 'a1 -> 'a1 coq_M **)
-
-    let fold = Target_ocaml_int.Set.fold
-
-    (** val of_list : elt list -> t coq_M **)
-
-    let of_list = Target_ocaml_int.Set.of_list
-
-    (** val get_singleton : t -> elt option coq_M **)
-
-    let get_singleton = Target_ocaml_int.Set.get_singleton
-  end
-end
-
-module Float_by_bit_pattern = struct
-  type t = Numeric_types.Float_by_bit_pattern.t
-
-  (** val equal : t -> t -> bool coq_M **)
-
-  let equal = Numeric_types.Float_by_bit_pattern.equal
-
-  (** val compare : t -> t -> int coq_M **)
-
-  let compare = Numeric_types.Float_by_bit_pattern.compare
-
-  module Set_ = struct
-    type elt = Numeric_types.Float_by_bit_pattern.t
-
-    type t = Numeric_types.Float_by_bit_pattern.Set.t
-
-    (** val is_empty : t -> bool coq_M **)
-
-    let is_empty = Numeric_types.Float_by_bit_pattern.Set.is_empty
-
-    (** val cardinal : t -> int coq_M **)
-
-    let cardinal = Numeric_types.Float_by_bit_pattern.Set.cardinal
-
-    (** val fold : (elt -> 'a1 -> 'a1 coq_M) -> t -> 'a1 -> 'a1 coq_M **)
-
-    let fold = Numeric_types.Float_by_bit_pattern.Set.fold
-
-    (** val of_list : elt list -> t coq_M **)
-
-    let of_list = Numeric_types.Float_by_bit_pattern.Set.of_list
-
-    (** val get_singleton : t -> elt option coq_M **)
-
-    let get_singleton = Numeric_types.Float_by_bit_pattern.Set.get_singleton
-  end
-
-  (** val one : t **)
-
-  let one = Numeric_types.Float_by_bit_pattern.one
-
-  (** val minus_one : t **)
-
-  let minus_one = Numeric_types.Float_by_bit_pattern.minus_one
-
-  (** val is_any_nan : t -> bool coq_M **)
-
-  let is_any_nan = Numeric_types.Float_by_bit_pattern.is_any_nan
-
-  module IEEE_semantics = struct
-    (** val add : t -> t -> t coq_M **)
-
-    let add = Numeric_types.Float_by_bit_pattern.IEEE_semantics.add
-
-    (** val sub : t -> t -> t coq_M **)
-
-    let sub = Numeric_types.Float_by_bit_pattern.IEEE_semantics.sub
-
-    (** val mul : t -> t -> t coq_M **)
-
-    let mul = Numeric_types.Float_by_bit_pattern.IEEE_semantics.mul
-
-    (** val div : t -> t -> t coq_M **)
-
-    let div = Numeric_types.Float_by_bit_pattern.IEEE_semantics.div
-
-    (** val equal : t -> t -> bool coq_M **)
-
-    let equal = Numeric_types.Float_by_bit_pattern.IEEE_semantics.equal
-
-    (** val compare : t -> t -> int coq_M **)
-
-    let compare = Numeric_types.Float_by_bit_pattern.IEEE_semantics.compare
-  end
-
-  module Pair = struct
-    type t =
-      Numeric_types.Float_by_bit_pattern.t
-      * Numeric_types.Float_by_bit_pattern.t
-
-    module Set_ = struct
-      type elt =
-        Numeric_types.Float_by_bit_pattern.t
-        * Numeric_types.Float_by_bit_pattern.t
-
-      type t = Numeric_types.Float_by_bit_pattern.Pair.Set.t
-
-      (** val fold : (elt -> 'a1 -> 'a1 coq_M) -> t -> 'a1 -> 'a1 coq_M **)
-
-      let fold = Numeric_types.Float_by_bit_pattern.Pair.Set.fold
-    end
-  end
-
-  (** val cross_product : Set_.t -> Set_.t -> Pair.Set_.t coq_M **)
-
-  let cross_product = Numeric_types.Float_by_bit_pattern.cross_product
-end
-
-module Float32_by_bit_pattern = struct
-  type t = Numeric_types.Float32_by_bit_pattern.t
-
-  (** val equal : t -> t -> bool coq_M **)
-
-  let equal = Numeric_types.Float32_by_bit_pattern.equal
-
-  (** val compare : t -> t -> int coq_M **)
-
-  let compare = Numeric_types.Float32_by_bit_pattern.compare
-
-  module Set_ = struct
-    type elt = Numeric_types.Float32_by_bit_pattern.t
-
-    type t = Numeric_types.Float32_by_bit_pattern.Set.t
-
-    (** val is_empty : t -> bool coq_M **)
-
-    let is_empty = Numeric_types.Float32_by_bit_pattern.Set.is_empty
-
-    (** val cardinal : t -> int coq_M **)
-
-    let cardinal = Numeric_types.Float32_by_bit_pattern.Set.cardinal
-
-    (** val fold : (elt -> 'a1 -> 'a1 coq_M) -> t -> 'a1 -> 'a1 coq_M **)
-
-    let fold = Numeric_types.Float32_by_bit_pattern.Set.fold
-
-    (** val of_list : elt list -> t coq_M **)
-
-    let of_list = Numeric_types.Float32_by_bit_pattern.Set.of_list
-
-    (** val get_singleton : t -> elt option coq_M **)
-
-    let get_singleton = Numeric_types.Float32_by_bit_pattern.Set.get_singleton
-  end
-
-  (** val one : t **)
-
-  let one = Numeric_types.Float32_by_bit_pattern.one
-
-  (** val minus_one : t **)
-
-  let minus_one = Numeric_types.Float32_by_bit_pattern.minus_one
-
-  (** val is_any_nan : t -> bool coq_M **)
-
-  let is_any_nan = Numeric_types.Float32_by_bit_pattern.is_any_nan
-
-  module IEEE_semantics = struct
-    (** val add : t -> t -> t coq_M **)
-
-    let add = Numeric_types.Float32_by_bit_pattern.IEEE_semantics.add
-
-    (** val sub : t -> t -> t coq_M **)
-
-    let sub = Numeric_types.Float32_by_bit_pattern.IEEE_semantics.sub
-
-    (** val mul : t -> t -> t coq_M **)
-
-    let mul = Numeric_types.Float32_by_bit_pattern.IEEE_semantics.mul
-
-    (** val div : t -> t -> t coq_M **)
-
-    let div = Numeric_types.Float32_by_bit_pattern.IEEE_semantics.div
-
-    (** val equal : t -> t -> bool coq_M **)
-
-    let equal = Numeric_types.Float32_by_bit_pattern.IEEE_semantics.equal
-
-    (** val compare : t -> t -> int coq_M **)
-
-    let compare = Numeric_types.Float32_by_bit_pattern.IEEE_semantics.compare
-  end
-
-  module Pair = struct
-    type t =
-      Numeric_types.Float32_by_bit_pattern.t
-      * Numeric_types.Float32_by_bit_pattern.t
-
-    module Set_ = struct
-      type elt =
-        Numeric_types.Float32_by_bit_pattern.t
-        * Numeric_types.Float32_by_bit_pattern.t
-
-      type t = Numeric_types.Float32_by_bit_pattern.Pair.Set.t
-
-      (** val fold : (elt -> 'a1 -> 'a1 coq_M) -> t -> 'a1 -> 'a1 coq_M **)
-
-      let fold = Numeric_types.Float32_by_bit_pattern.Pair.Set.fold
-    end
-  end
-
-  (** val cross_product : Set_.t -> Set_.t -> Pair.Set_.t coq_M **)
-
-  let cross_product = Numeric_types.Float32_by_bit_pattern.cross_product
-end
-
 type 'a binary_arith_outcome_for_one_side_only =
   | Exactly of 'a
   | The_other_side
@@ -365,28 +234,6 @@ type 'a binary_arith_outcome_for_one_side_only =
   | Float_negation_of_the_other_side of Flambda_primitive.float_bitwidth
   | Cannot_simplify
   | Invalid
-
-module type Container_types_S = sig
-  type t
-
-  val compare : t -> t -> int coq_M
-
-  module Set_ : sig
-    type elt = t
-
-    type t
-
-    val is_empty : t -> bool coq_M
-
-    val cardinal : t -> int coq_M
-
-    val fold : (elt -> 'a1 -> 'a1 coq_M) -> t -> 'a1 -> 'a1 coq_M
-
-    val of_list : elt list -> t coq_M
-
-    val get_singleton : t -> elt option coq_M
-  end
-end
 
 module type Pair_S = sig
   type t
@@ -400,141 +247,14 @@ module type Pair_S = sig
   end
 end
 
-module type Int_number_kind = sig
-  module Num : sig
-    type t
-
-    val equal : t -> t -> bool coq_M
-
-    val compare : t -> t -> int coq_M
-
-    module Set_ : sig
-      type elt = t
-
-      type t
-
-      val is_empty : t -> bool coq_M
-
-      val cardinal : t -> int coq_M
-
-      val fold : (elt -> 'a1 -> 'a1 coq_M) -> t -> 'a1 -> 'a1 coq_M
-
-      val of_list : elt list -> t coq_M
-
-      val get_singleton : t -> elt option coq_M
-    end
-
-    module Pair : Pair_S with type t = t * t
-
-    val cross_product : Set_.t -> Set_.t -> Pair.Set_.t coq_M
-
-    val zero : Target_system.Machine_width.t -> t coq_M
-
-    val one : Target_system.Machine_width.t -> t coq_M
-
-    val minus_one : Target_system.Machine_width.t -> t coq_M
-
-    val add : t -> t -> t coq_M
-
-    val sub : t -> t -> t coq_M
-
-    val mul : t -> t -> t coq_M
-
-    val div : t -> t -> t option coq_M
-
-    val mod_ : t -> t -> t option coq_M
-
-    val to_const : t -> Reg_width_const.t coq_M
-
-    val and_ : t -> t -> t coq_M
-
-    val or_ : t -> t -> t coq_M
-
-    val xor : t -> t -> t coq_M
-
-    val unsigned_div : t -> t -> t option coq_M
-
-    val unsigned_mod : t -> t -> t option coq_M
-
-    val shift_left : t -> Target_ocaml_int.t -> t coq_M
-
-    val shift_right : t -> Target_ocaml_int.t -> t coq_M
-
-    val shift_right_logical : t -> Target_ocaml_int.t -> t coq_M
-
-    val compare_unsigned : t -> t -> int coq_M
-  end
-
-  val standard_int_or_float_kind : Flambda_kind.Standard_int_or_float.t
-
-  val unboxed_prover :
-    Flambda2_types.Typing_env.t ->
-    Flambda2_types.t ->
-    Num.Set_.t Flambda2_types.meet_shortcut coq_M
-
-  val these_unboxed : Num.Set_.t -> Flambda2_types.t coq_M
-
-  val term_unboxed : Num.t -> Flambda.Named.t coq_M
-
-  val standard_int_kind : Flambda_kind.Standard_int.t
-end
-
-module type Numeric_types_Float_by_bit_pattern = sig
-  type t
-
-  val equal : t -> t -> bool coq_M
-
-  val compare : t -> t -> int coq_M
-
-  module Set_ : sig
-    type elt = t
-
-    type t
-
-    val is_empty : t -> bool coq_M
-
-    val cardinal : t -> int coq_M
-
-    val fold : (elt -> 'a1 -> 'a1 coq_M) -> t -> 'a1 -> 'a1 coq_M
-
-    val of_list : elt list -> t coq_M
-
-    val get_singleton : t -> elt option coq_M
-  end
-
-  val one : t
-
-  val minus_one : t
-
-  val is_any_nan : t -> bool coq_M
-
-  module IEEE_semantics : sig
-    val add : t -> t -> t coq_M
-
-    val sub : t -> t -> t coq_M
-
-    val mul : t -> t -> t coq_M
-
-    val div : t -> t -> t coq_M
-
-    val equal : t -> t -> bool coq_M
-
-    val compare : t -> t -> int coq_M
-  end
-
-  module Pair : Pair_S with type t = t * t
-
-  val cross_product : Set_.t -> Set_.t -> Pair.Set_.t coq_M
-end
-
 module type Binary_arith_like_sig = sig
-  module Lhs : Container_types_S
+  module Lhs : Container_types.S
 
-  module Rhs : Container_types_S
+  module Rhs : Container_types.S
 
   module Pair : Pair_S with type t = Lhs.t * Rhs.t
 
-  module Result : Container_types_S
+  module Result : Container_types.S
 
   val ok_to_evaluate : Downwards_env.t -> bool coq_M
 
@@ -678,10 +398,10 @@ functor
       let kind = N.result_kind in
       let result_unknown =
        fun _ ->
-        let machine_width = Downwards_env.machine_width denv in
+        let machine_width0 = Downwards_env.machine_width denv in
         let dacc0 =
           Downwards_acc.add_variable dacc result_var
-            (N.unknown machine_width op0)
+            (N.unknown machine_width0 op0)
         in
         Simplify_primitive_result.create original_term false dacc0
       in
@@ -727,14 +447,14 @@ functor
                 | Possible_result.Simple simple ->
                   Flambda2_types.alias_type_of kind simple, Some simple
                 | Possible_result.Prim _ ->
-                  let machine_width = Downwards_env.machine_width denv in
-                  N.unknown machine_width op0, None
+                  let machine_width0 = Downwards_env.machine_width denv in
+                  N.unknown machine_width0 op0, None
                 | Possible_result.Exactly _ ->
-                  let machine_width = Downwards_env.machine_width denv in
-                  N.unknown machine_width op0, None)
+                  let machine_width0 = Downwards_env.machine_width denv in
+                  N.unknown machine_width0 op0, None)
               | None ->
-                let machine_width = Downwards_env.machine_width denv in
-                N.unknown machine_width op0, None
+                let machine_width0 = Downwards_env.machine_width denv in
+                N.unknown machine_width0 op0, None
           in
           let dacc0 = Downwards_acc.add_variable dacc result_var ty in
           match simple_opt with
@@ -770,10 +490,10 @@ functor
                       (fun pat ->
                         let i1, i2 = pat in
                         fun possible_results ->
-                          let machine_width =
+                          let machine_width0 =
                             Downwards_env.machine_width denv
                           in
-                          match N.op machine_width op0 i1 i2 with
+                          match N.op machine_width0 op0 i1 i2 with
                           | Some result ->
                             Possible_result.Set_.add
                               (Possible_result.Exactly result) possible_results
@@ -786,13 +506,13 @@ functor
               if N.ok_to_evaluate denv
               then
                 let () = assert (not (N.Lhs.Set_.is_empty nums1)) in
-                let machine_width = Downwards_env.machine_width denv in
+                let machine_width0 = Downwards_env.machine_width denv in
                 let possible_results =
                   N.Lhs.Set_.fold
                     (fun i possible_results ->
                       match possible_results with
                       | Some possible_results0 -> (
-                        match N.op_rhs_unknown machine_width op0 i with
+                        match N.op_rhs_unknown machine_width0 op0 i with
                         | Exactly result ->
                           Some
                             (Possible_result.Set_.add
@@ -832,11 +552,11 @@ functor
                               ->
                               Flambda_kind.Standard_int.Naked_nativeint
                           in
-                          let machine_width0 =
+                          let machine_width1 =
                             Downwards_env.machine_width denv
                           in
                           let zero0 =
-                            Simple.const_int_of_kind machine_width0
+                            Simple.const_int_of_kind machine_width1
                               (Flambda_kind.Standard_int.to_kind
                                  standard_int_kind0)
                               0
@@ -899,13 +619,13 @@ functor
               if N.ok_to_evaluate denv
               then
                 let () = assert (not (N.Rhs.Set_.is_empty nums2)) in
-                let machine_width = Downwards_env.machine_width denv in
+                let machine_width0 = Downwards_env.machine_width denv in
                 let possible_results =
                   N.Rhs.Set_.fold
                     (fun i possible_results ->
                       match possible_results with
                       | Some possible_results0 -> (
-                        match N.op_lhs_unknown machine_width op0 i with
+                        match N.op_lhs_unknown machine_width0 op0 i with
                         | Exactly result ->
                           Some
                             (Possible_result.Set_.add
@@ -945,11 +665,11 @@ functor
                               ->
                               Flambda_kind.Standard_int.Naked_nativeint
                           in
-                          let machine_width0 =
+                          let machine_width1 =
                             Downwards_env.machine_width denv
                           in
                           let zero0 =
-                            Simple.const_int_of_kind machine_width0
+                            Simple.const_int_of_kind machine_width1
                               (Flambda_kind.Standard_int.to_kind
                                  standard_int_kind0)
                               0
@@ -1009,7 +729,7 @@ functor
 
 module Int_ops_for_binary_arith =
 functor
-  (I : Int_number_kind)
+  (I : A.Int_number_kind)
   ->
   struct
     module Lhs = I.Num
@@ -1131,36 +851,36 @@ functor
         symmetric_op -> Num.t -> Num.t binary_arith_outcome_for_one_side_only
         coq_M **)
 
-    let symmetric_op_one_side_unknown machine_width op0 this_side =
+    let symmetric_op_one_side_unknown machine_width0 op0 this_side =
       match op0 with
       | Add ->
-        if Num.equal this_side (Num.zero machine_width)
+        if Num.equal this_side (Num.zero machine_width0)
         then The_other_side
         else Cannot_simplify
       | Mul ->
-        if Num.equal this_side (Num.zero machine_width)
-        then Exactly (Num.zero machine_width)
-        else if Num.equal this_side (Num.one machine_width)
+        if Num.equal this_side (Num.zero machine_width0)
+        then Exactly (Num.zero machine_width0)
+        else if Num.equal this_side (Num.one machine_width0)
         then The_other_side
-        else if Num.equal this_side (Num.minus_one machine_width)
+        else if Num.equal this_side (Num.minus_one machine_width0)
         then Negation_of_the_other_side
         else Cannot_simplify
       | And ->
-        if Num.equal this_side (Num.minus_one machine_width)
+        if Num.equal this_side (Num.minus_one machine_width0)
         then The_other_side
-        else if Num.equal this_side (Num.zero machine_width)
-        then Exactly (Num.zero machine_width)
+        else if Num.equal this_side (Num.zero machine_width0)
+        then Exactly (Num.zero machine_width0)
         else Cannot_simplify
       | Or ->
-        if Num.equal this_side (Num.minus_one machine_width)
-        then Exactly (Num.minus_one machine_width)
-        else if Num.equal this_side (Num.zero machine_width)
+        if Num.equal this_side (Num.minus_one machine_width0)
+        then Exactly (Num.minus_one machine_width0)
+        else if Num.equal this_side (Num.zero machine_width0)
         then The_other_side
         else Cannot_simplify
       | Xor ->
-        if Num.equal this_side (Num.zero machine_width)
+        if Num.equal this_side (Num.zero machine_width0)
         then The_other_side
-        else if Num.equal this_side (Num.minus_one machine_width)
+        else if Num.equal this_side (Num.minus_one machine_width0)
         then Bitwise_not_of_the_other_side I.standard_int_kind
         else Cannot_simplify
 
@@ -1168,7 +888,7 @@ functor
         Flambda_primitive.binary_int_arith_op -> Num.t -> Num.t
         binary_arith_outcome_for_one_side_only coq_M **)
 
-    let op_lhs_unknown machine_width op0 rhs =
+    let op_lhs_unknown machine_width0 op0 rhs =
       (fun f__1 f__2 f__3 f__4 f__5 f__6 f__7 f__8 x__0 ->
         match (x__0 : Flambda_primitive.binary_int_arith_op) with
         | Flambda_primitive.Add -> f__1 ()
@@ -1179,19 +899,19 @@ functor
         | Flambda_primitive.And -> f__6 ()
         | Flambda_primitive.Or -> f__7 ()
         | Flambda_primitive.Xor -> f__8 ())
-        (fun _ -> symmetric_op_one_side_unknown machine_width Add rhs)
+        (fun _ -> symmetric_op_one_side_unknown machine_width0 Add rhs)
         (fun _ ->
-          if Num.equal rhs (Num.zero machine_width)
+          if Num.equal rhs (Num.zero machine_width0)
           then The_other_side
           else Cannot_simplify)
-        (fun _ -> symmetric_op_one_side_unknown machine_width Mul rhs)
+        (fun _ -> symmetric_op_one_side_unknown machine_width0 Mul rhs)
         (fun signedness ->
-          if Num.equal rhs (Num.zero machine_width)
+          if Num.equal rhs (Num.zero machine_width0)
           then Invalid
-          else if Num.equal rhs (Num.one machine_width)
+          else if Num.equal rhs (Num.one machine_width0)
           then The_other_side
           else if
-            Num.equal rhs (Num.minus_one machine_width)
+            Num.equal rhs (Num.minus_one machine_width0)
             &&
             match signedness with
             | Scalar.Signedness.Signed -> true
@@ -1199,28 +919,28 @@ functor
           then Negation_of_the_other_side
           else Cannot_simplify)
         (fun signedness ->
-          if Num.equal rhs (Num.zero machine_width)
+          if Num.equal rhs (Num.zero machine_width0)
           then Invalid
-          else if Num.equal rhs (Num.one machine_width)
-          then Exactly (Num.zero machine_width)
+          else if Num.equal rhs (Num.one machine_width0)
+          then Exactly (Num.zero machine_width0)
           else if
-            Num.equal rhs (Num.minus_one machine_width)
+            Num.equal rhs (Num.minus_one machine_width0)
             &&
             match signedness with
             | Scalar.Signedness.Signed -> true
             | Scalar.Signedness.Unsigned -> false
-          then Exactly (Num.zero machine_width)
+          then Exactly (Num.zero machine_width0)
           else Cannot_simplify)
-        (fun _ -> symmetric_op_one_side_unknown machine_width And rhs)
-        (fun _ -> symmetric_op_one_side_unknown machine_width Or rhs)
-        (fun _ -> symmetric_op_one_side_unknown machine_width Xor rhs)
+        (fun _ -> symmetric_op_one_side_unknown machine_width0 And rhs)
+        (fun _ -> symmetric_op_one_side_unknown machine_width0 Or rhs)
+        (fun _ -> symmetric_op_one_side_unknown machine_width0 Xor rhs)
         op0
 
     (** val op_rhs_unknown : Target_system.Machine_width.t ->
         Flambda_primitive.binary_int_arith_op -> Num.t -> Num.t
         binary_arith_outcome_for_one_side_only coq_M **)
 
-    let op_rhs_unknown machine_width op0 lhs =
+    let op_rhs_unknown machine_width0 op0 lhs =
       (fun f__1 f__2 f__3 f__4 f__5 f__6 f__7 f__8 x__0 ->
         match (x__0 : Flambda_primitive.binary_int_arith_op) with
         | Flambda_primitive.Add -> f__1 ()
@@ -1231,12 +951,12 @@ functor
         | Flambda_primitive.And -> f__6 ()
         | Flambda_primitive.Or -> f__7 ()
         | Flambda_primitive.Xor -> f__8 ())
-        (fun _ -> symmetric_op_one_side_unknown machine_width Add lhs)
+        (fun _ -> symmetric_op_one_side_unknown machine_width0 Add lhs)
         (fun _ ->
-          if Num.equal lhs (Num.zero machine_width)
+          if Num.equal lhs (Num.zero machine_width0)
           then Negation_of_the_other_side
           else Cannot_simplify)
-        (fun _ -> symmetric_op_one_side_unknown machine_width Mul lhs)
+        (fun _ -> symmetric_op_one_side_unknown machine_width0 Mul lhs)
         (fun t0 ->
           match t0 with
           | Scalar.Signedness.Signed -> Cannot_simplify
@@ -1245,9 +965,9 @@ functor
           match t0 with
           | Scalar.Signedness.Signed -> Cannot_simplify
           | Scalar.Signedness.Unsigned -> Cannot_simplify)
-        (fun _ -> symmetric_op_one_side_unknown machine_width And lhs)
-        (fun _ -> symmetric_op_one_side_unknown machine_width Or lhs)
-        (fun _ -> symmetric_op_one_side_unknown machine_width Xor lhs)
+        (fun _ -> symmetric_op_one_side_unknown machine_width0 And lhs)
+        (fun _ -> symmetric_op_one_side_unknown machine_width0 Or lhs)
+        (fun _ -> symmetric_op_one_side_unknown machine_width0 Xor lhs)
         op0
   end
 
@@ -1277,11 +997,11 @@ module Binary_int_arith_nativeint =
 
 module Int_ops_for_binary_shift =
 functor
-  (I : Int_number_kind)
+  (I : A.Int_number_kind)
   ->
   struct
     module Lhs = I.Num
-    module Rhs = Target_ocaml_int_
+    module Rhs = Target_ocaml_int
     module Result = I.Num
 
     type op_ = Flambda_primitive.int_shift_op
@@ -1400,19 +1120,19 @@ functor
         Flambda_primitive.int_shift_op -> Target_ocaml_int.t -> Num.t
         binary_arith_outcome_for_one_side_only coq_M **)
 
-    let op_lhs_unknown machine_width op0 rhs =
+    let op_lhs_unknown machine_width0 op0 rhs =
       let rhs0 = rhs in
       match op0 with
       | Flambda_primitive.Lsl ->
-        if Target_ocaml_int.equal rhs0 (Target_ocaml_int.zero machine_width)
+        if Target_ocaml_int.equal rhs0 (Target_ocaml_int.zero machine_width0)
         then The_other_side
         else Cannot_simplify
       | Flambda_primitive.Lsr ->
-        if Target_ocaml_int.equal rhs0 (Target_ocaml_int.zero machine_width)
+        if Target_ocaml_int.equal rhs0 (Target_ocaml_int.zero machine_width0)
         then The_other_side
         else Cannot_simplify
       | Flambda_primitive.Asr ->
-        if Target_ocaml_int.equal rhs0 (Target_ocaml_int.zero machine_width)
+        if Target_ocaml_int.equal rhs0 (Target_ocaml_int.zero machine_width0)
         then The_other_side
         else Cannot_simplify
 
@@ -1420,21 +1140,21 @@ functor
         Flambda_primitive.int_shift_op -> Num.t -> Num.t
         binary_arith_outcome_for_one_side_only coq_M **)
 
-    let op_rhs_unknown machine_width op0 lhs =
+    let op_rhs_unknown machine_width0 op0 lhs =
       match op0 with
       | Flambda_primitive.Lsl ->
-        if Num.equal lhs (Num.zero machine_width)
-        then Exactly (Num.zero machine_width)
+        if Num.equal lhs (Num.zero machine_width0)
+        then Exactly (Num.zero machine_width0)
         else Cannot_simplify
       | Flambda_primitive.Lsr ->
-        if Num.equal lhs (Num.zero machine_width)
-        then Exactly (Num.zero machine_width)
+        if Num.equal lhs (Num.zero machine_width0)
+        then Exactly (Num.zero machine_width0)
         else Cannot_simplify
       | Flambda_primitive.Asr ->
-        if Num.equal lhs (Num.zero machine_width)
-        then Exactly (Num.zero machine_width)
-        else if Num.equal lhs (Num.minus_one machine_width)
-        then Exactly (Num.minus_one machine_width)
+        if Num.equal lhs (Num.zero machine_width0)
+        then Exactly (Num.zero machine_width0)
+        else if Num.equal lhs (Num.minus_one machine_width0)
+        then Exactly (Num.minus_one machine_width0)
         else Cannot_simplify
   end
 
@@ -1464,12 +1184,12 @@ module Binary_int_shift_nativeint =
 
 module Int_ops_for_binary_comp =
 functor
-  (I : Int_number_kind)
+  (I : A.Int_number_kind)
   ->
   struct
     module Lhs = I.Num
     module Rhs = I.Num
-    module Result = Target_ocaml_int_
+    module Result = Target_ocaml_int
 
     type op_ =
       Flambda_primitive.signed_or_unsigned
@@ -1500,13 +1220,13 @@ functor
     (** val unknown : Target_system.Machine_width.t -> op_ -> Flambda2_types.t
         coq_M **)
 
-    let unknown machine_width = function
+    let unknown machine_width0 = function
       | Flambda_primitive.Yielding_bool _ ->
         Flambda2_types.these_naked_immediates
-          (Target_ocaml_int.all_bools machine_width)
+          (Target_ocaml_int.all_bools machine_width0)
       | Flambda_primitive.Yielding_int_like_compare_functions _ ->
         Flambda2_types.these_naked_immediates
-          (Target_ocaml_int.zero_one_and_minus_one machine_width)
+          (Target_ocaml_int.zero_one_and_minus_one machine_width0)
 
     (** val these : Target_ocaml_int.Set.t -> (Flambda2_types.t * Simple.t
         option) coq_M **)
@@ -1540,10 +1260,10 @@ functor
         Flambda_primitive.comparison_behaviour -> Num.t -> Num.t ->
         Target_ocaml_int.t option coq_M **)
 
-    let op machine_width op0 n1 n2 =
+    let op machine_width0 op0 n1 n2 =
       match op0 with
       | Flambda_primitive.Yielding_bool op1 ->
-        let bool = fun b -> Target_ocaml_int.bool machine_width b in
+        let bool = fun b -> Target_ocaml_int.bool machine_width0 b in
         (fun f__1 f__2 f__3 f__4 f__5 f__6 x__0 ->
           match (x__0 : _ Flambda_primitive.comparison) with
           | Flambda_primitive.Eq -> f__1 ()
@@ -1579,7 +1299,7 @@ functor
         -> (
         match signed_or_unsigned with
         | Flambda_primitive.Signed ->
-          let int = fun i -> Target_ocaml_int.of_int machine_width i in
+          let int = fun i -> Target_ocaml_int.of_int machine_width0 i in
           let c = Num.compare n1 n2 in
           if c < 0
           then Some (int (-1))
@@ -1587,7 +1307,7 @@ functor
           then Some (int 0)
           else Some (int 1)
         | Flambda_primitive.Unsigned ->
-          let int = fun i -> Target_ocaml_int.of_int machine_width i in
+          let int = fun i -> Target_ocaml_int.of_int machine_width0 i in
           let c = Num.compare_unsigned n1 n2 in
           if c < 0
           then Some (int (-1))
@@ -1628,7 +1348,7 @@ module Binary_int_comp_nativeint =
   Binary_arith_like (Int_ops_for_binary_comp_nativeint)
 
 module type Float_ops_for_binary_arith_gen_FP = sig
-  module F : Numeric_types_Float_by_bit_pattern
+  module F : Numeric_types.Float_by_bit_pattern_
 
   val width : Flambda_primitive.float_bitwidth
 
@@ -1781,7 +1501,7 @@ functor
   end
 
 module Float_ops_for_binary_arith_FP = struct
-  module F = Float_by_bit_pattern
+  module F = Numeric_types.Float_by_bit_pattern
 
   (** val width : Flambda_primitive.float_bitwidth **)
 
@@ -1820,7 +1540,7 @@ module Float_ops_for_binary_arith =
   Float_ops_for_binary_arith_gen (Float_ops_for_binary_arith_FP)
 
 module Float32_ops_for_binary_arith_FP = struct
-  module F = Float32_by_bit_pattern
+  module F = Numeric_types.Float32_by_bit_pattern
 
   (** val width : Flambda_primitive.float_bitwidth **)
 
@@ -1861,7 +1581,7 @@ module Binary_float_arith = Binary_arith_like (Float_ops_for_binary_arith)
 module Binary_float32_arith = Binary_arith_like (Float32_ops_for_binary_arith)
 
 module type Float_ops_for_binary_comp_gen_FP = sig
-  module F : Numeric_types_Float_by_bit_pattern
+  module F : Numeric_types.Float_by_bit_pattern_
 
   val arg_kind : Flambda_kind.Standard_int_or_float.t
 
@@ -1879,7 +1599,7 @@ functor
     module F = FP.F
     module Lhs = F
     module Rhs = F
-    module Result = Target_ocaml_int_
+    module Result = Target_ocaml_int
 
     type op_ = unit Flambda_primitive.comparison_behaviour
 
@@ -1908,14 +1628,14 @@ functor
     (** val unknown : Target_system.Machine_width.t -> op_ -> Flambda2_types.t
         coq_M **)
 
-    let unknown machine_width = function
+    let unknown machine_width0 = function
       | Flambda_primitive.Yielding_bool _ ->
         Flambda2_types.these_naked_immediates
-          (Target_ocaml_int.all_bools machine_width)
+          (Target_ocaml_int.all_bools machine_width0)
       | Flambda_primitive.Yielding_int_like_compare_functions u ->
         let () = u in
         Flambda2_types.these_naked_immediates
-          (Target_ocaml_int.zero_one_and_minus_one machine_width)
+          (Target_ocaml_int.zero_one_and_minus_one machine_width0)
 
     (** val these : Target_ocaml_int.Set.t -> (Flambda2_types.t * Simple.t
         option) coq_M **)
@@ -1944,11 +1664,11 @@ functor
     (** val op : Target_system.Machine_width.t -> op_ -> F.t -> F.t ->
         Target_ocaml_int.t option coq_M **)
 
-    let op machine_width op0 n1 n2 =
+    let op machine_width0 op0 n1 n2 =
       match op0 with
       | Flambda_primitive.Yielding_bool op1 ->
         let has_nan = F.is_any_nan n1 || F.is_any_nan n2 in
-        let bool = fun b -> Target_ocaml_int.bool machine_width b in
+        let bool = fun b -> Target_ocaml_int.bool machine_width0 b in
         (fun f__1 f__2 f__3 f__4 f__5 f__6 x__0 ->
           match (x__0 : _ Flambda_primitive.comparison) with
           | Flambda_primitive.Eq -> f__1 ()
@@ -1982,7 +1702,7 @@ functor
           op1
       | Flambda_primitive.Yielding_int_like_compare_functions u ->
         let () = u in
-        let int = fun i -> Target_ocaml_int.of_int machine_width i in
+        let int = fun i -> Target_ocaml_int.of_int machine_width0 i in
         let c = F.IEEE_semantics.compare n1 n2 in
         if c < 0
         then Some (int (-1))
@@ -1994,7 +1714,7 @@ functor
         unit Flambda_primitive.comparison -> Target_ocaml_int.t
         binary_arith_outcome_for_one_side_only coq_M **)
 
-    let result_of_comparison_with_nan machine_width op0 =
+    let result_of_comparison_with_nan machine_width0 op0 =
       (fun f__1 f__2 f__3 f__4 f__5 f__6 x__0 ->
         match (x__0 : _ Flambda_primitive.comparison) with
         | Flambda_primitive.Eq -> f__1 ()
@@ -2003,30 +1723,30 @@ functor
         | Flambda_primitive.Gt x__1 -> f__4 x__1
         | Flambda_primitive.Le x__1 -> f__5 x__1
         | Flambda_primitive.Ge x__1 -> f__6 x__1)
-        (fun _ -> Exactly (Target_ocaml_int.bool_false machine_width))
-        (fun _ -> Exactly (Target_ocaml_int.bool_true machine_width))
+        (fun _ -> Exactly (Target_ocaml_int.bool_false machine_width0))
+        (fun _ -> Exactly (Target_ocaml_int.bool_true machine_width0))
         (fun u ->
           let () = u in
-          Exactly (Target_ocaml_int.bool_false machine_width))
+          Exactly (Target_ocaml_int.bool_false machine_width0))
         (fun u ->
           let () = u in
-          Exactly (Target_ocaml_int.bool_false machine_width))
+          Exactly (Target_ocaml_int.bool_false machine_width0))
         (fun u ->
           let () = u in
-          Exactly (Target_ocaml_int.bool_false machine_width))
+          Exactly (Target_ocaml_int.bool_false machine_width0))
         (fun u ->
           let () = u in
-          Exactly (Target_ocaml_int.bool_false machine_width))
+          Exactly (Target_ocaml_int.bool_false machine_width0))
         op0
 
     (** val op_lhs_unknown : Target_system.Machine_width.t -> op_ -> F.t ->
         Target_ocaml_int.t binary_arith_outcome_for_one_side_only coq_M **)
 
-    let op_lhs_unknown machine_width op0 rhs =
+    let op_lhs_unknown machine_width0 op0 rhs =
       match op0 with
       | Flambda_primitive.Yielding_bool op1 ->
         if F.is_any_nan rhs
-        then result_of_comparison_with_nan machine_width op1
+        then result_of_comparison_with_nan machine_width0 op1
         else Cannot_simplify
       | Flambda_primitive.Yielding_int_like_compare_functions u ->
         let () = u in
@@ -2035,11 +1755,11 @@ functor
     (** val op_rhs_unknown : Target_system.Machine_width.t -> op_ -> F.t ->
         Target_ocaml_int.t binary_arith_outcome_for_one_side_only coq_M **)
 
-    let op_rhs_unknown machine_width op0 lhs =
+    let op_rhs_unknown machine_width0 op0 lhs =
       match op0 with
       | Flambda_primitive.Yielding_bool op1 ->
         if F.is_any_nan lhs
-        then result_of_comparison_with_nan machine_width op1
+        then result_of_comparison_with_nan machine_width0 op1
         else Cannot_simplify
       | Flambda_primitive.Yielding_int_like_compare_functions u ->
         let () = u in
@@ -2047,7 +1767,7 @@ functor
   end
 
 module Float_ops_for_binary_comp_FP = struct
-  module F = Float_by_bit_pattern
+  module F = Numeric_types.Float_by_bit_pattern
 
   (** val arg_kind : Flambda_kind.Standard_int_or_float.t **)
 
@@ -2064,7 +1784,7 @@ module Float_ops_for_binary_comp =
   Float_ops_for_binary_comp_gen (Float_ops_for_binary_comp_FP)
 
 module Float32_ops_for_binary_comp_FP = struct
-  module F = Float32_by_bit_pattern
+  module F = Numeric_types.Float32_by_bit_pattern
 
   (** val arg_kind : Flambda_kind.Standard_int_or_float.t **)
 
@@ -2090,7 +1810,7 @@ module Binary_float32_comp = Binary_arith_like (Float32_ops_for_binary_comp)
 let simplify_phys_equal op0 dacc original_term _ _ arg1_ty _ arg2_ty result_var
     =
   let typing_env = Downwards_acc.typing_env dacc in
-  let machine_width = Downwards_env.machine_width (Downwards_acc.denv dacc) in
+  let machine_width0 = Downwards_env.machine_width (Downwards_acc.denv dacc) in
   match Flambda2_types.prove_physical_equality typing_env arg1_ty arg2_ty with
   | Flambda2_types.Proved bool ->
     let result =
@@ -2101,17 +1821,17 @@ let simplify_phys_equal op0 dacc original_term _ _ arg1_ty _ arg2_ty result_var
     let dacc0 =
       Downwards_acc.add_variable dacc result_var
         (Flambda2_types.this_naked_immediate
-           (Target_ocaml_int.bool machine_width result))
+           (Target_ocaml_int.bool machine_width0 result))
     in
     Simplify_primitive_result.create
       (Flambda.Named.create_simple
-         (Simple.untagged_const_bool machine_width result))
+         (Simple.untagged_const_bool machine_width0 result))
       false dacc0
   | Flambda2_types.Unknown ->
     let dacc0 =
       Downwards_acc.add_variable dacc result_var
         (Flambda2_types.these_naked_immediates
-           (Target_ocaml_int.all_bools machine_width))
+           (Target_ocaml_int.all_bools machine_width0))
     in
     Simplify_primitive_result.create original_term false dacc0
 
@@ -2195,13 +1915,14 @@ let simplify_array_load array_kind array_load_kind mutability dacc _ dbg array
           | Flambda2_types.Proved imms -> (
             match Target_ocaml_int.Set.get_singleton imms with
             | Some imm ->
-              let machine_width =
+              let machine_width0 =
                 Downwards_env.machine_width (Downwards_acc.denv dacc)
               in
               if
-                Target_ocaml_int.( < ) imm (Target_ocaml_int.zero machine_width)
+                Target_ocaml_int.( < ) imm
+                  (Target_ocaml_int.zero machine_width0)
                 || Target_ocaml_int.( >= ) imm
-                     (Target_ocaml_int.of_int machine_width
+                     (Target_ocaml_int.of_int machine_width0
                         (Array.length fields))
               then Simplify_primitive_result.create_invalid dacc
               else
