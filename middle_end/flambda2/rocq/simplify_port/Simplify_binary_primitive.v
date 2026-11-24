@@ -38,6 +38,7 @@ Local Open Scope Z_scope.
 open! Simplify_import
 OCAML*)
 
+(* ALSO-FOLLOWS: middle_end/flambda2/simplify/number_adjuncts.mli, lines 91-125 *)
 (* PORT-GAP(verbatim): not from the compiler's file. Rocq cannot name a
    module [Set], nor give a module type the name of a module: decl/ says
    [Set_] and [Float_by_bit_pattern_], and Rocq prints these names for what
