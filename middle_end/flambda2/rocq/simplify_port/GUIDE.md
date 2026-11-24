@@ -118,16 +118,27 @@ fuel was enough, and that it holds of the OCAML code is NOT established now
   their full names; a match on a variant that has an inline record is
   printed as the application of one function for each constructor (section
   7), and a case `_` as one function for each constructor that is left.
-- A RECORD of `decl/` has the compiler's fields: `r.(S.simples)`,
-  `{| S.simples := a; S.simple_tys := b |}` in terms and patterns; all the
-  fields for `{ r with f = v }`. A mutable field is set by `M.set_f r v`.
+- A RECORD of `decl/` has the compiler's fields: `{| S.simples := a;
+  S.simple_tys := b |}` in terms and patterns; all the fields for `{ r with
+  f = v }`. A field is read with the module's OWN name,
+  `r.(Simplify_simple.simples)`: through a short name (`r.(S.simples)`) Rocq
+  prints the call `S.simples r`, which OCaml refuses. A mutable field is set
+  by `M.set_f r v`.
 - What `decl/` marks `PORT-GAP(type)` (a GADT, a few records): its makers
   `mk_C` and its eliminator `match_T`, as `decl/` says.
 - A type that the file itself DEFINES: a Rocq `Inductive` or `Record` with
   the compiler's names, if it is a plain variant or record (Rocq prints the
-  OCaml definition). Else (inline record, GADT, mutable field, polymorphic
-  variant): the OCaml definition verbatim (below), and in Rocq what `decl/`
-  has for it, copied into the file; mark `PORT-GAP(type)`.
+  OCaml definition, and one function for each field of a record: a function
+  of the file that only reads the field of its name IS that projection;
+  mark it `PORT-GAP(loose)`). Else (inline record, GADT, mutable field,
+  polymorphic variant, a field named `unit` or another name that the
+  extraction changes): mark `PORT-GAP(type)` and either the OCaml
+  definition verbatim (below) with, in Rocq, what `decl/` has for it copied
+  into the file; or, to keep the definition at its place (inside a module
+  of the file), the Rocq type under the name `t_` with its `Extract
+  Inductive t_ => "t" [...]`, then `Definition t : Type := t_.` and `Extract
+  Constant t => "| A | B of { x : int }".`: Rocq prints `type t = ` and
+  that text.
 - OCaml text that must be in the extracted file as it is (`open!`, such a
   type, `exception E`, a functor application, a wrapper with an optional
   argument) goes between a line `(*OCAML` and a line `OCAML*)` (copied to
@@ -145,7 +156,14 @@ fuel was enough, and that it holds of the OCAML code is NOT established now
 - One name space: where a type of the file has the name of a function or a
   field, the TYPE gets one `_` after it; a name that is a word of Rocq gets
   one too (`exists_`). Where a parameter is named `t`, write the type
-  `Foo.t`.
+  `Foo.t`; where a variable has the name of a type, give its type by a cast
+  after the `fun`, not in the binder.
+- A donor that does not `open! Simplify_import` does not import
+  `decl/Simplify_import` either: its own `module X = Y` lines are `Module X
+  := Y.`, its `open! Flambda.Import` is `Import Flambda.Import_.` For `@` on
+  lists add `Local Open Scope list_scope.` after the two scopes. A function
+  that takes two pairs apart: name them and write `let* '(a, b) := ret pat
+  in`. A `\n` in a format string is a real line break in the Rocq string.
 
 ## 5. Gaps: never hidden
 
