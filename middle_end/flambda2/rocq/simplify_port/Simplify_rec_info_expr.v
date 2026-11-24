@@ -109,18 +109,44 @@ Fixpoint simplify_rec_info_expr0 (fuel : fuel) (denv : DE.t)
         (* All bound names are fresh, so fine to use the same environment *)
         simplify_rec_info_expr0 fuel denv rec_info_expr on_unknown
       | T.Need_meet | T.Invalid =>
+        (* The invalid case can happen if the current context is itself invalid,
+           which should be rare but not anomalous. Treat invalid cases as
+           unknown -- it is annoying to propagate the invalid to coercions and
+           smiples, and we'll figure out that the context is invalid as soon as
+           we simplify a regular primitive anyways. *)
         match on_unknown with
         | Leave_unevaluated => ret orig
         | Assume_value value => ret value
         end
       end
     in
+    (* Normally, we would expect that all variables appearing in a
+       [Rec_info_expr] are available in the current context.
+
+       However, when the "erase in-types depth variables" flag is set, we might
+       see depth variables appearing inside coercions that only exist at the
+       [In_types] name mode: these come from the value slots of the current
+       closure. Without that flag, we would have explicitly set those variables
+       to have type [Rec_info_expr.do_not_inline]; but with the flag, we have
+       left them as is when entering the set of closures and need to replace
+       them with [Rec_info_expr.do_not_inline] explicitly here.
+
+       mshinwell: Leo and I have discussed allowing In_types variables in
+       closures, which should cover this case, if we allowed such variables to
+       be of kinds other than [Value]. *)
     (* 91-106. 101-103, [TE.get_canonical_simple_exn (DE.typing_env denv)
        ~min_name_mode:Name_mode.normal (Simple.var dv)]: the arguments are
        in the order of the interface. *)
     let! tmp1 := Flambda_features.erase_in_types_depth_variables tt in
     if tmp1
     then
+      (* Note that we use [get_canonical_simple_exn] to check if the variable
+         has an alias at [Normal] name mode, rather than simply checking (with
+         [TE.mem ~min_name_mode]) that the variable itself has [Normal] name
+         mode.
+
+         While it is unlikely to matter, checking the canonical is more robust
+         and avoids accidentally preventing more inlining than necessary. *)
       match_exn
         (fun _ =>
           let! tmp1 := Simple.var dv in
