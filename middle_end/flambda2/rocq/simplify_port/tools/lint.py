@@ -26,9 +26,9 @@
 #* DEALINGS IN THE SOFTWARE.                                                  *
 #******************************************************************************
 
-"""lint.py FILE.v : two cheap checks of a ported file (GUIDE.md, sections 2
-and 4): the temporaries of [let!], and the setters of record updates (at
-the end of this file). The first:
+"""lint.py FILE.v : three cheap checks of a ported file (GUIDE.md, sections 2
+and 4): the temporaries of [let!]; Rocq's own [let]; the setters of record
+updates (the last two at the end of this file). The first:
 It COUNTS WORDS, it does not know Rocq's scopes: after the [in] that ends
 [let! tmpN := ... in], the word tmpN must stand exactly once before the next
 [let! tmpN] or the end of the definition, and [let!] must bind no other name.
@@ -79,6 +79,13 @@ for n, m in enumerate(binds):
     uses = len(re.findall(r"(?<![A-Za-z_0-9'.])%s(?![A-Za-z_0-9'])" % name, text[body:end]))
     if uses != 1:
         print("%s:%d: %s is used %d times: a let! is used exactly once" % (path, line_of(m.start()), name, uses)); bad += 1
+# Rocq's own [let x := e in] (not [let*], [let&], [let!]): the extraction
+# moves [e] to the use of [x], or drops it. The guide allows it for a local
+# recursion ([fix]) and for a local function ([fun]) only.
+for m in re.finditer(r"(?<![A-Za-z_0-9'.])let\s+([A-Za-z_][A-Za-z_0-9']*)\s*(?::[^:=]*)?:=\s*(\S+)", text):
+    if m.group(2) not in ("fix", "fun"):
+        print("%s:%d: Rocq's own let of %s: only a fix or a fun may be bound so (use let* for a call, let& for a value)" % (path, line_of(m.start()), m.group(1))); bad += 1
+
 # The setters of record updates (GUIDE.md, section 4). The OCaml text of
 #   Extract Inlined Constant update_X => "(fun t p1 .. -> { t with F1 = p1; .. })".
 # is not checked by Rocq against
