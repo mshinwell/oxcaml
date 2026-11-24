@@ -26,13 +26,7 @@ exception Invalid_apply_cont
 
 exception Prevent_current_unboxing
 
-open Apply_cont_rewrite_id
-open Flambda2_types
 open Port_monad
-open Tag
-open Unboxers
-open Unboxing_types
-open Value_slot
 module U = Unboxing_types
 module Extra_param_and_args = U.Extra_param_and_args
 
@@ -82,8 +76,9 @@ let type_of_arg_being_unboxed unboxed_arg0 =
     (fun _ -> prevent_current_unboxing ())
     unboxed_arg0
 
-(** val unbox_arg : unboxer -> Flambda2_types.Typing_env.t -> unboxed_arg ->
-    (Continuation_extra_params_and_args.Extra_arg.t * unboxed_arg) coq_M **)
+(** val unbox_arg : Unboxers.unboxer -> Flambda2_types.Typing_env.t ->
+    unboxed_arg -> (Continuation_extra_params_and_args.Extra_arg.t *
+    unboxed_arg) coq_M **)
 
 let unbox_arg unboxer0 typing_env_at_use arg_being_unboxed =
   (fun f__1 f__2 f__3 f__4 x__0 ->
@@ -95,7 +90,7 @@ let unbox_arg unboxer0 typing_env_at_use arg_being_unboxed =
     (fun _ ->
       let extra_arg =
         Continuation_extra_params_and_args.Extra_arg.Already_in_scope
-          (Simple.const unboxer0.poison_const)
+          (Simple.const unboxer0.Unboxers.poison_const)
       in
       extra_arg, Poison)
     (fun arg_at_use ->
@@ -113,9 +108,9 @@ let unbox_arg unboxer0 typing_env_at_use arg_being_unboxed =
         (fun _ ->
           let var =
             (fun x__1 x__2 x__3 -> Variable.create ?user_visible:x__1 x__2 x__3)
-              None unboxer0.var_name unboxer0.var_kind
+              None unboxer0.Unboxers.var_name unboxer0.Unboxers.var_kind
           in
-          let prim = unboxer0.unboxing_prim arg_at_use in
+          let prim = unboxer0.Unboxers.unboxing_prim arg_at_use in
           let extra_arg =
             Continuation_extra_params_and_args.Extra_arg.New_let_binding
               (var, prim)
@@ -126,14 +121,15 @@ let unbox_arg unboxer0 typing_env_at_use arg_being_unboxed =
             ( (fun () -> Invalid_apply_cont),
               function Invalid_apply_cont -> Some () | _ -> None )
             ())
-        (unboxer0.prove_simple typing_env_at_use Name_mode.normal arg_type))
+        (unboxer0.Unboxers.prove_simple typing_env_at_use Name_mode.normal
+           arg_type))
     (fun var ->
       let arg_at_use = Simple.var var in
       let var0 =
         (fun x__1 x__2 x__3 -> Variable.create ?user_visible:x__1 x__2 x__3)
-          None unboxer0.var_name unboxer0.var_kind
+          None unboxer0.Unboxers.var_name unboxer0.Unboxers.var_kind
       in
-      let prim = unboxer0.unboxing_prim arg_at_use in
+      let prim = unboxer0.Unboxers.unboxing_prim arg_at_use in
       let extra_arg =
         Continuation_extra_params_and_args.Extra_arg.New_let_binding (var0, prim)
       in
@@ -141,14 +137,14 @@ let unbox_arg unboxer0 typing_env_at_use arg_being_unboxed =
     (fun nth_arg ->
       let var =
         (fun x__1 x__2 x__3 -> Variable.create ?user_visible:x__1 x__2 x__3)
-          None "unboxed_field" unboxer0.var_kind
+          None "unboxed_field" unboxer0.Unboxers.var_kind
       in
       ( Continuation_extra_params_and_args.Extra_arg
         .New_let_binding_with_named_args
           ( var,
             fun args0 ->
               let arg_simple = List.nth args0 nth_arg in
-              unboxer0.unboxing_prim arg_simple ),
+              unboxer0.Unboxers.unboxing_prim arg_simple ),
         Generated var ))
     arg_being_unboxed
 
@@ -345,7 +341,7 @@ let extra_args_for_const_ctor_of_variant const_ctors_decision0 typing_env_at_use
     const_ctors_decision0
 
 (** val compute_extra_arg_for_number : Flambda_kind.Naked_number_kind.t ->
-    unboxer -> Extra_param_and_args.t -> Apply_cont_rewrite_id.t ->
+    Unboxers.unboxer -> Extra_param_and_args.t -> Apply_cont_rewrite_id.t ->
     Flambda2_types.Typing_env.t -> unboxed_arg -> Unboxing_types.decision coq_M
     **)
 
@@ -471,8 +467,9 @@ and compute_extra_args_for_one_decision_and_use_aux pass0 rewrite_id
             | Flambda2_types.Need_meet -> f__2 ()
             | Flambda2_types.Invalid -> f__3 ())
             (fun v ->
-              let { const_ctors = const_ctors0;
-                    non_const_ctors_with_sizes = non_const_ctors_with_sizes0
+              let { Flambda2_types.const_ctors = const_ctors0;
+                    Flambda2_types.non_const_ctors_with_sizes =
+                      non_const_ctors_with_sizes0
                   } =
                 v
               in
@@ -595,7 +592,8 @@ and compute_extra_args_for_block pass0 rewrite_id typing_env_at_use
 (** val compute_extra_args_for_closure : Unboxing_types.pass ->
     Apply_cont_rewrite_id.t -> Flambda2_types.Typing_env.t ->
     Target_system.Machine_width.t -> unboxed_arg -> Function_slot.t ->
-    Unboxing_types.field_decision Map.t -> Unboxing_types.decision coq_M **)
+    Unboxing_types.field_decision Value_slot.Map.t -> Unboxing_types.decision
+    coq_M **)
 
 and compute_extra_args_for_closure pass0 rewrite_id typing_env_at_use
     machine_width arg_being_unboxed function_slot vars_within_closure =
@@ -635,10 +633,10 @@ and compute_extra_args_for_closure pass0 rewrite_id typing_env_at_use
     Apply_cont_rewrite_id.t -> Flambda2_types.Typing_env.t ->
     Target_system.Machine_width.t -> unboxed_arg -> Extra_param_and_args.t ->
     Unboxing_types.const_ctors_decision -> (Flambda_kind.Block_shape.t *
-    Unboxing_types.field_decision list) Scannable.Map.t ->
+    Unboxing_types.field_decision list) Tag.Scannable.Map.t ->
     Target_ocaml_int.Set.t Or_unknown.t -> (Target_ocaml_int.t *
-    Flambda_kind.Block_shape.t) Scannable.Map.t -> Unboxing_types.decision coq_M
-    **)
+    Flambda_kind.Block_shape.t) Tag.Scannable.Map.t -> Unboxing_types.decision
+    coq_M **)
 
 and compute_extra_args_for_variant pass0 rewrite_id typing_env_at_use
     machine_width arg_being_unboxed tag_from_decision const_ctors_from_decision

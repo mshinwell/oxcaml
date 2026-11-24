@@ -418,7 +418,8 @@ with compute_extra_args_for_one_decision_and_use_aux (fuel : fuel)
         Tag.Scannable.Map.empty
     | Some arg_type =>
       (* 256: [T.meet_variant_like] is written with the module's own name:
-         the fields of its result are read. *)
+         the fields of its result are read, and Rocq then prints them
+         [Flambda2_types.const_ctors], not [Simplify_import.T.const_ctors]. *)
       let! tmp1 := Flambda2_types.meet_variant_like typing_env_at_use arg_type in
       match tmp1 with
       | T.Need_meet => prevent_current_unboxing tt
