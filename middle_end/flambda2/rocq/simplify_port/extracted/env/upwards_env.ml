@@ -163,14 +163,7 @@ let find_unique_continuation_handler are_rebuilding_terms0 t0 params handler
 
 let add_continuation0 t0 cont cont_in_env =
   let continuations0 = Continuation.Map.add cont cont_in_env t0.continuations in
-  { continuations = continuations0;
-    cold_continuations = t0.cold_continuations;
-    continuation_shortcuts = t0.continuation_shortcuts;
-    unique_handlers_map = t0.unique_handlers_map;
-    apply_cont_rewrites = t0.apply_cont_rewrites;
-    are_rebuilding_terms = t0.are_rebuilding_terms;
-    machine_width = t0.machine_width
-  }
+  (fun t x__1 -> { t with continuations = x__1 }) t0 continuations0
 
 (** val add_unique_continuation_handler : Are_rebuilding_terms.t -> t ->
     Continuation.t -> Bound_parameters.t -> Rebuilt_expr.t -> bool ->
@@ -186,27 +179,14 @@ let add_unique_continuation_handler are_rebuilding_terms0 t0 cont params handler
         handler is_exn_handler free_names_without_params cont
         t0.unique_handlers_map
     in
-    { continuations = t0.continuations;
-      cold_continuations = t0.cold_continuations;
-      continuation_shortcuts = t0.continuation_shortcuts;
-      unique_handlers_map = unique_handlers_map0;
-      apply_cont_rewrites = t0.apply_cont_rewrites;
-      are_rebuilding_terms = t0.are_rebuilding_terms;
-      machine_width = t0.machine_width
-    }
+    (fun t x__1 -> { t with unique_handlers_map = x__1 })
+      t0 unique_handlers_map0
 
 (** val add_cold_continuation : t -> Continuation.t -> t coq_M **)
 
 let add_cold_continuation t0 cont =
   let cold_continuations0 = Continuation.Set.add cont t0.cold_continuations in
-  { continuations = t0.continuations;
-    cold_continuations = cold_continuations0;
-    continuation_shortcuts = t0.continuation_shortcuts;
-    unique_handlers_map = t0.unique_handlers_map;
-    apply_cont_rewrites = t0.apply_cont_rewrites;
-    are_rebuilding_terms = t0.are_rebuilding_terms;
-    machine_width = t0.machine_width
-  }
+  (fun t x__1 -> { t with cold_continuations = x__1 }) t0 cold_continuations0
 
 (** val add_non_inlinable_continuation : Are_rebuilding_terms.t -> t ->
     Continuation.t -> bool -> Bound_parameters.t -> (Rebuilt_expr.t *
@@ -297,14 +277,8 @@ let add_continuation_shortcut t0 cont params shortcut_to args =
     let continuation_shortcuts0 =
       Continuation.Map.add cont shortcut t0.continuation_shortcuts
     in
-    { continuations = t0.continuations;
-      cold_continuations = t0.cold_continuations;
-      continuation_shortcuts = continuation_shortcuts0;
-      unique_handlers_map = t0.unique_handlers_map;
-      apply_cont_rewrites = t0.apply_cont_rewrites;
-      are_rebuilding_terms = t0.are_rebuilding_terms;
-      machine_width = t0.machine_width
-    }
+    (fun t x__1 -> { t with continuation_shortcuts = x__1 })
+      t0 continuation_shortcuts0
   | Or_null.This existing_shortcut ->
     Misc.fatal_errorf
       "Cannot add continuation shortcut %a (as shortcut to%a); the source \
@@ -355,14 +329,7 @@ let add_apply_cont_rewrite t0 cont rewrite =
   let apply_cont_rewrites0 =
     Continuation.Map.add cont rewrite t0.apply_cont_rewrites
   in
-  { continuations = t0.continuations;
-    cold_continuations = t0.cold_continuations;
-    continuation_shortcuts = t0.continuation_shortcuts;
-    unique_handlers_map = t0.unique_handlers_map;
-    apply_cont_rewrites = apply_cont_rewrites0;
-    are_rebuilding_terms = t0.are_rebuilding_terms;
-    machine_width = t0.machine_width
-  }
+  (fun t x__1 -> { t with apply_cont_rewrites = x__1 }) t0 apply_cont_rewrites0
 
 (** val replace_apply_cont_rewrite : t -> Continuation.t -> Apply_cont_rewrite.t
     -> t coq_M **)
@@ -378,14 +345,7 @@ let replace_apply_cont_rewrite t0 cont rewrite =
   let apply_cont_rewrites0 =
     Continuation.Map.add cont rewrite t0.apply_cont_rewrites
   in
-  { continuations = t0.continuations;
-    cold_continuations = t0.cold_continuations;
-    continuation_shortcuts = t0.continuation_shortcuts;
-    unique_handlers_map = t0.unique_handlers_map;
-    apply_cont_rewrites = apply_cont_rewrites0;
-    are_rebuilding_terms = t0.are_rebuilding_terms;
-    machine_width = t0.machine_width
-  }
+  (fun t x__1 -> { t with apply_cont_rewrites = x__1 }) t0 apply_cont_rewrites0
 
 (** val find_apply_cont_rewrite : t -> Continuation.t -> Apply_cont_rewrite.t
     option coq_M **)

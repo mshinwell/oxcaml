@@ -18,8 +18,8 @@
    ecc5c0d968c892b4312065caef0f19ffffa042a9, definition by definition under
    the compiler's names; the numbers in the comments are the lines of that
    file. What is not from that file: the form (the monad, the temporaries
-   [tmpN] and their order, the arguments by place, every field written where
-   the compiler writes [{ t with ... }]) is that of GUIDE.md. No proof. *)
+   [tmpN] and their order, the arguments by place, a setter [update_f] where
+   the compiler writes [{ t with f }]) is that of GUIDE.md. No proof. *)
 
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Apply_cont_rewrite Are_rebuilding_terms
@@ -146,20 +146,44 @@ Definition find_unique_continuation_handler
     params handler is_exn_handler free_names_without_params
     t.(unique_handlers_map).
 
+(* PORT-GAP(update): 96, [{ t with continuations }]. *)
+Definition update_continuations (t : Upwards_env.t)
+    (continuations : Continuation.Map.t Continuation_in_env.t)
+    : Upwards_env.t :=
+  {| continuations := continuations;
+     cold_continuations := t.(cold_continuations);
+     continuation_shortcuts := t.(continuation_shortcuts);
+     unique_handlers_map := t.(unique_handlers_map);
+     apply_cont_rewrites := t.(apply_cont_rewrites);
+     are_rebuilding_terms := t.(are_rebuilding_terms);
+     machine_width := t.(machine_width)
+  |}.
+Extract Inlined Constant update_continuations =>
+  "(fun t x__1 -> { t with continuations = x__1 })".
+
 (* 94-96 *)
 Definition add_continuation0 (t : Upwards_env.t) (cont : Continuation.t)
     (cont_in_env : Continuation_in_env.t) : M Upwards_env.t :=
   let* continuations :=
     Continuation.Map.add cont cont_in_env t.(continuations)
   in
-  ret {| continuations := continuations;
-         cold_continuations := t.(Upwards_env.cold_continuations);
-         continuation_shortcuts := t.(Upwards_env.continuation_shortcuts);
-         unique_handlers_map := t.(Upwards_env.unique_handlers_map);
-         apply_cont_rewrites := t.(Upwards_env.apply_cont_rewrites);
-         are_rebuilding_terms := t.(Upwards_env.are_rebuilding_terms);
-         machine_width := t.(Upwards_env.machine_width)
-      |}.
+  ret (update_continuations t continuations).
+
+(* PORT-GAP(update): 108, [{ t with unique_handlers_map }]. *)
+Definition update_unique_handlers_map (t : Upwards_env.t)
+    (unique_handlers_map :
+      Rebuilt_expr.Unique_continuation_handlers.t Continuation.t)
+    : Upwards_env.t :=
+  {| continuations := t.(continuations);
+     cold_continuations := t.(cold_continuations);
+     continuation_shortcuts := t.(continuation_shortcuts);
+     unique_handlers_map := unique_handlers_map;
+     apply_cont_rewrites := t.(apply_cont_rewrites);
+     are_rebuilding_terms := t.(are_rebuilding_terms);
+     machine_width := t.(machine_width)
+  |}.
+Extract Inlined Constant update_unique_handlers_map =>
+  "(fun t x__1 -> { t with unique_handlers_map = x__1 })".
 
 (* 98-108. [Rebuilt_expr.Unique_continuation_handlers.add
    are_rebuilding_terms params handler cont t.unique_handlers_map
@@ -179,14 +203,21 @@ Definition add_unique_continuation_handler
         params handler is_exn_handler free_names_without_params cont
         t.(unique_handlers_map)
     in
-    ret {| continuations := t.(Upwards_env.continuations);
-           cold_continuations := t.(Upwards_env.cold_continuations);
-           continuation_shortcuts := t.(Upwards_env.continuation_shortcuts);
-           unique_handlers_map := unique_handlers_map;
-           apply_cont_rewrites := t.(Upwards_env.apply_cont_rewrites);
-           are_rebuilding_terms := t.(Upwards_env.are_rebuilding_terms);
-           machine_width := t.(Upwards_env.machine_width)
-        |}.
+    ret (update_unique_handlers_map t unique_handlers_map).
+
+(* PORT-GAP(update): 112, [{ t with cold_continuations }]. *)
+Definition update_cold_continuations (t : Upwards_env.t)
+    (cold_continuations : Continuation.Set_.t) : Upwards_env.t :=
+  {| continuations := t.(continuations);
+     cold_continuations := cold_continuations;
+     continuation_shortcuts := t.(continuation_shortcuts);
+     unique_handlers_map := t.(unique_handlers_map);
+     apply_cont_rewrites := t.(apply_cont_rewrites);
+     are_rebuilding_terms := t.(are_rebuilding_terms);
+     machine_width := t.(machine_width)
+  |}.
+Extract Inlined Constant update_cold_continuations =>
+  "(fun t x__1 -> { t with cold_continuations = x__1 })".
 
 (* 110-112 *)
 Definition add_cold_continuation (t : Upwards_env.t) (cont : Continuation.t)
@@ -194,14 +225,7 @@ Definition add_cold_continuation (t : Upwards_env.t) (cont : Continuation.t)
   let* cold_continuations :=
     Continuation.Set_.add cont t.(cold_continuations)
   in
-  ret {| continuations := t.(Upwards_env.continuations);
-         cold_continuations := cold_continuations;
-         continuation_shortcuts := t.(Upwards_env.continuation_shortcuts);
-         unique_handlers_map := t.(Upwards_env.unique_handlers_map);
-         apply_cont_rewrites := t.(Upwards_env.apply_cont_rewrites);
-         are_rebuilding_terms := t.(Upwards_env.are_rebuilding_terms);
-         machine_width := t.(Upwards_env.machine_width)
-      |}.
+  ret (update_cold_continuations t cold_continuations).
 
 (* PORT-GAP(type): 119, the handler that [add_non_inlinable_continuation]
    takes is a tuple with labels, [(Rebuilt_expr.t * is_exn_handler:bool *
@@ -259,6 +283,21 @@ Definition continuation_arity (t : Upwards_env.t) (cont : Continuation.t)
   let! tmp1 := find_continuation t cont in
   Continuation_in_env.arity tmp1.
 
+(* PORT-GAP(update): 177, [{ t with continuation_shortcuts }]. *)
+Definition update_continuation_shortcuts (t : Upwards_env.t)
+    (continuation_shortcuts : Continuation.Map.t Continuation_shortcut.t)
+    : Upwards_env.t :=
+  {| continuations := t.(continuations);
+     cold_continuations := t.(cold_continuations);
+     continuation_shortcuts := continuation_shortcuts;
+     unique_handlers_map := t.(unique_handlers_map);
+     apply_cont_rewrites := t.(apply_cont_rewrites);
+     are_rebuilding_terms := t.(are_rebuilding_terms);
+     machine_width := t.(machine_width)
+  |}.
+Extract Inlined Constant update_continuation_shortcuts =>
+  "(fun t x__1 -> { t with continuation_shortcuts = x__1 })".
+
 (* 142-177 *)
 Definition add_continuation_shortcut (t : Upwards_env.t)
     (cont : Continuation.t) (params : Bound_parameters.t)
@@ -306,14 +345,7 @@ Definition add_continuation_shortcut (t : Upwards_env.t)
     let* continuation_shortcuts :=
       Continuation.Map.add cont shortcut t.(continuation_shortcuts)
     in
-    ret {| continuations := t.(Upwards_env.continuations);
-           cold_continuations := t.(Upwards_env.cold_continuations);
-           continuation_shortcuts := continuation_shortcuts;
-           unique_handlers_map := t.(Upwards_env.unique_handlers_map);
-           apply_cont_rewrites := t.(Upwards_env.apply_cont_rewrites);
-           are_rebuilding_terms := t.(Upwards_env.are_rebuilding_terms);
-           machine_width := t.(Upwards_env.machine_width)
-        |}
+    ret (update_continuation_shortcuts t continuation_shortcuts)
   end.
 
 (* 179-183 *)
@@ -334,6 +366,21 @@ Definition add_function_return_or_exn_continuation (t : Upwards_env.t)
     (Continuation_in_env.Toplevel_or_function_return_or_exn_continuation
        arity).
 
+(* PORT-GAP(update): 198, [{ t with apply_cont_rewrites }]. *)
+Definition update_apply_cont_rewrites (t : Upwards_env.t)
+    (apply_cont_rewrites : Continuation.Map.t Apply_cont_rewrite.t)
+    : Upwards_env.t :=
+  {| continuations := t.(continuations);
+     cold_continuations := t.(cold_continuations);
+     continuation_shortcuts := t.(continuation_shortcuts);
+     unique_handlers_map := t.(unique_handlers_map);
+     apply_cont_rewrites := apply_cont_rewrites;
+     are_rebuilding_terms := t.(are_rebuilding_terms);
+     machine_width := t.(machine_width)
+  |}.
+Extract Inlined Constant update_apply_cont_rewrites =>
+  "(fun t x__1 -> { t with apply_cont_rewrites = x__1 })".
+
 (* 190-198 *)
 Definition add_apply_cont_rewrite (t : Upwards_env.t) (cont : Continuation.t)
     (rewrite : Apply_cont_rewrite.t) : M Upwards_env.t :=
@@ -346,14 +393,7 @@ Definition add_apply_cont_rewrite (t : Upwards_env.t) (cont : Continuation.t)
   let* apply_cont_rewrites :=
     Continuation.Map.add cont rewrite t.(apply_cont_rewrites)
   in
-  ret {| continuations := t.(Upwards_env.continuations);
-         cold_continuations := t.(Upwards_env.cold_continuations);
-         continuation_shortcuts := t.(Upwards_env.continuation_shortcuts);
-         unique_handlers_map := t.(Upwards_env.unique_handlers_map);
-         apply_cont_rewrites := apply_cont_rewrites;
-         are_rebuilding_terms := t.(Upwards_env.are_rebuilding_terms);
-         machine_width := t.(Upwards_env.machine_width)
-      |}.
+  ret (update_apply_cont_rewrites t apply_cont_rewrites).
 
 (* 200-208 *)
 Definition replace_apply_cont_rewrite (t : Upwards_env.t)
@@ -368,14 +408,7 @@ Definition replace_apply_cont_rewrite (t : Upwards_env.t)
   let* apply_cont_rewrites :=
     Continuation.Map.add cont rewrite t.(apply_cont_rewrites)
   in
-  ret {| continuations := t.(Upwards_env.continuations);
-         cold_continuations := t.(Upwards_env.cold_continuations);
-         continuation_shortcuts := t.(Upwards_env.continuation_shortcuts);
-         unique_handlers_map := t.(Upwards_env.unique_handlers_map);
-         apply_cont_rewrites := apply_cont_rewrites;
-         are_rebuilding_terms := t.(Upwards_env.are_rebuilding_terms);
-         machine_width := t.(Upwards_env.machine_width)
-      |}.
+  ret (update_apply_cont_rewrites t apply_cont_rewrites).
 
 (* 210-211 *)
 Definition find_apply_cont_rewrite (t : Upwards_env.t) (cont : Continuation.t)
