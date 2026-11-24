@@ -80,7 +80,7 @@ for n, m in enumerate(binds):
     if uses != 1:
         print("%s:%d: %s is used %d times: a let! is used exactly once" % (path, line_of(m.start()), name, uses)); bad += 1
 # The setters of record updates (GUIDE.md, section 4). The OCaml text of
-#   Extract Inlined Constant update_X => "(fun t x__1 .. -> { t with F1 = x__1; .. })".
+#   Extract Inlined Constant update_X => "(fun t p1 .. -> { t with F1 = p1; .. })".
 # is not checked by Rocq against
 #   Definition update_X (t : T) (p1 : ..) .. : T := {| .. |}.
 # so it is checked here, as words: the record of the definition gives the
@@ -93,12 +93,13 @@ def last(name): return name.strip().split(".")[-1].rstrip("_")
 for m in re.finditer(r'Extract\s+Inlined\s+Constant\s+(update_[A-Za-z_0-9\']*)\s*=>\s*"([^"]*)"\s*\.', raw):
     name = m.group(1); txt = re.sub(r"\s+", " ", m.group(2)).strip()
     where = "%s:%d: setter %s" % (path, raw.count("\n", 0, m.start()) + 1, name)
-    t = re.fullmatch(r"\(fun t((?: x__[0-9]+)+) -> \{ t with (.*) \}\)", txt)
+    t = re.fullmatch(r"\(fun t((?: [a-z_][A-Za-z_0-9']*)+) -> \{ t with (.*) \}\)", txt)
     if not t:
-        print("%s: its text is not (fun t x__1 .. -> { t with F1 = x__1; .. })" % where); bad += 1; continue
+        print("%s: its text is not (fun t p1 .. -> { t with F1 = p1; .. })" % where); bad += 1; continue
     xs = t.group(1).split(); sets = [x.split("=") for x in t.group(2).split(";")]
-    if len(sets) != len(xs) or any(len(x) != 2 or x[1].strip() != xs[i] for i, x in enumerate(sets)):
-        print("%s: its text must set one field to each of x__1 .., in order" % where); bad += 1; continue
+    if "t" in xs or len(set(xs)) != len(xs) or len(sets) != len(xs) \
+       or any(len(x) != 2 or x[1].strip() != xs[i] for i, x in enumerate(sets)):
+        print("%s: its text must set one field to each of its parameters after t, in order" % where); bad += 1; continue
     fields = [last(x[0]) for x in sets]
     d = re.search(r"(?<![A-Za-z_0-9'.])Definition\s+%s(?![A-Za-z_0-9'])" % re.escape(name), text)
     if not d:

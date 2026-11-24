@@ -159,13 +159,14 @@ fuel was enough, and that it holds of the OCAML code is NOT established now
           (typing_env : TE.t) : Downwards_env.t :=
         {| round := t.(round); typing_env := typing_env; ... |}.
       Extract Inlined Constant update_typing_env =>
-        "(fun t x__1 -> { t with typing_env = x__1 })".
+        "(fun t typing_env -> { t with typing_env = typing_env })".
 
   and `update_typing_env t v` at each place (a VALUE: `ret (update_.. t
   v)`, `let& t := update_.. t v in`). The Definition says in Rocq what the
   update is, with ALL the fields; the text is what OCaml reads, in exactly
-  this form (`t`, then `x__1`, `x__2`, .. in the order of the compiler's
-  text; `update_f_g` for two fields). Rocq does not compare the two:
+  this form (`t`, then one parameter for each field, with the field's
+  name, in the order of the compiler's text; `update_f_g` for two
+  fields). Rocq does not compare the two:
   `tools/lint.py` does, as words (each field of the text is given its
   parameter, every other field is `g := t.(g)`). A field whose new value is
   a call: `let!` before the setter if it is the only one, else `let*` each
