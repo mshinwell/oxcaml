@@ -84,10 +84,10 @@ Definition rebuild_let (arg : SE.simplified_defining_expr * RE.t) (uacc : UA.t)
     | Closure_info.Not_in_a_closure_ =>
       (* We must filter even if not rebuilding terms, otherwise the free names
          of the terms might get out of sync with [Data_flow]. 58: the function
-         [keep_lifted_constant_only_if_used], of this file, is given its
-         first argument only. *)
-      let! tmp1 := papp1 keep_lifted_constant_only_if_used uacc in
-      LCS.fold lifted_constants_from_defining_expr LCS.empty tmp1
+         [keep_lifted_constant_only_if_used], of this file, given its first
+         argument only, is a value. *)
+      LCS.fold lifted_constants_from_defining_expr LCS.empty
+        (keep_lifted_constant_only_if_used uacc)
     end
   in
   (* At this point, the free names in [uacc] are the free names of [body], plus
@@ -472,12 +472,11 @@ Definition update_data_flow (dacc : DA.t) (closure_info : Closure_info.t)
   in
   (* 372-375: the arguments are in the order of the interface; the function
      [record_new_defining_expression_binding_for_data_flow], of this file,
-     is given its first two arguments only. *)
+     given its first two arguments only, is a value. *)
   let! tmp1 := Simplify_named_result.bindings_to_place simplify_named_result in
-  let! tmp2 :=
-    papp2 record_new_defining_expression_binding_for_data_flow dacc rewrite_id
-  in
-  ListLabels.fold_left tmp2 data_flow tmp1.
+  ListLabels.fold_left
+    (record_new_defining_expression_binding_for_data_flow dacc rewrite_id)
+    data_flow tmp1.
 
 (* 377-453. In the compiler: [~simplify_expr ~simplify_function_body dacc
    let_expr ~down_to_up bound_pattern ~body]. *)
