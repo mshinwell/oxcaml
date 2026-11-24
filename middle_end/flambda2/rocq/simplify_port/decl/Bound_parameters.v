@@ -86,3 +86,9 @@ Extract Inlined Constant rename => "Bound_parameters.rename".
 (* bound_parameters.mli:57  include Bindable.S with type t := t *)
 Parameter renaming : t -> t -> M Renaming.t.
 Extract Inlined Constant renaming => "Bound_parameters.renaming".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Bound_parameters. End Bound_parameters.

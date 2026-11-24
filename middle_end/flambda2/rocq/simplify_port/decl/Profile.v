@@ -29,3 +29,9 @@ Extract Inlined Constant record_call_with_counters => "(fun x__1 x__2 x__3 x__4 
 (* profile.mli:52  val record_with_counters : ?accumulate:bool -> counter_f:('b -> Counters.t) -> string -> ('a -> 'b) -> 'a -> 'b *)
 Parameter record_with_counters : forall {B A : Type}, option bool -> (B -> M Profile.Counters.t) -> string -> (A -> M B) -> A -> M B.
 Extract Inlined Constant record_with_counters => "(fun x__1 x__2 x__3 x__4 x__5 -> Profile.record_with_counters ?accumulate:x__1 x__2 x__3 x__4 x__5)".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Profile. End Profile.

@@ -95,3 +95,9 @@ Module Map.
   Parameter print : forall {A : Type}, (Format.formatter -> A -> M unit) -> Format.formatter -> t A -> M unit.
   Extract Inlined Constant print => "Bound_parameter.Map.print".
 End Map.
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Bound_parameter. End Bound_parameter.

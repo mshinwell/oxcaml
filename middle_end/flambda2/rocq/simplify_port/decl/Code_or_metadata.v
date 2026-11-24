@@ -47,3 +47,9 @@ Extract Inlined Constant code_metadata => "Code_or_metadata.code_metadata".
 (* code_or_metadata.mli:55  val code_present : t -> bool *)
 Parameter code_present : t -> M bool.
 Extract Inlined Constant code_present => "Code_or_metadata.code_present".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Code_or_metadata. End Code_or_metadata.

@@ -48,3 +48,9 @@ Extract Inlined Constant think_about_lifting_out_of => "Are_lifting_conts.think_
 (* are_lifting_conts.mli:80  val lift_continuations_out_of : Continuation.t -> t *)
 Parameter lift_continuations_out_of : Continuation.t -> M t.
 Extract Inlined Constant lift_continuations_out_of => "Are_lifting_conts.lift_continuations_out_of".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Are_lifting_conts. End Are_lifting_conts.

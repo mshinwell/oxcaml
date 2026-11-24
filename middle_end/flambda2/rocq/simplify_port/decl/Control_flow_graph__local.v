@@ -37,3 +37,8 @@ Module G.
   Parameter connected_components_sorted_from_roots_to_leaf : directed_graph -> M (array component).
   Extract Inlined Constant connected_components_sorted_from_roots_to_leaf => "G.connected_components_sorted_from_roots_to_leaf".
 End G.
+
+(* Not in the file of Simplify: an empty module with the name of this file.
+   With it Rocq's extraction writes no [open] of this file, which is not a
+   module of OCaml, and prints each of its names in full. *)
+Module Control_flow_graph__local. End Control_flow_graph__local.

@@ -33,3 +33,9 @@ Extract Inlined Constant create => "Data_flow_graph.create".
 (* data_flow_graph.mli:32  val required_names : t -> Flow_types.Data_flow_result.t *)
 Parameter required_names : t -> M Flow_types.Data_flow_result.t.
 Extract Inlined Constant required_names => "Data_flow_graph.required_names".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Data_flow_graph. End Data_flow_graph.

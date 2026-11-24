@@ -36,3 +36,8 @@ Module SCC_lifted_constants.
   Parameter stable_connected_components_sorted_from_roots_to_leaf : list (Code_id_or_symbol.t * Code_id_or_symbol.Set_.t) -> M (array component).
   Extract Inlined Constant stable_connected_components_sorted_from_roots_to_leaf => "SCC_lifted_constants.stable_connected_components_sorted_from_roots_to_leaf".
 End SCC_lifted_constants.
+
+(* Not in the file of Simplify: an empty module with the name of this file.
+   With it Rocq's extraction writes no [open] of this file, which is not a
+   module of OCaml, and prints each of its names in full. *)
+Module Lifted_constant_state__local. End Lifted_constant_state__local.

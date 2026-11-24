@@ -99,3 +99,9 @@ Extract Inlined Constant set_of_code_id_set => "Code_id_or_symbol.set_of_code_id
 (* int_ids.mli:295  val set_of_symbol_set : Symbol.Set.t -> Set.t *)
 Parameter set_of_symbol_set : Int_ids.Symbol.Set_.t -> M Code_id_or_symbol.Set_.t.
 Extract Inlined Constant set_of_symbol_set => "Code_id_or_symbol.set_of_symbol_set".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Code_id_or_symbol. End Code_id_or_symbol.

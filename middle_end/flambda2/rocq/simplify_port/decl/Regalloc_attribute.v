@@ -26,3 +26,9 @@ From SimplifyPort.decl Require Lambda.
 (* regalloc_attribute.mli:17  type t = Lambda.regalloc_attribute *)
 Definition t : Type := Lambda.regalloc_attribute.
 Extract Inlined Constant t => "Regalloc_attribute.t".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Regalloc_attribute. End Regalloc_attribute.

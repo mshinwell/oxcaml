@@ -36,3 +36,9 @@ Extract Inlined Constant add_set_of_closures => "Slot_offsets.add_set_of_closure
 (* slot_offsets.mli:70  val add_offsets_from_function : t -> from_function:t -> t *)
 Parameter add_offsets_from_function : t -> t -> M t.
 Extract Inlined Constant add_offsets_from_function => "Slot_offsets.add_offsets_from_function".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Slot_offsets. End Slot_offsets.

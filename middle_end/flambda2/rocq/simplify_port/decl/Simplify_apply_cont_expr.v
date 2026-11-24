@@ -29,3 +29,9 @@ Extract Inlined Constant simplify_apply_cont => "Simplify_apply_cont_expr.simpli
 (* simplify_apply_cont_expr.mli:19  val rebuild_apply_cont : args:Simple.t list -> rewrite_id:Apply_cont_rewrite_id.t -> Apply_cont_expr.t Simplify_common.rebuild *)
 Parameter rebuild_apply_cont : list Simple.t -> Apply_cont_rewrite_id.t -> Simplify_common.rebuild Apply_cont_expr.t.
 Extract Inlined Constant rebuild_apply_cont => "Simplify_apply_cont_expr.rebuild_apply_cont".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Simplify_apply_cont_expr. End Simplify_apply_cont_expr.

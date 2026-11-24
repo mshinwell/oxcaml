@@ -29,3 +29,9 @@ Extract Inlined Constant simplify_let => "Simplify_let_expr.simplify_let".
 (* simplify_let_expr.mli:24  val rebuild_let : (Simplified_expr.simplified_defining_expr * Rebuilt_expr.t) Simplify_common.rebuild *)
 Parameter rebuild_let : Simplify_common.rebuild (Simplified_expr.simplified_defining_expr * Rebuilt_expr.t).
 Extract Inlined Constant rebuild_let => "Simplify_let_expr.rebuild_let".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Simplify_let_expr. End Simplify_let_expr.

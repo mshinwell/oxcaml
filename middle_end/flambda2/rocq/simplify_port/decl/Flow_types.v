@@ -121,3 +121,9 @@ Module Flow_result.
   Parameter print : Format.formatter -> t -> M unit.
   Extract Inlined Constant print => "Flow_types.Flow_result.print".
 End Flow_result.
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Flow_types. End Flow_types.

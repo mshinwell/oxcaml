@@ -33,3 +33,9 @@ Extract Inlined Constant print => "Comparison_result.print".
 (* comparison_result.mli:22  val convert_result_compared_to_tagged_zero : t -> Flambda_primitive.signed_or_unsigned Flambda_primitive.comparison -> Flambda_primitive.t option *)
 Parameter convert_result_compared_to_tagged_zero : t -> Flambda_primitive.comparison Flambda_primitive.signed_or_unsigned -> M (option Flambda_primitive.t).
 Extract Inlined Constant convert_result_compared_to_tagged_zero => "Comparison_result.convert_result_compared_to_tagged_zero".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Comparison_result. End Comparison_result.

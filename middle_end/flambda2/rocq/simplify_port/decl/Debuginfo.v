@@ -25,3 +25,9 @@ Extract Inlined Constant print_compact => "Debuginfo.print_compact".
 (* debuginfo.mli:140  val merge : into:t -> t -> t *)
 Parameter merge : t -> t -> M t.
 Extract Inlined Constant merge => "Debuginfo.merge".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Debuginfo. End Debuginfo.

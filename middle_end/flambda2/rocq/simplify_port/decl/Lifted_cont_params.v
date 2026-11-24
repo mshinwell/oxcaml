@@ -52,3 +52,9 @@ Extract Inlined Constant bound_parameters => "Lifted_cont_params.bound_parameter
 (* lifted_cont_params.mli:74  val fold : init:'a -> f:(Bound_parameter.t -> 'a -> 'a) -> t -> 'a *)
 Parameter fold : forall {A : Type}, A -> (Bound_parameter.t -> A -> M A) -> t -> M A.
 Extract Inlined Constant fold => "Lifted_cont_params.fold".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Lifted_cont_params. End Lifted_cont_params.

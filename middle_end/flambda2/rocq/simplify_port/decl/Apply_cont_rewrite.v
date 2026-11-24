@@ -61,3 +61,9 @@ Extract Inlined Constant make_rewrite => "Apply_cont_rewrite.make_rewrite".
 (* apply_cont_rewrite.mli:60  val rewrite_exn_continuation : t -> Apply_cont_rewrite_id.t -> Exn_continuation.t -> Exn_continuation.t *)
 Parameter rewrite_exn_continuation : t -> Apply_cont_rewrite_id.t -> Exn_continuation.t -> M Exn_continuation.t.
 Extract Inlined Constant rewrite_exn_continuation => "Apply_cont_rewrite.rewrite_exn_continuation".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Apply_cont_rewrite. End Apply_cont_rewrite.

@@ -125,3 +125,9 @@ Extract Inlined Constant fold_continuations_including_in_trap_actions => "Name_o
 (* name_occurrences.mli:199  val increase_counts : t -> t *)
 Parameter increase_counts : t -> M t.
 Extract Inlined Constant increase_counts => "Name_occurrences.increase_counts".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Name_occurrences. End Name_occurrences.

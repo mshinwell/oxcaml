@@ -68,3 +68,9 @@ Extract Inlined Constant switch => "Code_size.switch".
 (* code_size.mli:63  val invalid : t *)
 Parameter invalid : t.
 Extract Inlined Constant invalid => "Code_size.invalid".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Code_size. End Code_size.

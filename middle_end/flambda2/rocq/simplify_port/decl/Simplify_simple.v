@@ -34,3 +34,9 @@ Record simplify_simples_result : Type := { simples : list Simple.t; simple_tys :
 (* simplify_simple.mli:37  val simplify_simples : Downwards_acc.t -> Simple.t list -> simplify_simples_result *)
 Parameter simplify_simples : Downwards_acc.t -> list Simple.t -> M simplify_simples_result.
 Extract Inlined Constant simplify_simples => "Simplify_simple.simplify_simples".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Simplify_simple. End Simplify_simple.

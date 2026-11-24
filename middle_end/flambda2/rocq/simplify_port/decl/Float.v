@@ -29,3 +29,9 @@ Extract Inlined Constant t => "Float.t".
 (* stdlib/float.mli  val compare : Stdlib__Float.t -> Stdlib__Float.t -> int *)
 Parameter compare : t -> t -> M int.
 Extract Inlined Constant compare => "Float.compare".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Float. End Float.

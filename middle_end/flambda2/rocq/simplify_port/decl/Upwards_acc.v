@@ -146,3 +146,9 @@ Extract Inlined Constant resimplify => "Upwards_acc.resimplify".
 (* upwards_acc.mli:117  val specialization_map : t -> Continuation.t Continuation_callsite_map.t *)
 Parameter specialization_map : t -> M (Continuation_callsite_map.t Continuation.t).
 Extract Inlined Constant specialization_map => "Upwards_acc.specialization_map".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Upwards_acc. End Upwards_acc.

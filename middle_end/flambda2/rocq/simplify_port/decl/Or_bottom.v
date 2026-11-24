@@ -37,3 +37,9 @@ Module Let_syntax.
   Parameter let_op_lt_plus : forall {A B : Type}, Or_bottom.t A -> (A -> M B) -> M (Or_bottom.t B).
   Extract Inlined Constant let_op_lt_plus => "Or_bottom.Let_syntax.( let<+ )".
 End Let_syntax.
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Or_bottom. End Or_bottom.

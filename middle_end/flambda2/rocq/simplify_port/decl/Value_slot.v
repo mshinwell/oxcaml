@@ -76,3 +76,9 @@ Extract Inlined Constant create => "Value_slot.create".
 (* value_slot.mli:31  val kind : t -> Flambda_kind.t *)
 Parameter kind : t -> M Flambda_kind.t.
 Extract Inlined Constant kind => "Value_slot.kind".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Value_slot. End Value_slot.

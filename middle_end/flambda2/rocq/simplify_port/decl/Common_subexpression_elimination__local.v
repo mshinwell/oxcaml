@@ -50,3 +50,8 @@ Module Rhs_kind.
     Extract Inlined Constant get_singleton => "Rhs_kind.Set.get_singleton".
   End Set_.
 End Rhs_kind.
+
+(* Not in the file of Simplify: an empty module with the name of this file.
+   With it Rocq's extraction writes no [open] of this file, which is not a
+   module of OCaml, and prints each of its names in full. *)
+Module Common_subexpression_elimination__local. End Common_subexpression_elimination__local.

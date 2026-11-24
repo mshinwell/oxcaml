@@ -34,3 +34,9 @@ Inductive code_id_in_function_declaration : Type :=
 | Deleted : int -> Debuginfo.t -> code_id_in_function_declaration
 | Code_id : Code_id.t -> bool -> code_id_in_function_declaration.
 Extract Inductive code_id_in_function_declaration => "Function_declarations.code_id_in_function_declaration" [ "(fun (x__1, x__2) -> (Function_declarations.Deleted { function_slot_size = x__1; dbg = x__2 } : Function_declarations.code_id_in_function_declaration))" "(fun (x__1, x__2) -> (Function_declarations.Code_id { code_id = x__1; only_full_applications = x__2 } : Function_declarations.code_id_in_function_declaration))" ] "(fun f__1 f__2 x__0 -> match (x__0 : Function_declarations.code_id_in_function_declaration) with Function_declarations.Deleted { function_slot_size = x__1; dbg = x__2 } -> f__1 x__1 x__2 | Function_declarations.Code_id { code_id = x__1; only_full_applications = x__2 } -> f__2 x__1 x__2)".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Function_declarations. End Function_declarations.

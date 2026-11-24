@@ -32,3 +32,9 @@ Extract Inlined Constant function_decls => "Set_of_closures.function_decls".
 (* set_of_closures.mli:39  val value_slots : t -> Simple.t Value_slot.Map.t *)
 Parameter value_slots : t -> M (Value_slot.Map.t Simple.t).
 Extract Inlined Constant value_slots => "Set_of_closures.value_slots".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Set_of_closures. End Set_of_closures.

@@ -29,3 +29,9 @@ Extract Inlined Constant simplify_result => "Simplify.simplify_result".
 (* simplify.mli:31  val run : cmx_loader:Flambda_cmx.loader -> machine_width:Target_system.Machine_width.t -> round:int -> code_slot_offsets:Slot_offsets.t Code_id.Map.t -> Flambda_unit.t -> simplify_result *)
 Parameter run : Flambda_cmx.loader -> Target_system.Machine_width.t -> int -> Code_id.Map.t Slot_offsets.t -> Flambda_unit.t -> M simplify_result.
 Extract Inlined Constant run => "Simplify.run".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Simplify. End Simplify.

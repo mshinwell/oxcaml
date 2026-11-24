@@ -28,3 +28,9 @@ Record result : Type := { handler_env : Downwards_env.t; extra_params_and_args :
 (* join_points.mli:28  val compute_handler_env : ?replay:Replay_history.t * bool -> ?cut_after:Scope.t -> One_continuation_use.t list -> is_recursive:bool -> env_at_fork:Downwards_env.t -> consts_lifted_after_fork:Lifted_constant_state.t -> params:Bound_parameters.t -> previous_extra_params_and_args:Continuation_extra_params_and_args.t -> result *)
 Parameter compute_handler_env : option (Replay_history.t * bool) -> option Scope.t -> list One_continuation_use.t -> bool -> Downwards_env.t -> Lifted_constant_state.t -> Bound_parameters.t -> Continuation_extra_params_and_args.t -> M result.
 Extract Inlined Constant compute_handler_env => "(fun x__1 x__2 x__3 x__4 x__5 x__6 x__7 x__8 -> Join_points.compute_handler_env ?replay:x__1 ?cut_after:x__2 x__3 x__4 x__5 x__6 x__7 x__8)".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Join_points. End Join_points.

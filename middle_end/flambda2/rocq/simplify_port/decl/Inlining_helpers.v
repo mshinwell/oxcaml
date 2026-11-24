@@ -37,3 +37,9 @@ Extract Inductive attribute_kind => "Inlining_helpers.attribute_kind" [ "Inlinin
 (* inlining_helpers.mli:78  val inlined_attribute_on_partial_application_msg : attribute_kind -> string *)
 Parameter inlined_attribute_on_partial_application_msg : attribute_kind -> M string.
 Extract Inlined Constant inlined_attribute_on_partial_application_msg => "Inlining_helpers.inlined_attribute_on_partial_application_msg".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Inlining_helpers. End Inlining_helpers.

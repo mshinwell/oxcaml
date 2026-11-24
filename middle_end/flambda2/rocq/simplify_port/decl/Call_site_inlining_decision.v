@@ -29,3 +29,9 @@ Extract Inlined Constant make_decision => "Call_site_inlining_decision.make_deci
 (* call_site_inlining_decision.mli:28  val get_rec_info : Downwards_acc.t -> function_type:Flambda2_types.Function_type.t -> Rec_info_expr.t *)
 Parameter get_rec_info : Downwards_acc.t -> Flambda2_types.Function_type.t -> M Rec_info_expr.t.
 Extract Inlined Constant get_rec_info => "Call_site_inlining_decision.get_rec_info".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Call_site_inlining_decision. End Call_site_inlining_decision.

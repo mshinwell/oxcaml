@@ -48,3 +48,9 @@ Extract Inductive in_or_out_of_closure_ => "Closure_info.in_or_out_of_closure" [
 (* closure_info.mli:45  val in_or_out_of_closure : t -> in_or_out_of_closure *)
 Parameter in_or_out_of_closure : t -> M in_or_out_of_closure_.
 Extract Inlined Constant in_or_out_of_closure => "Closure_info.in_or_out_of_closure".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Closure_info. End Closure_info.

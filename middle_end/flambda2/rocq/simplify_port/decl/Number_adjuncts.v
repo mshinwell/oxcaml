@@ -9660,3 +9660,9 @@ Module For_nativeints.
   Parameter box : Flambda2_types.t -> Alloc_mode.For_types.t -> M Flambda2_types.t.
   Extract Inlined Constant box => "Number_adjuncts.For_nativeints.box".
 End For_nativeints.
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Number_adjuncts. End Number_adjuncts.

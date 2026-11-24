@@ -39,3 +39,9 @@ Extract Inlined Constant compute_extra_args_for_one_decision_and_use => "Unboxin
 (* unboxing_epa.mli:37  val add_extra_params_and_args : Continuation_extra_params_and_args.t -> invalids:Apply_cont_rewrite_id.Set.t -> Unboxing_types.decision -> Continuation_extra_params_and_args.t *)
 Parameter add_extra_params_and_args : Continuation_extra_params_and_args.t -> Apply_cont_rewrite_id.Set_.t -> Unboxing_types.decision_ -> M Continuation_extra_params_and_args.t.
 Extract Inlined Constant add_extra_params_and_args => "Unboxing_epa.add_extra_params_and_args".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Unboxing_epa. End Unboxing_epa.

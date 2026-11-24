@@ -62,3 +62,9 @@ Extract Inlined Constant replay_continuation_mapping => "Replay_history.replay_c
 (* replay_history.mli:98  val replay_inlining_decision : t -> Call_site_inlining_decision_type.t replay_result *)
 Parameter replay_inlining_decision : t -> M (replay_result Call_site_inlining_decision_type.t).
 Extract Inlined Constant replay_inlining_decision => "Replay_history.replay_inlining_decision".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Replay_history. End Replay_history.

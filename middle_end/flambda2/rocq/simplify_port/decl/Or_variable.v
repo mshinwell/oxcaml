@@ -33,3 +33,9 @@ Extract Inductive t => "Or_variable.t" [ "Or_variable.Const" "Or_variable.Var" ]
 (* or_variable.mli:33  val free_names : _ t -> Name_occurrences.t *)
 Parameter free_names : forall {A : Type}, t A -> M Name_occurrences.t.
 Extract Inlined Constant free_names => "Or_variable.free_names".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Or_variable. End Or_variable.

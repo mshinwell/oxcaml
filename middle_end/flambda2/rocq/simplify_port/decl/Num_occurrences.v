@@ -28,3 +28,9 @@ Inductive t : Type :=
 | One : t
 | More_than_one : t.
 Extract Inductive t => "Num_occurrences.t" [ "Num_occurrences.Zero" "Num_occurrences.One" "Num_occurrences.More_than_one" ].
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Num_occurrences. End Num_occurrences.

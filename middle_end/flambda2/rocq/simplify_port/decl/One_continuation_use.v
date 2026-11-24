@@ -51,3 +51,9 @@ Extract Inlined Constant env_at_use => "One_continuation_use.env_at_use".
 (* one_continuation_use.mli:39  val mark_non_inlinable : t -> t *)
 Parameter mark_non_inlinable : t -> M t.
 Extract Inlined Constant mark_non_inlinable => "One_continuation_use.mark_non_inlinable".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module One_continuation_use. End One_continuation_use.

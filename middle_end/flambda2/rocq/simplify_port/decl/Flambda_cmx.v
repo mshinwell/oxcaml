@@ -32,3 +32,9 @@ Extract Inlined Constant get_imported_code => "Flambda_cmx.get_imported_code".
 (* flambda_cmx.mli:27  val load_cmx_file_contents : loader -> Compilation_unit.t -> Flambda2_types.Typing_env.Serializable.t option *)
 Parameter load_cmx_file_contents : loader -> Compilation_unit.t -> M (option Flambda2_types.Typing_env.Serializable.t).
 Extract Inlined Constant load_cmx_file_contents => "Flambda_cmx.load_cmx_file_contents".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Flambda_cmx. End Flambda_cmx.

@@ -30,3 +30,9 @@ Inductive t : Type :=
 | Unroll : int -> t
 | Default_inline : t.
 Extract Inductive t => "Inline_attribute.t" [ "Inline_attribute.Always_inline" "Inline_attribute.Available_inline" "Inline_attribute.Never_inline" "Inline_attribute.Unroll" "Inline_attribute.Default_inline" ].
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Inline_attribute. End Inline_attribute.

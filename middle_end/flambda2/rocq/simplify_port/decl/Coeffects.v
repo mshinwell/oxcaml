@@ -27,3 +27,9 @@ From SimplifyPort Require Import Port_monad.
 (* coeffects.mli:20  type t = | No_coeffects ( ** 'No coeffects' means that the primitive does not observe the effects (in the sense described above) of other expressions. For example, it must not read from any mutable storage or call arbitrary external functions. It is assumed in Flambda that, subject to data dependencies, expressions with neither effects nor coeffects may be reordered with respect to other expres... *)
 Parameter t : Type.
 Extract Inlined Constant t => "Coeffects.t".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Coeffects. End Coeffects.

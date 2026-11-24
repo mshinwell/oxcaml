@@ -27,3 +27,9 @@ Inductive t : Type :=
 | Inlinable : t
 | Non_inlinable : bool -> t.
 Extract Inductive t => "Continuation_use_kind.t" [ "Continuation_use_kind.Inlinable" "(fun x__1 -> (Continuation_use_kind.Non_inlinable { escaping = x__1 } : Continuation_use_kind.t))" ] "(fun f__1 f__2 x__0 -> match (x__0 : Continuation_use_kind.t) with Continuation_use_kind.Inlinable -> f__1 () | Continuation_use_kind.Non_inlinable { escaping = x__1 } -> f__2 x__1)".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Continuation_use_kind. End Continuation_use_kind.

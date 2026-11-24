@@ -36,3 +36,9 @@ Extract Inlined Constant print => "Or_invalid.print".
 (* or_invalid.mli:25  val map : 'a t -> f:('a -> 'b) -> 'b t *)
 Parameter map : forall {A B : Type}, t A -> (A -> M B) -> M (t B).
 Extract Inlined Constant map => "Or_invalid.map".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Or_invalid. End Or_invalid.

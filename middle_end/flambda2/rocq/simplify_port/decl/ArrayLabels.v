@@ -27,3 +27,9 @@ Extract Inlined Constant map => "ArrayLabels.map".
 (* stdlib/arrayLabels.mli  val fold_left : f:('acc -> 'a -> 'acc) -> init:'acc -> 'a array -> 'acc *)
 Parameter fold_left : forall {Acc A : Type}, (Acc -> A -> M Acc) -> Acc -> array A -> M Acc.
 Extract Inlined Constant fold_left => "ArrayLabels.fold_left".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module ArrayLabels. End ArrayLabels.

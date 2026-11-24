@@ -29,3 +29,9 @@ Extract Inlined Constant simplify_expr => "Simplify_expr.simplify_expr".
 (* simplify_expr.mli:51  val simplify_toplevel : Simplify_common.simplify_toplevel *)
 Parameter simplify_toplevel : Simplify_common.simplify_toplevel.
 Extract Inlined Constant simplify_toplevel => "Simplify_expr.simplify_toplevel".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Simplify_expr. End Simplify_expr.

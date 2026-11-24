@@ -48,3 +48,9 @@ Extract Inlined Constant was_lifted_set_of_closures => "Simplify_named_result.wa
 (* simplify_named_result.mli:37  val with_dacc : dacc:Downwards_acc.t -> t -> t *)
 Parameter with_dacc : Downwards_acc.t -> t -> M t.
 Extract Inlined Constant with_dacc => "Simplify_named_result.with_dacc".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Simplify_named_result. End Simplify_named_result.

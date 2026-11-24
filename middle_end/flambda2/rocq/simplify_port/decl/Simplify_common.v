@@ -70,3 +70,9 @@ Extract Inlined Constant specialise_array_kind => "Simplify_common.specialise_ar
 (* simplify_common.mli:171  val add_symbol_projection : Downwards_acc.t -> projected_from:Simple.t -> Symbol_projection.Projection.t -> projection_bound_to:Bound_var.t -> kind:Flambda_kind.With_subkind.t -> Downwards_acc.t *)
 Parameter add_symbol_projection : Downwards_acc.t -> Simple.t -> Symbol_projection.Projection.t -> Bound_var.t -> Flambda_kind.With_subkind.t -> M Downwards_acc.t.
 Extract Inlined Constant add_symbol_projection => "Simplify_common.add_symbol_projection".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Simplify_common. End Simplify_common.

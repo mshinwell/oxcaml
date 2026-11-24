@@ -42,3 +42,9 @@ Extract Inlined Constant free_names => "Coercion.free_names".
 (* coercion.mli:27  val compose_exn : t -> then_:t -> t *)
 Parameter compose_exn : t -> t -> M t.
 Extract Inlined Constant compose_exn => "Coercion.compose_exn".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Coercion. End Coercion.

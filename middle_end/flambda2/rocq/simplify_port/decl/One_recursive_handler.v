@@ -33,3 +33,9 @@ Extract Inlined Constant print => "One_recursive_handler.print".
 (* one_recursive_handler.mli:27  val with_handler : Flambda.Expr.t -> t -> t *)
 Parameter with_handler : Flambda.Expr.t -> t -> M t.
 Extract Inlined Constant with_handler => "One_recursive_handler.with_handler".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module One_recursive_handler. End One_recursive_handler.

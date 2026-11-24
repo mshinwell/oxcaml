@@ -41,3 +41,9 @@ Extract Inlined Constant do_rebuild_terms => "Are_rebuilding_terms.do_rebuild_te
 (* are_rebuilding_terms.mli:33  val do_not_rebuild_terms : t -> bool *)
 Parameter do_not_rebuild_terms : t -> M bool.
 Extract Inlined Constant do_not_rebuild_terms => "Are_rebuilding_terms.do_not_rebuild_terms".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Are_rebuilding_terms. End Are_rebuilding_terms.

@@ -38,3 +38,9 @@ Module Dot.
   Parameter print : int -> Flow_types.Acc.t -> string -> Format.formatter -> Continuation.t -> Continuation.t -> option (Format.formatter -> Continuation.t -> M unit) -> Continuation.Map.t Flow_types.Continuation_param_aliases.t -> Control_flow_graph.t -> M unit.
   Extract Inlined Constant print => "(fun x__1 x__2 x__3 x__4 x__5 x__6 x__7 x__8 x__9 -> Control_flow_graph.Dot.print x__1 x__2 x__3 x__4 x__5 x__6 ?pp_node:x__7 x__8 x__9)".
 End Dot.
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Control_flow_graph. End Control_flow_graph.

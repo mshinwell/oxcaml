@@ -57,3 +57,8 @@ Module For_int16s.
     End Pair.
   End Num.
 End For_int16s.
+
+(* Not in the file of Simplify: an empty module with the name of this file.
+   With it Rocq's extraction writes no [open] of this file, which is not a
+   module of OCaml, and prints each of its names in full. *)
+Module Number_adjuncts__local. End Number_adjuncts__local.

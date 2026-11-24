@@ -28,3 +28,9 @@ Extract Inlined Constant merge => "Inlined_debuginfo.merge".
 (* inlined_debuginfo.mli:173  val rewrite : t -> Debuginfo.t -> Debuginfo.t *)
 Parameter rewrite : t -> Debuginfo.t -> M Debuginfo.t.
 Extract Inlined Constant rewrite => "Inlined_debuginfo.rewrite".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Inlined_debuginfo. End Inlined_debuginfo.

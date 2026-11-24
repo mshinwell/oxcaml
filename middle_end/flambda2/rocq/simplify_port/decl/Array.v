@@ -39,3 +39,9 @@ Extract Inlined Constant fold_left => "Array.fold_left".
 (* stdlib/array.mli  val fold_right : ('a -> 'acc -> 'acc) -> 'a array -> 'acc -> 'acc *)
 Parameter fold_right : forall {A Acc : Type}, (A -> Acc -> M Acc) -> array A -> Acc -> M Acc.
 Extract Inlined Constant fold_right => "Array.fold_right".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Array. End Array.

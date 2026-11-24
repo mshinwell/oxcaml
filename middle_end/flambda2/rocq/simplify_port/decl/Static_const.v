@@ -171,3 +171,9 @@ Extract Inlined Constant can_share => "Static_const.can_share".
 (* static_const.mli:179  val must_be_set_of_closures : t -> Set_of_closures.t *)
 Parameter must_be_set_of_closures : t -> M Set_of_closures.t.
 Extract Inlined Constant must_be_set_of_closures => "Static_const.must_be_set_of_closures".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Static_const. End Static_const.

@@ -37,3 +37,9 @@ Extract Inlined Constant print => "Continuation_in_env.print".
 (* continuation_in_env.mli:42  val arity : t -> [`Unarized] Flambda_arity.t *)
 Parameter arity : t -> M Flambda_arity.t_Unarized.
 Extract Inlined Constant arity => "Continuation_in_env.arity".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Continuation_in_env. End Continuation_in_env.

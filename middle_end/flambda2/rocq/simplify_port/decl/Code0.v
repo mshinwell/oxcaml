@@ -44,3 +44,9 @@ Extract Inlined Constant apply_renaming => "Code0.apply_renaming".
 (* code0.mli:66  val print : print_function_params_and_body: (Format.formatter -> 'function_params_and_body -> unit) -> Format.formatter -> 'function_params_and_body t -> unit *)
 Parameter print : forall {Function_params_and_body : Type}, (Format.formatter -> Function_params_and_body -> M unit) -> Format.formatter -> t Function_params_and_body -> M unit.
 Extract Inlined Constant print => "Code0.print".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Code0. End Code0.

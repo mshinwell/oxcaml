@@ -27,3 +27,9 @@ From SimplifyPort Require Import Port_monad.
 (* effects.mli:21  type t = | No_effects ( ** The primitive does not change the observable state of the world. For example, it must not write to any mutable storage, call arbitrary external functions or change control flow (e.g. by raising an exception). Note that allocation is not 'No effects' (see below). It is assumed in Flambda that applications of primitives with no effects, whose results are not used, may b... *)
 Parameter t : Type.
 Extract Inlined Constant t => "Effects.t".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Effects. End Effects.

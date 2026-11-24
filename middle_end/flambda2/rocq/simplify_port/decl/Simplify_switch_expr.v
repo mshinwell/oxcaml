@@ -29,3 +29,9 @@ Extract Inlined Constant simplify_switch => "Simplify_switch_expr.simplify_switc
 (* simplify_switch_expr.mli:19  val rebuild_switch : Simplified_expr.simplified_switch Simplify_common.rebuild *)
 Parameter rebuild_switch : Simplify_common.rebuild Simplified_expr.simplified_switch_.
 Extract Inlined Constant rebuild_switch => "Simplify_switch_expr.rebuild_switch".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Simplify_switch_expr. End Simplify_switch_expr.

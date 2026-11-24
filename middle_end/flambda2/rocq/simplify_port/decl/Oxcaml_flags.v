@@ -12,3 +12,9 @@ From SimplifyPort Require Import Port_monad.
 (* oxcaml_flags.mli:132  type opt_level = Oclassic | O2 | O3 | O4 *)
 Parameter opt_level_ : Type.
 Extract Inlined Constant opt_level_ => "Oxcaml_flags.opt_level".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Oxcaml_flags. End Oxcaml_flags.

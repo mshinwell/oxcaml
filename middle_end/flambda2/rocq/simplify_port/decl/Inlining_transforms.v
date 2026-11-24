@@ -26,3 +26,9 @@ From SimplifyPort.decl Require Downwards_acc Flambda Flambda2_types.
 (* inlining_transforms.mli:19  val inline : Downwards_acc.t -> apply:Apply.t -> unroll_to:int option -> was_inline_always:bool -> Flambda2_types.Function_type.t -> Downwards_acc.t * Expr.t *)
 Parameter inline : Downwards_acc.t -> Flambda.Import_.Apply.t -> option int -> bool -> Flambda2_types.Function_type.t -> M (Downwards_acc.t * Flambda.Import_.Expr.t).
 Extract Inlined Constant inline => "Inlining_transforms.inline".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Inlining_transforms. End Inlining_transforms.

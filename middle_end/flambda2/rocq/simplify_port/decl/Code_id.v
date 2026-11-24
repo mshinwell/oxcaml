@@ -137,3 +137,9 @@ Extract Inlined Constant name => "Code_id.name".
 (* int_ids.mli:271  val rename : t -> t *)
 Parameter rename : t -> M t.
 Extract Inlined Constant rename => "Code_id.rename".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Code_id. End Code_id.

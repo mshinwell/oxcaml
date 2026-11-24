@@ -39,3 +39,9 @@ Module Set_.
   Parameter fold : forall {A : Type}, (elt -> A -> M A) -> t -> A -> M A.
   Extract Inlined Constant fold => "String_info.Set.fold".
 End Set_.
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module String_info. End String_info.

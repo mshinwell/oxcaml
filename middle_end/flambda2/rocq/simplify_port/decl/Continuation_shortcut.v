@@ -40,3 +40,9 @@ Extract Inlined Constant continuation => "Continuation_shortcut.continuation".
 (* continuation_shortcut.mli:29  val to_alias : t -> Continuation.t option *)
 Parameter to_alias : t -> M (option Continuation.t).
 Extract Inlined Constant to_alias => "Continuation_shortcut.to_alias".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Continuation_shortcut. End Continuation_shortcut.

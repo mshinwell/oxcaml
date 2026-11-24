@@ -111,3 +111,9 @@ Extract Inlined Constant incr => "incr".
 (* stdlib/stdlib.mli  val at_exit : (unit -> unit) -> unit *)
 Parameter at_exit : (unit -> M unit) -> M unit.
 Extract Inlined Constant at_exit => "at_exit".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Stdlib_. End Stdlib_.

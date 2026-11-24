@@ -26,3 +26,9 @@ From SimplifyPort.decl Require Downwards_env Unboxing_types Variable_.
 (* build_unboxing_denv.mli:22  val denv_of_decision : DE.t -> param_var:Variable.t -> Unboxing_types.decision -> DE.t *)
 Parameter denv_of_decision : Downwards_env.t -> Variable_.t -> Unboxing_types.decision_ -> M Downwards_env.t.
 Extract Inlined Constant denv_of_decision => "Build_unboxing_denv.denv_of_decision".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Build_unboxing_denv. End Build_unboxing_denv.

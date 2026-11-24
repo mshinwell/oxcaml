@@ -50,3 +50,9 @@ Extract Inlined Constant with_arguments => "Inlining_state.with_arguments".
 (* inlining_state.mli:44  val arguments : t -> Inlining_arguments.t *)
 Parameter arguments : t -> M Inlining_arguments.t.
 Extract Inlined Constant arguments => "Inlining_state.arguments".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Inlining_state. End Inlining_state.

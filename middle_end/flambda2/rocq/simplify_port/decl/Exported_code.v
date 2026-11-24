@@ -43,3 +43,9 @@ Extract Inlined Constant mem => "Exported_code.mem".
 (* exported_code.mli:41  val find_exn : t -> Code_id.t -> Code_or_metadata.t *)
 Parameter find_exn : t -> Code_id.t -> M Code_or_metadata.t.
 Extract Inlined Constant find_exn => "Exported_code.find_exn".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Exported_code. End Exported_code.

@@ -122,3 +122,9 @@ Extract Inlined Constant create => "Function_slot.create".
 (* function_slot.mli:32  val size_from_arity : num_complex_params:int -> is_tupled:bool -> int *)
 Parameter size_from_arity : int -> bool -> M int.
 Extract Inlined Constant size_from_arity => "Function_slot.size_from_arity".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Function_slot. End Function_slot.

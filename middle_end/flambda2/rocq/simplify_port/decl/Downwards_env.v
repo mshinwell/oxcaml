@@ -337,3 +337,9 @@ Extract Inlined Constant is_cold => "Downwards_env.is_cold".
 (* downwards_env.mli:287  val mark_as_cold : t -> t *)
 Parameter mark_as_cold : t -> M t.
 Extract Inlined Constant mark_as_cold => "Downwards_env.mark_as_cold".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Downwards_env. End Downwards_env.

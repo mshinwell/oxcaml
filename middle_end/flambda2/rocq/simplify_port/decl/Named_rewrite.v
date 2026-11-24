@@ -52,3 +52,9 @@ Extract Inlined Constant print => "Named_rewrite.print".
 (* named_rewrite.mli:44  val prim_rewrite : Prim_rewrite.t -> t *)
 Parameter prim_rewrite : Named_rewrite.Prim_rewrite.t -> M t.
 Extract Inlined Constant prim_rewrite => "Named_rewrite.prim_rewrite".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Named_rewrite. End Named_rewrite.

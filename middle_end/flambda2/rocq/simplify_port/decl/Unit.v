@@ -34,3 +34,9 @@ End T.
 (* unit.mli:19  include Container_types.S with type t := t *)
 Parameter print : Format.formatter -> Unit.T.t -> M unit.
 Extract Inlined Constant print => "Unit.print".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Unit. End Unit.

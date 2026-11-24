@@ -91,3 +91,9 @@ Module Or_absent.
   Parameter join_in_terms : t -> t -> M t.
   Extract Inlined Constant join_in_terms => "Name_mode.Or_absent.join_in_terms".
 End Or_absent.
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Name_mode. End Name_mode.

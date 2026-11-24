@@ -16,3 +16,9 @@ Extract Inlined Constant t => "Location.t".
 (* location.mli:353  val prerr_warning: t -> Warnings.t -> unit *)
 Parameter prerr_warning : t -> Warnings.t -> M unit.
 Extract Inlined Constant prerr_warning => "Location.prerr_warning".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Location. End Location.

@@ -33,3 +33,9 @@ Extract Inlined Constant simplify_atomic_compare_exchange => "Simplify_quaternar
 (* simplify_quaternary_primitive.ml:98  let simplify_quaternary_primitive dacc original_prim *)
 Parameter simplify_quaternary_primitive : forall {A A1 : Type}, Downwards_acc.t -> Flambda_primitive.t -> Flambda_primitive.quaternary_primitive -> Simple.t -> A -> Simple.t -> A1 -> Simple.t -> Flambda2_types.t -> Simple.t -> Flambda2_types.t -> Debuginfo.t -> Bound_var.t -> M Simplify_primitive_result.t.
 Extract Inlined Constant simplify_quaternary_primitive => "Simplify_quaternary_primitive.simplify_quaternary_primitive".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Simplify_quaternary_primitive. End Simplify_quaternary_primitive.

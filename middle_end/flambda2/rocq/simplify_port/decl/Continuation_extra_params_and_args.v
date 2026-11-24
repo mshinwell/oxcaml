@@ -77,3 +77,9 @@ Extract Inlined Constant extra_params => "Continuation_extra_params_and_args.ext
 (* continuation_extra_params_and_args.mli:73  val extra_args : t -> Extra_arg.t list Or_invalid.t Apply_cont_rewrite_id.Map.t *)
 Parameter extra_args : t -> M (Apply_cont_rewrite_id.Map.t (Or_invalid.t (list Continuation_extra_params_and_args.Extra_arg.t))).
 Extract Inlined Constant extra_args => "Continuation_extra_params_and_args.extra_args".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Continuation_extra_params_and_args. End Continuation_extra_params_and_args.

@@ -69,3 +69,9 @@ Extract Inlined Constant prev => "Scope.prev".
 (* scope.mli:27  val next : t -> t *)
 Parameter next : t -> M t.
 Extract Inlined Constant next => "Scope.next".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Scope. End Scope.

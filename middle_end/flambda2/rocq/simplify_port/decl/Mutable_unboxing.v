@@ -33,3 +33,9 @@ Extract Inlined Constant make_result => "Mutable_unboxing.make_result".
 (* mutable_unboxing.mli:30  val pp_node : t -> Format.formatter -> Continuation.t -> unit *)
 Parameter pp_node : t -> Format.formatter -> Continuation.t -> M unit.
 Extract Inlined Constant pp_node => "Mutable_unboxing.pp_node".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Mutable_unboxing. End Mutable_unboxing.

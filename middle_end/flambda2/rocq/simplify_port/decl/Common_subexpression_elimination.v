@@ -57,3 +57,9 @@ End Join_result.
 (* common_subexpression_elimination.mli:52  val join : typing_env_at_fork:TE.t -> cse_at_fork:t -> use_info:'a list -> get_typing_env:('a -> TE.t) -> get_rewrite_id:('a -> RI.t) -> get_cse:('a -> t) -> params:Bound_parameters.t -> Join_result.t option *)
 Parameter join : forall {A : Type}, Flambda2_types.Typing_env.t -> t -> list A -> (A -> M Flambda2_types.Typing_env.t) -> (A -> M Apply_cont_rewrite_id.t) -> (A -> M t) -> Bound_parameters.t -> M (option Common_subexpression_elimination.Join_result.t).
 Extract Inlined Constant join => "Common_subexpression_elimination.join".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Common_subexpression_elimination. End Common_subexpression_elimination.

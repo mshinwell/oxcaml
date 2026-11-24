@@ -92,3 +92,9 @@ Extract Inlined Constant createk => "Code_metadata.createk".
 (* code_metadata.mli:133  val with_cost_metrics : Cost_metrics.t -> t -> t *)
 Parameter with_cost_metrics : Cost_metrics.t -> t -> M t.
 Extract Inlined Constant with_cost_metrics => "Code_metadata.with_cost_metrics".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Code_metadata. End Code_metadata.

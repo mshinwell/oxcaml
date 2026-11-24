@@ -349,3 +349,9 @@ Module Standard_int_or_float.
   Parameter equal : Flambda_kind.Standard_int_or_float.T.t -> Flambda_kind.Standard_int_or_float.T.t -> M bool.
   Extract Inlined Constant equal => "Flambda_kind.Standard_int_or_float.equal".
 End Standard_int_or_float.
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Flambda_kind. End Flambda_kind.

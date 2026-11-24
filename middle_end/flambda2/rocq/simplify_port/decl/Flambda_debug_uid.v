@@ -26,3 +26,9 @@ Extract Inlined Constant t => "Flambda_debug_uid.t".
 (* flambda_debug_uid.mli:25  val none : t *)
 Parameter none : t.
 Extract Inlined Constant none => "Flambda_debug_uid.none".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Flambda_debug_uid. End Flambda_debug_uid.

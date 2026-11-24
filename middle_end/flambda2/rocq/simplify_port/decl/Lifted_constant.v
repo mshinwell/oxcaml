@@ -109,3 +109,9 @@ Extract Inlined Constant free_names_of_defining_exprs => "Lifted_constant.free_n
 (* lifted_constant.mli:116  val apply_projection : t -> Symbol_projection.t -> Simple.t option *)
 Parameter apply_projection : t -> Symbol_projection.t -> M (option Simple.t).
 Extract Inlined Constant apply_projection => "Lifted_constant.apply_projection".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Lifted_constant. End Lifted_constant.

@@ -30,3 +30,9 @@ Extract Inductive t => "Or_infinity.t" [ "Or_infinity.Finite" "Or_infinity.Infin
 (* or_infinity.mli:19  val compare : f:('a -> 'a -> int) -> 'a t -> 'a t -> int *)
 Parameter compare : forall {A : Type}, (A -> A -> M int) -> t A -> t A -> M int.
 Extract Inlined Constant compare => "Or_infinity.compare".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Or_infinity. End Or_infinity.

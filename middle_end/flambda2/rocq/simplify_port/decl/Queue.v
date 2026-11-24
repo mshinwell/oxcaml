@@ -45,3 +45,9 @@ Extract Inlined Constant pop => "Queue.pop".
 (* stdlib/queue.mli  val is_empty : 'a Stdlib__Queue.t -> bool *)
 Parameter is_empty : forall {A : Type}, t A -> M bool.
 Extract Inlined Constant is_empty => "Queue.is_empty".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Queue. End Queue.

@@ -45,3 +45,9 @@ Extract Inlined Constant can_be_lifted => "Original_handlers.can_be_lifted".
 (* original_handlers.mli:40  val add_params_to_lift : t -> Lifted_cont_params.t -> t *)
 Parameter add_params_to_lift : t -> Lifted_cont_params.t -> M t.
 Extract Inlined Constant add_params_to_lift => "Original_handlers.add_params_to_lift".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Original_handlers. End Original_handlers.

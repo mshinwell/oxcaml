@@ -60,3 +60,9 @@ Record sort_result : Type := { innermost_first : array Lifted_constant.t }.
 (* lifted_constant_state.mli:41  val sort : t -> sort_result *)
 Parameter sort : t -> M sort_result.
 Extract Inlined Constant sort => "Lifted_constant_state.sort".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Lifted_constant_state. End Lifted_constant_state.

@@ -88,3 +88,9 @@ Module Analysis.
   Parameter added_useful_alias_in_loop : Flambda2_types.Typing_env.t -> Flow.Acc.t -> Flow_types.Flow_result.t -> M bool.
   Extract Inlined Constant added_useful_alias_in_loop => "Flow.Analysis.added_useful_alias_in_loop".
 End Analysis.
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Flow. End Flow.

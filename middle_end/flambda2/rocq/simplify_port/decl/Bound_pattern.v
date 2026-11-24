@@ -63,3 +63,9 @@ Extract Inlined Constant fold_all_bound_vars => "Bound_pattern.fold_all_bound_va
 (* bound_pattern.mli:60  include Bindable.S with type t := t *)
 Parameter print : Format.formatter -> t -> M unit.
 Extract Inlined Constant print => "Bound_pattern.print".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Bound_pattern. End Bound_pattern.

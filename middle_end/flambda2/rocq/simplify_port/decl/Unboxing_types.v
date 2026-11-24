@@ -86,3 +86,9 @@ Inductive pass : Type :=
 | Filter : pass
 | Compute_all_extra_args : pass.
 Extract Inductive pass => "Unboxing_types.pass" [ "Unboxing_types.Filter" "Unboxing_types.Compute_all_extra_args" ].
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Unboxing_types. End Unboxing_types.

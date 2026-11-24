@@ -130,3 +130,9 @@ End Map.
 (* apply_cont_rewrite_id.mli:21  val create : unit -> t *)
 Parameter create : unit -> M t.
 Extract Inlined Constant create => "Apply_cont_rewrite_id.create".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Apply_cont_rewrite_id. End Apply_cont_rewrite_id.

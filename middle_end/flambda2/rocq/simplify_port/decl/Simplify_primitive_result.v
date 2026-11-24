@@ -52,3 +52,9 @@ Extract Inlined Constant is_invalid => "Simplify_primitive_result.is_invalid".
 (* simplify_primitive_result.mli:54  val map_dacc : t -> (Downwards_acc.t -> Downwards_acc.t) -> t *)
 Parameter map_dacc : t -> (Downwards_acc.t -> M Downwards_acc.t) -> M t.
 Extract Inlined Constant map_dacc => "Simplify_primitive_result.map_dacc".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Simplify_primitive_result. End Simplify_primitive_result.

@@ -62,3 +62,9 @@ Inductive binding_to_place : Type :=
 | Keep_binding : Bound_pattern.t -> t -> option Flambda.Import_.Named.t -> binding_to_place
 | Delete_binding : option Flambda.Import_.Named.t -> binding_to_place.
 Extract Inductive binding_to_place => "Simplified_named.binding_to_place" [ "(fun (x__1, x__2, x__3) -> (Simplified_named.Keep_binding { let_bound = x__1; simplified_defining_expr = x__2; original_defining_expr = x__3 } : Simplified_named.binding_to_place))" "(fun x__1 -> (Simplified_named.Delete_binding { original_defining_expr = x__1 } : Simplified_named.binding_to_place))" ] "(fun f__1 f__2 x__0 -> match (x__0 : Simplified_named.binding_to_place) with Simplified_named.Keep_binding { let_bound = x__1; simplified_defining_expr = x__2; original_defining_expr = x__3 } -> f__1 x__1 x__2 x__3 | Simplified_named.Delete_binding { original_defining_expr = x__1 } -> f__2 x__1)".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Simplified_named. End Simplified_named.

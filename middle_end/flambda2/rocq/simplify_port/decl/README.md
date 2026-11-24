@@ -108,6 +108,21 @@ OCaml name, Rocq name, kind, number of arguments, interface and line.
   maker for a private type: OCaml makes none outside its module. No
   eliminator for a GADT.)
 - A module that a file of Simplify names by an alias exists, though empty.
+- Every file ends with an empty module of its own name (`Module Simple. End
+  Simple.` in `Simple.v`), which the interface does not have. It is there so
+  that no extracted file opens a file of decl/. Without it Rocq's extraction
+  writes `open U` in a file that uses a name of `U` that Rocq prints itself (a
+  type with parameters, a record, a field, a module), and prints such names
+  without `U.`. In OCaml that `open` brings every name of the real module,
+  and Rocq knows only what is declared here (and of that, not what is an
+  inlined string). So a short name could be a name of another opened module
+  in OCaml (`Map.t` after `open Tag`: the compiler's `Tag` has a `Map`), and
+  the head of a realisation could be hidden (`List` after `open Simple` is
+  `Simple.List`). Rocq writes no `open U` when `U` has, at its top, a module
+  with the name of a file in use, and `U` is in use where it would be opened.
+  So with that last line Rocq prints each name of a file of decl/ in full
+  (`Apply_cont_rewrite_id.Map.t`, `r.Flow_types.Acc.stack`), and an `open` of
+  a module declared here in what Rocq extracts is a fault.
 
 ## Names
 
@@ -154,6 +169,12 @@ keeps the module's definition in the extracted file as it is, and writes
 `From SimplifyPort.decl Require Import FILE__local.` A module inside another
 module of the file is inside a `Module` of that name
 (`Rebuilt_expr__local.Matching_for_unique_handler.Match_permutable_parameters.HV`).
+A `FILE__local.v` also ends with an empty module of its own name: it is no
+module of OCaml, so an `open` of it could not be right. One thing in these
+files is not an inlined string: the type `'a HV.t` of `rebuilt_expr.ml`, which
+has a parameter. Where the port uses it Rocq prints its name in Rocq, the path
+above with `.t`, which is no name of OCaml until the port of that file gives
+it one.
 
 | file of Simplify | modules |
 |---|---|

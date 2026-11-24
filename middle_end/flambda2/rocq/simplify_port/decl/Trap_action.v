@@ -36,3 +36,9 @@ Inductive t : Type :=
 | Push : Continuation.t -> t
 | Pop : Continuation.t -> option Trap_action.Raise_kind.t -> t.
 Extract Inductive t => "Trap_action.t" [ "(fun x__1 -> (Trap_action.Push { exn_handler = x__1 } : Trap_action.t))" "(fun (x__1, x__2) -> (Trap_action.Pop { exn_handler = x__1; raise_kind = x__2 } : Trap_action.t))" ] "(fun f__1 f__2 x__0 -> match (x__0 : Trap_action.t) with Trap_action.Push { exn_handler = x__1 } -> f__1 x__1 | Trap_action.Pop { exn_handler = x__1; raise_kind = x__2 } -> f__2 x__1 x__2)".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Trap_action. End Trap_action.

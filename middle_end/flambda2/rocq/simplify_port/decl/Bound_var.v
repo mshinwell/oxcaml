@@ -41,3 +41,9 @@ Extract Inlined Constant name_mode => "Bound_var.name_mode".
 (* bound_var.mli:34  include Bindable.S with type t := t *)
 Parameter print : Format.formatter -> t -> M unit.
 Extract Inlined Constant print => "Bound_var.print".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Bound_var. End Bound_var.

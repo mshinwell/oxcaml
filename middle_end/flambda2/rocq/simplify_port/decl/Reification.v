@@ -26,3 +26,9 @@ From SimplifyPort.decl Require Bound_var Debuginfo Downwards_acc Flambda_kind Or
 (* reification.mli:19  val try_to_reify : Downwards_acc.t -> Debuginfo.t -> Simplified_named.t -> bound_to:Bound_var.t -> kind_of_bound_to:Flambda_kind.t -> allow_lifting:bool -> Simplified_named.t Or_invalid.t * Downwards_acc.t *)
 Parameter try_to_reify : Downwards_acc.t -> Debuginfo.t -> Simplified_named.t -> Bound_var.t -> Flambda_kind.t -> bool -> M (Or_invalid.t Simplified_named.t * Downwards_acc.t).
 Extract Inlined Constant try_to_reify => "Reification.try_to_reify".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Reification. End Reification.

@@ -34,3 +34,9 @@ Inductive regalloc_param_attribute : Type :=
 | Default_regalloc_params : regalloc_param_attribute
 | Regalloc_params : list string -> regalloc_param_attribute.
 Extract Inductive regalloc_param_attribute => "Lambda.regalloc_param_attribute" [ "Lambda.Default_regalloc_params" "Lambda.Regalloc_params" ].
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Lambda. End Lambda.

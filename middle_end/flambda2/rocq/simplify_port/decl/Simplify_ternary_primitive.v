@@ -26,3 +26,9 @@ From SimplifyPort.decl Require Bound_var Debuginfo Downwards_acc Flambda2_types 
 (* simplify_ternary_primitive.mli:19  val simplify_ternary_primitive : Downwards_acc.t -> Flambda_primitive.t -> Flambda_primitive.ternary_primitive -> arg1:Simple.t -> arg1_ty:Flambda2_types.t -> arg2:Simple.t -> arg2_ty:Flambda2_types.t -> arg3:Simple.t -> arg3_ty:Flambda2_types.t -> Debuginfo.t -> result_var:Bound_var.t -> Simplify_primitive_result.t *)
 Parameter simplify_ternary_primitive : Downwards_acc.t -> Flambda_primitive.t -> Flambda_primitive.ternary_primitive -> Simple.t -> Flambda2_types.t -> Simple.t -> Flambda2_types.t -> Simple.t -> Flambda2_types.t -> Debuginfo.t -> Bound_var.t -> M Simplify_primitive_result.t.
 Extract Inlined Constant simplify_ternary_primitive => "Simplify_ternary_primitive.simplify_ternary_primitive".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Simplify_ternary_primitive. End Simplify_ternary_primitive.

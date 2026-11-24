@@ -38,3 +38,9 @@ Extract Inlined Constant record_decision_at_call_site_for_unknown_function => "I
 (* inlining_report.mli:125  val record_decision_at_function_definition : absolute_history:Inlining_history.Absolute.t -> code_metadata:Code_metadata.t -> pass:Pass.t -> are_rebuilding_terms:Are_rebuilding_terms.t -> Function_decl_inlining_decision_type.t -> unit *)
 Parameter record_decision_at_function_definition : Inlining_history.Absolute.t -> Code_metadata.t -> Inlining_report.Pass.t -> Are_rebuilding_terms.t -> Function_decl_inlining_decision_type.t -> M unit.
 Extract Inlined Constant record_decision_at_function_definition => "Inlining_report.record_decision_at_function_definition".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Inlining_report. End Inlining_report.

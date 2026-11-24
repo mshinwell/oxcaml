@@ -26,3 +26,9 @@ From SimplifyPort.decl Require Coercion Downwards_acc.
 (* simplify_coercion.mli:17  val simplify_coercion : Downwards_acc.t -> Coercion.t -> Coercion.t *)
 Parameter simplify_coercion : Downwards_acc.t -> Coercion.t -> M Coercion.t.
 Extract Inlined Constant simplify_coercion => "Simplify_coercion.simplify_coercion".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Simplify_coercion. End Simplify_coercion.

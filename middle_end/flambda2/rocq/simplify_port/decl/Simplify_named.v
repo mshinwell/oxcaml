@@ -26,3 +26,9 @@ From SimplifyPort.decl Require Bound_pattern Downwards_acc Flambda Or_invalid Re
 (* simplify_named.mli:19  val simplify_named : Downwards_acc.t -> Bound_pattern.t -> Flambda.Named.t -> simplify_function_body:Simplify_common.simplify_function_body -> (Simplify_named_result.t Or_invalid.t * Removed_operations.t) Simplified_named.or_rewritten *)
 Parameter simplify_named : Downwards_acc.t -> Bound_pattern.t -> Flambda.Named.t -> Simplify_common.simplify_function_body -> M (Simplified_named.or_rewritten (Or_invalid.t Simplify_named_result.t * Removed_operations.t)).
 Extract Inlined Constant simplify_named => "Simplify_named.simplify_named".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Simplify_named. End Simplify_named.

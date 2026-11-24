@@ -26,3 +26,9 @@ From SimplifyPort.decl Require Bound_static Downwards_acc Flambda Rebuilt_static
 (* simplify_static_const.mli:21  val simplify_static_consts : Downwards_acc.t -> Bound_static.t -> Static_const_group.t -> simplify_function_body:Simplify_common.simplify_function_body -> Bound_static.t * Rebuilt_static_const.Group.t * Downwards_acc.t *)
 Parameter simplify_static_consts : Downwards_acc.t -> Bound_static.t -> Flambda.Static_const_group.t -> Simplify_common.simplify_function_body -> M (tuple3 Bound_static.t Rebuilt_static_const.Group.t Downwards_acc.t).
 Extract Inlined Constant simplify_static_consts => "Simplify_static_const.simplify_static_consts".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Simplify_static_const. End Simplify_static_const.

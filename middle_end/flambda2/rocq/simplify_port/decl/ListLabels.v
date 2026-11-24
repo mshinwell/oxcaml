@@ -48,3 +48,9 @@ Extract Inlined Constant find_opt => "ListLabels.find_opt".
 (* stdlib/listLabels.mli  val sort : cmp:('a -> 'a -> int) -> 'a list -> 'a list *)
 Parameter sort : forall {A : Type}, (A -> A -> M int) -> list A -> M (list A).
 Extract Inlined Constant sort => "ListLabels.sort".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module ListLabels. End ListLabels.

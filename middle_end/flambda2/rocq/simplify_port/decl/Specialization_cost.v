@@ -61,3 +61,9 @@ Extract Inlined Constant add_lifted_set_of_closures => "Specialization_cost.add_
 (* specialization_cost.mli:87  val cost_metrics : Typing_env.t -> switch:Switch_expr.t -> join_analysis:Apply_cont_rewrite_id.t Join_analysis.t -> specialized:Apply_cont_rewrite_id.Set.t -> generic:Apply_cont_rewrite_id.Set.t -> cost -> Cost_metrics.t *)
 Parameter cost_metrics : Flambda2_types.Typing_env.t -> Switch_expr.t -> Flambda2_types.Join_analysis.t Apply_cont_rewrite_id.t -> Apply_cont_rewrite_id.Set_.t -> Apply_cont_rewrite_id.Set_.t -> cost -> M Cost_metrics.t.
 Extract Inlined Constant cost_metrics => "Specialization_cost.cost_metrics".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Specialization_cost. End Specialization_cost.

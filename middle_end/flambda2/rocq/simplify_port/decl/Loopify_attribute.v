@@ -31,3 +31,9 @@ Extract Inductive t => "Loopify_attribute.t" [ "Loopify_attribute.Always_loopify
 (* loopify_attribute.mli:24  val should_loopify : t -> bool *)
 Parameter should_loopify : t -> M bool.
 Extract Inlined Constant should_loopify => "Loopify_attribute.should_loopify".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Loopify_attribute. End Loopify_attribute.

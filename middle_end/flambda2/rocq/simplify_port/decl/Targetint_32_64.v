@@ -57,3 +57,9 @@ Module Set_.
   Parameter t : Type.
   Extract Inlined Constant t => "Targetint_32_64.Set.t".
 End Set_.
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Targetint_32_64. End Targetint_32_64.

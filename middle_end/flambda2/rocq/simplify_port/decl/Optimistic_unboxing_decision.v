@@ -26,3 +26,9 @@ From SimplifyPort.decl Require Flambda2_types Unboxing_types.
 (* optimistic_unboxing_decision.mli:33  val make_optimistic_decision : depth:int -> recursive:bool -> Flambda2_types.Typing_env.t -> param_type:Flambda2_types.t -> Unboxing_types.decision *)
 Parameter make_optimistic_decision : int -> bool -> Flambda2_types.Typing_env.t -> Flambda2_types.t -> M Unboxing_types.decision_.
 Extract Inlined Constant make_optimistic_decision => "Optimistic_unboxing_decision.make_optimistic_decision".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Optimistic_unboxing_decision. End Optimistic_unboxing_decision.

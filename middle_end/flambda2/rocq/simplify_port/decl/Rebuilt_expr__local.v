@@ -46,3 +46,8 @@ Module Matching_for_unique_handler.
     End HV.
   End Match_permutable_parameters.
 End Matching_for_unique_handler.
+
+(* Not in the file of Simplify: an empty module with the name of this file.
+   With it Rocq's extraction writes no [open] of this file, which is not a
+   module of OCaml, and prints each of its names in full. *)
+Module Rebuilt_expr__local. End Rebuilt_expr__local.

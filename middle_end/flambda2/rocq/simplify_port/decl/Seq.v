@@ -30,3 +30,9 @@ Extract Constant t "'a1" => "('a1) Seq.t".
 (* stdlib/seq.mli  val exists2 : ('a -> 'b -> bool) -> 'a Stdlib__Seq.t -> 'b Stdlib__Seq.t -> bool *)
 Parameter exists2_ : forall {A B : Type}, (A -> B -> M bool) -> t A -> t B -> M bool.
 Extract Inlined Constant exists2_ => "Seq.exists2".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Seq. End Seq.

@@ -55,3 +55,9 @@ Extract Inductive can_inline_ => "Call_site_inlining_decision_type.can_inline" [
 (* call_site_inlining_decision_type.mli:61  val can_inline : t -> can_inline *)
 Parameter can_inline : t -> M can_inline_.
 Extract Inlined Constant can_inline => "Call_site_inlining_decision_type.can_inline".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Call_site_inlining_decision_type. End Call_site_inlining_decision_type.

@@ -13,3 +13,9 @@ From SimplifyPort.decl Require Compilation_unit.
 (* current_unit.mli:21  val get_cu_exn : unit -> Compilation_unit.t *)
 Parameter get_cu_exn : unit -> M Compilation_unit.t.
 Extract Inlined Constant get_cu_exn => "Current_unit.get_cu_exn".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Current_unit. End Current_unit.

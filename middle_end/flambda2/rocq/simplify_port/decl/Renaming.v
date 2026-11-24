@@ -35,3 +35,9 @@ Extract Inlined Constant compose => "Renaming.compose".
 (* renaming.mli:56  val add_variable : t -> Variable.t -> Variable.t -> t *)
 Parameter add_variable : t -> Variable_.t -> Variable_.t -> M t.
 Extract Inlined Constant add_variable => "Renaming.add_variable".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Renaming. End Renaming.

@@ -74,3 +74,9 @@ Extract Inlined Constant replace_apply_cont_rewrite => "Upwards_env.replace_appl
 (* upwards_env.mli:100  val find_apply_cont_rewrite : t -> Continuation.t -> Apply_cont_rewrite.t option *)
 Parameter find_apply_cont_rewrite : t -> Continuation.t -> M (option Apply_cont_rewrite.t).
 Extract Inlined Constant find_apply_cont_rewrite => "Upwards_env.find_apply_cont_rewrite".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Upwards_env. End Upwards_env.

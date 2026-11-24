@@ -14,3 +14,9 @@ Inductive t : Type :=
 | Index : int -> t
 | Never_partially_applied : t.
 Extract Inductive t => "First_complex_local_param.t" [ "First_complex_local_param.Index" "First_complex_local_param.Never_partially_applied" ].
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module First_complex_local_param. End First_complex_local_param.

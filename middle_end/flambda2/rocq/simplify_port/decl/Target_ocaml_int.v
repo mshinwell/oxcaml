@@ -211,3 +211,9 @@ Extract Inlined Constant shift_right_logical => "Target_ocaml_int.shift_right_lo
 (* target_ocaml_int.mli:190  val is_non_negative : t -> bool *)
 Parameter is_non_negative : t -> M bool.
 Extract Inlined Constant is_non_negative => "Target_ocaml_int.is_non_negative".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Target_ocaml_int. End Target_ocaml_int.

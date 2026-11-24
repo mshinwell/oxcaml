@@ -30,3 +30,9 @@ Extract Inlined Constant combine => "Inlining_arguments.combine".
 (* inlining_arguments.mli:63  val threshold : t -> float *)
 Parameter threshold : t -> M Stdlib_.float_.
 Extract Inlined Constant threshold => "Inlining_arguments.threshold".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Inlining_arguments. End Inlining_arguments.

@@ -62,3 +62,9 @@ Extract Inlined Constant stub_can_be_simplified => "Simplify_set_of_closures_con
 (* simplify_set_of_closures_context.mli:66  val single_set_of_size_one : t -> bool *)
 Parameter single_set_of_size_one : t -> M bool.
 Extract Inlined Constant single_set_of_size_one => "Simplify_set_of_closures_context.single_set_of_size_one".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Simplify_set_of_closures_context. End Simplify_set_of_closures_context.

@@ -47,3 +47,9 @@ Extract Inlined Constant has_attribute_inline => "Function_decl_inlining_decisio
 (* function_decl_inlining_decision_type.mli:55  val cannot_be_inlined : t -> bool *)
 Parameter cannot_be_inlined : t -> M bool.
 Extract Inlined Constant cannot_be_inlined => "Function_decl_inlining_decision_type.cannot_be_inlined".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Function_decl_inlining_decision_type. End Function_decl_inlining_decision_type.

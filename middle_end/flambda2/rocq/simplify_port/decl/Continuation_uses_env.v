@@ -74,3 +74,9 @@ Extract Inlined Constant mark_non_inlinable => "Continuation_uses_env.mark_non_i
 (* continuation_uses_env.mli:44  val add_continuation_use : t -> Continuation.t -> Continuation_use_kind.t -> id:Apply_cont_rewrite_id.t -> env_at_use:Downwards_env.t -> arg_types:Flambda2_types.t list -> t *)
 Parameter add_continuation_use : t -> Continuation.t -> Continuation_use_kind.t -> Apply_cont_rewrite_id.t -> Downwards_env.t -> list Flambda2_types.t -> M t.
 Extract Inlined Constant add_continuation_use => "Continuation_uses_env.add_continuation_use".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Continuation_uses_env. End Continuation_uses_env.

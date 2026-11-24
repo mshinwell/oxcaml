@@ -25,3 +25,9 @@ Extract Inlined Constant action => "Switch_arm.action".
 (* switch_arm.mli:47  val is_cold : t -> bool *)
 Parameter is_cold : t -> M bool.
 Extract Inlined Constant is_cold => "Switch_arm.is_cold".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Switch_arm. End Switch_arm.

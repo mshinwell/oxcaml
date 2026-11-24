@@ -46,3 +46,9 @@ Extract Inlined Constant known_remaining_unrolling_depth => "Simplify_rec_info_e
 (* simplify_rec_info_expr.mli:39  val can_unroll : Downwards_acc.t -> Rec_info_expr.t -> bool *)
 Parameter can_unroll : Downwards_acc.t -> Rec_info_expr.t -> M bool.
 Extract Inlined Constant can_unroll => "Simplify_rec_info_expr.can_unroll".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Simplify_rec_info_expr. End Simplify_rec_info_expr.

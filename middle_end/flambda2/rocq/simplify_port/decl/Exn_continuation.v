@@ -55,3 +55,9 @@ Extract Inlined Constant with_exn_handler => "Exn_continuation.with_exn_handler"
 (* exn_continuation.mli:53  val without_extra_args : t -> t *)
 Parameter without_extra_args : t -> M t.
 Extract Inlined Constant without_extra_args => "Exn_continuation.without_extra_args".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Exn_continuation. End Exn_continuation.

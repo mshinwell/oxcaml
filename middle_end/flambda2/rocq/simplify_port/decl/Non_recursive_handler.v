@@ -39,3 +39,9 @@ Extract Inlined Constant rename_params => "Non_recursive_handler.rename_params".
 (* non_recursive_handler.mli:42  val with_can_be_lifted : bool -> t -> t *)
 Parameter with_can_be_lifted : bool -> t -> M t.
 Extract Inlined Constant with_can_be_lifted => "Non_recursive_handler.with_can_be_lifted".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Non_recursive_handler. End Non_recursive_handler.

@@ -24,3 +24,9 @@ From SimplifyPort Require Import Port_monad.
 (* stdlib/hashtbl.mli  val hash : 'a -> int *)
 Parameter hash : forall {A : Type}, A -> M int.
 Extract Inlined Constant hash => "Hashtbl.hash".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Hashtbl. End Hashtbl.

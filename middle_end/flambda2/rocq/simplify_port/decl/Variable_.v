@@ -167,3 +167,9 @@ Extract Inlined Constant is_renamed_version_of => "Variable.is_renamed_version_o
 (* variable.mli:34  val canonical_name : t -> string *)
 Parameter canonical_name : t -> M string.
 Extract Inlined Constant canonical_name => "Variable.canonical_name".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Variable_. End Variable_.

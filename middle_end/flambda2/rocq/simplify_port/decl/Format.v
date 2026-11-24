@@ -177,3 +177,9 @@ Parameter asprintf15 : forall {A1 A2 A3 A4 A5 A6 A7 A8 A9 A10 A11 A12 A13 A14 A1
 Extract Inlined Constant asprintf15 => "Format.asprintf".
 Parameter asprintf16 : forall {A1 A2 A3 A4 A5 A6 A7 A8 A9 A10 A11 A12 A13 A14 A15 A16 : Type}, string -> A1 -> A2 -> A3 -> A4 -> A5 -> A6 -> A7 -> A8 -> A9 -> A10 -> A11 -> A12 -> A13 -> A14 -> A15 -> A16 -> M string.
 Extract Inlined Constant asprintf16 => "Format.asprintf".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Format. End Format.

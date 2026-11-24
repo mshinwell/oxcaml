@@ -15,3 +15,9 @@ Extract Inlined Constant t => "Linkage_name.t".
 (* linkage_name.mli:22  val to_string : t -> string *)
 Parameter to_string : t -> M string.
 Extract Inlined Constant to_string => "Linkage_name.to_string".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Linkage_name. End Linkage_name.

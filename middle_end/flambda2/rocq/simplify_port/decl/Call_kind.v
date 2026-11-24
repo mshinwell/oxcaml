@@ -91,3 +91,9 @@ Extract Inlined Constant indirect_function_call_known_arity => "Call_kind.indire
 (* call_kind.mli:162  val effect_ : Effect.t -> t *)
 Parameter effect_ : Call_kind.Effect.t -> M t.
 Extract Inlined Constant effect_ => "Call_kind.effect_".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Call_kind. End Call_kind.

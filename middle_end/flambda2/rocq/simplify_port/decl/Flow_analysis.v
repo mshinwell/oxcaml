@@ -30,3 +30,9 @@ Extract Inlined Constant did_perform_mutable_unboxing => "Flow_analysis.did_perf
 (* flow_analysis.mli:57  val added_useful_alias_in_loop : Typing_env.t -> Flow_types.Acc.t -> Flow_types.Flow_result.t -> bool *)
 Parameter added_useful_alias_in_loop : Flambda2_types.Typing_env.t -> Flow_types.Acc.t -> Flow_types.Flow_result.t -> M bool.
 Extract Inlined Constant added_useful_alias_in_loop => "Flow_analysis.added_useful_alias_in_loop".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Flow_analysis. End Flow_analysis.

@@ -51,3 +51,9 @@ Module Set_.
   Parameter get_singleton : t -> M (option elt).
   Extract Inlined Constant get_singleton => "Apply_cont_expr.Set.get_singleton".
 End Set_.
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Apply_cont_expr. End Apply_cont_expr.

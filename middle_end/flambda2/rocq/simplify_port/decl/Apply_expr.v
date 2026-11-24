@@ -55,3 +55,9 @@ Extract Inlined Constant with_call_kind => "Apply_expr.with_call_kind".
 (* apply_expr.mli:134  val with_inlined_attribute : t -> Inlined_attribute.t -> t *)
 Parameter with_inlined_attribute : t -> Inlined_attribute.t -> M t.
 Extract Inlined Constant with_inlined_attribute => "Apply_expr.with_inlined_attribute".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Apply_expr. End Apply_expr.

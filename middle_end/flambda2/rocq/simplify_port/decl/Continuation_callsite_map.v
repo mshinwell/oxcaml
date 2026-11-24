@@ -34,3 +34,9 @@ Extract Inlined Constant find => "Continuation_callsite_map.find".
 (* continuation_callsite_map.mli:32  val add : Continuation.t -> Apply_cont_rewrite_id.t -> 'a -> 'a t -> 'a t *)
 Parameter add : forall {A : Type}, Continuation.t -> Apply_cont_rewrite_id.t -> A -> t A -> M (t A).
 Extract Inlined Constant add => "Continuation_callsite_map.add".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Continuation_callsite_map. End Continuation_callsite_map.

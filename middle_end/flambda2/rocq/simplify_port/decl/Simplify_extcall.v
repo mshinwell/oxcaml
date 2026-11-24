@@ -31,3 +31,9 @@ Extract Inductive t => "Simplify_extcall.t" [ "(fun x__1 -> (Simplify_extcall.Un
 (* simplify_extcall.mli:23  val simplify_extcall : Downwards_acc.t -> Flambda.Apply.t -> callee_ty:Flambda2_types.t -> arg_types:Flambda2_types.t list -> t *)
 Parameter simplify_extcall : Downwards_acc.t -> Flambda.Apply.t -> Flambda2_types.t -> list Flambda2_types.t -> M t.
 Extract Inlined Constant simplify_extcall => "Simplify_extcall.simplify_extcall".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Simplify_extcall. End Simplify_extcall.

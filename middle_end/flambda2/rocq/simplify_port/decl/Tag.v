@@ -103,3 +103,9 @@ Module Scannable.
     Extract Inlined Constant get_singleton => "Tag.Scannable.Map.get_singleton".
   End Map.
 End Scannable.
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Tag. End Tag.

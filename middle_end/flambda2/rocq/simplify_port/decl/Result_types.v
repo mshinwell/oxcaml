@@ -33,3 +33,9 @@ Extract Inlined Constant pattern_match => "Result_types.pattern_match".
 (* result_types.mli:36  val print : Format.formatter -> t -> unit *)
 Parameter print : Format.formatter -> t -> M unit.
 Extract Inlined Constant print => "Result_types.print".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Result_types. End Result_types.

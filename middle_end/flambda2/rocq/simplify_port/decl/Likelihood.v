@@ -15,3 +15,9 @@ Extract Inlined Constant t => "Likelihood.t".
 (* likelihood.mli:46  val cold : t *)
 Parameter cold : t.
 Extract Inlined Constant cold => "Likelihood.cold".
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Likelihood. End Likelihood.

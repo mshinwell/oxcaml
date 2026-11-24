@@ -117,3 +117,9 @@ Module Unique_continuation_handlers.
   Parameter find_opt : forall {A : Type}, Are_rebuilding_terms.t -> Bound_parameters.t -> Rebuilt_expr.rebuilt_expr -> bool -> Name_occurrences.t -> t A -> M (option (A * list Simple.t)).
   Extract Inlined Constant find_opt => "Rebuilt_expr.Unique_continuation_handlers.find_opt".
 End Unique_continuation_handlers.
+
+(* Not in the interface: an empty module with the name of this file. With
+   it Rocq's extraction does not open this file's module in the files that
+   use it, and prints each of its names in full. So what the real module
+   has, and these declarations do not have, hides no other name there. *)
+Module Rebuilt_expr. End Rebuilt_expr.
