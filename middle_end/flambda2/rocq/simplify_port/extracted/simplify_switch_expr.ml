@@ -654,6 +654,12 @@ let let_op_dollar expr k uacc shareable_constants0 typing_env_before_switch0
           Upwards_env.machine_width (Upwards_acc.uenv uacc1)
         in
         let binding =
+          let simplified_defining_expr =
+            Simplified_named.create machine_width0 named0
+          in
+          let let_bound =
+            Bound_pattern.singleton (Bound_var.create var duid Name_mode.normal)
+          in
           (fun (x__1, x__2, x__3) ->
             (Simplified_named.Keep_binding
                { let_bound = x__1;
@@ -661,10 +667,7 @@ let let_op_dollar expr k uacc shareable_constants0 typing_env_before_switch0
                  original_defining_expr = x__3
                }
               : Simplified_named.binding_to_place))
-            ( Bound_pattern.singleton
-                (Bound_var.create var duid Name_mode.normal),
-              Simplified_named.create machine_width0 named0,
-              None )
+            (let_bound, simplified_defining_expr, None)
         in
         Expr_builder.make_new_let_bindings uacc1 (binding :: []) body)
     (fun name array_kind element_kind simples0 dbg ->

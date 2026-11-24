@@ -639,11 +639,18 @@ Definition let_op_dollar (expr : named) (k : Simple.t -> M rebuilder)
           let* binding :=
             (* PORT-GAP(record-order): 381-386, two fields of the inline
                record have a call: [simplified_defining_expr], the later
-               field of the type, first; then [let_bound]. *)
-            let! tmp1 := Simplified_named.create machine_width named in
-            let! tmp2 := BV.create var duid NM.normal in
-            let! tmp3 := BPt.singleton tmp2 in
-            ret (Simplified_named.Keep_binding tmp3 tmp1 None)
+               field of the type, first; then [let_bound]. Each is bound
+               before the record is built. *)
+            let* simplified_defining_expr :=
+              Simplified_named.create machine_width named
+            in
+            let* let_bound :=
+              let! tmp1 := BV.create var duid NM.normal in
+              BPt.singleton tmp1
+            in
+            ret
+              (Simplified_named.Keep_binding let_bound
+                 simplified_defining_expr None)
           in
           EB.make_new_let_bindings uacc [binding] body
         end
