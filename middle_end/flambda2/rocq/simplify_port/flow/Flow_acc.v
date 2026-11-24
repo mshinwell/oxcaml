@@ -70,6 +70,19 @@ Definition empty (_ : unit) : M Flow_acc.t :=
 (* Updates *)
 (* ******* *)
 
+(* PORT-GAP(update): 54, [{ t with extra }]. *)
+Definition update_extra (t : T.Acc.t)
+    (extra : Continuation.Map.t Continuation_extra_params_and_args.t)
+    : T.Acc.t :=
+  {| T.Acc.stack := t.(Flow_types.Acc.stack);
+     T.Acc.map := t.(Flow_types.Acc.map);
+     T.Acc.extra := extra;
+     T.Acc.lifted_constants := t.(Flow_types.Acc.lifted_constants);
+     T.Acc.dummy_toplevel_cont := t.(Flow_types.Acc.dummy_toplevel_cont)
+  |}.
+Extract Inlined Constant update_extra =>
+  "(fun t x__1 -> { t with T.Acc.extra = x__1 })".
+
 (* 46-54 *)
 Definition add_extra_params_and_args (cont : Continuation.t)
     (extra : Continuation_extra_params_and_args.t) (t : Flow_acc.t)
@@ -83,13 +96,19 @@ Definition add_extra_params_and_args (cont : Continuation.t)
         end)
       t.(Flow_types.Acc.extra)
   in
-  ret
-    {| T.Acc.stack := t.(Flow_types.Acc.stack);
-       T.Acc.map := t.(Flow_types.Acc.map);
-       T.Acc.extra := extra;
-       T.Acc.lifted_constants := t.(Flow_types.Acc.lifted_constants);
-       T.Acc.dummy_toplevel_cont := t.(Flow_types.Acc.dummy_toplevel_cont)
-    |}.
+  ret (update_extra t extra).
+
+(* PORT-GAP(update): 86, 104, [{ t with stack }]. *)
+Definition update_stack (t : T.Acc.t) (stack : list T.Continuation_info.t)
+    : T.Acc.t :=
+  {| T.Acc.stack := stack;
+     T.Acc.map := t.(Flow_types.Acc.map);
+     T.Acc.extra := t.(Flow_types.Acc.extra);
+     T.Acc.lifted_constants := t.(Flow_types.Acc.lifted_constants);
+     T.Acc.dummy_toplevel_cont := t.(Flow_types.Acc.dummy_toplevel_cont)
+  |}.
+Extract Inlined Constant update_stack =>
+  "(fun t x__1 -> { t with T.Acc.stack = x__1 })".
 
 (* 56-86 *)
 Definition enter_continuation (continuation : Continuation.t)
@@ -129,28 +148,38 @@ Definition enter_continuation (continuation : Continuation.t)
        T.Continuation_info.apply_cont_args := Continuation.Map.empty
     |}
   in
-  ret
-    {| T.Acc.stack := cont_info :: t.(Flow_types.Acc.stack);
-       T.Acc.map := t.(Flow_types.Acc.map);
-       T.Acc.extra := t.(Flow_types.Acc.extra);
-       T.Acc.lifted_constants := t.(Flow_types.Acc.lifted_constants);
-       T.Acc.dummy_toplevel_cont := t.(Flow_types.Acc.dummy_toplevel_cont)
-    |}.
+  ret (update_stack t (cont_info :: t.(Flow_types.Acc.stack))).
+
+(* PORT-GAP(update): 91, [{ (empty ()) with dummy_toplevel_cont }]. *)
+Definition update_dummy_toplevel_cont (t : T.Acc.t)
+    (dummy_toplevel_cont : Continuation.t) : T.Acc.t :=
+  {| T.Acc.stack := t.(Flow_types.Acc.stack);
+     T.Acc.map := t.(Flow_types.Acc.map);
+     T.Acc.extra := t.(Flow_types.Acc.extra);
+     T.Acc.lifted_constants := t.(Flow_types.Acc.lifted_constants);
+     T.Acc.dummy_toplevel_cont := dummy_toplevel_cont
+  |}.
+Extract Inlined Constant update_dummy_toplevel_cont =>
+  "(fun t x__1 -> { t with T.Acc.dummy_toplevel_cont = x__1 })".
 
 (* 88-91 *)
 Definition init_toplevel (dummy_toplevel_cont : Continuation.t)
     (params : Bound_parameters.t) : M Flow_acc.t :=
-  (* PORT-GAP(loose): 91, [{ (empty ()) with dummy_toplevel_cont }]: the
-     record that [empty ()] returns has a name here, [empty_acc], so that
-     its other fields can be read. *)
-  let* empty_acc := empty tt in
+  let! tmp1 := empty tt in
   enter_continuation dummy_toplevel_cont false false params
-    {| T.Acc.stack := empty_acc.(Flow_types.Acc.stack);
-       T.Acc.map := empty_acc.(Flow_types.Acc.map);
-       T.Acc.extra := empty_acc.(Flow_types.Acc.extra);
-       T.Acc.lifted_constants := empty_acc.(Flow_types.Acc.lifted_constants);
-       T.Acc.dummy_toplevel_cont := dummy_toplevel_cont
-    |}.
+    (update_dummy_toplevel_cont tmp1 dummy_toplevel_cont).
+
+(* PORT-GAP(update): 99, [{ t with stack; map }]. *)
+Definition update_stack_map (t : T.Acc.t) (stack : list T.Continuation_info.t)
+    (map : Continuation.Map.t T.Continuation_info.t) : T.Acc.t :=
+  {| T.Acc.stack := stack;
+     T.Acc.map := map;
+     T.Acc.extra := t.(Flow_types.Acc.extra);
+     T.Acc.lifted_constants := t.(Flow_types.Acc.lifted_constants);
+     T.Acc.dummy_toplevel_cont := t.(Flow_types.Acc.dummy_toplevel_cont)
+  |}.
+Extract Inlined Constant update_stack_map =>
+  "(fun t x__1 x__2 -> { t with T.Acc.stack = x__1; map = x__2 })".
 
 (* 93-99 *)
 Definition exit_continuation (cont : Continuation.t) (t : Flow_acc.t)
@@ -163,13 +192,7 @@ Definition exit_continuation (cont : Continuation.t) (t : Flow_acc.t)
     (let! tmp1 := Continuation.equal cont continuation in
      assert_ tmp1) ;;
     let* map := Continuation.Map.add cont elt t.(Flow_types.Acc.map) in
-    ret
-      {| T.Acc.stack := stack;
-         T.Acc.map := map;
-         T.Acc.extra := t.(Flow_types.Acc.extra);
-         T.Acc.lifted_constants := t.(Flow_types.Acc.lifted_constants);
-         T.Acc.dummy_toplevel_cont := t.(Flow_types.Acc.dummy_toplevel_cont)
-      |}
+    ret (update_stack_map t stack map)
   end.
 
 (* 101-104. In the compiler: [~t ~f]. *)
@@ -179,14 +202,37 @@ Definition update_top_of_stack (t : Flow_acc.t)
   | [] => fatal_errorf0 "Empty stack of variable uses"
   | elt :: stack =>
     let! tmp1 := f elt in
-    ret
-      {| T.Acc.stack := tmp1 :: stack;
-         T.Acc.map := t.(Flow_types.Acc.map);
-         T.Acc.extra := t.(Flow_types.Acc.extra);
-         T.Acc.lifted_constants := t.(Flow_types.Acc.lifted_constants);
-         T.Acc.dummy_toplevel_cont := t.(Flow_types.Acc.dummy_toplevel_cont)
-      |}
+    ret (update_stack t (tmp1 :: stack))
   end.
+
+(* PORT-GAP(update): 109, 612, [{ elt with defined }]. *)
+Definition update_defined (t : T.Continuation_info.t)
+    (defined : Variable_.Set_.t) : T.Continuation_info.t :=
+  {| T.Continuation_info.continuation :=
+       t.(Flow_types.Continuation_info.continuation);
+     T.Continuation_info.recursive :=
+       t.(Flow_types.Continuation_info.recursive);
+     T.Continuation_info.is_exn_handler :=
+       t.(Flow_types.Continuation_info.is_exn_handler);
+     T.Continuation_info.params := t.(Flow_types.Continuation_info.params);
+     T.Continuation_info.parent_continuation :=
+       t.(Flow_types.Continuation_info.parent_continuation);
+     T.Continuation_info.used_in_handler :=
+       t.(Flow_types.Continuation_info.used_in_handler);
+     T.Continuation_info.bindings := t.(Flow_types.Continuation_info.bindings);
+     T.Continuation_info.direct_aliases :=
+       t.(Flow_types.Continuation_info.direct_aliases);
+     T.Continuation_info.mutable_let_prims_rev :=
+       t.(Flow_types.Continuation_info.mutable_let_prims_rev);
+     T.Continuation_info.defined := defined;
+     T.Continuation_info.code_ids := t.(Flow_types.Continuation_info.code_ids);
+     T.Continuation_info.value_slots :=
+       t.(Flow_types.Continuation_info.value_slots);
+     T.Continuation_info.apply_cont_args :=
+       t.(Flow_types.Continuation_info.apply_cont_args)
+  |}.
+Extract Inlined Constant update_defined =>
+  "(fun t x__1 -> { t with T.Continuation_info.defined = x__1 })".
 
 (* 106-109 *)
 Definition record_defined_var (var : Variable_.t) (t : Flow_acc.t)
@@ -195,33 +241,37 @@ Definition record_defined_var (var : Variable_.t) (t : Flow_acc.t)
     let* defined :=
       Variable_.Set_.add var elt.(Flow_types.Continuation_info.defined)
     in
-    ret
-      {| T.Continuation_info.continuation :=
-           elt.(Flow_types.Continuation_info.continuation);
-         T.Continuation_info.recursive :=
-           elt.(Flow_types.Continuation_info.recursive);
-         T.Continuation_info.is_exn_handler :=
-           elt.(Flow_types.Continuation_info.is_exn_handler);
-         T.Continuation_info.params :=
-           elt.(Flow_types.Continuation_info.params);
-         T.Continuation_info.parent_continuation :=
-           elt.(Flow_types.Continuation_info.parent_continuation);
-         T.Continuation_info.used_in_handler :=
-           elt.(Flow_types.Continuation_info.used_in_handler);
-         T.Continuation_info.bindings :=
-           elt.(Flow_types.Continuation_info.bindings);
-         T.Continuation_info.direct_aliases :=
-           elt.(Flow_types.Continuation_info.direct_aliases);
-         T.Continuation_info.mutable_let_prims_rev :=
-           elt.(Flow_types.Continuation_info.mutable_let_prims_rev);
-         T.Continuation_info.defined := defined;
-         T.Continuation_info.code_ids :=
-           elt.(Flow_types.Continuation_info.code_ids);
-         T.Continuation_info.value_slots :=
-           elt.(Flow_types.Continuation_info.value_slots);
-         T.Continuation_info.apply_cont_args :=
-           elt.(Flow_types.Continuation_info.apply_cont_args)
-      |}).
+    ret (update_defined elt defined)).
+
+(* PORT-GAP(update): 131, [{ elt with bindings; used_in_handler; defined }]. *)
+Definition update_bindings_used_in_handler_defined (t : T.Continuation_info.t)
+    (bindings : Name.Map.t Name_occurrences.t)
+    (used_in_handler : Name_occurrences.t) (defined : Variable_.Set_.t)
+    : T.Continuation_info.t :=
+  {| T.Continuation_info.continuation :=
+       t.(Flow_types.Continuation_info.continuation);
+     T.Continuation_info.recursive :=
+       t.(Flow_types.Continuation_info.recursive);
+     T.Continuation_info.is_exn_handler :=
+       t.(Flow_types.Continuation_info.is_exn_handler);
+     T.Continuation_info.params := t.(Flow_types.Continuation_info.params);
+     T.Continuation_info.parent_continuation :=
+       t.(Flow_types.Continuation_info.parent_continuation);
+     T.Continuation_info.used_in_handler := used_in_handler;
+     T.Continuation_info.bindings := bindings;
+     T.Continuation_info.direct_aliases :=
+       t.(Flow_types.Continuation_info.direct_aliases);
+     T.Continuation_info.mutable_let_prims_rev :=
+       t.(Flow_types.Continuation_info.mutable_let_prims_rev);
+     T.Continuation_info.defined := defined;
+     T.Continuation_info.code_ids := t.(Flow_types.Continuation_info.code_ids);
+     T.Continuation_info.value_slots :=
+       t.(Flow_types.Continuation_info.value_slots);
+     T.Continuation_info.apply_cont_args :=
+       t.(Flow_types.Continuation_info.apply_cont_args)
+  |}.
+Extract Inlined Constant update_bindings_used_in_handler_defined =>
+  "(fun t x__1 x__2 x__3 -> { t with T.Continuation_info.bindings = x__1; used_in_handler = x__2; defined = x__3 })".
 
 (* 111-131 *)
 Definition record_var_binding (var : Variable_.t)
@@ -253,30 +303,37 @@ Definition record_var_binding (var : Variable_.t)
       Variable_.Set_.add var elt.(Flow_types.Continuation_info.defined)
     in
     ret
-      {| T.Continuation_info.continuation :=
-           elt.(Flow_types.Continuation_info.continuation);
-         T.Continuation_info.recursive :=
-           elt.(Flow_types.Continuation_info.recursive);
-         T.Continuation_info.is_exn_handler :=
-           elt.(Flow_types.Continuation_info.is_exn_handler);
-         T.Continuation_info.params :=
-           elt.(Flow_types.Continuation_info.params);
-         T.Continuation_info.parent_continuation :=
-           elt.(Flow_types.Continuation_info.parent_continuation);
-         T.Continuation_info.used_in_handler := used_in_handler;
-         T.Continuation_info.bindings := bindings;
-         T.Continuation_info.direct_aliases :=
-           elt.(Flow_types.Continuation_info.direct_aliases);
-         T.Continuation_info.mutable_let_prims_rev :=
-           elt.(Flow_types.Continuation_info.mutable_let_prims_rev);
-         T.Continuation_info.defined := defined;
-         T.Continuation_info.code_ids :=
-           elt.(Flow_types.Continuation_info.code_ids);
-         T.Continuation_info.value_slots :=
-           elt.(Flow_types.Continuation_info.value_slots);
-         T.Continuation_info.apply_cont_args :=
-           elt.(Flow_types.Continuation_info.apply_cont_args)
-      |}).
+      (update_bindings_used_in_handler_defined elt bindings used_in_handler
+        defined)).
+
+(* PORT-GAP(update): 146, [{ elt with direct_aliases; defined }]. *)
+Definition update_direct_aliases_defined (t : T.Continuation_info.t)
+    (direct_aliases : Variable_.Map.t Simple.t) (defined : Variable_.Set_.t)
+    : T.Continuation_info.t :=
+  {| T.Continuation_info.continuation :=
+       t.(Flow_types.Continuation_info.continuation);
+     T.Continuation_info.recursive :=
+       t.(Flow_types.Continuation_info.recursive);
+     T.Continuation_info.is_exn_handler :=
+       t.(Flow_types.Continuation_info.is_exn_handler);
+     T.Continuation_info.params := t.(Flow_types.Continuation_info.params);
+     T.Continuation_info.parent_continuation :=
+       t.(Flow_types.Continuation_info.parent_continuation);
+     T.Continuation_info.used_in_handler :=
+       t.(Flow_types.Continuation_info.used_in_handler);
+     T.Continuation_info.bindings := t.(Flow_types.Continuation_info.bindings);
+     T.Continuation_info.direct_aliases := direct_aliases;
+     T.Continuation_info.mutable_let_prims_rev :=
+       t.(Flow_types.Continuation_info.mutable_let_prims_rev);
+     T.Continuation_info.defined := defined;
+     T.Continuation_info.code_ids := t.(Flow_types.Continuation_info.code_ids);
+     T.Continuation_info.value_slots :=
+       t.(Flow_types.Continuation_info.value_slots);
+     T.Continuation_info.apply_cont_args :=
+       t.(Flow_types.Continuation_info.apply_cont_args)
+  |}.
+Extract Inlined Constant update_direct_aliases_defined =>
+  "(fun t x__1 x__2 -> { t with T.Continuation_info.direct_aliases = x__1; defined = x__2 })".
 
 (* 133-146 *)
 Definition record_var_alias (var : Variable_.t) (definition : Simple.t)
@@ -296,32 +353,36 @@ Definition record_var_alias (var : Variable_.t) (definition : Simple.t)
     let* defined :=
       Variable_.Set_.add var elt.(Flow_types.Continuation_info.defined)
     in
-    ret
-      {| T.Continuation_info.continuation :=
-           elt.(Flow_types.Continuation_info.continuation);
-         T.Continuation_info.recursive :=
-           elt.(Flow_types.Continuation_info.recursive);
-         T.Continuation_info.is_exn_handler :=
-           elt.(Flow_types.Continuation_info.is_exn_handler);
-         T.Continuation_info.params :=
-           elt.(Flow_types.Continuation_info.params);
-         T.Continuation_info.parent_continuation :=
-           elt.(Flow_types.Continuation_info.parent_continuation);
-         T.Continuation_info.used_in_handler :=
-           elt.(Flow_types.Continuation_info.used_in_handler);
-         T.Continuation_info.bindings :=
-           elt.(Flow_types.Continuation_info.bindings);
-         T.Continuation_info.direct_aliases := direct_aliases;
-         T.Continuation_info.mutable_let_prims_rev :=
-           elt.(Flow_types.Continuation_info.mutable_let_prims_rev);
-         T.Continuation_info.defined := defined;
-         T.Continuation_info.code_ids :=
-           elt.(Flow_types.Continuation_info.code_ids);
-         T.Continuation_info.value_slots :=
-           elt.(Flow_types.Continuation_info.value_slots);
-         T.Continuation_info.apply_cont_args :=
-           elt.(Flow_types.Continuation_info.apply_cont_args)
-      |}).
+    ret (update_direct_aliases_defined elt direct_aliases defined)).
+
+(* PORT-GAP(update): 156, [{ cont_info with mutable_let_prims_rev }]. *)
+Definition update_mutable_let_prims_rev (t : T.Continuation_info.t)
+    (mutable_let_prims_rev : T.Mutable_let_prim.List.t)
+    : T.Continuation_info.t :=
+  {| T.Continuation_info.continuation :=
+       t.(Flow_types.Continuation_info.continuation);
+     T.Continuation_info.recursive :=
+       t.(Flow_types.Continuation_info.recursive);
+     T.Continuation_info.is_exn_handler :=
+       t.(Flow_types.Continuation_info.is_exn_handler);
+     T.Continuation_info.params := t.(Flow_types.Continuation_info.params);
+     T.Continuation_info.parent_continuation :=
+       t.(Flow_types.Continuation_info.parent_continuation);
+     T.Continuation_info.used_in_handler :=
+       t.(Flow_types.Continuation_info.used_in_handler);
+     T.Continuation_info.bindings := t.(Flow_types.Continuation_info.bindings);
+     T.Continuation_info.direct_aliases :=
+       t.(Flow_types.Continuation_info.direct_aliases);
+     T.Continuation_info.mutable_let_prims_rev := mutable_let_prims_rev;
+     T.Continuation_info.defined := t.(Flow_types.Continuation_info.defined);
+     T.Continuation_info.code_ids := t.(Flow_types.Continuation_info.code_ids);
+     T.Continuation_info.value_slots :=
+       t.(Flow_types.Continuation_info.value_slots);
+     T.Continuation_info.apply_cont_args :=
+       t.(Flow_types.Continuation_info.apply_cont_args)
+  |}.
+Extract Inlined Constant update_mutable_let_prims_rev =>
+  "(fun t x__1 -> { t with T.Continuation_info.mutable_let_prims_rev = x__1 })".
 
 (* 148-156. In the compiler: [named_rewrite_id ~bound_to ~original_prim ~prim
    t]. *)
@@ -340,33 +401,36 @@ Definition record_ref_named (named_rewrite_id : Named_rewrite_id.t)
       mutable_let_prim
       :: cont_info.(Flow_types.Continuation_info.mutable_let_prims_rev)
     in
-    ret
-      {| T.Continuation_info.continuation :=
-           cont_info.(Flow_types.Continuation_info.continuation);
-         T.Continuation_info.recursive :=
-           cont_info.(Flow_types.Continuation_info.recursive);
-         T.Continuation_info.is_exn_handler :=
-           cont_info.(Flow_types.Continuation_info.is_exn_handler);
-         T.Continuation_info.params :=
-           cont_info.(Flow_types.Continuation_info.params);
-         T.Continuation_info.parent_continuation :=
-           cont_info.(Flow_types.Continuation_info.parent_continuation);
-         T.Continuation_info.used_in_handler :=
-           cont_info.(Flow_types.Continuation_info.used_in_handler);
-         T.Continuation_info.bindings :=
-           cont_info.(Flow_types.Continuation_info.bindings);
-         T.Continuation_info.direct_aliases :=
-           cont_info.(Flow_types.Continuation_info.direct_aliases);
-         T.Continuation_info.mutable_let_prims_rev := mutable_let_prims_rev;
-         T.Continuation_info.defined :=
-           cont_info.(Flow_types.Continuation_info.defined);
-         T.Continuation_info.code_ids :=
-           cont_info.(Flow_types.Continuation_info.code_ids);
-         T.Continuation_info.value_slots :=
-           cont_info.(Flow_types.Continuation_info.value_slots);
-         T.Continuation_info.apply_cont_args :=
-           cont_info.(Flow_types.Continuation_info.apply_cont_args)
-      |}).
+    ret (update_mutable_let_prims_rev cont_info mutable_let_prims_rev)).
+
+(* PORT-GAP(update): 174, 189, [{ elt with bindings }]. *)
+Definition update_bindings (t : T.Continuation_info.t)
+    (bindings : Name.Map.t Name_occurrences.t) : T.Continuation_info.t :=
+  {| T.Continuation_info.continuation :=
+       t.(Flow_types.Continuation_info.continuation);
+     T.Continuation_info.recursive :=
+       t.(Flow_types.Continuation_info.recursive);
+     T.Continuation_info.is_exn_handler :=
+       t.(Flow_types.Continuation_info.is_exn_handler);
+     T.Continuation_info.params := t.(Flow_types.Continuation_info.params);
+     T.Continuation_info.parent_continuation :=
+       t.(Flow_types.Continuation_info.parent_continuation);
+     T.Continuation_info.used_in_handler :=
+       t.(Flow_types.Continuation_info.used_in_handler);
+     T.Continuation_info.bindings := bindings;
+     T.Continuation_info.direct_aliases :=
+       t.(Flow_types.Continuation_info.direct_aliases);
+     T.Continuation_info.mutable_let_prims_rev :=
+       t.(Flow_types.Continuation_info.mutable_let_prims_rev);
+     T.Continuation_info.defined := t.(Flow_types.Continuation_info.defined);
+     T.Continuation_info.code_ids := t.(Flow_types.Continuation_info.code_ids);
+     T.Continuation_info.value_slots :=
+       t.(Flow_types.Continuation_info.value_slots);
+     T.Continuation_info.apply_cont_args :=
+       t.(Flow_types.Continuation_info.apply_cont_args)
+  |}.
+Extract Inlined Constant update_bindings =>
+  "(fun t x__1 -> { t with T.Continuation_info.bindings = x__1 })".
 
 (* 158-174 *)
 Definition record_symbol_projection_aux (var : Variable_.t)
@@ -392,32 +456,7 @@ Definition record_symbol_projection_aux (var : Variable_.t)
         end)
       elt.(Flow_types.Continuation_info.bindings)
   in
-  ret
-    {| T.Continuation_info.continuation :=
-         elt.(Flow_types.Continuation_info.continuation);
-       T.Continuation_info.recursive :=
-         elt.(Flow_types.Continuation_info.recursive);
-       T.Continuation_info.is_exn_handler :=
-         elt.(Flow_types.Continuation_info.is_exn_handler);
-       T.Continuation_info.params := elt.(Flow_types.Continuation_info.params);
-       T.Continuation_info.parent_continuation :=
-         elt.(Flow_types.Continuation_info.parent_continuation);
-       T.Continuation_info.used_in_handler :=
-         elt.(Flow_types.Continuation_info.used_in_handler);
-       T.Continuation_info.bindings := bindings;
-       T.Continuation_info.direct_aliases :=
-         elt.(Flow_types.Continuation_info.direct_aliases);
-       T.Continuation_info.mutable_let_prims_rev :=
-         elt.(Flow_types.Continuation_info.mutable_let_prims_rev);
-       T.Continuation_info.defined :=
-         elt.(Flow_types.Continuation_info.defined);
-       T.Continuation_info.code_ids :=
-         elt.(Flow_types.Continuation_info.code_ids);
-       T.Continuation_info.value_slots :=
-         elt.(Flow_types.Continuation_info.value_slots);
-       T.Continuation_info.apply_cont_args :=
-         elt.(Flow_types.Continuation_info.apply_cont_args)
-    |}.
+  ret (update_bindings elt bindings).
 
 (* 176-177 *)
 Definition record_symbol_projection (var : Variable_.t)
@@ -439,37 +478,41 @@ Definition record_symbol_binding_aux (symbol : Symbol.t)
         end)
       elt.(Flow_types.Continuation_info.bindings)
   in
-  ret
-    {| T.Continuation_info.continuation :=
-         elt.(Flow_types.Continuation_info.continuation);
-       T.Continuation_info.recursive :=
-         elt.(Flow_types.Continuation_info.recursive);
-       T.Continuation_info.is_exn_handler :=
-         elt.(Flow_types.Continuation_info.is_exn_handler);
-       T.Continuation_info.params := elt.(Flow_types.Continuation_info.params);
-       T.Continuation_info.parent_continuation :=
-         elt.(Flow_types.Continuation_info.parent_continuation);
-       T.Continuation_info.used_in_handler :=
-         elt.(Flow_types.Continuation_info.used_in_handler);
-       T.Continuation_info.bindings := bindings;
-       T.Continuation_info.direct_aliases :=
-         elt.(Flow_types.Continuation_info.direct_aliases);
-       T.Continuation_info.mutable_let_prims_rev :=
-         elt.(Flow_types.Continuation_info.mutable_let_prims_rev);
-       T.Continuation_info.defined :=
-         elt.(Flow_types.Continuation_info.defined);
-       T.Continuation_info.code_ids :=
-         elt.(Flow_types.Continuation_info.code_ids);
-       T.Continuation_info.value_slots :=
-         elt.(Flow_types.Continuation_info.value_slots);
-       T.Continuation_info.apply_cont_args :=
-         elt.(Flow_types.Continuation_info.apply_cont_args)
-    |}.
+  ret (update_bindings elt bindings).
 
 (* 191-192 *)
 Definition record_symbol_binding (symbol : Symbol.t)
     (name_occurrences : Name_occurrences.t) (t : Flow_acc.t) : M Flow_acc.t :=
   update_top_of_stack t (record_symbol_binding_aux symbol name_occurrences).
+
+(* PORT-GAP(update): 204, [{ elt with code_ids }]. *)
+Definition update_code_ids (t : T.Continuation_info.t)
+    (code_ids : Code_id.Map.t Name_occurrences.t) : T.Continuation_info.t :=
+  {| T.Continuation_info.continuation :=
+       t.(Flow_types.Continuation_info.continuation);
+     T.Continuation_info.recursive :=
+       t.(Flow_types.Continuation_info.recursive);
+     T.Continuation_info.is_exn_handler :=
+       t.(Flow_types.Continuation_info.is_exn_handler);
+     T.Continuation_info.params := t.(Flow_types.Continuation_info.params);
+     T.Continuation_info.parent_continuation :=
+       t.(Flow_types.Continuation_info.parent_continuation);
+     T.Continuation_info.used_in_handler :=
+       t.(Flow_types.Continuation_info.used_in_handler);
+     T.Continuation_info.bindings := t.(Flow_types.Continuation_info.bindings);
+     T.Continuation_info.direct_aliases :=
+       t.(Flow_types.Continuation_info.direct_aliases);
+     T.Continuation_info.mutable_let_prims_rev :=
+       t.(Flow_types.Continuation_info.mutable_let_prims_rev);
+     T.Continuation_info.defined := t.(Flow_types.Continuation_info.defined);
+     T.Continuation_info.code_ids := code_ids;
+     T.Continuation_info.value_slots :=
+       t.(Flow_types.Continuation_info.value_slots);
+     T.Continuation_info.apply_cont_args :=
+       t.(Flow_types.Continuation_info.apply_cont_args)
+  |}.
+Extract Inlined Constant update_code_ids =>
+  "(fun t x__1 -> { t with T.Continuation_info.code_ids = x__1 })".
 
 (* 194-204 *)
 Definition record_code_id_binding_aux (code_id : Code_id.t)
@@ -485,37 +528,41 @@ Definition record_code_id_binding_aux (code_id : Code_id.t)
         end)
       elt.(Flow_types.Continuation_info.code_ids)
   in
-  ret
-    {| T.Continuation_info.continuation :=
-         elt.(Flow_types.Continuation_info.continuation);
-       T.Continuation_info.recursive :=
-         elt.(Flow_types.Continuation_info.recursive);
-       T.Continuation_info.is_exn_handler :=
-         elt.(Flow_types.Continuation_info.is_exn_handler);
-       T.Continuation_info.params := elt.(Flow_types.Continuation_info.params);
-       T.Continuation_info.parent_continuation :=
-         elt.(Flow_types.Continuation_info.parent_continuation);
-       T.Continuation_info.used_in_handler :=
-         elt.(Flow_types.Continuation_info.used_in_handler);
-       T.Continuation_info.bindings :=
-         elt.(Flow_types.Continuation_info.bindings);
-       T.Continuation_info.direct_aliases :=
-         elt.(Flow_types.Continuation_info.direct_aliases);
-       T.Continuation_info.mutable_let_prims_rev :=
-         elt.(Flow_types.Continuation_info.mutable_let_prims_rev);
-       T.Continuation_info.defined :=
-         elt.(Flow_types.Continuation_info.defined);
-       T.Continuation_info.code_ids := code_ids;
-       T.Continuation_info.value_slots :=
-         elt.(Flow_types.Continuation_info.value_slots);
-       T.Continuation_info.apply_cont_args :=
-         elt.(Flow_types.Continuation_info.apply_cont_args)
-    |}.
+  ret (update_code_ids elt code_ids).
 
 (* 206-208 *)
 Definition record_code_id_binding (code_id : Code_id.t)
     (name_occurrences : Name_occurrences.t) (t : Flow_acc.t) : M Flow_acc.t :=
   update_top_of_stack t (record_code_id_binding_aux code_id name_occurrences).
+
+(* PORT-GAP(update): 224, [{ elt with value_slots }]. *)
+Definition update_value_slots (t : T.Continuation_info.t)
+    (value_slots : Value_slot.Map.t (Name.Map.t Name_occurrences.t))
+    : T.Continuation_info.t :=
+  {| T.Continuation_info.continuation :=
+       t.(Flow_types.Continuation_info.continuation);
+     T.Continuation_info.recursive :=
+       t.(Flow_types.Continuation_info.recursive);
+     T.Continuation_info.is_exn_handler :=
+       t.(Flow_types.Continuation_info.is_exn_handler);
+     T.Continuation_info.params := t.(Flow_types.Continuation_info.params);
+     T.Continuation_info.parent_continuation :=
+       t.(Flow_types.Continuation_info.parent_continuation);
+     T.Continuation_info.used_in_handler :=
+       t.(Flow_types.Continuation_info.used_in_handler);
+     T.Continuation_info.bindings := t.(Flow_types.Continuation_info.bindings);
+     T.Continuation_info.direct_aliases :=
+       t.(Flow_types.Continuation_info.direct_aliases);
+     T.Continuation_info.mutable_let_prims_rev :=
+       t.(Flow_types.Continuation_info.mutable_let_prims_rev);
+     T.Continuation_info.defined := t.(Flow_types.Continuation_info.defined);
+     T.Continuation_info.code_ids := t.(Flow_types.Continuation_info.code_ids);
+     T.Continuation_info.value_slots := value_slots;
+     T.Continuation_info.apply_cont_args :=
+       t.(Flow_types.Continuation_info.apply_cont_args)
+  |}.
+Extract Inlined Constant update_value_slots =>
+  "(fun t x__1 -> { t with T.Continuation_info.value_slots = x__1 })".
 
 (* 210-224 *)
 Definition record_value_slot_aux (src : Name.t) (value_slot : Value_slot.t)
@@ -543,37 +590,40 @@ Definition record_value_slot_aux (src : Name.t) (value_slot : Value_slot.t)
         end)
       elt.(Flow_types.Continuation_info.value_slots)
   in
-  ret
-    {| T.Continuation_info.continuation :=
-         elt.(Flow_types.Continuation_info.continuation);
-       T.Continuation_info.recursive :=
-         elt.(Flow_types.Continuation_info.recursive);
-       T.Continuation_info.is_exn_handler :=
-         elt.(Flow_types.Continuation_info.is_exn_handler);
-       T.Continuation_info.params := elt.(Flow_types.Continuation_info.params);
-       T.Continuation_info.parent_continuation :=
-         elt.(Flow_types.Continuation_info.parent_continuation);
-       T.Continuation_info.used_in_handler :=
-         elt.(Flow_types.Continuation_info.used_in_handler);
-       T.Continuation_info.bindings :=
-         elt.(Flow_types.Continuation_info.bindings);
-       T.Continuation_info.direct_aliases :=
-         elt.(Flow_types.Continuation_info.direct_aliases);
-       T.Continuation_info.mutable_let_prims_rev :=
-         elt.(Flow_types.Continuation_info.mutable_let_prims_rev);
-       T.Continuation_info.defined :=
-         elt.(Flow_types.Continuation_info.defined);
-       T.Continuation_info.code_ids :=
-         elt.(Flow_types.Continuation_info.code_ids);
-       T.Continuation_info.value_slots := value_slots;
-       T.Continuation_info.apply_cont_args :=
-         elt.(Flow_types.Continuation_info.apply_cont_args)
-    |}.
+  ret (update_value_slots elt value_slots).
 
 (* 226-227 *)
 Definition record_value_slot (src : Name.t) (value_slot : Value_slot.t)
     (dst : Name_occurrences.t) (t : Flow_acc.t) : M Flow_acc.t :=
   update_top_of_stack t (record_value_slot_aux src value_slot dst).
+
+(* PORT-GAP(update): 234, [{ elt with used_in_handler }]. *)
+Definition update_used_in_handler (t : T.Continuation_info.t)
+    (used_in_handler : Name_occurrences.t) : T.Continuation_info.t :=
+  {| T.Continuation_info.continuation :=
+       t.(Flow_types.Continuation_info.continuation);
+     T.Continuation_info.recursive :=
+       t.(Flow_types.Continuation_info.recursive);
+     T.Continuation_info.is_exn_handler :=
+       t.(Flow_types.Continuation_info.is_exn_handler);
+     T.Continuation_info.params := t.(Flow_types.Continuation_info.params);
+     T.Continuation_info.parent_continuation :=
+       t.(Flow_types.Continuation_info.parent_continuation);
+     T.Continuation_info.used_in_handler := used_in_handler;
+     T.Continuation_info.bindings := t.(Flow_types.Continuation_info.bindings);
+     T.Continuation_info.direct_aliases :=
+       t.(Flow_types.Continuation_info.direct_aliases);
+     T.Continuation_info.mutable_let_prims_rev :=
+       t.(Flow_types.Continuation_info.mutable_let_prims_rev);
+     T.Continuation_info.defined := t.(Flow_types.Continuation_info.defined);
+     T.Continuation_info.code_ids := t.(Flow_types.Continuation_info.code_ids);
+     T.Continuation_info.value_slots :=
+       t.(Flow_types.Continuation_info.value_slots);
+     T.Continuation_info.apply_cont_args :=
+       t.(Flow_types.Continuation_info.apply_cont_args)
+  |}.
+Extract Inlined Constant update_used_in_handler =>
+  "(fun t x__1 -> { t with T.Continuation_info.used_in_handler = x__1 })".
 
 (* 229-234 *)
 Definition add_used_in_current_handler (name_occurrences : Name_occurrences.t)
@@ -583,33 +633,37 @@ Definition add_used_in_current_handler (name_occurrences : Name_occurrences.t)
       Name_occurrences.union
         elt.(Flow_types.Continuation_info.used_in_handler) name_occurrences
     in
-    ret
-      {| T.Continuation_info.continuation :=
-           elt.(Flow_types.Continuation_info.continuation);
-         T.Continuation_info.recursive :=
-           elt.(Flow_types.Continuation_info.recursive);
-         T.Continuation_info.is_exn_handler :=
-           elt.(Flow_types.Continuation_info.is_exn_handler);
-         T.Continuation_info.params :=
-           elt.(Flow_types.Continuation_info.params);
-         T.Continuation_info.parent_continuation :=
-           elt.(Flow_types.Continuation_info.parent_continuation);
-         T.Continuation_info.used_in_handler := used_in_handler;
-         T.Continuation_info.bindings :=
-           elt.(Flow_types.Continuation_info.bindings);
-         T.Continuation_info.direct_aliases :=
-           elt.(Flow_types.Continuation_info.direct_aliases);
-         T.Continuation_info.mutable_let_prims_rev :=
-           elt.(Flow_types.Continuation_info.mutable_let_prims_rev);
-         T.Continuation_info.defined :=
-           elt.(Flow_types.Continuation_info.defined);
-         T.Continuation_info.code_ids :=
-           elt.(Flow_types.Continuation_info.code_ids);
-         T.Continuation_info.value_slots :=
-           elt.(Flow_types.Continuation_info.value_slots);
-         T.Continuation_info.apply_cont_args :=
-           elt.(Flow_types.Continuation_info.apply_cont_args)
-      |}).
+    ret (update_used_in_handler elt used_in_handler)).
+
+(* PORT-GAP(update): 293, 331, 577, [{ elt with apply_cont_args }]. *)
+Definition update_apply_cont_args (t : T.Continuation_info.t)
+    (apply_cont_args :
+      Continuation_callsite_map.t (Numeric_types.Int.Map.t T.Cont_arg.t))
+    : T.Continuation_info.t :=
+  {| T.Continuation_info.continuation :=
+       t.(Flow_types.Continuation_info.continuation);
+     T.Continuation_info.recursive :=
+       t.(Flow_types.Continuation_info.recursive);
+     T.Continuation_info.is_exn_handler :=
+       t.(Flow_types.Continuation_info.is_exn_handler);
+     T.Continuation_info.params := t.(Flow_types.Continuation_info.params);
+     T.Continuation_info.parent_continuation :=
+       t.(Flow_types.Continuation_info.parent_continuation);
+     T.Continuation_info.used_in_handler :=
+       t.(Flow_types.Continuation_info.used_in_handler);
+     T.Continuation_info.bindings := t.(Flow_types.Continuation_info.bindings);
+     T.Continuation_info.direct_aliases :=
+       t.(Flow_types.Continuation_info.direct_aliases);
+     T.Continuation_info.mutable_let_prims_rev :=
+       t.(Flow_types.Continuation_info.mutable_let_prims_rev);
+     T.Continuation_info.defined := t.(Flow_types.Continuation_info.defined);
+     T.Continuation_info.code_ids := t.(Flow_types.Continuation_info.code_ids);
+     T.Continuation_info.value_slots :=
+       t.(Flow_types.Continuation_info.value_slots);
+     T.Continuation_info.apply_cont_args := apply_cont_args
+  |}.
+Extract Inlined Constant update_apply_cont_args =>
+  "(fun t x__1 -> { t with T.Continuation_info.apply_cont_args = x__1 })".
 
 (* 236-293 *)
 Definition add_apply_conts
@@ -684,33 +738,7 @@ Definition add_apply_conts
         add_func_result result_cont rewrite_id tmp1 [] apply_cont_args
       end
     in
-    ret
-      {| T.Continuation_info.continuation :=
-           elt.(Flow_types.Continuation_info.continuation);
-         T.Continuation_info.recursive :=
-           elt.(Flow_types.Continuation_info.recursive);
-         T.Continuation_info.is_exn_handler :=
-           elt.(Flow_types.Continuation_info.is_exn_handler);
-         T.Continuation_info.params :=
-           elt.(Flow_types.Continuation_info.params);
-         T.Continuation_info.parent_continuation :=
-           elt.(Flow_types.Continuation_info.parent_continuation);
-         T.Continuation_info.used_in_handler :=
-           elt.(Flow_types.Continuation_info.used_in_handler);
-         T.Continuation_info.bindings :=
-           elt.(Flow_types.Continuation_info.bindings);
-         T.Continuation_info.direct_aliases :=
-           elt.(Flow_types.Continuation_info.direct_aliases);
-         T.Continuation_info.mutable_let_prims_rev :=
-           elt.(Flow_types.Continuation_info.mutable_let_prims_rev);
-         T.Continuation_info.defined :=
-           elt.(Flow_types.Continuation_info.defined);
-         T.Continuation_info.code_ids :=
-           elt.(Flow_types.Continuation_info.code_ids);
-         T.Continuation_info.value_slots :=
-           elt.(Flow_types.Continuation_info.value_slots);
-         T.Continuation_info.apply_cont_args := apply_cont_args
-      |}).
+    ret (update_apply_cont_args elt apply_cont_args)).
 
 (* 295-331. In the compiler: [~rewrite_id cont arg_name_simples t]. *)
 Definition add_apply_cont_args (rewrite_id : Apply_cont_rewrite_id.t)
@@ -755,33 +783,7 @@ Definition add_apply_cont_args (rewrite_id : Apply_cont_rewrite_id.t)
           ret (Some rewrite_map))
         elt.(Flow_types.Continuation_info.apply_cont_args)
     in
-    ret
-      {| T.Continuation_info.continuation :=
-           elt.(Flow_types.Continuation_info.continuation);
-         T.Continuation_info.recursive :=
-           elt.(Flow_types.Continuation_info.recursive);
-         T.Continuation_info.is_exn_handler :=
-           elt.(Flow_types.Continuation_info.is_exn_handler);
-         T.Continuation_info.params :=
-           elt.(Flow_types.Continuation_info.params);
-         T.Continuation_info.parent_continuation :=
-           elt.(Flow_types.Continuation_info.parent_continuation);
-         T.Continuation_info.used_in_handler :=
-           elt.(Flow_types.Continuation_info.used_in_handler);
-         T.Continuation_info.bindings :=
-           elt.(Flow_types.Continuation_info.bindings);
-         T.Continuation_info.direct_aliases :=
-           elt.(Flow_types.Continuation_info.direct_aliases);
-         T.Continuation_info.mutable_let_prims_rev :=
-           elt.(Flow_types.Continuation_info.mutable_let_prims_rev);
-         T.Continuation_info.defined :=
-           elt.(Flow_types.Continuation_info.defined);
-         T.Continuation_info.code_ids :=
-           elt.(Flow_types.Continuation_info.code_ids);
-         T.Continuation_info.value_slots :=
-           elt.(Flow_types.Continuation_info.value_slots);
-         T.Continuation_info.apply_cont_args := apply_cont_args
-      |}).
+    ret (update_apply_cont_args elt apply_cont_args)).
 
 (* 333-339. [Simple.pattern_match']: the arguments are in the order of the
    interface: [~var ~symbol ~const]. *)
@@ -1000,6 +1002,18 @@ Definition normalize_lifted_constants_aux
     (fun elt lifted_constant =>
       normalize_lifted_constant_aux lifted_constant elt).
 
+(* PORT-GAP(update): 489-492, [{ t with lifted_constants }]. *)
+Definition update_lifted_constants (t : T.Acc.t)
+    (lifted_constants : Lifted_constant_state.t) : T.Acc.t :=
+  {| T.Acc.stack := t.(Flow_types.Acc.stack);
+     T.Acc.map := t.(Flow_types.Acc.map);
+     T.Acc.extra := t.(Flow_types.Acc.extra);
+     T.Acc.lifted_constants := lifted_constants;
+     T.Acc.dummy_toplevel_cont := t.(Flow_types.Acc.dummy_toplevel_cont)
+  |}.
+Extract Inlined Constant update_lifted_constants =>
+  "(fun t x__1 -> { t with T.Acc.lifted_constants = x__1 })".
+
 (* 488-492 *)
 Definition record_lifted_constants (lifted_constants : Lifted_constant_state.t)
     (t : Flow_acc.t) : M Flow_acc.t :=
@@ -1007,13 +1021,7 @@ Definition record_lifted_constants (lifted_constants : Lifted_constant_state.t)
     Lifted_constant_state.union lifted_constants
       t.(Flow_types.Acc.lifted_constants)
   in
-  ret
-    {| T.Acc.stack := t.(Flow_types.Acc.stack);
-       T.Acc.map := t.(Flow_types.Acc.map);
-       T.Acc.extra := t.(Flow_types.Acc.extra);
-       T.Acc.lifted_constants := tmp1;
-       T.Acc.dummy_toplevel_cont := t.(Flow_types.Acc.dummy_toplevel_cont)
-    |}.
+  ret (update_lifted_constants t tmp1).
 
 (* Normalisation *)
 (* ************* *)
@@ -1062,6 +1070,49 @@ Definition add_extra_args_to_call
     in
     ret (Some args)
   end.
+
+(* PORT-GAP(update): 623, [{ elt with params }]. *)
+Definition update_params (t : T.Continuation_info.t)
+    (params : Bound_parameters.t) : T.Continuation_info.t :=
+  {| T.Continuation_info.continuation :=
+       t.(Flow_types.Continuation_info.continuation);
+     T.Continuation_info.recursive :=
+       t.(Flow_types.Continuation_info.recursive);
+     T.Continuation_info.is_exn_handler :=
+       t.(Flow_types.Continuation_info.is_exn_handler);
+     T.Continuation_info.params := params;
+     T.Continuation_info.parent_continuation :=
+       t.(Flow_types.Continuation_info.parent_continuation);
+     T.Continuation_info.used_in_handler :=
+       t.(Flow_types.Continuation_info.used_in_handler);
+     T.Continuation_info.bindings := t.(Flow_types.Continuation_info.bindings);
+     T.Continuation_info.direct_aliases :=
+       t.(Flow_types.Continuation_info.direct_aliases);
+     T.Continuation_info.mutable_let_prims_rev :=
+       t.(Flow_types.Continuation_info.mutable_let_prims_rev);
+     T.Continuation_info.defined := t.(Flow_types.Continuation_info.defined);
+     T.Continuation_info.code_ids := t.(Flow_types.Continuation_info.code_ids);
+     T.Continuation_info.value_slots :=
+       t.(Flow_types.Continuation_info.value_slots);
+     T.Continuation_info.apply_cont_args :=
+       t.(Flow_types.Continuation_info.apply_cont_args)
+  |}.
+Extract Inlined Constant update_params =>
+  "(fun t x__1 -> { t with T.Continuation_info.params = x__1 })".
+
+(* PORT-GAP(update): 638, [{ t with map; extra }]. *)
+Definition update_map_extra (t : T.Acc.t)
+    (map : Continuation.Map.t T.Continuation_info.t)
+    (extra : Continuation.Map.t Continuation_extra_params_and_args.t)
+    : T.Acc.t :=
+  {| T.Acc.stack := t.(Flow_types.Acc.stack);
+     T.Acc.map := map;
+     T.Acc.extra := extra;
+     T.Acc.lifted_constants := t.(Flow_types.Acc.lifted_constants);
+     T.Acc.dummy_toplevel_cont := t.(Flow_types.Acc.dummy_toplevel_cont)
+  |}.
+Extract Inlined Constant update_map_extra =>
+  "(fun t x__1 x__2 -> { t with T.Acc.map = x__1; extra = x__2 })".
 
 (* 527-638 *)
 Definition normalize_acc
@@ -1129,33 +1180,7 @@ Definition normalize_acc
               if tmp1 then ret None else ret (Some rewrite_ids))
             apply_cont_args
         in
-        ret
-          {| T.Continuation_info.continuation :=
-               elt.(Flow_types.Continuation_info.continuation);
-             T.Continuation_info.recursive :=
-               elt.(Flow_types.Continuation_info.recursive);
-             T.Continuation_info.is_exn_handler :=
-               elt.(Flow_types.Continuation_info.is_exn_handler);
-             T.Continuation_info.params :=
-               elt.(Flow_types.Continuation_info.params);
-             T.Continuation_info.parent_continuation :=
-               elt.(Flow_types.Continuation_info.parent_continuation);
-             T.Continuation_info.used_in_handler :=
-               elt.(Flow_types.Continuation_info.used_in_handler);
-             T.Continuation_info.bindings :=
-               elt.(Flow_types.Continuation_info.bindings);
-             T.Continuation_info.direct_aliases :=
-               elt.(Flow_types.Continuation_info.direct_aliases);
-             T.Continuation_info.mutable_let_prims_rev :=
-               elt.(Flow_types.Continuation_info.mutable_let_prims_rev);
-             T.Continuation_info.defined :=
-               elt.(Flow_types.Continuation_info.defined);
-             T.Continuation_info.code_ids :=
-               elt.(Flow_types.Continuation_info.code_ids);
-             T.Continuation_info.value_slots :=
-               elt.(Flow_types.Continuation_info.value_slots);
-             T.Continuation_info.apply_cont_args := apply_cont_args
-          |})
+        ret (update_apply_cont_args elt apply_cont_args))
       t.(Flow_types.Acc.map)
   in
   (* 580-614 *)
@@ -1201,33 +1226,7 @@ Definition normalize_acc
             elt.(Flow_types.Continuation_info.apply_cont_args)
             elt.(Flow_types.Continuation_info.defined)
         in
-        ret
-          {| T.Continuation_info.continuation :=
-               elt.(Flow_types.Continuation_info.continuation);
-             T.Continuation_info.recursive :=
-               elt.(Flow_types.Continuation_info.recursive);
-             T.Continuation_info.is_exn_handler :=
-               elt.(Flow_types.Continuation_info.is_exn_handler);
-             T.Continuation_info.params :=
-               elt.(Flow_types.Continuation_info.params);
-             T.Continuation_info.parent_continuation :=
-               elt.(Flow_types.Continuation_info.parent_continuation);
-             T.Continuation_info.used_in_handler :=
-               elt.(Flow_types.Continuation_info.used_in_handler);
-             T.Continuation_info.bindings :=
-               elt.(Flow_types.Continuation_info.bindings);
-             T.Continuation_info.direct_aliases :=
-               elt.(Flow_types.Continuation_info.direct_aliases);
-             T.Continuation_info.mutable_let_prims_rev :=
-               elt.(Flow_types.Continuation_info.mutable_let_prims_rev);
-             T.Continuation_info.defined := defined;
-             T.Continuation_info.code_ids :=
-               elt.(Flow_types.Continuation_info.code_ids);
-             T.Continuation_info.value_slots :=
-               elt.(Flow_types.Continuation_info.value_slots);
-             T.Continuation_info.apply_cont_args :=
-               elt.(Flow_types.Continuation_info.apply_cont_args)
-          |})
+        ret (update_defined elt defined))
       map
   in
   (* 615-627 *)
@@ -1241,33 +1240,7 @@ Definition normalize_acc
             Bound_parameters.append
               elt.(Flow_types.Continuation_info.params) tmp1
           in
-          ret
-            {| T.Continuation_info.continuation :=
-                 elt.(Flow_types.Continuation_info.continuation);
-               T.Continuation_info.recursive :=
-                 elt.(Flow_types.Continuation_info.recursive);
-               T.Continuation_info.is_exn_handler :=
-                 elt.(Flow_types.Continuation_info.is_exn_handler);
-               T.Continuation_info.params := params;
-               T.Continuation_info.parent_continuation :=
-                 elt.(Flow_types.Continuation_info.parent_continuation);
-               T.Continuation_info.used_in_handler :=
-                 elt.(Flow_types.Continuation_info.used_in_handler);
-               T.Continuation_info.bindings :=
-                 elt.(Flow_types.Continuation_info.bindings);
-               T.Continuation_info.direct_aliases :=
-                 elt.(Flow_types.Continuation_info.direct_aliases);
-               T.Continuation_info.mutable_let_prims_rev :=
-                 elt.(Flow_types.Continuation_info.mutable_let_prims_rev);
-               T.Continuation_info.defined :=
-                 elt.(Flow_types.Continuation_info.defined);
-               T.Continuation_info.code_ids :=
-                 elt.(Flow_types.Continuation_info.code_ids);
-               T.Continuation_info.value_slots :=
-                 elt.(Flow_types.Continuation_info.value_slots);
-               T.Continuation_info.apply_cont_args :=
-                 elt.(Flow_types.Continuation_info.apply_cont_args)
-            |}
+          ret (update_params elt params)
         in
         Continuation.Map.add cont elt map)
       t.(Flow_types.Acc.extra) map
@@ -1289,10 +1262,4 @@ Definition normalize_acc
         end)
       map
   in
-  ret
-    {| T.Acc.stack := t.(Flow_types.Acc.stack);
-       T.Acc.map := map;
-       T.Acc.extra := Continuation.Map.empty;
-       T.Acc.lifted_constants := t.(Flow_types.Acc.lifted_constants);
-       T.Acc.dummy_toplevel_cont := t.(Flow_types.Acc.dummy_toplevel_cont)
-    |}.
+  ret (update_map_extra t map Continuation.Map.empty).
