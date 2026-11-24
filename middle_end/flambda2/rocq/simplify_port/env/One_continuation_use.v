@@ -31,9 +31,7 @@ Local Open Scope Z_scope.
 Module DE := Downwards_env.
 Module T := Flambda2_types.
 
-(* 20-25. The projections [id] and [arg_types] of this record are the
-   compiler's functions [id] (38) and [arg_types] (42): Rocq prints each
-   projection as [let f t = t.f], after the type. *)
+(* 20-25 *)
 Record t : Type :=
   { id : Apply_cont_rewrite_id.t;
     kind : Continuation_use_kind.t;
@@ -47,8 +45,9 @@ Definition create (kind : Continuation_use_kind.t) (env : DE.t)
     : M One_continuation_use.t :=
   ret {| id := id; kind := kind; arg_types := arg_types; env := env |}.
 
-(* 29-36. PORT-GAP(loose): the attribute [@ocamlformat "disable"] is not
-   kept, and the record pattern of the parameter is a match. *)
+(* 29-36 *)
+(* PORT-GAP(loose): the attribute [@ocamlformat "disable"] is not kept, and
+   the record pattern of the parameter is a match. *)
 Definition print (ppf : Format.formatter) (t : One_continuation_use.t)
     : M unit :=
   match t with
@@ -64,13 +63,17 @@ Definition print (ppf : Format.formatter) (t : One_continuation_use.t)
       Apply_cont_rewrite_id.print id tmp1 arg_types
   end.
 
-(* 38: [id] is the projection [id] of the record. *)
+(* PORT-GAP(loose): 38, [id] is the projection [id] of the record [t]: it
+   is pure in Rocq, and Rocq prints it as [let id t = t.id] after the
+   type. *)
 
 (* 40 *)
 Definition use_kind (t : One_continuation_use.t) : M Continuation_use_kind.t :=
   ret t.(kind).
 
-(* 42: [arg_types] is the projection [arg_types] of the record. *)
+(* PORT-GAP(loose): 42, [arg_types] is the projection [arg_types] of the
+   record [t]: it is pure in Rocq, and Rocq prints it as [let arg_types t =
+   t.arg_types] after the type. *)
 
 (* 44 *)
 Definition env_at_use (t : One_continuation_use.t) : M DE.t := ret t.(env).
