@@ -86,6 +86,7 @@ Definition create_lifted_constant (acc : DA.t * list LC.t)
     let* lifted_constant :=
       let! tmp1 := DA.typing_env dacc in
       LC.create_set_of_closures tmp1 closure_symbols_with_types
+        (* Same comment as above re. [symbol_projections]. *)
         Variable_.Map.empty static_const
     in
     ret (dacc, lifted_constant :: lifted_constants)
