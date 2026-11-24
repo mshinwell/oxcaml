@@ -35,10 +35,11 @@
 #            with) and does not leave as a parameter
 #   gaps     the marks of the .v file, by kind: the comments that BEGIN
 #            with "PORT-GAP(kind)"
-#   Rocq     whether the .v file is compiled
+#   Rocq     whether the .v file is compiled against both implementations
+#            of the monad
 #   OCaml    how the extracted file type-checks (tools/check.sh)
 simplify=$1; B=$2
-kinds="unported partial loose type verbatim init order decl"
+kinds="unported partial loose type verbatim init order decl papp"
 names_ml() {
   sed -n -E 's/^(let|and)( rec)?( ?\[@[^]]*\])* +([a-z_][A-Za-z0-9_'"'"']*).*/\4/p' "$1" \
     | grep -v '^_$' | sort -u
@@ -74,7 +75,10 @@ for ml in $(cd "$simplify" && find . -name '*.ml' | sed 's|^\./||' | LC_ALL=C so
       [ "$n" -gt 0 ] && gaps="$gaps $k:$n" && tg=$((tg+n))
     done
     [ -z "$gaps" ] && gaps="none"
-    if [ -e "${v%.v}.vo" ] && [ ! "$v" -nt "${v%.v}.vo" ]; then rocq=yes; tr=$((tr+1)); else rocq=NO; fi
+    if [ -e "$B/real/${v%.v}.vo" ] && [ -e "$B/id/${v%.v}.vo" ] \
+       && [ ! "$v" -nt "$B/real/${v%.v}.vo" ] && [ ! "$v" -nt "$B/id/${v%.v}.vo" ]; then
+      rocq=yes; tr=$((tr+1))
+    else rocq=NO; fi
     s="$B/check/$d$base.status"
     if [ -e "$s" ]; then ocaml=$(cat "$s"); else ocaml=NO; fi
     case "$ocaml" in strict|overlay|alone) to=$((to+1));; esac

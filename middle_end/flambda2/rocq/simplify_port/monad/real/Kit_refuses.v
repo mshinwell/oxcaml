@@ -26,8 +26,8 @@
  ******************************************************************************)
 
 (* What Rocq itself refuses, by the types of the kit: each [Fail] below must
-   fail. This file follows no file of the compiler; [make tooltest] compiles
-   it. *)
+   fail. This file follows no file of the compiler; [make real] compiles it
+   with the real implementation of the monad. *)
 
 From SimplifyPort Require Import Port_monad.
 Local Open Scope string_scope.

@@ -25,21 +25,21 @@
  * DEALINGS IN THE SOFTWARE.                                                  *
  ******************************************************************************)
 
-(* The kit of the port of Simplify: the monad in which every ported function
-   and every declared function of OxCaml answers, its operations, and what
-   each becomes in the extracted OCaml. Read GUIDE.md first.
+(* THE MONAD OF THE PORT OF SIMPLIFY, ITS REAL IMPLEMENTATION: the one that
+   says what a ported function does (the world, fatal errors, exceptions, the
+   fuel). Every ported function and every declared function of OxCaml answers
+   in [M]. This file follows no file of the compiler. Read GUIDE.md first.
 
-   This file follows no file of the compiler.
-
-   In Rocq a value of [M A] holds a function of the world. In the extracted
-   OCaml [M A] is [A]: the tool tools/unmonad removes [bind] and [ret], and
-   each other operation becomes the OCaml that its directive names. So an
-   operation here is a real definition for Rocq and a piece of syntax for
-   OCaml. *)
+   The ported files are compiled twice, against two files of this name with
+   the same operations and notations: this one, and monad/id/Port_monad.v, in
+   which [M A] is [A] and from which Rocq extracts the OCaml. Nothing is
+   extracted from this one, and statements about the port are statements
+   about this one. *)
 
 From Stdlib Require Export String List ZArith Bool.
-From Stdlib Require Export Extraction ExtrOcamlBasic ExtrOcamlNativeString
-  ExtrOcamlZInt.
+(* The extraction is loaded only so that Rocq reads the directives of the
+   declarations (decl/), which this build compiles too and does not use. *)
+From Stdlib Require Export Extraction.
 Export ListNotations.
 
 Set Implicit Arguments.
@@ -74,9 +74,9 @@ Parameter exn_make : forall {P : Type}, exception P -> P -> exn.
 Parameter exn_match : forall {P : Type}, exception P -> exn -> option P.
 
 (* The exception [Misc.Fatal_error], which [Misc.fatal_error] raises after it
-   has printed the message. *)
+   has printed the message, and OCaml's [Not_found]. *)
 Parameter Fatal_error : exception unit.
-Extract Inlined Constant Fatal_error => "Misc.Fatal_error".
+Parameter Not_found : exception unit.
 
 (* ------------------------------------------------------------------ *)
 (* The monad                                                          *)
@@ -115,7 +115,10 @@ Definition bind {A B : Type} (m : M A) (k : A -> M B) : M B :=
     | Out_of_fuel => Out_of_fuel
     end).
 
-(* [let* x := e in k] is OCaml's [let x = e in k]. *)
+(* [let* x := e in k] is OCaml's [let x = e in k]. [let! tmp1 := e in k] is
+   the same in Rocq; it is written for a call that the compiler's code has
+   INSIDE another call, and the extraction puts [e] back where [tmp1] is
+   used (GUIDE.md, section 2). *)
 Notation "'let*' x ':=' m 'in' k" := (bind m (fun x => k))
   (at level 10, x name, m at level 200, k at level 200,
    format "'[v' 'let*'  x  ':='  m  'in' '/' k ']'").
@@ -123,36 +126,31 @@ Notation "'let*' ' p ':=' m 'in' k" :=
   (bind m (fun x => match x with p => k end))
   (at level 10, p strict pattern, m at level 200, k at level 200,
    format "'[v' 'let*'  ' p  ':='  m  'in' '/' k ']'").
+Notation "'let!' x ':=' m 'in' k" := (bind m (fun x => k))
+  (at level 10, x name, m at level 200, k at level 200,
+   format "'[v' 'let!'  x  ':='  m  'in' '/' k ']'").
+
+(* [let& x := v in k] is OCaml's [let x = v in k] where [v] is a VALUE and
+   not a call: a constant, a constructor, a local function. Here it is
+   Rocq's own [let]; the extraction keeps it where it is. *)
+Notation "'let&' x ':=' v 'in' k" := (let x := v in k)
+  (at level 10, x name, v at level 200, k at level 200,
+   format "'[v' 'let&'  x  ':='  v  'in' '/' k ']'").
 
 (* [m ;; k] is OCaml's [m; k]. *)
 Definition seq {B : Type} (m : M unit) (k : M B) : M B := bind m (fun _ => k).
 Notation "m ;; k" := (seq m k) (at level 100, right associativity).
 
-(* The type and the operations are removed by tools/unmonad; [Make_M] and
-   [run] must not reach it. *)
-Extract Inductive M => "port__M" [ "port__make_M" ] "port__match_M".
-Extract Inlined Constant run => "port__run".
-Extract Inlined Constant ret => "port__ret".
-Extract Inlined Constant bind => "port__bind".
-Extract Inlined Constant seq => "port__seq".
 
 (* ------------------------------------------------------------------ *)
 (* Fatal errors and assertions                                        *)
 (* ------------------------------------------------------------------ *)
 
-(* The arguments of a format: [Misc.fatal_errorf "%a is wrong:@ %a" print x
-   print y] is written [fatal_errorf "%a is wrong:@ %a" (fmt: print; x;
-   print; y)]. The tool writes the arguments after the format again. Every
-   function with a format argument is declared so. *)
+(* The arguments that follow a format, of any types. *)
 Inductive fmt_args : Type :=
 | Fmt_nil
 | Fmt_cons {A : Type} (a : A) (rest : fmt_args).
 
-Notation "'(fmt:' ')'" := Fmt_nil.
-Notation "'(fmt:' x ; .. ; y ')'" := (Fmt_cons x .. (Fmt_cons y Fmt_nil) ..).
-
-Extract Inductive fmt_args => "port__fmt_args"
-  [ "port__fmt_nil" "port__fmt_cons" ].
 
 (* What [Misc.fatal_error] and [Misc.fatal_errorf] do before they raise:
    they print the message, which runs the printers given for [%a]. A printer
@@ -162,15 +160,81 @@ Parameter print_fatal_message : string -> fmt_args -> M unit.
 
 (* [Misc.fatal_error msg]. *)
 Definition fatal_error {A : Type} (message : string) : M A :=
-  bind (print_fatal_message message Fmt_nil)
+  bind (print_fatal_message "%s" (Fmt_cons message Fmt_nil))
     (fun _ => Make_M (fun w => Fatal message w)).
-Extract Inlined Constant fatal_error => "Misc.fatal_error".
 
-(* [Misc.fatal_errorf fmt args]. In Rocq the message is the format. *)
-Definition fatal_errorf {A : Type} (format : string) (args : fmt_args) : M A :=
+(* [Misc.fatal_errorf fmt a1 .. an]: [fatal_errorfN] for N arguments after
+   the format. In Rocq the message is the format. *)
+Definition fatal_errorf_args {A : Type} (format : string) (args : fmt_args)
+    : M A :=
   bind (print_fatal_message format args)
     (fun _ => Make_M (fun w => Fatal format w)).
-Extract Inlined Constant fatal_errorf => "Misc.fatal_errorf".
+Definition fatal_errorf0 {A : Type} (format : string) : M A :=
+  fatal_errorf_args format Fmt_nil.
+Definition fatal_errorf1 {A A1 : Type} (format : string)
+    (a1 : A1) : M A :=
+  fatal_errorf_args format
+    (Fmt_cons a1 Fmt_nil).
+Definition fatal_errorf2 {A A1 A2 : Type} (format : string)
+    (a1 : A1) (a2 : A2) : M A :=
+  fatal_errorf_args format
+    (Fmt_cons a1 (Fmt_cons a2 Fmt_nil)).
+Definition fatal_errorf3 {A A1 A2 A3 : Type} (format : string)
+    (a1 : A1) (a2 : A2) (a3 : A3) : M A :=
+  fatal_errorf_args format
+    (Fmt_cons a1 (Fmt_cons a2 (Fmt_cons a3 Fmt_nil))).
+Definition fatal_errorf4 {A A1 A2 A3 A4 : Type} (format : string)
+    (a1 : A1) (a2 : A2) (a3 : A3) (a4 : A4) : M A :=
+  fatal_errorf_args format
+    (Fmt_cons a1 (Fmt_cons a2 (Fmt_cons a3 (Fmt_cons a4 Fmt_nil)))).
+Definition fatal_errorf5 {A A1 A2 A3 A4 A5 : Type} (format : string)
+    (a1 : A1) (a2 : A2) (a3 : A3) (a4 : A4) (a5 : A5) : M A :=
+  fatal_errorf_args format
+    (Fmt_cons a1 (Fmt_cons a2 (Fmt_cons a3 (Fmt_cons a4 (Fmt_cons a5 Fmt_nil))))).
+Definition fatal_errorf6 {A A1 A2 A3 A4 A5 A6 : Type} (format : string)
+    (a1 : A1) (a2 : A2) (a3 : A3) (a4 : A4) (a5 : A5) (a6 : A6) : M A :=
+  fatal_errorf_args format
+    (Fmt_cons a1 (Fmt_cons a2 (Fmt_cons a3 (Fmt_cons a4 (Fmt_cons a5 (Fmt_cons a6 Fmt_nil)))))).
+Definition fatal_errorf7 {A A1 A2 A3 A4 A5 A6 A7 : Type} (format : string)
+    (a1 : A1) (a2 : A2) (a3 : A3) (a4 : A4) (a5 : A5) (a6 : A6) (a7 : A7) : M A :=
+  fatal_errorf_args format
+    (Fmt_cons a1 (Fmt_cons a2 (Fmt_cons a3 (Fmt_cons a4 (Fmt_cons a5 (Fmt_cons a6 (Fmt_cons a7 Fmt_nil))))))).
+Definition fatal_errorf8 {A A1 A2 A3 A4 A5 A6 A7 A8 : Type} (format : string)
+    (a1 : A1) (a2 : A2) (a3 : A3) (a4 : A4) (a5 : A5) (a6 : A6) (a7 : A7) (a8 : A8) : M A :=
+  fatal_errorf_args format
+    (Fmt_cons a1 (Fmt_cons a2 (Fmt_cons a3 (Fmt_cons a4 (Fmt_cons a5 (Fmt_cons a6 (Fmt_cons a7 (Fmt_cons a8 Fmt_nil)))))))).
+Definition fatal_errorf9 {A A1 A2 A3 A4 A5 A6 A7 A8 A9 : Type} (format : string)
+    (a1 : A1) (a2 : A2) (a3 : A3) (a4 : A4) (a5 : A5) (a6 : A6) (a7 : A7) (a8 : A8) (a9 : A9) : M A :=
+  fatal_errorf_args format
+    (Fmt_cons a1 (Fmt_cons a2 (Fmt_cons a3 (Fmt_cons a4 (Fmt_cons a5 (Fmt_cons a6 (Fmt_cons a7 (Fmt_cons a8 (Fmt_cons a9 Fmt_nil))))))))).
+Definition fatal_errorf10 {A A1 A2 A3 A4 A5 A6 A7 A8 A9 A10 : Type} (format : string)
+    (a1 : A1) (a2 : A2) (a3 : A3) (a4 : A4) (a5 : A5) (a6 : A6) (a7 : A7) (a8 : A8) (a9 : A9) (a10 : A10) : M A :=
+  fatal_errorf_args format
+    (Fmt_cons a1 (Fmt_cons a2 (Fmt_cons a3 (Fmt_cons a4 (Fmt_cons a5 (Fmt_cons a6 (Fmt_cons a7 (Fmt_cons a8 (Fmt_cons a9 (Fmt_cons a10 Fmt_nil)))))))))).
+Definition fatal_errorf11 {A A1 A2 A3 A4 A5 A6 A7 A8 A9 A10 A11 : Type} (format : string)
+    (a1 : A1) (a2 : A2) (a3 : A3) (a4 : A4) (a5 : A5) (a6 : A6) (a7 : A7) (a8 : A8) (a9 : A9) (a10 : A10) (a11 : A11) : M A :=
+  fatal_errorf_args format
+    (Fmt_cons a1 (Fmt_cons a2 (Fmt_cons a3 (Fmt_cons a4 (Fmt_cons a5 (Fmt_cons a6 (Fmt_cons a7 (Fmt_cons a8 (Fmt_cons a9 (Fmt_cons a10 (Fmt_cons a11 Fmt_nil))))))))))).
+Definition fatal_errorf12 {A A1 A2 A3 A4 A5 A6 A7 A8 A9 A10 A11 A12 : Type} (format : string)
+    (a1 : A1) (a2 : A2) (a3 : A3) (a4 : A4) (a5 : A5) (a6 : A6) (a7 : A7) (a8 : A8) (a9 : A9) (a10 : A10) (a11 : A11) (a12 : A12) : M A :=
+  fatal_errorf_args format
+    (Fmt_cons a1 (Fmt_cons a2 (Fmt_cons a3 (Fmt_cons a4 (Fmt_cons a5 (Fmt_cons a6 (Fmt_cons a7 (Fmt_cons a8 (Fmt_cons a9 (Fmt_cons a10 (Fmt_cons a11 (Fmt_cons a12 Fmt_nil)))))))))))).
+Definition fatal_errorf13 {A A1 A2 A3 A4 A5 A6 A7 A8 A9 A10 A11 A12 A13 : Type} (format : string)
+    (a1 : A1) (a2 : A2) (a3 : A3) (a4 : A4) (a5 : A5) (a6 : A6) (a7 : A7) (a8 : A8) (a9 : A9) (a10 : A10) (a11 : A11) (a12 : A12) (a13 : A13) : M A :=
+  fatal_errorf_args format
+    (Fmt_cons a1 (Fmt_cons a2 (Fmt_cons a3 (Fmt_cons a4 (Fmt_cons a5 (Fmt_cons a6 (Fmt_cons a7 (Fmt_cons a8 (Fmt_cons a9 (Fmt_cons a10 (Fmt_cons a11 (Fmt_cons a12 (Fmt_cons a13 Fmt_nil))))))))))))).
+Definition fatal_errorf14 {A A1 A2 A3 A4 A5 A6 A7 A8 A9 A10 A11 A12 A13 A14 : Type} (format : string)
+    (a1 : A1) (a2 : A2) (a3 : A3) (a4 : A4) (a5 : A5) (a6 : A6) (a7 : A7) (a8 : A8) (a9 : A9) (a10 : A10) (a11 : A11) (a12 : A12) (a13 : A13) (a14 : A14) : M A :=
+  fatal_errorf_args format
+    (Fmt_cons a1 (Fmt_cons a2 (Fmt_cons a3 (Fmt_cons a4 (Fmt_cons a5 (Fmt_cons a6 (Fmt_cons a7 (Fmt_cons a8 (Fmt_cons a9 (Fmt_cons a10 (Fmt_cons a11 (Fmt_cons a12 (Fmt_cons a13 (Fmt_cons a14 Fmt_nil)))))))))))))).
+Definition fatal_errorf15 {A A1 A2 A3 A4 A5 A6 A7 A8 A9 A10 A11 A12 A13 A14 A15 : Type} (format : string)
+    (a1 : A1) (a2 : A2) (a3 : A3) (a4 : A4) (a5 : A5) (a6 : A6) (a7 : A7) (a8 : A8) (a9 : A9) (a10 : A10) (a11 : A11) (a12 : A12) (a13 : A13) (a14 : A14) (a15 : A15) : M A :=
+  fatal_errorf_args format
+    (Fmt_cons a1 (Fmt_cons a2 (Fmt_cons a3 (Fmt_cons a4 (Fmt_cons a5 (Fmt_cons a6 (Fmt_cons a7 (Fmt_cons a8 (Fmt_cons a9 (Fmt_cons a10 (Fmt_cons a11 (Fmt_cons a12 (Fmt_cons a13 (Fmt_cons a14 (Fmt_cons a15 Fmt_nil))))))))))))))).
+Definition fatal_errorf16 {A A1 A2 A3 A4 A5 A6 A7 A8 A9 A10 A11 A12 A13 A14 A15 A16 : Type} (format : string)
+    (a1 : A1) (a2 : A2) (a3 : A3) (a4 : A4) (a5 : A5) (a6 : A6) (a7 : A7) (a8 : A8) (a9 : A9) (a10 : A10) (a11 : A11) (a12 : A12) (a13 : A13) (a14 : A14) (a15 : A15) (a16 : A16) : M A :=
+  fatal_errorf_args format
+    (Fmt_cons a1 (Fmt_cons a2 (Fmt_cons a3 (Fmt_cons a4 (Fmt_cons a5 (Fmt_cons a6 (Fmt_cons a7 (Fmt_cons a8 (Fmt_cons a9 (Fmt_cons a10 (Fmt_cons a11 (Fmt_cons a12 (Fmt_cons a13 (Fmt_cons a14 (Fmt_cons a15 (Fmt_cons a16 Fmt_nil)))))))))))))))).
 
 (* The value of [Assert_failure (file, line, column)] that a failed
    assertion raises. It is an exception like another: a handler for every
@@ -181,17 +245,10 @@ Parameter assert_failure : exn.
    assertions, as it is.) *)
 Definition assert_ (b : bool) : M unit :=
   Make_M (fun w => if b then Returned tt w else Raised assert_failure w).
-Extract Inlined Constant assert_ => "(fun x__1 -> assert x__1)".
 
 (* [assert false]. *)
 Definition assert_false {A : Type} : M A :=
   Make_M (fun w => Raised assert_failure w).
-Extract Inlined Constant assert_false => "(assert false)".
-
-(* A thing of the compiler's file that is not ported yet: the extracted code
-   stops with a fatal error that names it. Used as the realisation of a
-   parameter marked PORT-GAP(unported):
-     Extract Inlined Constant f => "(port__gap ""Foo.f"")". *)
 
 (* ------------------------------------------------------------------ *)
 (* Exceptions                                                         *)
@@ -202,12 +259,10 @@ Extract Inlined Constant assert_false => "(assert false)".
    with the string "(fun x__1 -> E x__1)". *)
 Definition raise_ {P A : Type} (e : exception P) (p : P) : M A :=
   Make_M (fun w => Raised (exn_make e p) w).
-Extract Inlined Constant raise_ => "port__raise".
 
 (* [raise e] for a value [e] that a handler caught. *)
 Definition raise_exn {A : Type} (e : exn) : M A :=
   Make_M (fun w => Raised e w).
-Extract Inlined Constant raise_exn => "raise".
 
 (* Which handler takes the end of a computation. A fatal error is the
    exception [Misc.Fatal_error]. *)
@@ -236,7 +291,6 @@ Definition try_with {P A : Type} (body : unit -> M A) (e : exception P)
     | Some (p, w) => run (handler p) w
     | None => r
     end).
-Extract Inlined Constant try_with => "port__try_with".
 
 (* [try body () with e -> handler e]: every exception. *)
 Definition try_with_any {A : Type} (body : unit -> M A)
@@ -247,7 +301,6 @@ Definition try_with_any {A : Type} (body : unit -> M A)
     | Fatal _ w => run (handler (exn_make Fatal_error tt)) w
     | r => r
     end).
-Extract Inlined Constant try_with_any => "port__try_with_any".
 
 (* [match body () with exception E p -> handler p | x -> k x]: only what
    [body] raises is caught, not what [k] raises. *)
@@ -265,19 +318,19 @@ Definition match_exn {P A B : Type} (body : unit -> M A) (e : exception P)
       | Out_of_fuel => Out_of_fuel
       end
     end).
-Extract Inlined Constant match_exn => "port__match_exn".
 
 (* ------------------------------------------------------------------ *)
 (* Recursion that Rocq cannot see to end                              *)
 (* ------------------------------------------------------------------ *)
 
 (* Such a function takes [fuel] as its FIRST argument and is a [Fixpoint]
-   on it: [match fuel with Out => out_of_fuel | More fuel => BODY end], the
-   recursive calls of BODY with the smaller [fuel]. A caller that is not
-   itself in the recursion writes [let* fuel := get_fuel tt in]. In OCaml
-   the fuel is [()] and never runs out, and the tool removes it. What the
-   Rocq function says of an OCaml run is therefore said only of runs for
-   which the fuel of the world was enough. *)
+   on it whose body is [recursive! fuel in BODY], the recursive calls of BODY
+   with that smaller [fuel]. A caller that is not itself in the recursion
+   writes [let_fuel! fuel in]. In the implementation that is extracted the
+   fuel is a proposition, which Rocq's extraction erases: the OCaml function
+   is the compiler's [let rec], and it does not run out. So what this file
+   says of a function is said of the OCaml runs for which the fuel of the
+   world was enough. No axiom is used here. *)
 Inductive fuel : Type :=
 | Out
 | More (fuel : fuel).
@@ -290,13 +343,16 @@ Fixpoint fuel_of_nat (n : nat) : fuel :=
 
 Definition get_fuel (_ : unit) : M fuel :=
   Make_M (fun w => Returned (fuel_of_nat (world_fuel w)) w).
-Extract Inlined Constant get_fuel => "port__get_fuel".
 
 Definition out_of_fuel {A : Type} : M A := Make_M (fun _ => Out_of_fuel).
-Extract Inlined Constant out_of_fuel => "port__out_of_fuel".
 
-Extract Inductive fuel => "unit" [ "()" "(fun _ -> ())" ]
-  "(fun f__1 f__2 x__0 -> f__2 x__0)".
+Notation "'recursive!' f 'in' k" :=
+  (match f with Out => out_of_fuel | More f => k end)
+  (at level 10, f name, k at level 200,
+   format "'[v' 'recursive!'  f  'in' '/' k ']'").
+Notation "'let_fuel!' f 'in' k" := (bind (get_fuel tt) (fun f => k))
+  (at level 10, f name, k at level 200,
+   format "'[v' 'let_fuel!'  f  'in' '/' k ']'").
 
 (* [while cond () do body () done]. *)
 Fixpoint while_fuel (n : nat) (cond : unit -> M bool) (body : unit -> M unit)
@@ -310,57 +366,48 @@ Fixpoint while_fuel (n : nat) (cond : unit -> M bool) (body : unit -> M unit)
 
 Definition while_ (cond : unit -> M bool) (body : unit -> M unit) : M unit :=
   Make_M (fun w => run (while_fuel (world_fuel w) cond body) w).
-Extract Inlined Constant while_ =>
-  "(fun f__1 f__2 -> while f__1 () do f__2 () done)".
 
 (* ------------------------------------------------------------------ *)
 (* References and lazy values                                         *)
 (* ------------------------------------------------------------------ *)
 
-(* OCaml's ['a ref], [ref x], [!r], [r := x], [incr r], [decr r]. Their
+(* OCaml's ['a ref], [ref x], [!r], [r := x]. Their
    contents are in [ocaml_state]; nothing is stated of them yet. *)
 Parameter ref : Type -> Type.
-Extract Constant ref "'a" => "'a ref".
 Parameter mk_ref : forall {A : Type}, A -> M (ref A).
-Extract Inlined Constant mk_ref => "ref".
 Parameter get : forall {A : Type}, ref A -> M A.
-Extract Inlined Constant get => "(!)".
 Parameter set : forall {A : Type}, ref A -> A -> M unit.
-Extract Inlined Constant set => "(:=)".
 
-(* OCaml's ['a Lazy.t], [lazy (body ())], [Lazy.force]. *)
+(* OCaml's ['a Lazy.t], [lazy (body ())] (extracted as [Lazy.from_fun body]),
+   [Lazy.force]. *)
 Parameter lazy_t : Type -> Type.
-Extract Constant lazy_t "'a" => "'a Lazy.t".
 Parameter lazy_ : forall {A : Type}, (unit -> M A) -> M (lazy_t A).
-Extract Inlined Constant lazy_ => "(fun f__1 -> lazy (f__1 ()))".
 Parameter force : forall {A : Type}, lazy_t A -> M A.
-Extract Inlined Constant force => "Lazy.force".
+
+(* OCaml's arrays. They can be written to: every operation on one is a
+   declared function, in [M]. *)
+Parameter array : Type -> Type.
 
 (* ------------------------------------------------------------------ *)
 (* OCaml's values that Rocq's own types stand for                     *)
 (* ------------------------------------------------------------------ *)
 
-(* [int] is Rocq's [Z] (ExtrOcamlZInt): the literals and the operations
-   below are pure. OCaml's integers wrap at 63 bits and Rocq's do not. *)
+(* [int] is Rocq's [Z]: the operations of [Z] on it are pure. OCaml's
+   integers wrap at 63 bits and Rocq's do not. The literals 0 and 1 are
+   written as they are; any other literal has a name ([i2] .. [i16] here; a
+   file declares what else it needs, GUIDE.md): Rocq's extraction has no
+   direct way to print one. *)
 Definition int : Type := Z.
-Extract Inlined Constant int => "int".
-Extract Inlined Constant Z.add => "(+)".
-Extract Inlined Constant Z.sub => "(-)".
-Extract Inlined Constant Z.mul => "( * )".
-Extract Inlined Constant Z.opp => "(~-)".
-Extract Inlined Constant Z.succ => "succ".
-Extract Inlined Constant Z.pred => "pred".
-Extract Inlined Constant Z.max => "max".
-Extract Inlined Constant Z.min => "min".
-Extract Inlined Constant Z.eqb => "(=)".
-Extract Inlined Constant Z.ltb => "(<)".
-Extract Inlined Constant Z.leb => "(<=)".
-Extract Inlined Constant Z.gtb => "(>)".
-Extract Inlined Constant Z.geb => "(>=)".
-Extract Inlined Constant negb => "not".
-Extract Inlined Constant String.eqb => "String.equal".
-Extract Inlined Constant String.append => "(^)".
-Extract Inlined Constant List.app => "(@)".
+Definition i2 : int := 2%Z.
+Definition i3 : int := 3%Z.
+Definition i4 : int := 4%Z.
+Definition i5 : int := 5%Z.
+Definition i6 : int := 6%Z.
+Definition i7 : int := 7%Z.
+Definition i8 : int := 8%Z.
+Definition i9 : int := 9%Z.
+Definition i10 : int := 10%Z.
+Definition i16 : int := 16%Z.
 
 (* Tuples of three to six: [T3 a b c] is OCaml's [(a, b, c)], in terms and
    in patterns. *)
@@ -374,26 +421,28 @@ Arguments T3 {A B C}.
 Arguments T4 {A B C D}.
 Arguments T5 {A B C D E}.
 Arguments T6 {A B C D E F}.
-Extract Inductive tuple3 => "port__tuple3" [ "" ].
-Extract Inductive tuple4 => "port__tuple4" [ "" ].
-Extract Inductive tuple5 => "port__tuple5" [ "" ].
-Extract Inductive tuple6 => "port__tuple6" [ "" ].
+
+(* OCaml's [a <> b] on integers. *)
+Definition int_neq (a b : int) : bool := negb (Z.eqb a b).
+Notation "a <>? b" := (int_neq a b) (at level 70, no associativity).
+
+(* OCaml's [a || b] and [a && b] where [b] is a call: [b] is not run when
+   [a] decides. ([a] is a value: a call there is a [let!] before.) *)
+Definition or_else (a : bool) (b : M bool) : M bool :=
+  if a then ret true else b.
+Definition and_then (a : bool) (b : M bool) : M bool :=
+  if a then b else ret false.
 
 (* OCaml's polymorphic comparisons and physical equality. *)
 Parameter poly_equal : forall {A : Type}, A -> A -> M bool.
-Extract Inlined Constant poly_equal => "port__poly_equal".
 Parameter poly_not_equal : forall {A : Type}, A -> A -> M bool.
-Extract Inlined Constant poly_not_equal => "port__poly_not_equal".
 Parameter poly_compare : forall {A : Type}, A -> A -> M int.
-Extract Inlined Constant poly_compare => "port__poly_compare".
 Parameter phys_equal : forall {A : Type}, A -> A -> M bool.
-Extract Inlined Constant phys_equal => "port__phys_equal".
 Parameter phys_not_equal : forall {A : Type}, A -> A -> M bool.
-Extract Inlined Constant phys_not_equal => "port__phys_not_equal".
 
 (* A PARTIAL APPLICATION, where the compiler gives a function only its first
    arguments and passes the result on ([~f:(Flow.Acc.exit_continuation k)],
-   [~simplify_expr]): [let* tmp1 := papp1 f a in]. In OCaml it is [f a].
+   [~simplify_expr]): [let! tmp1 := papp1 f a in]. In OCaml it is [f a].
    The types say that at least one argument is still to come, so the
    result is a function and never a computation. This is right for OCaml
    under the assumption that the whole port makes of a declared function:
@@ -407,15 +456,8 @@ Definition papp3 {A1 A2 A3 B C : Type} (f : A1 -> A2 -> A3 -> B -> C)
 Definition papp4 {A1 A2 A3 A4 B C : Type}
     (f : A1 -> A2 -> A3 -> A4 -> B -> C) (a1 : A1) (a2 : A2) (a3 : A3)
     (a4 : A4) : M (B -> C) := ret (f a1 a2 a3 a4).
-Extract Inlined Constant papp1 => "(fun f__1 x__1 -> f__1 x__1)".
-Extract Inlined Constant papp2 => "(fun f__1 x__1 x__2 -> f__1 x__1 x__2)".
-Extract Inlined Constant papp3 =>
-  "(fun f__1 x__1 x__2 x__3 -> f__1 x__1 x__2 x__3)".
-Extract Inlined Constant papp4 =>
-  "(fun f__1 x__1 x__2 x__3 x__4 -> f__1 x__1 x__2 x__3 x__4)".
 
 (* [ignore x]. *)
 Definition ignore {A : Type} (_ : A) : M unit := ret tt.
-Extract Inlined Constant ignore => "ignore".
 
 Unset Implicit Arguments.

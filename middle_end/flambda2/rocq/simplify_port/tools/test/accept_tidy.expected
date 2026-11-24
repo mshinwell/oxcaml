@@ -1,5 +1,0 @@
-let f a = let fuel = Tick.tick a in ()
-let g () =
-  let tmp1 = Tick.tick 1 in { Rec.left = tmp1; right = (Tick.tick 2) }
-let h r = let tmp1 = Tick.set r 1 in (tmp1, r.Rec.contents)
-let k () = try raise Not_found with | Not_found -> let u = () in u

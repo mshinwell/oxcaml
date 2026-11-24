@@ -29,45 +29,57 @@
 # check.sh extracted/DIR/foo.ml SIMPLIFY_DIR STATUS_FILE : the types of one
 # extracted file, against the compiler's compiled interfaces under CMI_ROOT
 # (the _build/default of a dune build). It follows no file of the compiler.
+# check.sh --runtime runtime/port_monad.ml : compiles the runtime of the port
+# into the directory RUNTIME.
 #
 # The file is compiled as the module Foo__port with the -open flags of
 # middle_end/flambda2/simplify/dune, so every name in it is the compiler's
 # own, and with -nolabels: the Rocq text has no labels, and OCaml's classic
-# mode ignores the labels of the interfaces. In that mode OCaml also refuses
-# a labelled argument that is not at the place of its parameter, so the
-# labelled calls that the realisations write are in the order of the
-# interface, which is the order in which their arguments are evaluated
-# (right to left); tools/unmonad relies on it.
+# mode ignores the labels of the interfaces (and takes the arguments in the
+# order of the interface).
 #   strict : Foo__port has the whole interface foo.mli of the compiler.
 #   overlay: the compiler's module, with the extracted definitions in the
 #            place of its own, has the compiler's interface. (For a file
 #            that is not whole yet: what is not ported stays the compiler's.)
 #   alone  : the compiler's file has no interface; the file compiles.
 # The status file holds one of these words, or "skipped" without CMI_ROOT.
-f=$1; simplify=$2; status=$3
-rel=${f#extracted/}; dir=$(dirname "$rel"); base=$(basename "$rel" .ml)
-out=$(dirname "$status")/$base.d
-rm -rf "$out"; mkdir -p "$out"
 S=$CMI_ROOT/middle_end/flambda2
-if [ ! -d "$S/simplify/.flambda2_simplify.objs/byte" ]; then
-  echo "check: no compiled interfaces under CMI_ROOT=$CMI_ROOT: $f not checked"
-  echo skipped > "$status"; exit 0
-fi
 INC="-I $CMI_ROOT/.ocamlcommon.objs/byte -I $CMI_ROOT/.oxcaml_common.objs/byte"
 INC="$INC -I $CMI_ROOT/.ocamlfrontend.objs/byte"
 INC="$INC -I $CMI_ROOT/.ocamlbytecomp.objs/byte -I $CMI_ROOT/.ocamloptcomp.objs/byte"
+INC="$INC -I $CMI_ROOT/backend/debug/dwarf/dwarf_flags/.dwarf_flags.objs/byte"
+INC="$INC -I $S/numbers/floats/.flambda2_floats.objs/byte"
 for d in algorithms bound_identifiers classic_mode_types cmx compare datalog \
   from_lambda identifiers import kinds lattices nominal numbers parser reaper \
   simplify simplify_shared term_basics terms to_cmm to_jsir types ui; do
   [ -d "$S/$d/.flambda2_$d.objs/byte" ] && INC="$INC -I $S/$d/.flambda2_$d.objs/byte"
 done
+have_cmi() { [ -d "$S/simplify/.flambda2_simplify.objs/byte" ]; }
+if [ "$1" = --runtime ]; then
+  mkdir -p "$RUNTIME"
+  if ! have_cmi; then
+    echo "check: no compiled interfaces under CMI_ROOT=$CMI_ROOT: the runtime is not compiled"
+    : > "$RUNTIME/port_monad.cmi"; exit 0
+  fi
+  cp "$2" "$RUNTIME/port_monad.ml"
+  $OCAMLC -c -w -a $INC "$RUNTIME/port_monad.ml" || exit 1
+  echo "check: $2: compiled"; exit 0
+fi
+f=$1; simplify=$2; status=$3
+rel=${f#extracted/}; dir=$(dirname "$rel"); base=$(basename "$rel" .ml)
+out=$(dirname "$status")/$base.d
+rm -rf "$out"; mkdir -p "$out"
+if ! have_cmi; then
+  echo "check: no compiled interfaces under CMI_ROOT=$CMI_ROOT: $f not checked"
+  echo skipped > "$status"; exit 0
+fi
 OPENS="-open Flambda2_algorithms -open Flambda2_bound_identifiers"
 OPENS="$OPENS -open Flambda2_cmx -open Flambda2_identifiers -open Flambda2_kinds"
 OPENS="$OPENS -open Flambda2_lattices -open Flambda2_numbers -open Flambda2_nominal"
 OPENS="$OPENS -open Flambda2_term_basics -open Flambda2_terms"
 OPENS="$OPENS -open Flambda2_simplify_shared -open Flambda2_types -open Flambda2_ui"
 OPENS="$OPENS -open Flambda2_simplify"
-CC="$OCAMLC -c -nolabels -w -a $INC $OPENS -I $out"
+CC="$OCAMLC -c -nolabels -w -a $INC -I $RUNTIME $OPENS -I $out"
 mli=$simplify/$dir/$base.mli
 # The compiled interfaces must be those of this source tree: dune keeps a
 # copy of each source under CMI_ROOT.
