@@ -789,7 +789,7 @@ let simplify_function context outer_dacc0 function_slot code_id0
                 else ()
               in
               if should_resimplify0 && count < max_function_simplify_run
-              then run outer_dacc2 new_code0 (Stdlib.( + ) count 1)
+              then run outer_dacc2 new_code0 (count + 1)
               else
                 let outer_dacc3 =
                   introduce_code outer_dacc2 code_id1 new_code_const

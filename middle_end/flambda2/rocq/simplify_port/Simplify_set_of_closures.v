@@ -47,13 +47,6 @@ OCAML*)
 (* 27 *)
 Module C := Simplify_set_of_closures_context.
 
-(* PORT-GAP(decl): Rocq writes [open Cost_metrics] in the extracted file
-   (the file builds a record of that module, line 961), and after it [+] is
-   [Cost_metrics.( + )]: the addition of OCaml's integers (line 613) is
-   given here with its full path. *)
-Definition int_add (a b : int) : int := a + b.
-Extract Inlined Constant int_add => "Stdlib.( + )".
-
 (* 29-137. In the compiler: [context ~outer_dacc ~params ~my_closure
    ~my_alloc_mode ~my_depth function_slot_opt
    ~closure_bound_names_inside_function ~inlining_arguments
@@ -852,7 +845,7 @@ Definition simplify_function (context : C.t) (outer_dacc : DA.t)
                    Code_id.print code_id Code.print new_code
                else ret tt) ;;
               if should_resimplify && (count <? max_function_simplify_run)
-              then run fuel outer_dacc new_code (int_add count 1)
+              then run fuel outer_dacc new_code (count + 1)
               else
                 let* outer_dacc :=
                   introduce_code outer_dacc code_id new_code_const
