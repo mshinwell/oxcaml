@@ -228,6 +228,14 @@ let prepare_variant ~params modc rname ctors place =
 let extract_inductive modc name rname ocaml_type arity ctors =
   let hidden = Sigs.later_constructors modc name in
   let is_hidden c = SS.mem c.c_name hidden in
+  if not !in_modtype
+  then
+    variants
+      := ( ocaml_type,
+           arity,
+           List.map (fun c -> Print.ocaml_name (modc @ [c.c_name])) ctors,
+           List.exists is_hidden ctors )
+         :: !variants;
   let special = List.exists (fun c -> c.c_fields <> None || is_hidden c) ctors in
   let annotated =
     if arity = 0

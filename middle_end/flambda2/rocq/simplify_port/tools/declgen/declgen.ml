@@ -127,6 +127,7 @@ let no_open ~local rocq =
 let pass scanned =
   Decl_out.index := [];
   Decl_out.left := [];
+  Decl_out.variants := [];
   Walk.emitted_now := SS.empty;
   Hashtbl.reset Decl_out.native_now;
   Hashtbl.reset Emit_types.labelled_now;
@@ -307,6 +308,12 @@ let () =
          Printf.sprintf "%s\t%s\t%s\t%s\t%s\t%s" file f (Print.ocaml_name mt)
            (Print.ocaml_name given) (rocq_modtype mt) (rocq_module given))
        !Uses.functor_arguments);
+  tsv "VARIANTS.tsv"
+    (List.map
+       (fun (ty, arity, ctors, hidden) ->
+         Printf.sprintf "%s\t%d\t%s\t%s" ty arity (String.concat " " ctors)
+           (if hidden then "a later type has one of these names" else ""))
+       !Decl_out.variants);
   tsv "NOT-DECLARED.tsv"
     (List.map (fun (o, why) -> Printf.sprintf "%s\t%s" o why) !Decl_out.left
     @ List.map

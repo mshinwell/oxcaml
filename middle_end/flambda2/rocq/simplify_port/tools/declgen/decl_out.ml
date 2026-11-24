@@ -37,6 +37,13 @@ let buf = ref (Buffer.create 65536)
 (* OCaml name, Rocq name, kind, arity, place. *)
 let index : (string * string * string * int * string) list ref = ref []
 
+(* The variants that are written as inductive types: the type in OCaml,
+   the number of its parameters, its constructors in OCaml (all of them, in
+   order), and whether a later type of its module has a constructor of the
+   same name (the strings of its directive then say the type, and OCaml
+   needs that). *)
+let variants : (string * int * string list * bool) list ref = ref []
+
 (* OCaml name, why it is not declared. *)
 let left : (string * string) list ref = ref []
 
