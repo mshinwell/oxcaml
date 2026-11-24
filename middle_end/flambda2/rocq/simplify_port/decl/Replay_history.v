@@ -52,6 +52,7 @@ Inductive replay_result (A : Type) : Type :=
 | Replayed : A -> replay_result A.
 Arguments Still_recording {A}.
 Arguments Replayed {A}.
+Extract Inductive replay_result => "Replay_history.replay_result" [ "Replay_history.Still_recording" "Replay_history.Replayed" ].
 (* replay_history.mli:90  val replay_variable_mapping : t -> Variable.t Variable.Map.t replay_result *)
 Parameter replay_variable_mapping : t -> M (replay_result (Variable_.Map.t Variable_.t)).
 Extract Inlined Constant replay_variable_mapping => "Replay_history.replay_variable_mapping".

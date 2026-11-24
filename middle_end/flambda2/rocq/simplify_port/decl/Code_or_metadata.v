@@ -30,6 +30,7 @@ Module View.
   Inductive t : Type :=
   | Code_present : Code.t -> t
   | Metadata_only : Code_metadata.t -> t.
+  Extract Inductive t => "Code_or_metadata.View.t" [ "Code_or_metadata.View.Code_present" "Code_or_metadata.View.Metadata_only" ].
 End View.
 (* code_or_metadata.mli:28  val view : t -> View.t *)
 Parameter view : t -> M Code_or_metadata.View.t.

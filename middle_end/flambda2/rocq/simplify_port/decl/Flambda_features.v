@@ -71,6 +71,7 @@ Module Inlining.
   Inductive round_or_default : Type :=
   | Round : int -> round_or_default
   | Default : Oxcaml_flags.opt_level_ -> round_or_default.
+  Extract Inductive round_or_default => "Flambda_features.Inlining.round_or_default" [ "Flambda_features.Inlining.Round" "Flambda_features.Inlining.Default" ].
   (* flambda_features.mli:149  val depth_scaling_factor : int *)
   Parameter depth_scaling_factor : int.
   Extract Inlined Constant depth_scaling_factor => "Flambda_features.Inlining.depth_scaling_factor".

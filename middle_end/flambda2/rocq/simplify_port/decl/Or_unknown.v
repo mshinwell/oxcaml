@@ -29,6 +29,7 @@ Inductive t (A : Type) : Type :=
 | Unknown : t A.
 Arguments Known {A}.
 Arguments Unknown {A}.
+Extract Inductive t => "Or_unknown.t" [ "Or_unknown.Known" "Or_unknown.Unknown" ].
 (* or_unknown.mli:23  val print : (Format.formatter -> 'a -> unit) -> Format.formatter -> 'a t -> unit *)
 Parameter print : forall {A : Type}, (Format.formatter -> A -> M unit) -> Format.formatter -> t A -> M unit.
 Extract Inlined Constant print => "Or_unknown.print".

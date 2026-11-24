@@ -29,6 +29,7 @@ Inductive simplified_named : Type :=
 | Prim : Flambda_primitive.t -> Debuginfo.t -> simplified_named
 | Set_of_closures : Flambda.Import_.Set_of_closures.t -> Alloc_mode.For_allocations.t -> simplified_named
 | Rec_info : Rec_info_expr.t -> simplified_named.
+Extract Inductive simplified_named => "Simplified_named.simplified_named" [ "Simplified_named.Simple" "Simplified_named.Prim" "Simplified_named.Set_of_closures" "Simplified_named.Rec_info" ].
 (* simplified_named.mli:27  val to_named : simplified_named -> Named.t *)
 Parameter to_named : simplified_named -> M Flambda.Import_.Named.t.
 Extract Inlined Constant to_named => "Simplified_named.to_named".
@@ -55,16 +56,9 @@ Inductive or_rewritten (A : Type) : Type :=
 | Rewritten : (Flambda.Expr.t -> M Flambda.Expr.t) -> or_rewritten A.
 Arguments Simplified {A}.
 Arguments Rewritten {A}.
+Extract Inductive or_rewritten => "Simplified_named.or_rewritten" [ "Simplified_named.Simplified" "Simplified_named.Rewritten" ].
 (* simplified_named.mli:58  type binding_to_place = | Keep_binding of { let_bound : Bound_pattern.t; simplified_defining_expr : t; original_defining_expr : Named.t option } | Delete_binding of { original_defining_expr : Named.t option } *)
-Record keep_binding_payload_ : Type := { let_bound : Bound_pattern.t; simplified_defining_expr : t; original_defining_expr : option Flambda.Import_.Named.t }.
-(* The inline record of [Delete_binding]: abstract (a name of its fields is taken, or it holds the type); [mk_Delete_binding] makes one, [match_binding_to_place] reads it. *)
-Parameter delete_binding_payload_ : Type.
 Inductive binding_to_place : Type :=
-| Keep_binding : keep_binding_payload_ -> binding_to_place
-| Delete_binding : delete_binding_payload_ -> binding_to_place.
-Parameter mk_Keep_binding : Bound_pattern.t -> t -> option Flambda.Import_.Named.t -> binding_to_place.
-Extract Inlined Constant mk_Keep_binding => "(fun x__1 x__2 x__3 -> Simplified_named.Keep_binding { let_bound = x__1; simplified_defining_expr = x__2; original_defining_expr = x__3 })".
-Parameter mk_Delete_binding : option Flambda.Import_.Named.t -> binding_to_place.
-Extract Inlined Constant mk_Delete_binding => "(fun x__1 -> Simplified_named.Delete_binding { original_defining_expr = x__1 })".
-Parameter match_binding_to_place : forall {Res : Type}, binding_to_place -> (Bound_pattern.t -> t -> option Flambda.Import_.Named.t -> M Res) -> (option Flambda.Import_.Named.t -> M Res) -> M Res.
-Extract Inlined Constant match_binding_to_place => "(fun x__0 f__1 f__2 -> match x__0 with Simplified_named.Keep_binding { let_bound = x__1; simplified_defining_expr = x__2; original_defining_expr = x__3 } -> f__1 x__1 x__2 x__3 | Simplified_named.Delete_binding { original_defining_expr = x__1 } -> f__2 x__1)".
+| Keep_binding : Bound_pattern.t -> t -> option Flambda.Import_.Named.t -> binding_to_place
+| Delete_binding : option Flambda.Import_.Named.t -> binding_to_place.
+Extract Inductive binding_to_place => "Simplified_named.binding_to_place" [ "(fun (x__1, x__2, x__3) -> (Simplified_named.Keep_binding { let_bound = x__1; simplified_defining_expr = x__2; original_defining_expr = x__3 } : Simplified_named.binding_to_place))" "(fun x__1 -> (Simplified_named.Delete_binding { original_defining_expr = x__1 } : Simplified_named.binding_to_place))" ] "(fun f__1 f__2 x__0 -> match (x__0 : Simplified_named.binding_to_place) with Simplified_named.Keep_binding { let_bound = x__1; simplified_defining_expr = x__2; original_defining_expr = x__3 } -> f__1 x__1 x__2 x__3 | Simplified_named.Delete_binding { original_defining_expr = x__1 } -> f__2 x__1)".

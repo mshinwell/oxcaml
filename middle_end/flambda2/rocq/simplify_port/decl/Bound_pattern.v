@@ -26,6 +26,7 @@ Inductive t : Type :=
 | Singleton : Bound_var.t -> t
 | Set_of_closures : list Bound_var.t -> t
 | Static : Bound_static.t -> t.
+Extract Inductive t => "Bound_pattern.t" [ "Bound_pattern.Singleton" "Bound_pattern.Set_of_closures" "Bound_pattern.Static" ].
 (* bound_pattern.mli:30  val singleton : Bound_var.t -> t *)
 Parameter singleton : Bound_var.t -> M t.
 Extract Inlined Constant singleton => "Bound_pattern.singleton".

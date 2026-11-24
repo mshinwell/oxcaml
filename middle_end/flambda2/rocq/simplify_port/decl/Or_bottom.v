@@ -28,6 +28,7 @@ Inductive t (A : Type) : Type :=
 | Bottom : t A.
 Arguments Ok {A}.
 Arguments Bottom {A}.
+Extract Inductive t => "Or_bottom.t" [ "Or_bottom.Ok" "Or_bottom.Bottom" ].
 Module Let_syntax.
   (* or_bottom.mli:34  val ( let<* ) : 'a t -> ('a -> 'b t) -> 'b t *)
   Parameter let_op_lt_star : forall {A B : Type}, Or_bottom.t A -> (A -> M (Or_bottom.t B)) -> M (Or_bottom.t B).

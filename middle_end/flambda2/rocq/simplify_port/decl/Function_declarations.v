@@ -30,8 +30,7 @@ Extract Inlined Constant t => "Function_declarations.t".
 Parameter free_names : t -> M Name_occurrences.t.
 Extract Inlined Constant free_names => "Function_declarations.free_names".
 (* function_declarations.mli:25  type code_id_in_function_declaration = | Deleted of { function_slot_size : int; dbg : Debuginfo.t } | Code_id of { code_id : Code_id.t; only_full_applications : bool } *)
-Record deleted_payload_ : Type := { function_slot_size : int; dbg : Debuginfo.t }.
-Record code_id_payload_ : Type := { code_id : Code_id.t; only_full_applications : bool }.
 Inductive code_id_in_function_declaration : Type :=
-| Deleted : deleted_payload_ -> code_id_in_function_declaration
-| Code_id : code_id_payload_ -> code_id_in_function_declaration.
+| Deleted : int -> Debuginfo.t -> code_id_in_function_declaration
+| Code_id : Code_id.t -> bool -> code_id_in_function_declaration.
+Extract Inductive code_id_in_function_declaration => "Function_declarations.code_id_in_function_declaration" [ "(fun (x__1, x__2) -> (Function_declarations.Deleted { function_slot_size = x__1; dbg = x__2 } : Function_declarations.code_id_in_function_declaration))" "(fun (x__1, x__2) -> (Function_declarations.Code_id { code_id = x__1; only_full_applications = x__2 } : Function_declarations.code_id_in_function_declaration))" ] "(fun f__1 f__2 x__0 -> match (x__0 : Function_declarations.code_id_in_function_declaration) with Function_declarations.Deleted { function_slot_size = x__1; dbg = x__2 } -> f__1 x__1 x__2 | Function_declarations.Code_id { code_id = x__1; only_full_applications = x__2 } -> f__2 x__1 x__2)".

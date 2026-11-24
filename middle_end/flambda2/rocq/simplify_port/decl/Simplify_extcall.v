@@ -23,11 +23,11 @@ From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Downwards_acc Flambda Flambda2_types Or_unknown Removed_operations.
 
 (* simplify_extcall.mli:18  type t = | Unchanged of { return_types : Flambda2_types.t list Or_unknown.t } | Specialised of Downwards_acc.t * Flambda.Expr.t * Removed_operations.t | Invalid *)
-Record unchanged_payload_ : Type := { return_types : Or_unknown.t (list Flambda2_types.t) }.
 Inductive t : Type :=
-| Unchanged : unchanged_payload_ -> t
+| Unchanged : Or_unknown.t (list Flambda2_types.t) -> t
 | Specialised : Downwards_acc.t -> Flambda.Expr.t -> Removed_operations.t -> t
 | Invalid : t.
+Extract Inductive t => "Simplify_extcall.t" [ "(fun x__1 -> (Simplify_extcall.Unchanged { return_types = x__1 } : Simplify_extcall.t))" "Simplify_extcall.Specialised" "Simplify_extcall.Invalid" ] "(fun f__1 f__2 f__3 x__0 -> match (x__0 : Simplify_extcall.t) with Simplify_extcall.Unchanged { return_types = x__1 } -> f__1 x__1 | Simplify_extcall.Specialised (x__1, x__2, x__3) -> f__2 x__1 x__2 x__3 | Simplify_extcall.Invalid -> f__3 ())".
 (* simplify_extcall.mli:23  val simplify_extcall : Downwards_acc.t -> Flambda.Apply.t -> callee_ty:Flambda2_types.t -> arg_types:Flambda2_types.t list -> t *)
 Parameter simplify_extcall : Downwards_acc.t -> Flambda.Apply.t -> Flambda2_types.t -> list Flambda2_types.t -> M t.
 Extract Inlined Constant simplify_extcall => "Simplify_extcall.simplify_extcall".

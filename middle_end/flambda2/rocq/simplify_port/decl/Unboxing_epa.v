@@ -27,12 +27,12 @@ From SimplifyPort.decl Require Apply_cont_rewrite_id Continuation_extra_params_a
 Parameter Invalid_apply_cont : exception unit.
 Extract Inlined Constant Invalid_apply_cont => "((fun () -> Unboxing_epa.Invalid_apply_cont), (function Unboxing_epa.Invalid_apply_cont -> Some () | _ -> None))".
 (* unboxing_epa.mli:22  type unboxed_arg = | Poison ( * used for recursive calls * ) | Available of Simple.t | Generated of Variable.t | Added_by_wrapper_at_rewrite_use of { nth_arg : int } *)
-Record added_by_wrapper_at_rewrite_use_payload_ : Type := { nth_arg : int }.
 Inductive unboxed_arg : Type :=
 | Poison : unboxed_arg
 | Available : Simple.t -> unboxed_arg
 | Generated : Variable_.t -> unboxed_arg
-| Added_by_wrapper_at_rewrite_use : added_by_wrapper_at_rewrite_use_payload_ -> unboxed_arg.
+| Added_by_wrapper_at_rewrite_use : int -> unboxed_arg.
+Extract Inductive unboxed_arg => "Unboxing_epa.unboxed_arg" [ "Unboxing_epa.Poison" "Unboxing_epa.Available" "Unboxing_epa.Generated" "(fun x__1 -> (Unboxing_epa.Added_by_wrapper_at_rewrite_use { nth_arg = x__1 } : Unboxing_epa.unboxed_arg))" ] "(fun f__1 f__2 f__3 f__4 x__0 -> match (x__0 : Unboxing_epa.unboxed_arg) with Unboxing_epa.Poison -> f__1 () | Unboxing_epa.Available x__1 -> f__2 x__1 | Unboxing_epa.Generated x__1 -> f__3 x__1 | Unboxing_epa.Added_by_wrapper_at_rewrite_use { nth_arg = x__1 } -> f__4 x__1)".
 (* unboxing_epa.mli:28  val compute_extra_args_for_one_decision_and_use : pass:Unboxing_types.pass -> Apply_cont_rewrite_id.t -> typing_env_at_use:Flambda2_types.Typing_env.t -> machine_width:Target_system.Machine_width.t -> unboxed_arg -> Unboxing_types.decision -> Unboxing_types.decision *)
 Parameter compute_extra_args_for_one_decision_and_use : Unboxing_types.pass -> Apply_cont_rewrite_id.t -> Flambda2_types.Typing_env.t -> Target_system.Machine_width.t -> unboxed_arg -> Unboxing_types.decision_ -> M Unboxing_types.decision_.
 Extract Inlined Constant compute_extra_args_for_one_decision_and_use => "Unboxing_epa.compute_extra_args_for_one_decision_and_use".

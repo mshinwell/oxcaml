@@ -47,17 +47,17 @@ Extract Inlined Constant bind_let_conts => "Expr_builder.bind_let_conts".
 Parameter rebuild_invalid : Upwards_acc.t -> Flambda.Invalid.t -> (Rebuilt_expr.t -> Upwards_acc.t -> M (Rebuilt_expr.t * Upwards_acc.t)) -> M (Rebuilt_expr.t * Upwards_acc.t).
 Extract Inlined Constant rebuild_invalid => "Expr_builder.rebuild_invalid".
 (* expr_builder.mli:106  type rewrite_apply_cont_result = private | Invalid of { message : string } | Apply_cont of Apply_cont.t | Expr of (apply_cont_to_expr: (Apply_cont.t -> Rebuilt_expr.t * Cost_metrics.t * Name_occurrences.t) -> Rebuilt_expr.t * Cost_metrics.t * Name_occurrences.t) *)
-Record invalid_payload_ : Type := { message : string }.
 Inductive rewrite_apply_cont_result : Type :=
-| Invalid : invalid_payload_ -> rewrite_apply_cont_result
+| Invalid : string -> rewrite_apply_cont_result
 | Apply_cont : Flambda.Import_.Apply_cont.t -> rewrite_apply_cont_result
 | Expr : ((Flambda.Import_.Apply_cont.t -> M (tuple3 Rebuilt_expr.t Cost_metrics.t Name_occurrences.t)) -> M (tuple3 Rebuilt_expr.t Cost_metrics.t Name_occurrences.t)) -> rewrite_apply_cont_result.
+Extract Inductive rewrite_apply_cont_result => "Expr_builder.rewrite_apply_cont_result" [ "(fun x__1 -> (Expr_builder.Invalid { message = x__1 } : Expr_builder.rewrite_apply_cont_result))" "(fun x__1 -> (Expr_builder.Apply_cont x__1 : Expr_builder.rewrite_apply_cont_result))" "Expr_builder.Expr" ] "(fun f__1 f__2 f__3 x__0 -> match (x__0 : Expr_builder.rewrite_apply_cont_result) with Expr_builder.Invalid { message = x__1 } -> f__1 x__1 | Expr_builder.Apply_cont x__1 -> f__2 x__1 | Expr_builder.Expr x__1 -> f__3 x__1)".
 (* expr_builder.mli:114  type rewrite_switch_arm_result = private | Invalid of { message : string } | Apply_cont of Apply_cont.t | New_wrapper of new_let_cont *)
 Inductive rewrite_switch_arm_result : Type :=
-| Invalid_ : invalid_payload_ -> rewrite_switch_arm_result
+| Invalid_ : string -> rewrite_switch_arm_result
 | Apply_cont_ : Flambda.Import_.Apply_cont.t -> rewrite_switch_arm_result
 | New_wrapper : new_let_cont -> rewrite_switch_arm_result.
-Extract Inductive rewrite_switch_arm_result => "Expr_builder.rewrite_switch_arm_result" [ "Expr_builder.Invalid" "Expr_builder.Apply_cont" "Expr_builder.New_wrapper" ].
+Extract Inductive rewrite_switch_arm_result => "Expr_builder.rewrite_switch_arm_result" [ "(fun x__1 -> (Expr_builder.Invalid { message = x__1 } : Expr_builder.rewrite_switch_arm_result))" "Expr_builder.Apply_cont" "Expr_builder.New_wrapper" ] "(fun f__1 f__2 f__3 x__0 -> match (x__0 : Expr_builder.rewrite_switch_arm_result) with Expr_builder.Invalid { message = x__1 } -> f__1 x__1 | Expr_builder.Apply_cont x__1 -> f__2 x__1 | Expr_builder.New_wrapper x__1 -> f__3 x__1)".
 (* expr_builder.mli:119  val no_rewrite_apply_cont : Upwards_env.t -> Apply_cont.t -> rewrite_apply_cont_result *)
 Parameter no_rewrite_apply_cont : Upwards_env.t -> Flambda.Import_.Apply_cont.t -> M rewrite_apply_cont_result.
 Extract Inlined Constant no_rewrite_apply_cont => "Expr_builder.no_rewrite_apply_cont".

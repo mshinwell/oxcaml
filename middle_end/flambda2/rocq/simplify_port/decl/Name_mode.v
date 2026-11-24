@@ -28,6 +28,7 @@ Inductive t : Type :=
 | Normal : t
 | Phantom : t
 | In_types : t.
+Extract Inductive t => "Name_mode.t" [ "Name_mode.Normal" "Name_mode.Phantom" "Name_mode.In_types" ].
 (* name_mode.mli:25  type name_mode = t *)
 Definition name_mode : Type := t.
 Extract Inlined Constant name_mode => "Name_mode.name_mode".
@@ -65,6 +66,7 @@ Module Or_absent.
   Inductive t : Type :=
   | Absent : t
   | Present : Name_mode.name_mode -> t.
+  Extract Inductive t => "Name_mode.Or_absent.t" [ "Name_mode.Or_absent.Absent" "Name_mode.Or_absent.Present" ].
   (* name_mode.mli:65  val absent : t *)
   Parameter absent : t.
   Extract Inlined Constant absent => "Name_mode.Or_absent.absent".

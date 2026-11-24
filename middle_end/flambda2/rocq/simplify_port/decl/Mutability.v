@@ -28,6 +28,7 @@ Inductive t : Type :=
 | Mutable : t
 | Immutable : t
 | Immutable_unique : t.
+Extract Inductive t => "Mutability.t" [ "Mutability.Mutable" "Mutability.Immutable" "Mutability.Immutable_unique" ].
 (* mutability.mli:30  val print : Format.formatter -> t -> unit *)
 Parameter print : Format.formatter -> t -> M unit.
 Extract Inlined Constant print => "Mutability.print".

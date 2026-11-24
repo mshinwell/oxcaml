@@ -25,6 +25,7 @@ From SimplifyPort.decl Require Continuation Format.
 Inductive t : Type :=
 | Do_not_loopify : t
 | Loopify : Continuation.t -> t.
+Extract Inductive t => "Loopify_state.t" [ "Loopify_state.Do_not_loopify" "Loopify_state.Loopify" ].
 (* loopify_state.mli:19  val print : Format.formatter -> t -> unit *)
 Parameter print : Format.formatter -> t -> M unit.
 Extract Inlined Constant print => "Loopify_state.print".

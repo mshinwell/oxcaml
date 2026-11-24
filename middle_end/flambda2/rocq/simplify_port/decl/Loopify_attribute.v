@@ -27,6 +27,7 @@ Inductive t : Type :=
 | Already_loopified : t
 | Default_loopify_and_tailrec : t
 | Default_loopify_and_not_tailrec : t.
+Extract Inductive t => "Loopify_attribute.t" [ "Loopify_attribute.Always_loopify" "Loopify_attribute.Never_loopify" "Loopify_attribute.Already_loopified" "Loopify_attribute.Default_loopify_and_tailrec" "Loopify_attribute.Default_loopify_and_not_tailrec" ].
 (* loopify_attribute.mli:24  val should_loopify : t -> bool *)
 Parameter should_loopify : t -> M bool.
 Extract Inlined Constant should_loopify => "Loopify_attribute.should_loopify".

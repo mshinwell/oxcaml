@@ -27,6 +27,7 @@ Module For_types.
   | Heap : t
   | Local : t
   | Heap_or_local : t.
+  Extract Inductive t => "Alloc_mode.For_types.t" [ "Alloc_mode.For_types.Heap" "Alloc_mode.For_types.Local" "Alloc_mode.For_types.Heap_or_local" ].
   (* alloc_mode.mli:28  val heap : t *)
   Parameter heap : t.
   Extract Inlined Constant heap => "Alloc_mode.For_types.heap".
@@ -36,14 +37,10 @@ Module For_types.
 End For_types.
 Module For_applications.
   (* alloc_mode.mli:47  type t = private | Not_alloc_stack of { alloc_region : Variable.t } ( ** Normal allocation on the OCaml heap. * ) | Maybe_alloc_stack of { alloc_region : Variable.t; region : Variable.t; ghost_region : Variable.t } ( ** Allocation on the local allocation stack in the given region. * ) *)
-  Record not_alloc_stack_payload_ : Type := { alloc_region : Variable_.t }.
-  (* The inline record of [Maybe_alloc_stack]: abstract (a name of its fields is taken, or it holds the type); [mk_Maybe_alloc_stack] makes one, [match_t] reads it. *)
-  Parameter maybe_alloc_stack_payload_ : Type.
   Inductive t : Type :=
-  | Not_alloc_stack : not_alloc_stack_payload_ -> t
-  | Maybe_alloc_stack : maybe_alloc_stack_payload_ -> t.
-  Parameter match_t : forall {Res : Type}, t -> (Variable_.t -> M Res) -> (Variable_.t -> Variable_.t -> Variable_.t -> M Res) -> M Res.
-  Extract Inlined Constant match_t => "(fun x__0 f__1 f__2 -> match x__0 with Alloc_mode.For_applications.Not_alloc_stack { alloc_region = x__1 } -> f__1 x__1 | Alloc_mode.For_applications.Maybe_alloc_stack { alloc_region = x__1; region = x__2; ghost_region = x__3 } -> f__2 x__1 x__2 x__3)".
+  | Not_alloc_stack : Variable_.t -> t
+  | Maybe_alloc_stack : Variable_.t -> Variable_.t -> Variable_.t -> t.
+  Extract Inductive t => "Alloc_mode.For_applications.t" [ "(fun x__1 -> (Alloc_mode.For_applications.Not_alloc_stack { alloc_region = x__1 } : Alloc_mode.For_applications.t))" "(fun (x__1, x__2, x__3) -> (Alloc_mode.For_applications.Maybe_alloc_stack { alloc_region = x__1; region = x__2; ghost_region = x__3 } : Alloc_mode.For_applications.t))" ] "(fun f__1 f__2 x__0 -> match (x__0 : Alloc_mode.For_applications.t) with Alloc_mode.For_applications.Not_alloc_stack { alloc_region = x__1 } -> f__1 x__1 | Alloc_mode.For_applications.Maybe_alloc_stack { alloc_region = x__1; region = x__2; ghost_region = x__3 } -> f__2 x__1 x__2 x__3)".
   (* alloc_mode.mli:58  val not_alloc_stack : alloc_region:Variable.t -> t *)
   Parameter not_alloc_stack : Variable_.t -> M t.
   Extract Inlined Constant not_alloc_stack => "Alloc_mode.For_applications.not_alloc_stack".
@@ -54,8 +51,8 @@ Module For_applications.
   Parameter as_type : t -> M Alloc_mode.For_types.t.
   Extract Inlined Constant as_type => "Alloc_mode.For_applications.as_type".
   (* alloc_mode.mli:73  val alloc_region : t -> Variable.t *)
-  Parameter alloc_region_ : t -> M Variable_.t.
-  Extract Inlined Constant alloc_region_ => "Alloc_mode.For_applications.alloc_region".
+  Parameter alloc_region : t -> M Variable_.t.
+  Extract Inlined Constant alloc_region => "Alloc_mode.For_applications.alloc_region".
   (* alloc_mode.mli:79  include Bindable.S with type t := t *)
   Parameter free_names : t -> M Name_occurrences.t.
   Extract Inlined Constant free_names => "Alloc_mode.For_applications.free_names".
@@ -65,14 +62,10 @@ Module For_applications.
 End For_applications.
 Module For_allocations.
   (* alloc_mode.mli:84  type t = private | Heap of { alloc_region : Variable.t } ( ** Normal allocation on the OCaml heap. * ) | Local of { alloc_region : Variable.t; region : Variable.t } ( ** Allocation on the local allocation stack in the given region. * ) *)
-  Record heap_payload_ : Type := { alloc_region : Variable_.t }.
-  (* The inline record of [Local]: abstract (a name of its fields is taken, or it holds the type); [mk_Local] makes one, [match_t] reads it. *)
-  Parameter local_payload_ : Type.
   Inductive t : Type :=
-  | Heap : heap_payload_ -> t
-  | Local : local_payload_ -> t.
-  Parameter match_t : forall {Res : Type}, t -> (Variable_.t -> M Res) -> (Variable_.t -> Variable_.t -> M Res) -> M Res.
-  Extract Inlined Constant match_t => "(fun x__0 f__1 f__2 -> match x__0 with Alloc_mode.For_allocations.Heap { alloc_region = x__1 } -> f__1 x__1 | Alloc_mode.For_allocations.Local { alloc_region = x__1; region = x__2 } -> f__2 x__1 x__2)".
+  | Heap : Variable_.t -> t
+  | Local : Variable_.t -> Variable_.t -> t.
+  Extract Inductive t => "Alloc_mode.For_allocations.t" [ "(fun x__1 -> (Alloc_mode.For_allocations.Heap { alloc_region = x__1 } : Alloc_mode.For_allocations.t))" "(fun (x__1, x__2) -> (Alloc_mode.For_allocations.Local { alloc_region = x__1; region = x__2 } : Alloc_mode.For_allocations.t))" ] "(fun f__1 f__2 x__0 -> match (x__0 : Alloc_mode.For_allocations.t) with Alloc_mode.For_allocations.Heap { alloc_region = x__1 } -> f__1 x__1 | Alloc_mode.For_allocations.Local { alloc_region = x__1; region = x__2 } -> f__2 x__1 x__2)".
   (* alloc_mode.mli:96  val heap : alloc_region:Variable.t -> t *)
   Parameter heap : Variable_.t -> M t.
   Extract Inlined Constant heap => "Alloc_mode.For_allocations.heap".

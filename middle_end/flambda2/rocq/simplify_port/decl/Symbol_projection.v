@@ -23,11 +23,10 @@ From SimplifyPort.decl Require Flambda_kind Format Function_slot Name_occurrence
 
 Module Projection.
   (* symbol_projection.mli:16  type t = private | Block_load of { index : Target_ocaml_int.t; block_shape : Flambda_kind.Block_shape.t } | Project_value_slot of { project_from : Function_slot.t; value_slot : Value_slot.t } *)
-  Record block_load_payload_ : Type := { index : Target_ocaml_int.t; block_shape : Flambda_kind.Block_shape.t }.
-  Record project_value_slot_payload_ : Type := { project_from : Function_slot.t; value_slot : Value_slot.t }.
   Inductive t : Type :=
-  | Block_load : block_load_payload_ -> t
-  | Project_value_slot : project_value_slot_payload_ -> t.
+  | Block_load : Target_ocaml_int.t -> Flambda_kind.Block_shape.t -> t
+  | Project_value_slot : Function_slot.t -> Value_slot.t -> t.
+  Extract Inductive t => "Symbol_projection.Projection.t" [ "(fun (x__1, x__2) -> (Symbol_projection.Projection.Block_load { index = x__1; block_shape = x__2 } : Symbol_projection.Projection.t))" "(fun (x__1, x__2) -> (Symbol_projection.Projection.Project_value_slot { project_from = x__1; value_slot = x__2 } : Symbol_projection.Projection.t))" ] "(fun f__1 f__2 x__0 -> match (x__0 : Symbol_projection.Projection.t) with Symbol_projection.Projection.Block_load { index = x__1; block_shape = x__2 } -> f__1 x__1 x__2 | Symbol_projection.Projection.Project_value_slot { project_from = x__1; value_slot = x__2 } -> f__2 x__1 x__2)".
   (* symbol_projection.mli:26  val block_load : index:Target_ocaml_int.t -> block_shape:Flambda_kind.Block_shape.t -> t *)
   Parameter block_load : Target_ocaml_int.t -> Flambda_kind.Block_shape.t -> M t.
   Extract Inlined Constant block_load => "Symbol_projection.Projection.block_load".

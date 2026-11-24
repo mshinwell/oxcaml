@@ -29,3 +29,4 @@ Inductive t : Type :=
 | Never_inline : t
 | Unroll : int -> t
 | Default_inline : t.
+Extract Inductive t => "Inline_attribute.t" [ "Inline_attribute.Always_inline" "Inline_attribute.Available_inline" "Inline_attribute.Never_inline" "Inline_attribute.Unroll" "Inline_attribute.Default_inline" ].

@@ -217,6 +217,7 @@ Module Sort.
   | Return : t
   | Define_root_symbol : t
   | Toplevel_return : t.
+  Extract Inductive t => "Continuation.Sort.t" [ "Continuation.Sort.Normal_or_exn" "Continuation.Sort.Return" "Continuation.Sort.Define_root_symbol" "Continuation.Sort.Toplevel_return" ].
 End Sort.
 (* continuation.mli:39  val create : ?sort:Sort.t -> ?name:string -> unit -> t *)
 Parameter create : option Continuation.Sort.t -> option string -> unit -> M t.

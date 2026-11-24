@@ -3,145 +3,26 @@
 ( lsl )	Stdlib_.lsl	value	2	stdlib/stdlib.mli
 ( lsr )	Stdlib_.lsr	value	2	stdlib/stdlib.mli
 ( mod )	Stdlib_.mod_	value	2	stdlib/stdlib.mli
-(fun x__1 -> Continuation_in_env.Invalid { arity = x__1 })	Continuation_in_env.mk_Invalid	maker	1	continuation_in_env.mli:17
-(fun x__1 -> Continuation_in_env.Non_inlinable_non_zero_arity { arity = x__1 })	Continuation_in_env.mk_Non_inlinable_non_zero_arity	maker	1	continuation_in_env.mli:17
-(fun x__1 -> Continuation_in_env.Non_inlinable_zero_arity { handler = x__1 })	Continuation_in_env.mk_Non_inlinable_zero_arity	maker	1	continuation_in_env.mli:17
-(fun x__1 -> Continuation_in_env.Toplevel_or_function_return_or_exn_continuation { arity = x__1 })	Continuation_in_env.mk_Toplevel_or_function_return_or_exn_continuation	maker	1	continuation_in_env.mli:17
 (fun x__1 -> Flambda_arity.Component_for_creation.Singleton x__1)	Flambda_arity.Component_for_creation.mk_Singleton	maker	1	flambda_arity.mli:36
 (fun x__1 -> Flambda_arity.Component_for_creation.Unboxed_product x__1)	Flambda_arity.Component_for_creation.mk_Unboxed_product	maker	1	flambda_arity.mli:36
-(fun x__1 -> Flambda_primitive.Array_length x__1)	Flambda_primitive.mk_Array_length	maker	1	flambda_primitive.mli:422
-(fun x__1 -> Flambda_primitive.Bigarray_get_alignment x__1)	Flambda_primitive.mk_Bigarray_get_alignment	maker	1	flambda_primitive.mli:558
-(fun x__1 -> Flambda_primitive.Bigarray_length { dimension = x__1 })	Flambda_primitive.mk_Bigarray_length	maker	1	flambda_primitive.mli:422
-(fun x__1 -> Flambda_primitive.Block_access_kind.Naked_floats { size = x__1 })	Flambda_primitive.Block_access_kind.mk_Naked_floats	maker	1	flambda_primitive.mli:230
-(fun x__1 -> Flambda_primitive.End_region { ghost = x__1 })	Flambda_primitive.mk_End_region	maker	1	flambda_primitive.mli:422
-(fun x__1 -> Flambda_primitive.End_try_region { ghost = x__1 })	Flambda_primitive.mk_End_try_region	maker	1	flambda_primitive.mli:422
-(fun x__1 -> Flambda_primitive.Int_as_pointer x__1)	Flambda_primitive.mk_Int_as_pointer	maker	1	flambda_primitive.mli:422
-(fun x__1 -> Flambda_primitive.Is_int { variant_only = x__1 })	Flambda_primitive.mk_Is_int	maker	1	flambda_primitive.mli:422
-(fun x__1 -> Flambda_primitive.Obj_dup { alloc_region = x__1 })	Flambda_primitive.mk_Obj_dup	maker	1	flambda_primitive.mli:422
-(fun x__1 -> Flambda_primitive.Peek x__1)	Flambda_primitive.mk_Peek	maker	1	flambda_primitive.mli:422
-(fun x__1 -> Flambda_primitive.Phys_equal x__1)	Flambda_primitive.mk_Phys_equal	maker	1	flambda_primitive.mli:558
-(fun x__1 -> Flambda_primitive.Poke x__1)	Flambda_primitive.mk_Poke	maker	1	flambda_primitive.mli:558
-(fun x__1 -> Flambda_primitive.Reinterpret_64_bit_word x__1)	Flambda_primitive.mk_Reinterpret_64_bit_word	maker	1	flambda_primitive.mli:422
-(fun x__1 -> Flambda_primitive.String_length x__1)	Flambda_primitive.mk_String_length	maker	1	flambda_primitive.mli:422
-(fun x__1 -> Flambda_primitive.Unbox_number x__1)	Flambda_primitive.mk_Unbox_number	maker	1	flambda_primitive.mli:422
-(fun x__1 -> Flow_types.Mutable_prim.Get_tag x__1)	Flow_types.Mutable_prim.mk_Get_tag	maker	1	flow_types.mli:39
-(fun x__1 -> Flow_types.Mutable_prim.Is_int x__1)	Flow_types.Mutable_prim.mk_Is_int	maker	1	flow_types.mli:39
-(fun x__1 -> Function_decl_inlining_decision_type.Function_body_too_large x__1)	Function_decl_inlining_decision_type.mk_Function_body_too_large	maker	1	function_decl_inlining_decision_type.mli:17
-(fun x__1 -> Function_decl_inlining_decision_type.Functor_body_too_large x__1)	Function_decl_inlining_decision_type.mk_Functor_body_too_large	maker	1	function_decl_inlining_decision_type.mli:17
-(fun x__1 -> Simplified_named.Delete_binding { original_defining_expr = x__1 })	Simplified_named.mk_Delete_binding	maker	1	simplified_named.mli:58
-(fun x__1 -> Trap_action.Push { exn_handler = x__1 })	Trap_action.mk_Push	maker	1	trap_action.mli:37
-(fun x__1 -> Warnings.Ambiguous_var_in_pattern_guard x__1)	Warnings.mk_Ambiguous_var_in_pattern_guard	maker	1	warnings.mli:61
-(fun x__1 -> Warnings.Bad_module_name x__1)	Warnings.mk_Bad_module_name	maker	1	warnings.mli:61
-(fun x__1 -> Warnings.Disambiguated_name x__1)	Warnings.mk_Disambiguated_name	maker	1	warnings.mli:61
-(fun x__1 -> Warnings.Duplicated_attribute x__1)	Warnings.mk_Duplicated_attribute	maker	1	warnings.mli:61
-(fun x__1 -> Warnings.Eliminated_optional_arguments x__1)	Warnings.mk_Eliminated_optional_arguments	maker	1	warnings.mli:61
-(fun x__1 -> Warnings.Erroneous_printed_signature x__1)	Warnings.mk_Erroneous_printed_signature	maker	1	warnings.mli:61
-(fun x__1 -> Warnings.Fragile_match x__1)	Warnings.mk_Fragile_match	maker	1	warnings.mli:61
-(fun x__1 -> Warnings.Implicit_public_methods x__1)	Warnings.mk_Implicit_public_methods	maker	1	warnings.mli:61
-(fun x__1 -> Warnings.Incompatible_with_upstream x__1)	Warnings.mk_Incompatible_with_upstream	maker	1	warnings.mli:61
-(fun x__1 -> Warnings.Inlining_impossible x__1)	Warnings.mk_Inlining_impossible	maker	1	warnings.mli:61
-(fun x__1 -> Warnings.Instance_variable_override x__1)	Warnings.mk_Instance_variable_override	maker	1	warnings.mli:61
-(fun x__1 -> Warnings.Labels_omitted x__1)	Warnings.mk_Labels_omitted	maker	1	warnings.mli:61
-(fun x__1 -> Warnings.Method_override x__1)	Warnings.mk_Method_override	maker	1	warnings.mli:61
-(fun x__1 -> Warnings.Misplaced_attribute x__1)	Warnings.mk_Misplaced_attribute	maker	1	warnings.mli:61
-(fun x__1 -> Warnings.Non_principal_labels x__1)	Warnings.mk_Non_principal_labels	maker	1	warnings.mli:61
-(fun x__1 -> Warnings.Nonoptional_label x__1)	Warnings.mk_Nonoptional_label	maker	1	warnings.mli:61
-(fun x__1 -> Warnings.Not_principal x__1)	Warnings.mk_Not_principal	maker	1	warnings.mli:61
-(fun x__1 -> Warnings.Partial_match x__1)	Warnings.mk_Partial_match	maker	1	warnings.mli:61
-(fun x__1 -> Warnings.Preprocessor x__1)	Warnings.mk_Preprocessor	maker	1	warnings.mli:61
-(fun x__1 -> Warnings.Probe_name_too_long x__1)	Warnings.mk_Probe_name_too_long	maker	1	warnings.mli:61
-(fun x__1 -> Warnings.Redefining_unit x__1)	Warnings.mk_Redefining_unit	maker	1	warnings.mli:61
-(fun x__1 -> Warnings.Redundant_kind_modifier x__1)	Warnings.mk_Redundant_kind_modifier	maker	1	warnings.mli:61
-(fun x__1 -> Warnings.Unboxable_type_in_prim_decl x__1)	Warnings.mk_Unboxable_type_in_prim_decl	maker	1	warnings.mli:61
-(fun x__1 -> Warnings.Undeclared_virtual_method x__1)	Warnings.mk_Undeclared_virtual_method	maker	1	warnings.mli:61
-(fun x__1 -> Warnings.Unexpected_docstring x__1)	Warnings.mk_Unexpected_docstring	maker	1	warnings.mli:61
-(fun x__1 -> Warnings.Unmutated_mutable x__1)	Warnings.mk_Unmutated_mutable	maker	1	warnings.mli:61
-(fun x__1 -> Warnings.Unused_alert_disable x__1)	Warnings.mk_Unused_alert_disable	maker	1	warnings.mli:61
-(fun x__1 -> Warnings.Unused_ancestor x__1)	Warnings.mk_Unused_ancestor	maker	1	warnings.mli:61
-(fun x__1 -> Warnings.Unused_for_index x__1)	Warnings.mk_Unused_for_index	maker	1	warnings.mli:61
-(fun x__1 -> Warnings.Unused_functor_parameter x__1)	Warnings.mk_Unused_functor_parameter	maker	1	warnings.mli:61
-(fun x__1 -> Warnings.Unused_kind_declaration x__1)	Warnings.mk_Unused_kind_declaration	maker	1	warnings.mli:61
-(fun x__1 -> Warnings.Unused_module x__1)	Warnings.mk_Unused_module	maker	1	warnings.mli:61
-(fun x__1 -> Warnings.Unused_open x__1)	Warnings.mk_Unused_open	maker	1	warnings.mli:61
-(fun x__1 -> Warnings.Unused_open_bang x__1)	Warnings.mk_Unused_open_bang	maker	1	warnings.mli:61
-(fun x__1 -> Warnings.Unused_value_declaration x__1)	Warnings.mk_Unused_value_declaration	maker	1	warnings.mli:61
-(fun x__1 -> Warnings.Useless_record_with x__1)	Warnings.mk_Useless_record_with	maker	1	warnings.mli:61
-(fun x__1 -> Warnings.Wrong_tailcall_expectation x__1)	Warnings.mk_Wrong_tailcall_expectation	maker	1	warnings.mli:61
-(fun x__1 -> Warnings.Zero_alloc_all_hidden_arrow x__1)	Warnings.mk_Zero_alloc_all_hidden_arrow	maker	1	warnings.mli:61
-(fun x__1 x__2 -> Flambda_primitive.Atomic_load (x__1, x__2))	Flambda_primitive.mk_Atomic_load	maker	2	flambda_primitive.mli:558
-(fun x__1 x__2 -> Flambda_primitive.Box_number (x__1, x__2))	Flambda_primitive.mk_Box_number	maker	2	flambda_primitive.mli:422
-(fun x__1 x__2 -> Flambda_primitive.Duplicate_block { kind = x__1; alloc_region = x__2 })	Flambda_primitive.mk_Duplicate_block	maker	2	flambda_primitive.mli:422
-(fun x__1 x__2 -> Flambda_primitive.Float_arith (x__1, x__2))	Flambda_primitive.mk_Float_arith	maker	2	flambda_primitive.mli:422
-(fun x__1 x__2 -> Flambda_primitive.Float_arith (x__1, x__2))	Flambda_primitive.mk_Float_arith_	maker	2	flambda_primitive.mli:558
-(fun x__1 x__2 -> Flambda_primitive.Float_comp (x__1, x__2))	Flambda_primitive.mk_Float_comp	maker	2	flambda_primitive.mli:558
-(fun x__1 x__2 -> Flambda_primitive.Int_arith (x__1, x__2))	Flambda_primitive.mk_Int_arith	maker	2	flambda_primitive.mli:422
-(fun x__1 x__2 -> Flambda_primitive.Int_arith (x__1, x__2))	Flambda_primitive.mk_Int_arith_	maker	2	flambda_primitive.mli:558
-(fun x__1 x__2 -> Flambda_primitive.Int_comp (x__1, x__2))	Flambda_primitive.mk_Int_comp	maker	2	flambda_primitive.mli:558
-(fun x__1 x__2 -> Flambda_primitive.Int_shift (x__1, x__2))	Flambda_primitive.mk_Int_shift	maker	2	flambda_primitive.mli:558
-(fun x__1 x__2 -> Flambda_primitive.Make_lazy { lazy_tag = x__1; alloc_region = x__2 })	Flambda_primitive.mk_Make_lazy	maker	2	flambda_primitive.mli:422
-(fun x__1 x__2 -> Flambda_primitive.Num_conv { src = x__1; dst = x__2 })	Flambda_primitive.mk_Num_conv	maker	2	flambda_primitive.mli:422
-(fun x__1 x__2 -> Flambda_primitive.Opaque_identity { middle_end_only = x__1; kind = x__2 })	Flambda_primitive.mk_Opaque_identity	maker	2	flambda_primitive.mli:422
-(fun x__1 x__2 -> Flambda_primitive.Project_function_slot { move_from = x__1; move_to = x__2 })	Flambda_primitive.mk_Project_function_slot	maker	2	flambda_primitive.mli:422
-(fun x__1 x__2 -> Flambda_primitive.Project_value_slot { project_from = x__1; value_slot = x__2 })	Flambda_primitive.mk_Project_value_slot	maker	2	flambda_primitive.mli:422
-(fun x__1 x__2 -> Flambda_primitive.Read_offset (x__1, x__2))	Flambda_primitive.mk_Read_offset	maker	2	flambda_primitive.mli:558
-(fun x__1 x__2 -> Flambda_primitive.String_or_bigstring_load (x__1, x__2))	Flambda_primitive.mk_String_or_bigstring_load	maker	2	flambda_primitive.mli:558
-(fun x__1 x__2 -> Function_decl_inlining_decision_type.Small_function { size = x__1; small_function_size = x__2 })	Function_decl_inlining_decision_type.mk_Small_function	maker	2	function_decl_inlining_decision_type.mli:17
-(fun x__1 x__2 -> Function_decl_inlining_decision_type.Small_functor { size = x__1; small_functor_size = x__2 })	Function_decl_inlining_decision_type.mk_Small_functor	maker	2	function_decl_inlining_decision_type.mli:17
-(fun x__1 x__2 -> Trap_action.Pop { exn_handler = x__1; raise_kind = x__2 })	Trap_action.mk_Pop	maker	2	trap_action.mli:37
-(fun x__1 x__2 -> Unboxing_types.At_least_one { is_int = x__1; ctor = x__2 })	Unboxing_types.mk_At_least_one	maker	2	unboxing_types.mli:72
-(fun x__1 x__2 -> Unboxing_types.Closure_single_entry { function_slot = x__1; vars_within_closure = x__2 })	Unboxing_types.mk_Closure_single_entry	maker	2	unboxing_types.mli:46
-(fun x__1 x__2 -> Unboxing_types.Number (x__1, x__2))	Unboxing_types.mk_Number	maker	2	unboxing_types.mli:46
-(fun x__1 x__2 -> Warnings.Attribute_payload (x__1, x__2))	Warnings.mk_Attribute_payload	maker	2	warnings.mli:61
-(fun x__1 x__2 -> Warnings.Bad_env_variable (x__1, x__2))	Warnings.mk_Bad_env_variable	maker	2	warnings.mli:61
-(fun x__1 x__2 -> Warnings.Ignored_kind_modifier { modifier = x__1; abbrev = x__2 })	Warnings.mk_Ignored_kind_modifier	maker	2	warnings.mli:61
-(fun x__1 x__2 -> Warnings.Implied_attribute { implying = x__1; implied = x__2 })	Warnings.mk_Implied_attribute	maker	2	warnings.mli:61
-(fun x__1 x__2 -> Warnings.Missing_record_field_pattern { form = x__1; unbound = x__2 })	Warnings.mk_Missing_record_field_pattern	maker	2	warnings.mli:61
-(fun x__1 x__2 -> Warnings.Name_out_of_scope (x__1, x__2))	Warnings.mk_Name_out_of_scope	maker	2	warnings.mli:61
-(fun x__1 x__2 -> Warnings.No_cmi_file (x__1, x__2))	Warnings.mk_No_cmi_file	maker	2	warnings.mli:61
-(fun x__1 x__2 -> Warnings.No_cmx_file { missing_extension = x__1; module_name = x__2 })	Warnings.mk_No_cmx_file	maker	2	warnings.mli:61
-(fun x__1 x__2 -> Warnings.Open_shadow_identifier (x__1, x__2))	Warnings.mk_Open_shadow_identifier	maker	2	warnings.mli:61
-(fun x__1 x__2 -> Warnings.Open_shadow_label_constructor (x__1, x__2))	Warnings.mk_Open_shadow_label_constructor	maker	2	warnings.mli:61
-(fun x__1 x__2 -> Warnings.Redundant_modifier { modifier = x__1; reason = x__2 })	Warnings.mk_Redundant_modifier	maker	2	warnings.mli:61
-(fun x__1 x__2 -> Warnings.Unused_constructor (x__1, x__2))	Warnings.mk_Unused_constructor	maker	2	warnings.mli:61
-(fun x__1 x__2 -> Warnings.Unused_type_declaration (x__1, x__2))	Warnings.mk_Unused_type_declaration	maker	2	warnings.mli:61
-(fun x__1 x__2 -> Warnings.Unused_var { name = x__1; mutated = x__2 })	Warnings.mk_Unused_var	maker	2	warnings.mli:61
-(fun x__1 x__2 -> Warnings.Unused_var_strict { name = x__1; mutated = x__2 })	Warnings.mk_Unused_var_strict	maker	2	warnings.mli:61
-(fun x__1 x__2 x__3 -> Flambda_primitive.Array_load (x__1, x__2, x__3))	Flambda_primitive.mk_Array_load	maker	3	flambda_primitive.mli:558
-(fun x__1 x__2 x__3 -> Flambda_primitive.Bigarray_load (x__1, x__2, x__3))	Flambda_primitive.mk_Bigarray_load	maker	3	flambda_primitive.mli:558
-(fun x__1 x__2 x__3 -> Flambda_primitive.Block_access_kind.Values { tag = x__1; size = x__2; field_kind = x__3 })	Flambda_primitive.Block_access_kind.mk_Values	maker	3	flambda_primitive.mli:230
-(fun x__1 x__2 x__3 -> Flambda_primitive.Block_load { kind = x__1; mut = x__2; field = x__3 })	Flambda_primitive.mk_Block_load	maker	3	flambda_primitive.mli:422
-(fun x__1 x__2 x__3 -> Flambda_primitive.Block_set { kind = x__1; init = x__2; field = x__3 })	Flambda_primitive.mk_Block_set	maker	3	flambda_primitive.mli:558
-(fun x__1 x__2 x__3 -> Function_decl_inlining_decision_type.Speculatively_inlinable { size = x__1; small_function_size = x__2; large_function_size = x__3 })	Function_decl_inlining_decision_type.mk_Speculatively_inlinable	maker	3	function_decl_inlining_decision_type.mli:17
-(fun x__1 x__2 x__3 -> Function_decl_inlining_decision_type.Speculatively_inlinable_functor { size = x__1; small_functor_size = x__2; large_functor_size = x__3 })	Function_decl_inlining_decision_type.mk_Speculatively_inlinable_functor	maker	3	function_decl_inlining_decision_type.mli:17
-(fun x__1 x__2 x__3 -> Simplified_named.Keep_binding { let_bound = x__1; simplified_defining_expr = x__2; original_defining_expr = x__3 })	Simplified_named.mk_Keep_binding	maker	3	simplified_named.mli:58
-(fun x__1 x__2 x__3 -> Unboxing_types.Unique_tag_and_size { tag = x__1; shape = x__2; fields = x__3 })	Unboxing_types.mk_Unique_tag_and_size	maker	3	unboxing_types.mli:46
-(fun x__1 x__2 x__3 -> Unboxing_types.Variant { tag = x__1; const_ctors = x__2; fields_by_tag = x__3 })	Unboxing_types.mk_Variant	maker	3	unboxing_types.mli:46
-(fun x__1 x__2 x__3 -> Warnings.Imprecise_kind_annotation { name = x__1; annotated = x__2; inferred = x__3 })	Warnings.mk_Imprecise_kind_annotation	maker	3	warnings.mli:61
-(fun x__1 x__2 x__3 -> Warnings.Unused_extension (x__1, x__2, x__3))	Warnings.mk_Unused_extension	maker	3	warnings.mli:61
-(fun x__1 x__2 x__3 -> Warnings.Unused_field { form = x__1; field = x__2; complaint = x__3 })	Warnings.mk_Unused_field	maker	3	warnings.mli:61
 (fun x__1 x__2 x__3 -> { Unboxing_types.epa = x__1; decision = x__2; kind = x__3 })	Unboxing_types.mk_field_decision	maker	3	unboxing_types.mli:66
-(fun x__1 x__2 x__3 x__4 -> Continuation_in_env.Linearly_used_and_inlinable { params = x__1; handler = x__2; free_names_of_handler = x__3; cost_metrics_of_handler = x__4 })	Continuation_in_env.mk_Linearly_used_and_inlinable	maker	4	continuation_in_env.mli:17
-(fun x__1 x__2 x__3 x__4 -> Flambda_primitive.Block_access_kind.Mixed { tag = x__1; size = x__2; field_kind = x__3; shape = x__4 })	Flambda_primitive.Block_access_kind.mk_Mixed	maker	4	flambda_primitive.mli:230
-(fun x__1 x__2 x__3 x__4 -> Flambda_primitive.Duplicate_array { kind = x__1; source_mutability = x__2; destination_mutability = x__3; alloc_region = x__4 })	Flambda_primitive.mk_Duplicate_array	maker	4	flambda_primitive.mli:422
-(fun x__1 x__2 x__3 x__4 -> Flow_types.Mutable_prim.Block_load { bak = x__1; mut = x__2; block = x__3; field = x__4 })	Flow_types.Mutable_prim.mk_Block_load	maker	4	flow_types.mli:39
-(fun x__1 x__2 x__3 x__4 -> Flow_types.Mutable_prim.Block_set { bak = x__1; block = x__2; field = x__3; value = x__4 })	Flow_types.Mutable_prim.mk_Block_set	maker	4	flow_types.mli:39
-(fun x__1 x__2 x__3 x__4 -> Flow_types.Mutable_prim.Make_block { kind = x__1; mut = x__2; alloc_mode = x__3; fields = x__4 })	Flow_types.Mutable_prim.mk_Make_block	maker	4	flow_types.mli:39
-(fun x__1 x__2 x__3 x__4 -> Lambda.Assume { strict = x__1; never_returns_normally = x__2; never_raises = x__3; loc = x__4 })	Lambda.mk_Assume	maker	4	lambda.mli:860
-(fun x__1 x__2 x__3 x__4 -> Lambda.Check { strict = x__1; loc = x__2; custom_error_msg = x__3; partial = x__4 })	Lambda.mk_Check	maker	4	lambda.mli:860
-(fun x__1 x__2 x__3 x__4 -> Warnings.Ambiguous_name (x__1, x__2, x__3, x__4))	Warnings.mk_Ambiguous_name	maker	4	warnings.mli:61
-(fun x__1 x__2 x__3 x__4 -> Warnings.Duplicate_definitions (x__1, x__2, x__3, x__4))	Warnings.mk_Duplicate_definitions	maker	4	warnings.mli:61
 (fun x__1 x__2 x__3 x__4 -> { Simplified_expr.at_unit_toplevel = x__1; handlers_from_the_outside_to_the_inside = x__2; original_invariant_params = x__3; invariant_extra_params = x__4 })	Simplified_expr.mk_simplified_let_cont_handlers	maker	4	simplified_expr.mli:81
 (fun x__1 x__2 x__3 x__4 x__5 x__6 x__7 -> { Simplified_expr.params = x__1; simplified_handler = x__2; is_exn_handler = x__3; is_cold = x__4; extra_params_and_args = x__5; invariant_extra_params_and_args = x__6; rewrite_ids = x__7 })	Simplified_expr.mk_simplified_handler_	maker	7	simplified_expr.mli:59
 Alloc_mode.For_allocations.Heap	Alloc_mode.For_allocations.Heap	constructor	1	alloc_mode.mli:84
+Alloc_mode.For_allocations.Heap { alloc_region }	Alloc_mode.For_allocations.Heap, argument 1	inline field	0	alloc_mode.mli:84
 Alloc_mode.For_allocations.Local	Alloc_mode.For_allocations.Local	constructor	2	alloc_mode.mli:84
-Alloc_mode.For_allocations.alloc_region	Alloc_mode.For_allocations.alloc_region	field	0	alloc_mode.mli:84
+Alloc_mode.For_allocations.Local { alloc_region }	Alloc_mode.For_allocations.Local, argument 1	inline field	0	alloc_mode.mli:84
+Alloc_mode.For_allocations.Local { region }	Alloc_mode.For_allocations.Local, argument 2	inline field	0	alloc_mode.mli:84
 Alloc_mode.For_allocations.as_type	Alloc_mode.For_allocations.as_type	value	1	alloc_mode.mli:101
 Alloc_mode.For_allocations.heap	Alloc_mode.For_allocations.heap	value	1	alloc_mode.mli:96
 Alloc_mode.For_allocations.local	Alloc_mode.For_allocations.local	value	2	alloc_mode.mli:99
 Alloc_mode.For_applications.Maybe_alloc_stack	Alloc_mode.For_applications.Maybe_alloc_stack	constructor	3	alloc_mode.mli:47
+Alloc_mode.For_applications.Maybe_alloc_stack { alloc_region }	Alloc_mode.For_applications.Maybe_alloc_stack, argument 1	inline field	0	alloc_mode.mli:47
+Alloc_mode.For_applications.Maybe_alloc_stack { ghost_region }	Alloc_mode.For_applications.Maybe_alloc_stack, argument 3	inline field	0	alloc_mode.mli:47
+Alloc_mode.For_applications.Maybe_alloc_stack { region }	Alloc_mode.For_applications.Maybe_alloc_stack, argument 2	inline field	0	alloc_mode.mli:47
 Alloc_mode.For_applications.Not_alloc_stack	Alloc_mode.For_applications.Not_alloc_stack	constructor	1	alloc_mode.mli:47
-Alloc_mode.For_applications.alloc_region	Alloc_mode.For_applications.alloc_region	field	0	alloc_mode.mli:47
-Alloc_mode.For_applications.alloc_region	Alloc_mode.For_applications.alloc_region_	value	1	alloc_mode.mli:73
+Alloc_mode.For_applications.Not_alloc_stack { alloc_region }	Alloc_mode.For_applications.Not_alloc_stack, argument 1	inline field	0	alloc_mode.mli:47
+Alloc_mode.For_applications.alloc_region	Alloc_mode.For_applications.alloc_region	value	1	alloc_mode.mli:73
 Alloc_mode.For_applications.as_type	Alloc_mode.For_applications.as_type	value	1	alloc_mode.mli:64
 Alloc_mode.For_applications.free_names	Alloc_mode.For_applications.free_names	value	1	alloc_mode.mli:79
 Alloc_mode.For_applications.maybe_alloc_stack	Alloc_mode.For_applications.maybe_alloc_stack	value	3	alloc_mode.mli:61
@@ -219,20 +100,21 @@ Apply_expr.t	Apply_expr.t	type	0	apply_expr.mli:20
 Apply_expr.with_call_kind	Apply_expr.with_call_kind	value	2	apply_expr.mli:120
 Apply_expr.with_inlined_attribute	Apply_expr.with_inlined_attribute	value	2	apply_expr.mli:134
 Are_lifting_conts.Analyzing	Are_lifting_conts.Analyzing	constructor	3	are_lifting_conts.mli:59
+Are_lifting_conts.Analyzing { continuation }	Are_lifting_conts.Analyzing, argument 1	inline field	0	are_lifting_conts.mli:59
+Are_lifting_conts.Analyzing { is_exn_handler }	Are_lifting_conts.Analyzing, argument 2	inline field	0	are_lifting_conts.mli:59
+Are_lifting_conts.Analyzing { uses }	Are_lifting_conts.Analyzing, argument 3	inline field	0	are_lifting_conts.mli:59
 Are_lifting_conts.At_toplevel	Are_lifting_conts.At_toplevel	constructor	0	are_lifting_conts.mli:51
 Are_lifting_conts.In_continuation_specialization	Are_lifting_conts.In_continuation_specialization	constructor	0	are_lifting_conts.mli:51
 Are_lifting_conts.In_inlinable_continuation	Are_lifting_conts.In_inlinable_continuation	constructor	0	are_lifting_conts.mli:51
 Are_lifting_conts.In_recursive_continuation	Are_lifting_conts.In_recursive_continuation	constructor	0	are_lifting_conts.mli:51
 Are_lifting_conts.In_speculative_inlining	Are_lifting_conts.In_speculative_inlining	constructor	0	are_lifting_conts.mli:51
 Are_lifting_conts.Lifting_out_of	Are_lifting_conts.Lifting_out_of	constructor	1	are_lifting_conts.mli:59
+Are_lifting_conts.Lifting_out_of { continuation }	Are_lifting_conts.Lifting_out_of, argument 1	inline field	0	are_lifting_conts.mli:59
 Are_lifting_conts.Not_lifting	Are_lifting_conts.Not_lifting	constructor	1	are_lifting_conts.mli:59
-Are_lifting_conts.continuation	Are_lifting_conts.continuation	field	0	are_lifting_conts.mli:59
-Are_lifting_conts.is_exn_handler	Are_lifting_conts.is_exn_handler	field	0	are_lifting_conts.mli:59
 Are_lifting_conts.lift_continuations_out_of	Are_lifting_conts.lift_continuations_out_of	value	1	are_lifting_conts.mli:80
 Are_lifting_conts.no_lifting	Are_lifting_conts.no_lifting	value	1	are_lifting_conts.mli:73
 Are_lifting_conts.print	Are_lifting_conts.print	value	2	are_lifting_conts.mli:70
 Are_lifting_conts.think_about_lifting_out_of	Are_lifting_conts.think_about_lifting_out_of	value	3	are_lifting_conts.mli:76
-Are_lifting_conts.uses	Are_lifting_conts.uses	field	0	are_lifting_conts.mli:59
 Are_rebuilding_terms.are_not_rebuilding	Are_rebuilding_terms.are_not_rebuilding	value	0	are_rebuilding_terms.mli:29
 Are_rebuilding_terms.are_rebuilding	Are_rebuilding_terms.are_rebuilding	value	0	are_rebuilding_terms.mli:27
 Are_rebuilding_terms.do_not_rebuild_terms	Are_rebuilding_terms.do_not_rebuild_terms	value	1	are_rebuilding_terms.mli:33
@@ -345,47 +227,61 @@ Branch_annotations.t	Branch_annotations.t	type	0	branch_annotations.mli:30
 Branch_annotations.with_likelihood	Branch_annotations.with_likelihood	value	2	branch_annotations.mli:46
 Build_unboxing_denv.denv_of_decision	Build_unboxing_denv.denv_of_decision	value	3	build_unboxing_denv.mli:22
 Call_kind.C_call	Call_kind.C_call	constructor	4	call_kind.mli:128
+Call_kind.C_call { coeffects }	Call_kind.C_call, argument 4	inline field	0	call_kind.mli:128
+Call_kind.C_call { effects }	Call_kind.C_call, argument 3	inline field	0	call_kind.mli:128
+Call_kind.C_call { is_c_builtin }	Call_kind.C_call, argument 2	inline field	0	call_kind.mli:128
+Call_kind.C_call { needs_caml_c_call }	Call_kind.C_call, argument 1	inline field	0	call_kind.mli:128
 Call_kind.Effect	Call_kind.Effect	constructor	1	call_kind.mli:128
 Call_kind.Effect.Continue	Call_kind.Effect.Continue	constructor	2	call_kind.mli:51
+Call_kind.Effect.Continue { cont }	Call_kind.Effect.Continue, argument 1	inline field	0	call_kind.mli:51
+Call_kind.Effect.Continue { value }	Call_kind.Effect.Continue, argument 2	inline field	0	call_kind.mli:51
 Call_kind.Effect.Discontinue	Call_kind.Effect.Discontinue	constructor	2	call_kind.mli:51
+Call_kind.Effect.Discontinue { cont }	Call_kind.Effect.Discontinue, argument 1	inline field	0	call_kind.mli:51
+Call_kind.Effect.Discontinue { exn }	Call_kind.Effect.Discontinue, argument 2	inline field	0	call_kind.mli:51
 Call_kind.Effect.Discontinue_with_backtrace	Call_kind.Effect.Discontinue_with_backtrace	constructor	3	call_kind.mli:51
+Call_kind.Effect.Discontinue_with_backtrace { bt }	Call_kind.Effect.Discontinue_with_backtrace, argument 3	inline field	0	call_kind.mli:51
+Call_kind.Effect.Discontinue_with_backtrace { cont }	Call_kind.Effect.Discontinue_with_backtrace, argument 1	inline field	0	call_kind.mli:51
+Call_kind.Effect.Discontinue_with_backtrace { exn }	Call_kind.Effect.Discontinue_with_backtrace, argument 2	inline field	0	call_kind.mli:51
 Call_kind.Effect.Perform	Call_kind.Effect.Perform	constructor	1	call_kind.mli:51
+Call_kind.Effect.Perform { eff }	Call_kind.Effect.Perform, argument 1	inline field	0	call_kind.mli:51
 Call_kind.Effect.Reperform	Call_kind.Effect.Reperform	constructor	3	call_kind.mli:51
+Call_kind.Effect.Reperform { cont }	Call_kind.Effect.Reperform, argument 2	inline field	0	call_kind.mli:51
+Call_kind.Effect.Reperform { eff }	Call_kind.Effect.Reperform, argument 1	inline field	0	call_kind.mli:51
+Call_kind.Effect.Reperform { last_fiber }	Call_kind.Effect.Reperform, argument 3	inline field	0	call_kind.mli:51
 Call_kind.Effect.With_stack	Call_kind.Effect.With_stack	constructor	5	call_kind.mli:51
+Call_kind.Effect.With_stack { arg }	Call_kind.Effect.With_stack, argument 5	inline field	0	call_kind.mli:51
+Call_kind.Effect.With_stack { effc }	Call_kind.Effect.With_stack, argument 3	inline field	0	call_kind.mli:51
+Call_kind.Effect.With_stack { exnc }	Call_kind.Effect.With_stack, argument 2	inline field	0	call_kind.mli:51
+Call_kind.Effect.With_stack { f }	Call_kind.Effect.With_stack, argument 4	inline field	0	call_kind.mli:51
+Call_kind.Effect.With_stack { valuec }	Call_kind.Effect.With_stack, argument 1	inline field	0	call_kind.mli:51
 Call_kind.Effect.With_stack_preemptible	Call_kind.Effect.With_stack_preemptible	constructor	6	call_kind.mli:51
-Call_kind.Effect.arg	Call_kind.Effect.arg	field	0	call_kind.mli:51
-Call_kind.Effect.cont	Call_kind.Effect.cont	field	0	call_kind.mli:51
+Call_kind.Effect.With_stack_preemptible { arg }	Call_kind.Effect.With_stack_preemptible, argument 6	inline field	0	call_kind.mli:51
+Call_kind.Effect.With_stack_preemptible { effc }	Call_kind.Effect.With_stack_preemptible, argument 3	inline field	0	call_kind.mli:51
+Call_kind.Effect.With_stack_preemptible { exnc }	Call_kind.Effect.With_stack_preemptible, argument 2	inline field	0	call_kind.mli:51
+Call_kind.Effect.With_stack_preemptible { f }	Call_kind.Effect.With_stack_preemptible, argument 5	inline field	0	call_kind.mli:51
+Call_kind.Effect.With_stack_preemptible { handle_tick }	Call_kind.Effect.With_stack_preemptible, argument 4	inline field	0	call_kind.mli:51
+Call_kind.Effect.With_stack_preemptible { valuec }	Call_kind.Effect.With_stack_preemptible, argument 1	inline field	0	call_kind.mli:51
 Call_kind.Effect.continue	Call_kind.Effect.continue	value	2	call_kind.mli:110
 Call_kind.Effect.discontinue	Call_kind.Effect.discontinue	value	2	call_kind.mli:112
 Call_kind.Effect.discontinue_with_backtrace	Call_kind.Effect.discontinue_with_backtrace	value	3	call_kind.mli:114
-Call_kind.Effect.eff	Call_kind.Effect.eff	field	0	call_kind.mli:51
-Call_kind.Effect.effc	Call_kind.Effect.effc	field	0	call_kind.mli:51
-Call_kind.Effect.exnc	Call_kind.Effect.exnc	field	0	call_kind.mli:51
-Call_kind.Effect.f	Call_kind.Effect.f	field	0	call_kind.mli:51
 Call_kind.Effect.perform	Call_kind.Effect.perform	value	1	call_kind.mli:89
 Call_kind.Effect.reperform	Call_kind.Effect.reperform	value	3	call_kind.mli:91
-Call_kind.Effect.value	Call_kind.Effect.value	field	0	call_kind.mli:51
-Call_kind.Effect.valuec	Call_kind.Effect.valuec	field	0	call_kind.mli:51
 Call_kind.Effect.with_stack	Call_kind.Effect.with_stack	value	5	call_kind.mli:93
 Call_kind.Effect.with_stack_preemptible	Call_kind.Effect.with_stack_preemptible	value	6	call_kind.mli:101
 Call_kind.Function	Call_kind.Function	constructor	1	call_kind.mli:128
+Call_kind.Function { function_call }	Call_kind.Function, argument 1	inline field	0	call_kind.mli:128
 Call_kind.Function_call.Direct	Call_kind.Function_call.Direct	constructor	1	call_kind.mli:20
 Call_kind.Function_call.Indirect_known_arity	Call_kind.Function_call.Indirect_known_arity	constructor	1	call_kind.mli:20
 Call_kind.Function_call.Indirect_unknown_arity	Call_kind.Function_call.Indirect_unknown_arity	constructor	0	call_kind.mli:20
 Call_kind.Function_call.indirect_known_arity	Call_kind.Function_call.indirect_known_arity	value	1	call_kind.mli:30
 Call_kind.Method	Call_kind.Method	constructor	2	call_kind.mli:128
+Call_kind.Method { kind }	Call_kind.Method, argument 1	inline field	0	call_kind.mli:128
+Call_kind.Method { obj }	Call_kind.Method, argument 2	inline field	0	call_kind.mli:128
 Call_kind.Method_kind.t	Call_kind.Method_kind.t	type	0	call_kind.mli:34
-Call_kind.coeffects	Call_kind.coeffects	field	0	call_kind.mli:128
 Call_kind.direct_function_call	Call_kind.direct_function_call	value	1	call_kind.mli:146
 Call_kind.effect_	Call_kind.effect_	value	1	call_kind.mli:162
-Call_kind.effects	Call_kind.effects	field	0	call_kind.mli:128
-Call_kind.function_call	Call_kind.function_call	field	0	call_kind.mli:128
 Call_kind.indirect_function_call_known_arity	Call_kind.indirect_function_call_known_arity	value	1	call_kind.mli:150
 Call_kind.indirect_function_call_unknown_arity	Call_kind.indirect_function_call_unknown_arity	value	0	call_kind.mli:148
-Call_kind.is_c_builtin	Call_kind.is_c_builtin	field	0	call_kind.mli:128
-Call_kind.kind	Call_kind.kind	field	0	call_kind.mli:128
-Call_kind.needs_caml_c_call	Call_kind.needs_caml_c_call	field	0	call_kind.mli:128
-Call_kind.obj	Call_kind.obj	field	0	call_kind.mli:128
 Call_site_inlining_decision.get_rec_info	Call_site_inlining_decision.get_rec_info	value	2	call_site_inlining_decision.mli:28
 Call_site_inlining_decision.make_decision	Call_site_inlining_decision.make_decision	value	6	call_site_inlining_decision.mli:19
 Call_site_inlining_decision_type.Argument_types_not_useful	Call_site_inlining_decision_type.Argument_types_not_useful	constructor	0	call_site_inlining_decision_type.mli:20
@@ -393,12 +289,16 @@ Call_site_inlining_decision_type.Attribute_always	Call_site_inlining_decision_ty
 Call_site_inlining_decision_type.Begin_unrolling	Call_site_inlining_decision_type.Begin_unrolling	constructor	1	call_site_inlining_decision_type.mli:20
 Call_site_inlining_decision_type.Continue_unrolling	Call_site_inlining_decision_type.Continue_unrolling	constructor	0	call_site_inlining_decision_type.mli:20
 Call_site_inlining_decision_type.Definition_says_inline	Call_site_inlining_decision_type.Definition_says_inline	constructor	1	call_site_inlining_decision_type.mli:20
+Call_site_inlining_decision_type.Definition_says_inline { was_inline_always }	Call_site_inlining_decision_type.Definition_says_inline, argument 1	inline field	0	call_site_inlining_decision_type.mli:20
 Call_site_inlining_decision_type.Definition_says_not_to_inline	Call_site_inlining_decision_type.Definition_says_not_to_inline	constructor	0	call_site_inlining_decision_type.mli:20
 Call_site_inlining_decision_type.Do_not_inline	Call_site_inlining_decision_type.Do_not_inline	constructor	1	call_site_inlining_decision_type.mli:54
+Call_site_inlining_decision_type.Do_not_inline { erase_attribute_if_ignored }	Call_site_inlining_decision_type.Do_not_inline, argument 1	inline field	0	call_site_inlining_decision_type.mli:54
 Call_site_inlining_decision_type.Doing_speculative_inlining	Call_site_inlining_decision_type.Doing_speculative_inlining	constructor	0	call_site_inlining_decision_type.mli:20
 Call_site_inlining_decision_type.Forward_inlined_attribute_but_nothing_to_forward	Call_site_inlining_decision_type.Forward_inlined_attribute_but_nothing_to_forward	constructor	0	call_site_inlining_decision_type.mli:20
 Call_site_inlining_decision_type.In_a_stub	Call_site_inlining_decision_type.In_a_stub	constructor	0	call_site_inlining_decision_type.mli:20
 Call_site_inlining_decision_type.Inline	Call_site_inlining_decision_type.Inline	constructor	2	call_site_inlining_decision_type.mli:54
+Call_site_inlining_decision_type.Inline { unroll_to }	Call_site_inlining_decision_type.Inline, argument 1	inline field	0	call_site_inlining_decision_type.mli:54
+Call_site_inlining_decision_type.Inline { was_inline_always }	Call_site_inlining_decision_type.Inline, argument 2	inline field	0	call_site_inlining_decision_type.mli:54
 Call_site_inlining_decision_type.Jsir_inlining_disabled	Call_site_inlining_decision_type.Jsir_inlining_disabled	constructor	0	call_site_inlining_decision_type.mli:20
 Call_site_inlining_decision_type.Max_inlining_depth_exceeded	Call_site_inlining_decision_type.Max_inlining_depth_exceeded	constructor	0	call_site_inlining_decision_type.mli:20
 Call_site_inlining_decision_type.Missing_code	Call_site_inlining_decision_type.Missing_code	constructor	0	call_site_inlining_decision_type.mli:20
@@ -406,33 +306,35 @@ Call_site_inlining_decision_type.Never_inlined_attribute	Call_site_inlining_deci
 Call_site_inlining_decision_type.Recursion_depth_exceeded	Call_site_inlining_decision_type.Recursion_depth_exceeded	constructor	0	call_site_inlining_decision_type.mli:20
 Call_site_inlining_decision_type.Replay_history_says_must_inline	Call_site_inlining_decision_type.Replay_history_says_must_inline	constructor	1	call_site_inlining_decision_type.mli:20
 Call_site_inlining_decision_type.Speculatively_inline	Call_site_inlining_decision_type.Speculatively_inline	constructor	4	call_site_inlining_decision_type.mli:20
+Call_site_inlining_decision_type.Speculatively_inline { cost_metrics }	Call_site_inlining_decision_type.Speculatively_inline, argument 1	inline field	0	call_site_inlining_decision_type.mli:20
+Call_site_inlining_decision_type.Speculatively_inline { evaluated_to }	Call_site_inlining_decision_type.Speculatively_inline, argument 2	inline field	0	call_site_inlining_decision_type.mli:20
+Call_site_inlining_decision_type.Speculatively_inline { is_a_functor }	Call_site_inlining_decision_type.Speculatively_inline, argument 4	inline field	0	call_site_inlining_decision_type.mli:20
+Call_site_inlining_decision_type.Speculatively_inline { threshold }	Call_site_inlining_decision_type.Speculatively_inline, argument 3	inline field	0	call_site_inlining_decision_type.mli:20
 Call_site_inlining_decision_type.Speculatively_not_inline	Call_site_inlining_decision_type.Speculatively_not_inline	constructor	4	call_site_inlining_decision_type.mli:20
+Call_site_inlining_decision_type.Speculatively_not_inline { cost_metrics }	Call_site_inlining_decision_type.Speculatively_not_inline, argument 1	inline field	0	call_site_inlining_decision_type.mli:20
+Call_site_inlining_decision_type.Speculatively_not_inline { evaluated_to }	Call_site_inlining_decision_type.Speculatively_not_inline, argument 2	inline field	0	call_site_inlining_decision_type.mli:20
+Call_site_inlining_decision_type.Speculatively_not_inline { is_a_functor }	Call_site_inlining_decision_type.Speculatively_not_inline, argument 4	inline field	0	call_site_inlining_decision_type.mli:20
+Call_site_inlining_decision_type.Speculatively_not_inline { threshold }	Call_site_inlining_decision_type.Speculatively_not_inline, argument 3	inline field	0	call_site_inlining_decision_type.mli:20
 Call_site_inlining_decision_type.Unrolling_depth_exceeded	Call_site_inlining_decision_type.Unrolling_depth_exceeded	constructor	0	call_site_inlining_decision_type.mli:20
 Call_site_inlining_decision_type.can_inline	Call_site_inlining_decision_type.can_inline	value	1	call_site_inlining_decision_type.mli:61
-Call_site_inlining_decision_type.cost_metrics	Call_site_inlining_decision_type.cost_metrics	field	0	call_site_inlining_decision_type.mli:20
-Call_site_inlining_decision_type.erase_attribute_if_ignored	Call_site_inlining_decision_type.erase_attribute_if_ignored	field	0	call_site_inlining_decision_type.mli:54
-Call_site_inlining_decision_type.evaluated_to	Call_site_inlining_decision_type.evaluated_to	field	0	call_site_inlining_decision_type.mli:20
-Call_site_inlining_decision_type.is_a_functor	Call_site_inlining_decision_type.is_a_functor	field	0	call_site_inlining_decision_type.mli:20
 Call_site_inlining_decision_type.print	Call_site_inlining_decision_type.print	value	2	call_site_inlining_decision_type.mli:50
-Call_site_inlining_decision_type.threshold	Call_site_inlining_decision_type.threshold	field	0	call_site_inlining_decision_type.mli:20
-Call_site_inlining_decision_type.was_inline_always	Call_site_inlining_decision_type.was_inline_always	field	0	call_site_inlining_decision_type.mli:20
 Clflags.Register_allocator.t	Clflags.Register_allocator.t	type	0	clflags.mli:403
 Clflags.target_is_jsir	Clflags.target_is_jsir	value	1	clflags.mli:223
 Closure_info.Closure	Closure_info.Closure	constructor	5	closure_info.mli:16
+Closure_info.Closure { code_id }	Closure_info.Closure, argument 1	inline field	0	closure_info.mli:16
+Closure_info.Closure { exn_continuation }	Closure_info.Closure, argument 3	inline field	0	closure_info.mli:16
+Closure_info.Closure { my_alloc_region }	Closure_info.Closure, argument 5	inline field	0	closure_info.mli:16
+Closure_info.Closure { my_closure }	Closure_info.Closure, argument 4	inline field	0	closure_info.mli:16
+Closure_info.Closure { return_continuation }	Closure_info.Closure, argument 2	inline field	0	closure_info.mli:16
 Closure_info.In_a_closure	Closure_info.In_a_closure	constructor	0	closure_info.mli:41
 Closure_info.In_a_set_of_closures_but_not_yet_in_a_specific_closure	Closure_info.In_a_set_of_closures_but_not_yet_in_a_specific_closure	constructor	0	closure_info.mli:16
 Closure_info.Not_in_a_closure	Closure_info.Not_in_a_closure	constructor	0	closure_info.mli:16
 Closure_info.Not_in_a_closure	Closure_info.Not_in_a_closure_	constructor	0	closure_info.mli:41
-Closure_info.code_id	Closure_info.code_id	field	0	closure_info.mli:16
-Closure_info.exn_continuation	Closure_info.exn_continuation	field	0	closure_info.mli:16
 Closure_info.in_a_closure	Closure_info.in_a_closure	value	5	closure_info.mli:33
 Closure_info.in_a_set_of_closures	Closure_info.in_a_set_of_closures	value	0	closure_info.mli:31
 Closure_info.in_or_out_of_closure	Closure_info.in_or_out_of_closure	value	1	closure_info.mli:45
-Closure_info.my_alloc_region	Closure_info.my_alloc_region	field	0	closure_info.mli:16
-Closure_info.my_closure	Closure_info.my_closure	field	0	closure_info.mli:16
 Closure_info.not_in_a_closure	Closure_info.not_in_a_closure	value	0	closure_info.mli:29
 Closure_info.print	Closure_info.print	value	2	closure_info.mli:27
-Closure_info.return_continuation	Closure_info.return_continuation	field	0	closure_info.mli:16
 Code.absolute_history	Code.absolute_history	value	1	code.mli:27
 Code.code_id	Code.code_id	value	1	code.mli:27
 Code.code_metadata	Code.code_metadata	value	1	code.mli:23
@@ -678,29 +580,32 @@ Continuation_extra_params_and_args.Extra_arg.New_let_binding	Continuation_extra_
 Continuation_extra_params_and_args.Extra_arg.New_let_binding_with_named_args	Continuation_extra_params_and_args.Extra_arg.New_let_binding_with_named_args	constructor	2	continuation_extra_params_and_args.mli:18
 Continuation_extra_params_and_args.Extra_arg.print	Continuation_extra_params_and_args.Extra_arg.print	value	2	continuation_extra_params_and_args.mli:24
 Continuation_extra_params_and_args.Non_empty	Continuation_extra_params_and_args.Non_empty	constructor	2	continuation_extra_params_and_args.mli:33
+Continuation_extra_params_and_args.Non_empty { extra_args }	Continuation_extra_params_and_args.Non_empty, argument 2	inline field	0	continuation_extra_params_and_args.mli:33
+Continuation_extra_params_and_args.Non_empty { extra_params }	Continuation_extra_params_and_args.Non_empty, argument 1	inline field	0	continuation_extra_params_and_args.mli:33
 Continuation_extra_params_and_args.add	Continuation_extra_params_and_args.add	value	4	continuation_extra_params_and_args.mli:50
 Continuation_extra_params_and_args.add_args_for_all_params	Continuation_extra_params_and_args.add_args_for_all_params	value	3	continuation_extra_params_and_args.mli:61
 Continuation_extra_params_and_args.concat	Continuation_extra_params_and_args.concat	value	2	continuation_extra_params_and_args.mli:66
 Continuation_extra_params_and_args.empty	Continuation_extra_params_and_args.empty	value	0	continuation_extra_params_and_args.mli:48
-Continuation_extra_params_and_args.extra_args	Continuation_extra_params_and_args.extra_args	field	0	continuation_extra_params_and_args.mli:33
-Continuation_extra_params_and_args.extra_args	Continuation_extra_params_and_args.extra_args_	value	1	continuation_extra_params_and_args.mli:73
-Continuation_extra_params_and_args.extra_params	Continuation_extra_params_and_args.extra_params	field	0	continuation_extra_params_and_args.mli:33
-Continuation_extra_params_and_args.extra_params	Continuation_extra_params_and_args.extra_params_	value	1	continuation_extra_params_and_args.mli:71
+Continuation_extra_params_and_args.extra_args	Continuation_extra_params_and_args.extra_args	value	1	continuation_extra_params_and_args.mli:73
+Continuation_extra_params_and_args.extra_params	Continuation_extra_params_and_args.extra_params	value	1	continuation_extra_params_and_args.mli:71
 Continuation_extra_params_and_args.init_with_params_only	Continuation_extra_params_and_args.init_with_params_only	value	1	continuation_extra_params_and_args.mli:59
 Continuation_extra_params_and_args.is_empty	Continuation_extra_params_and_args.is_empty	value	1	continuation_extra_params_and_args.mli:42
 Continuation_extra_params_and_args.print	Continuation_extra_params_and_args.print	value	2	continuation_extra_params_and_args.mli:40
 Continuation_extra_params_and_args.replace_extra_args	Continuation_extra_params_and_args.replace_extra_args	value	2	continuation_extra_params_and_args.mli:68
 Continuation_in_env.Invalid	Continuation_in_env.Invalid	constructor	1	continuation_in_env.mli:17
+Continuation_in_env.Invalid { arity }	Continuation_in_env.Invalid, argument 1	inline field	0	continuation_in_env.mli:17
 Continuation_in_env.Linearly_used_and_inlinable	Continuation_in_env.Linearly_used_and_inlinable	constructor	4	continuation_in_env.mli:17
+Continuation_in_env.Linearly_used_and_inlinable { cost_metrics_of_handler }	Continuation_in_env.Linearly_used_and_inlinable, argument 4	inline field	0	continuation_in_env.mli:17
+Continuation_in_env.Linearly_used_and_inlinable { free_names_of_handler }	Continuation_in_env.Linearly_used_and_inlinable, argument 3	inline field	0	continuation_in_env.mli:17
+Continuation_in_env.Linearly_used_and_inlinable { handler }	Continuation_in_env.Linearly_used_and_inlinable, argument 2	inline field	0	continuation_in_env.mli:17
+Continuation_in_env.Linearly_used_and_inlinable { params }	Continuation_in_env.Linearly_used_and_inlinable, argument 1	inline field	0	continuation_in_env.mli:17
 Continuation_in_env.Non_inlinable_non_zero_arity	Continuation_in_env.Non_inlinable_non_zero_arity	constructor	1	continuation_in_env.mli:17
+Continuation_in_env.Non_inlinable_non_zero_arity { arity }	Continuation_in_env.Non_inlinable_non_zero_arity, argument 1	inline field	0	continuation_in_env.mli:17
 Continuation_in_env.Non_inlinable_zero_arity	Continuation_in_env.Non_inlinable_zero_arity	constructor	1	continuation_in_env.mli:17
+Continuation_in_env.Non_inlinable_zero_arity { handler }	Continuation_in_env.Non_inlinable_zero_arity, argument 1	inline field	0	continuation_in_env.mli:17
 Continuation_in_env.Toplevel_or_function_return_or_exn_continuation	Continuation_in_env.Toplevel_or_function_return_or_exn_continuation	constructor	1	continuation_in_env.mli:17
-Continuation_in_env.arity	Continuation_in_env.arity	field	0	continuation_in_env.mli:17
-Continuation_in_env.arity	Continuation_in_env.arity_	value	1	continuation_in_env.mli:42
-Continuation_in_env.cost_metrics_of_handler	Continuation_in_env.cost_metrics_of_handler	field	0	continuation_in_env.mli:17
-Continuation_in_env.free_names_of_handler	Continuation_in_env.free_names_of_handler	field	0	continuation_in_env.mli:17
-Continuation_in_env.handler	Continuation_in_env.handler	field	0	continuation_in_env.mli:17
-Continuation_in_env.params	Continuation_in_env.params	field	0	continuation_in_env.mli:17
+Continuation_in_env.Toplevel_or_function_return_or_exn_continuation { arity }	Continuation_in_env.Toplevel_or_function_return_or_exn_continuation, argument 1	inline field	0	continuation_in_env.mli:17
+Continuation_in_env.arity	Continuation_in_env.arity	value	1	continuation_in_env.mli:42
 Continuation_in_env.print	Continuation_in_env.print	value	3	continuation_in_env.mli:40
 Continuation_shortcut.apply	Continuation_shortcut.apply	value	2	continuation_shortcut.mli:25
 Continuation_shortcut.continuation	Continuation_shortcut.continuation	value	1	continuation_shortcut.mli:27
@@ -710,7 +615,7 @@ Continuation_shortcut.t	Continuation_shortcut.t	type	0	continuation_shortcut.mli
 Continuation_shortcut.to_alias	Continuation_shortcut.to_alias	value	1	continuation_shortcut.mli:29
 Continuation_use_kind.Inlinable	Continuation_use_kind.Inlinable	constructor	0	continuation_use_kind.mli:17
 Continuation_use_kind.Non_inlinable	Continuation_use_kind.Non_inlinable	constructor	1	continuation_use_kind.mli:17
-Continuation_use_kind.escaping	Continuation_use_kind.escaping	field	0	continuation_use_kind.mli:17
+Continuation_use_kind.Non_inlinable { escaping }	Continuation_use_kind.Non_inlinable, argument 1	inline field	0	continuation_use_kind.mli:17
 Continuation_uses.add_use	Continuation_uses.add_use	value	2	continuation_uses.mli:28
 Continuation_uses.arg_type	Continuation_uses.arg_type	field	0	continuation_uses.mli:32
 Continuation_uses.arg_types_by_use_id	Continuation_uses.arg_types_by_use_id	type	0	continuation_uses.mli:37
@@ -983,6 +888,8 @@ Expr_builder.Apply_cont	Expr_builder.Apply_cont_	constructor	1	expr_builder.mli:
 Expr_builder.Expr	Expr_builder.Expr	constructor	1	expr_builder.mli:106
 Expr_builder.Invalid	Expr_builder.Invalid	constructor	1	expr_builder.mli:106
 Expr_builder.Invalid	Expr_builder.Invalid_	constructor	1	expr_builder.mli:114
+Expr_builder.Invalid { message }	Expr_builder.Invalid, argument 1	inline field	0	expr_builder.mli:106
+Expr_builder.Invalid { message }	Expr_builder.Invalid_, argument 1	inline field	0	expr_builder.mli:114
 Expr_builder.New_wrapper	Expr_builder.New_wrapper	constructor	1	expr_builder.mli:114
 Expr_builder.bind_let_conts	Expr_builder.bind_let_conts	value	3	expr_builder.mli:91
 Expr_builder.cont	Expr_builder.cont	field	0	expr_builder.mli:84
@@ -993,7 +900,6 @@ Expr_builder.create_switch	Expr_builder.create_switch	value	4	expr_builder.mli:7
 Expr_builder.free_names_of_handler	Expr_builder.free_names_of_handler	field	0	expr_builder.mli:84
 Expr_builder.handler	Expr_builder.handler	field	0	expr_builder.mli:84
 Expr_builder.make_new_let_bindings	Expr_builder.make_new_let_bindings	value	3	expr_builder.mli:44
-Expr_builder.message	Expr_builder.message	field	0	expr_builder.mli:106
 Expr_builder.no_rewrite_apply_cont	Expr_builder.no_rewrite_apply_cont	value	2	expr_builder.mli:119
 Expr_builder.place_lifted_constants	Expr_builder.place_lifted_constants	value	5	expr_builder.mli:66
 Expr_builder.rebuild_invalid	Expr_builder.rebuild_invalid	value	3	expr_builder.mli:97
@@ -1147,6 +1053,7 @@ Flambda.Import.Switch.create	Flambda.Import_.Switch.create	value	3	switch_expr.m
 Flambda.Import.Switch.free_names	Flambda.Import_.Switch.free_names	value	1	switch_expr.mli:28
 Flambda.Import.Switch.t	Flambda.Import_.Switch.t	type	0	switch_expr.mli:26
 Flambda.Invalid	Flambda.Invalid	constructor	1	flambda.mli:53
+Flambda.Invalid { message }	Flambda.Invalid, argument 1	inline field	0	flambda.mli:53
 Flambda.Invalid.Application_argument_kind_mismatch	Flambda.Invalid.Application_argument_kind_mismatch	constructor	2	flambda.mli:110
 Flambda.Invalid.Application_never_returns	Flambda.Invalid.Application_never_returns	constructor	1	flambda.mli:110
 Flambda.Invalid.Application_result_kind_mismatch	Flambda.Invalid.Application_result_kind_mismatch	constructor	2	flambda.mli:110
@@ -1158,15 +1065,15 @@ Flambda.Invalid.Closure_type_was_invalid	Flambda.Invalid.Closure_type_was_invali
 Flambda.Invalid.Code_not_rebuilt	Flambda.Invalid.Code_not_rebuilt	constructor	0	flambda.mli:110
 Flambda.Invalid.Defining_expr_of_let	Flambda.Invalid.Defining_expr_of_let	constructor	2	flambda.mli:110
 Flambda.Invalid.Direct_application_parameter_kind_mismatch	Flambda.Invalid.Direct_application_parameter_kind_mismatch	constructor	3	flambda.mli:110
+Flambda.Invalid.Direct_application_parameter_kind_mismatch { apply }	Flambda.Invalid.Direct_application_parameter_kind_mismatch, argument 3	inline field	0	flambda.mli:110
+Flambda.Invalid.Direct_application_parameter_kind_mismatch { args_arity }	Flambda.Invalid.Direct_application_parameter_kind_mismatch, argument 2	inline field	0	flambda.mli:110
+Flambda.Invalid.Direct_application_parameter_kind_mismatch { params_arity }	Flambda.Invalid.Direct_application_parameter_kind_mismatch, argument 1	inline field	0	flambda.mli:110
 Flambda.Invalid.Message	Flambda.Invalid.Message	constructor	1	flambda.mli:110
 Flambda.Invalid.Over_application_never_returns	Flambda.Invalid.Over_application_never_returns	constructor	1	flambda.mli:110
 Flambda.Invalid.Partial_application_mode_mismatch	Flambda.Invalid.Partial_application_mode_mismatch	constructor	2	flambda.mli:110
 Flambda.Invalid.Partial_application_mode_mismatch_in_lambda	Flambda.Invalid.Partial_application_mode_mismatch_in_lambda	constructor	1	flambda.mli:110
 Flambda.Invalid.To_cmm_dummy_body	Flambda.Invalid.To_cmm_dummy_body	constructor	0	flambda.mli:110
 Flambda.Invalid.Zero_switch_arms	Flambda.Invalid.Zero_switch_arms	constructor	0	flambda.mli:110
-Flambda.Invalid.apply	Flambda.Invalid.apply	field	0	flambda.mli:110
-Flambda.Invalid.args_arity	Flambda.Invalid.args_arity	field	0	flambda.mli:110
-Flambda.Invalid.params_arity	Flambda.Invalid.params_arity	field	0	flambda.mli:110
 Flambda.Let	Flambda.Let	constructor	1	flambda.mli:53
 Flambda.Let.create	Flambda.Let.create	value	4	flambda.mli:237
 Flambda.Let.defining_expr	Flambda.Let.defining_expr	value	1	flambda.mli:245
@@ -1188,6 +1095,10 @@ Flambda.Named.free_names	Flambda.Named.free_names	value	1	flambda.mli:167
 Flambda.Named.print	Flambda.Named.print	value	2	flambda.mli:167
 Flambda.Named.t	Flambda.Named.t	type	0	flambda.mli:165
 Flambda.Non_recursive	Flambda.Non_recursive	constructor	4	flambda.mli:85
+Flambda.Non_recursive { can_be_lifted }	Flambda.Non_recursive, argument 4	inline field	0	flambda.mli:85
+Flambda.Non_recursive { handler }	Flambda.Non_recursive, argument 1	inline field	0	flambda.mli:85
+Flambda.Non_recursive { is_applied_with_traps }	Flambda.Non_recursive, argument 3	inline field	0	flambda.mli:85
+Flambda.Non_recursive { num_free_occurrences }	Flambda.Non_recursive, argument 2	inline field	0	flambda.mli:85
 Flambda.Non_recursive_let_cont_handler.handler	Flambda.Non_recursive_let_cont_handler.handler	value	1	flambda.mli:485
 Flambda.Non_recursive_let_cont_handler.pattern_match	Flambda.Non_recursive_let_cont_handler.pattern_match	value	2	flambda.mli:470
 Flambda.Non_recursive_let_cont_handler.t	Flambda.Non_recursive_let_cont_handler.t	type	0	flambda.mli:464
@@ -1222,15 +1133,10 @@ Flambda.Switch.arms	Flambda.Switch.arms	value	1	switch_expr.mli:58
 Flambda.Switch.condition_dbg	Flambda.Switch.condition_dbg	value	1	switch_expr.mli:51
 Flambda.Switch.scrutinee	Flambda.Switch.scrutinee	value	1	switch_expr.mli:48
 Flambda.Switch.t	Flambda.Switch.t	type	0	switch_expr.mli:26
-Flambda.can_be_lifted	Flambda.can_be_lifted	field	0	flambda.mli:85
 Flambda.expr	Flambda.expr	type	0	flambda.mli:41
 Flambda.function_params_and_body	Flambda.function_params_and_body	type	0	flambda.mli:49
-Flambda.handler	Flambda.handler	field	0	flambda.mli:85
-Flambda.is_applied_with_traps	Flambda.is_applied_with_traps	field	0	flambda.mli:85
 Flambda.let_expr	Flambda.let_expr	type	0	flambda.mli:43
-Flambda.message	Flambda.message	field	0	flambda.mli:53
 Flambda.non_recursive_let_cont_handler	Flambda.non_recursive_let_cont_handler	type	0	flambda.mli:45
-Flambda.num_free_occurrences	Flambda.num_free_occurrences	field	0	flambda.mli:85
 Flambda.recursive_let_cont_handlers	Flambda.recursive_let_cont_handlers	type	0	flambda.mli:47
 Flambda.static_const_group	Flambda.static_const_group	type	0	flambda.mli:51
 Flambda2_types.All_variables_except	Flambda2_types.All_variables_except	constructor	1	flambda2_types.mli:374
@@ -1259,19 +1165,36 @@ Flambda2_types.Function_type.create	Flambda2_types.Function_type.create	value	2	
 Flambda2_types.Function_type.rec_info	Flambda2_types.Function_type.rec_info	value	1	flambda2_types.mli:359
 Flambda2_types.Function_type.t	Flambda2_types.Function_type.t	type	0	flambda2_types.mli:353
 Flambda2_types.Immutable_block	Flambda2_types.Immutable_block	constructor	4	flambda2_types.mli:942
+Flambda2_types.Immutable_block { fields }	Flambda2_types.Immutable_block, argument 4	inline field	0	flambda2_types.mli:942
+Flambda2_types.Immutable_block { is_unique }	Flambda2_types.Immutable_block, argument 2	inline field	0	flambda2_types.mli:942
+Flambda2_types.Immutable_block { shape }	Flambda2_types.Immutable_block, argument 3	inline field	0	flambda2_types.mli:942
+Flambda2_types.Immutable_block { tag }	Flambda2_types.Immutable_block, argument 1	inline field	0	flambda2_types.mli:942
 Flambda2_types.Immutable_float32_array	Flambda2_types.Immutable_float32_array	constructor	1	flambda2_types.mli:942
+Flambda2_types.Immutable_float32_array { fields }	Flambda2_types.Immutable_float32_array, argument 1	inline field	0	flambda2_types.mli:942
 Flambda2_types.Immutable_float_array	Flambda2_types.Immutable_float_array	constructor	1	flambda2_types.mli:942
+Flambda2_types.Immutable_float_array { fields }	Flambda2_types.Immutable_float_array, argument 1	inline field	0	flambda2_types.mli:942
 Flambda2_types.Immutable_int16_array	Flambda2_types.Immutable_int16_array	constructor	1	flambda2_types.mli:942
+Flambda2_types.Immutable_int16_array { fields }	Flambda2_types.Immutable_int16_array, argument 1	inline field	0	flambda2_types.mli:942
 Flambda2_types.Immutable_int32_array	Flambda2_types.Immutable_int32_array	constructor	1	flambda2_types.mli:942
+Flambda2_types.Immutable_int32_array { fields }	Flambda2_types.Immutable_int32_array, argument 1	inline field	0	flambda2_types.mli:942
 Flambda2_types.Immutable_int64_array	Flambda2_types.Immutable_int64_array	constructor	1	flambda2_types.mli:942
+Flambda2_types.Immutable_int64_array { fields }	Flambda2_types.Immutable_int64_array, argument 1	inline field	0	flambda2_types.mli:942
 Flambda2_types.Immutable_int8_array	Flambda2_types.Immutable_int8_array	constructor	1	flambda2_types.mli:942
+Flambda2_types.Immutable_int8_array { fields }	Flambda2_types.Immutable_int8_array, argument 1	inline field	0	flambda2_types.mli:942
 Flambda2_types.Immutable_int_array	Flambda2_types.Immutable_int_array	constructor	1	flambda2_types.mli:942
+Flambda2_types.Immutable_int_array { fields }	Flambda2_types.Immutable_int_array, argument 1	inline field	0	flambda2_types.mli:942
 Flambda2_types.Immutable_mask_array	Flambda2_types.Immutable_mask_array	constructor	1	flambda2_types.mli:942
+Flambda2_types.Immutable_mask_array { fields }	Flambda2_types.Immutable_mask_array, argument 1	inline field	0	flambda2_types.mli:942
 Flambda2_types.Immutable_nativeint_array	Flambda2_types.Immutable_nativeint_array	constructor	1	flambda2_types.mli:942
+Flambda2_types.Immutable_nativeint_array { fields }	Flambda2_types.Immutable_nativeint_array, argument 1	inline field	0	flambda2_types.mli:942
 Flambda2_types.Immutable_value_array	Flambda2_types.Immutable_value_array	constructor	1	flambda2_types.mli:942
+Flambda2_types.Immutable_value_array { fields }	Flambda2_types.Immutable_value_array, argument 1	inline field	0	flambda2_types.mli:942
 Flambda2_types.Immutable_vec128_array	Flambda2_types.Immutable_vec128_array	constructor	1	flambda2_types.mli:942
+Flambda2_types.Immutable_vec128_array { fields }	Flambda2_types.Immutable_vec128_array, argument 1	inline field	0	flambda2_types.mli:942
 Flambda2_types.Immutable_vec256_array	Flambda2_types.Immutable_vec256_array	constructor	1	flambda2_types.mli:942
+Flambda2_types.Immutable_vec256_array { fields }	Flambda2_types.Immutable_vec256_array, argument 1	inline field	0	flambda2_types.mli:942
 Flambda2_types.Immutable_vec512_array	Flambda2_types.Immutable_vec512_array	constructor	1	flambda2_types.mli:942
+Flambda2_types.Immutable_vec512_array { fields }	Flambda2_types.Immutable_vec512_array, argument 1	inline field	0	flambda2_types.mli:942
 Flambda2_types.Invalid	Flambda2_types.Invalid	constructor	0	flambda2_types.mli:709
 Flambda2_types.Invalid	Flambda2_types.Invalid_	constructor	0	flambda2_types.mli:978
 Flambda2_types.Join_analysis.Invariant_in_all_uses	Flambda2_types.Join_analysis.Invariant_in_all_uses	constructor	1	flambda2_types.mli:314
@@ -1385,13 +1308,11 @@ Flambda2_types.closure_with_at_least_this_value_slot	Flambda2_types.closure_with
 Flambda2_types.const_ctors	Flambda2_types.const_ctors	field	0	flambda2_types.mli:752
 Flambda2_types.cut_and_n_way_join	Flambda2_types.cut_and_n_way_join	value	6	flambda2_types.mli:343
 Flambda2_types.exactly_this_closure	Flambda2_types.exactly_this_closure	value	5	flambda2_types.mli:633
-Flambda2_types.fields	Flambda2_types.fields	field	0	flambda2_types.mli:942
 Flambda2_types.flambda_type	Flambda2_types.flambda_type	type	0	flambda2_types.mli:22
 Flambda2_types.immutable_array	Flambda2_types.immutable_array	value	4	flambda2_types.mli:670
 Flambda2_types.immutable_block	Flambda2_types.immutable_block	value	6	flambda2_types.mli:602
 Flambda2_types.immutable_block_with_size_at_least	Flambda2_types.immutable_block_with_size_at_least	value	5	flambda2_types.mli:614
 Flambda2_types.is_alias_to_a_symbol	Flambda2_types.is_alias_to_a_symbol	value	1	flambda2_types.mli:703
-Flambda2_types.is_unique	Flambda2_types.is_unique	field	0	flambda2_types.mli:942
 Flambda2_types.is_unknown	Flambda2_types.is_unknown	value	2	flambda2_types.mli:695
 Flambda2_types.is_unknown_maybe_null	Flambda2_types.is_unknown_maybe_null	value	2	flambda2_types.mli:701
 Flambda2_types.kind	Flambda2_types.kind	value	1	flambda2_types.mli:682
@@ -1459,9 +1380,7 @@ Flambda2_types.prove_unique_tag_and_size	Flambda2_types.prove_unique_tag_and_siz
 Flambda2_types.prove_variant_like	Flambda2_types.prove_variant_like	value	2	flambda2_types.mli:760
 Flambda2_types.reify	Flambda2_types.reify	value	5	flambda2_types.mli:984
 Flambda2_types.remove_outermost_alias	Flambda2_types.remove_outermost_alias	value	2	flambda2_types.mli:995
-Flambda2_types.shape	Flambda2_types.shape	field	0	flambda2_types.mli:942
 Flambda2_types.t	Flambda2_types.t	type	0	flambda2_types.mli:20
-Flambda2_types.tag	Flambda2_types.tag	field	0	flambda2_types.mli:942
 Flambda2_types.tag_immediate	Flambda2_types.tag_immediate	value	1	flambda2_types.mli:597
 Flambda2_types.tagged_immediate_alias_to	Flambda2_types.tagged_immediate_alias_to	value	1	flambda2_types.mli:595
 Flambda2_types.these_boxed_float32s	Flambda2_types.these_boxed_float32s	value	2	flambda2_types.mli:489
@@ -1636,6 +1555,7 @@ Flambda_kind.With_subkind.Non_null_value_subkind.Boxed_vec256	Flambda_kind.With_
 Flambda_kind.With_subkind.Non_null_value_subkind.Boxed_vec512	Flambda_kind.With_subkind.Non_null_value_subkind.Boxed_vec512	constructor	0	flambda_kind.mli:224
 Flambda_kind.With_subkind.Non_null_value_subkind.Float_array	Flambda_kind.With_subkind.Non_null_value_subkind.Float_array	constructor	0	flambda_kind.mli:224
 Flambda_kind.With_subkind.Non_null_value_subkind.Float_block	Flambda_kind.With_subkind.Non_null_value_subkind.Float_block	constructor	1	flambda_kind.mli:224
+Flambda_kind.With_subkind.Non_null_value_subkind.Float_block { num_fields }	Flambda_kind.With_subkind.Non_null_value_subkind.Float_block, argument 1	inline field	0	flambda_kind.mli:224
 Flambda_kind.With_subkind.Non_null_value_subkind.Generic_array	Flambda_kind.With_subkind.Non_null_value_subkind.Generic_array	constructor	0	flambda_kind.mli:224
 Flambda_kind.With_subkind.Non_null_value_subkind.Immediate_array	Flambda_kind.With_subkind.Non_null_value_subkind.Immediate_array	constructor	0	flambda_kind.mli:224
 Flambda_kind.With_subkind.Non_null_value_subkind.Tagged_immediate	Flambda_kind.With_subkind.Non_null_value_subkind.Tagged_immediate	constructor	0	flambda_kind.mli:224
@@ -1653,10 +1573,9 @@ Flambda_kind.With_subkind.Non_null_value_subkind.Untagged_int8_array	Flambda_kin
 Flambda_kind.With_subkind.Non_null_value_subkind.Untagged_int_array	Flambda_kind.With_subkind.Non_null_value_subkind.Untagged_int_array	constructor	0	flambda_kind.mli:224
 Flambda_kind.With_subkind.Non_null_value_subkind.Value_array	Flambda_kind.With_subkind.Non_null_value_subkind.Value_array	constructor	0	flambda_kind.mli:224
 Flambda_kind.With_subkind.Non_null_value_subkind.Variant	Flambda_kind.With_subkind.Non_null_value_subkind.Variant	constructor	2	flambda_kind.mli:224
+Flambda_kind.With_subkind.Non_null_value_subkind.Variant { consts }	Flambda_kind.With_subkind.Non_null_value_subkind.Variant, argument 1	inline field	0	flambda_kind.mli:224
+Flambda_kind.With_subkind.Non_null_value_subkind.Variant { non_consts }	Flambda_kind.With_subkind.Non_null_value_subkind.Variant, argument 2	inline field	0	flambda_kind.mli:224
 Flambda_kind.With_subkind.Non_null_value_subkind.constructor_shape	Flambda_kind.With_subkind.Non_null_value_subkind.constructor_shape	type	0	flambda_kind.mli:258
-Flambda_kind.With_subkind.Non_null_value_subkind.consts	Flambda_kind.With_subkind.Non_null_value_subkind.consts	field	0	flambda_kind.mli:224
-Flambda_kind.With_subkind.Non_null_value_subkind.non_consts	Flambda_kind.With_subkind.Non_null_value_subkind.non_consts	field	0	flambda_kind.mli:224
-Flambda_kind.With_subkind.Non_null_value_subkind.num_fields	Flambda_kind.With_subkind.Non_null_value_subkind.num_fields	field	0	flambda_kind.mli:224
 Flambda_kind.With_subkind.Nullable.Non_nullable	Flambda_kind.With_subkind.Nullable.Non_nullable	constructor	0	flambda_kind.mli:215
 Flambda_kind.With_subkind.Nullable.Nullable	Flambda_kind.With_subkind.Nullable.Nullable	constructor	0	flambda_kind.mli:215
 Flambda_kind.With_subkind.T.t	Flambda_kind.With_subkind.T.t	type	0	flambda_kind.mli:366
@@ -1767,38 +1686,55 @@ Flambda_primitive.Array_set_kind.print	Flambda_primitive.Array_set_kind.print	va
 Flambda_primitive.Asr	Flambda_primitive.Asr	constructor	0	flambda_primitive.mli:541
 Flambda_primitive.Atomic_compare_and_set	Flambda_primitive.Atomic_compare_and_set	constructor	3	flambda_primitive.mli:635
 Flambda_primitive.Atomic_compare_exchange	Flambda_primitive.Atomic_compare_exchange	constructor	4	flambda_primitive.mli:635
+Flambda_primitive.Atomic_compare_exchange { args_kind }	Flambda_primitive.Atomic_compare_exchange, argument 3	inline field	0	flambda_primitive.mli:635
+Flambda_primitive.Atomic_compare_exchange { atomic_kind }	Flambda_primitive.Atomic_compare_exchange, argument 2	inline field	0	flambda_primitive.mli:635
+Flambda_primitive.Atomic_compare_exchange { mode }	Flambda_primitive.Atomic_compare_exchange, argument 4	inline field	0	flambda_primitive.mli:635
+Flambda_primitive.Atomic_compare_exchange { offset_units }	Flambda_primitive.Atomic_compare_exchange, argument 1	inline field	0	flambda_primitive.mli:635
 Flambda_primitive.Atomic_exchange	Flambda_primitive.Atomic_exchange	constructor	3	flambda_primitive.mli:605
 Flambda_primitive.Atomic_int_arith	Flambda_primitive.Atomic_int_arith	constructor	2	flambda_primitive.mli:605
 Flambda_primitive.Atomic_load	Flambda_primitive.Atomic_load	constructor	2	flambda_primitive.mli:558
 Flambda_primitive.Atomic_set	Flambda_primitive.Atomic_set	constructor	3	flambda_primitive.mli:605
 Flambda_primitive.Begin_region	Flambda_primitive.Begin_region	constructor	1	flambda_primitive.mli:653
+Flambda_primitive.Begin_region { ghost }	Flambda_primitive.Begin_region, argument 1	inline field	0	flambda_primitive.mli:653
 Flambda_primitive.Begin_try_region	Flambda_primitive.Begin_try_region	constructor	1	flambda_primitive.mli:653
+Flambda_primitive.Begin_try_region { ghost }	Flambda_primitive.Begin_try_region, argument 1	inline field	0	flambda_primitive.mli:653
 Flambda_primitive.Bigarray_get_alignment	Flambda_primitive.Bigarray_get_alignment	constructor	1	flambda_primitive.mli:558
 Flambda_primitive.Bigarray_kind.t	Flambda_primitive.Bigarray_kind.t	type	0	flambda_primitive.mli:286
 Flambda_primitive.Bigarray_layout.t	Flambda_primitive.Bigarray_layout.t	type	0	flambda_primitive.mli:316
 Flambda_primitive.Bigarray_length	Flambda_primitive.Bigarray_length	constructor	1	flambda_primitive.mli:422
+Flambda_primitive.Bigarray_length { dimension }	Flambda_primitive.Bigarray_length, argument 1	inline field	0	flambda_primitive.mli:422
 Flambda_primitive.Bigarray_load	Flambda_primitive.Bigarray_load	constructor	3	flambda_primitive.mli:558
 Flambda_primitive.Bigarray_set	Flambda_primitive.Bigarray_set	constructor	3	flambda_primitive.mli:605
 Flambda_primitive.Binary	Flambda_primitive.Binary	constructor	3	flambda_primitive.mli:667
 Flambda_primitive.Block_access_field_kind.Any_value	Flambda_primitive.Block_access_field_kind.Any_value	constructor	0	flambda_primitive.mli:208
 Flambda_primitive.Block_access_field_kind.Immediate	Flambda_primitive.Block_access_field_kind.Immediate	constructor	0	flambda_primitive.mli:208
 Flambda_primitive.Block_access_kind.Mixed	Flambda_primitive.Block_access_kind.Mixed	constructor	4	flambda_primitive.mli:230
+Flambda_primitive.Block_access_kind.Mixed { field_kind }	Flambda_primitive.Block_access_kind.Mixed, argument 3	inline field	0	flambda_primitive.mli:230
+Flambda_primitive.Block_access_kind.Mixed { shape }	Flambda_primitive.Block_access_kind.Mixed, argument 4	inline field	0	flambda_primitive.mli:230
+Flambda_primitive.Block_access_kind.Mixed { size }	Flambda_primitive.Block_access_kind.Mixed, argument 2	inline field	0	flambda_primitive.mli:230
+Flambda_primitive.Block_access_kind.Mixed { tag }	Flambda_primitive.Block_access_kind.Mixed, argument 1	inline field	0	flambda_primitive.mli:230
 Flambda_primitive.Block_access_kind.Naked_floats	Flambda_primitive.Block_access_kind.Naked_floats	constructor	1	flambda_primitive.mli:230
+Flambda_primitive.Block_access_kind.Naked_floats { size }	Flambda_primitive.Block_access_kind.Naked_floats, argument 1	inline field	0	flambda_primitive.mli:230
 Flambda_primitive.Block_access_kind.Values	Flambda_primitive.Block_access_kind.Values	constructor	3	flambda_primitive.mli:230
+Flambda_primitive.Block_access_kind.Values { field_kind }	Flambda_primitive.Block_access_kind.Values, argument 3	inline field	0	flambda_primitive.mli:230
+Flambda_primitive.Block_access_kind.Values { size }	Flambda_primitive.Block_access_kind.Values, argument 2	inline field	0	flambda_primitive.mli:230
+Flambda_primitive.Block_access_kind.Values { tag }	Flambda_primitive.Block_access_kind.Values, argument 1	inline field	0	flambda_primitive.mli:230
 Flambda_primitive.Block_access_kind.element_kind_for_load	Flambda_primitive.Block_access_kind.element_kind_for_load	value	1	flambda_primitive.mli:248
 Flambda_primitive.Block_access_kind.element_subkind_for_load	Flambda_primitive.Block_access_kind.element_subkind_for_load	value	1	flambda_primitive.mli:250
-Flambda_primitive.Block_access_kind.field_kind	Flambda_primitive.Block_access_kind.field_kind	field	0	flambda_primitive.mli:230
 Flambda_primitive.Block_access_kind.from_block_shape	Flambda_primitive.Block_access_kind.from_block_shape	value	3	flambda_primitive.mli:254
-Flambda_primitive.Block_access_kind.size	Flambda_primitive.Block_access_kind.size	field	0	flambda_primitive.mli:230
-Flambda_primitive.Block_access_kind.tag	Flambda_primitive.Block_access_kind.tag	field	0	flambda_primitive.mli:230
 Flambda_primitive.Block_kind.Mixed	Flambda_primitive.Block_kind.Mixed	constructor	2	flambda_primitive.mli:41
 Flambda_primitive.Block_kind.Naked_floats	Flambda_primitive.Block_kind.Naked_floats	constructor	0	flambda_primitive.mli:41
 Flambda_primitive.Block_kind.Values	Flambda_primitive.Block_kind.Values	constructor	2	flambda_primitive.mli:41
 Flambda_primitive.Block_kind.to_shape	Flambda_primitive.Block_kind.to_shape	value	1	flambda_primitive.mli:46
 Flambda_primitive.Block_load	Flambda_primitive.Block_load	constructor	3	flambda_primitive.mli:422
+Flambda_primitive.Block_load { field }	Flambda_primitive.Block_load, argument 3	inline field	0	flambda_primitive.mli:422
+Flambda_primitive.Block_load { kind }	Flambda_primitive.Block_load, argument 1	inline field	0	flambda_primitive.mli:422
+Flambda_primitive.Block_load { mut }	Flambda_primitive.Block_load, argument 2	inline field	0	flambda_primitive.mli:422
 Flambda_primitive.Block_set	Flambda_primitive.Block_set	constructor	3	flambda_primitive.mli:558
+Flambda_primitive.Block_set { field }	Flambda_primitive.Block_set, argument 3	inline field	0	flambda_primitive.mli:558
+Flambda_primitive.Block_set { init }	Flambda_primitive.Block_set, argument 2	inline field	0	flambda_primitive.mli:558
+Flambda_primitive.Block_set { kind }	Flambda_primitive.Block_set, argument 1	inline field	0	flambda_primitive.mli:558
 Flambda_primitive.Boolean_not	Flambda_primitive.Boolean_not	constructor	0	flambda_primitive.mli:422
-Flambda_primitive.Boolean_not	Flambda_primitive.mk_Boolean_not	maker	0	flambda_primitive.mli:422
 Flambda_primitive.Box_number	Flambda_primitive.Box_number	constructor	2	flambda_primitive.mli:422
 Flambda_primitive.Bytes_or_bigstring_set	Flambda_primitive.Bytes_or_bigstring_set	constructor	2	flambda_primitive.mli:605
 Flambda_primitive.Cpu_relax	Flambda_primitive.Cpu_relax	constructor	0	flambda_primitive.mli:358
@@ -1807,8 +1743,14 @@ Flambda_primitive.Div	Flambda_primitive.Div_	constructor	0	flambda_primitive.mli
 Flambda_primitive.Dls_get	Flambda_primitive.Dls_get	constructor	0	flambda_primitive.mli:358
 Flambda_primitive.Domain_index	Flambda_primitive.Domain_index	constructor	0	flambda_primitive.mli:358
 Flambda_primitive.Duplicate_array	Flambda_primitive.Duplicate_array	constructor	4	flambda_primitive.mli:422
+Flambda_primitive.Duplicate_array { alloc_region }	Flambda_primitive.Duplicate_array, argument 4	inline field	0	flambda_primitive.mli:422
+Flambda_primitive.Duplicate_array { destination_mutability }	Flambda_primitive.Duplicate_array, argument 3	inline field	0	flambda_primitive.mli:422
+Flambda_primitive.Duplicate_array { kind }	Flambda_primitive.Duplicate_array, argument 1	inline field	0	flambda_primitive.mli:422
+Flambda_primitive.Duplicate_array { source_mutability }	Flambda_primitive.Duplicate_array, argument 2	inline field	0	flambda_primitive.mli:422
 Flambda_primitive.Duplicate_array_kind.t	Flambda_primitive.Duplicate_array_kind.t	type	0	flambda_primitive.mli:185
 Flambda_primitive.Duplicate_block	Flambda_primitive.Duplicate_block	constructor	2	flambda_primitive.mli:422
+Flambda_primitive.Duplicate_block { alloc_region }	Flambda_primitive.Duplicate_block, argument 2	inline field	0	flambda_primitive.mli:422
+Flambda_primitive.Duplicate_block { kind }	Flambda_primitive.Duplicate_block, argument 1	inline field	0	flambda_primitive.mli:422
 Flambda_primitive.Duplicate_block_kind.t	Flambda_primitive.Duplicate_block_kind.t	type	0	flambda_primitive.mli:168
 Flambda_primitive.Eligible_for_cse.Map.add	Flambda_primitive.Eligible_for_cse.Map.add	value	3	flambda_primitive.mli:808
 Flambda_primitive.Eligible_for_cse.Map.disjoint_union	Flambda_primitive.Eligible_for_cse.Map.disjoint_union	value	4	flambda_primitive.mli:808
@@ -1830,8 +1772,12 @@ Flambda_primitive.Eligible_for_cse.filter_map_args	Flambda_primitive.Eligible_fo
 Flambda_primitive.Eligible_for_cse.t	Flambda_primitive.Eligible_for_cse.t	type	0	flambda_primitive.mli:788
 Flambda_primitive.Eligible_for_cse.to_primitive	Flambda_primitive.Eligible_for_cse.to_primitive	value	1	flambda_primitive.mli:802
 Flambda_primitive.End_region	Flambda_primitive.End_region	constructor	1	flambda_primitive.mli:422
+Flambda_primitive.End_region { ghost }	Flambda_primitive.End_region, argument 1	inline field	0	flambda_primitive.mli:422
 Flambda_primitive.End_try_region	Flambda_primitive.End_try_region	constructor	1	flambda_primitive.mli:422
+Flambda_primitive.End_try_region { ghost }	Flambda_primitive.End_try_region, argument 1	inline field	0	flambda_primitive.mli:422
 Flambda_primitive.Enter_inlined_apply	Flambda_primitive.Enter_inlined_apply	constructor	2	flambda_primitive.mli:358
+Flambda_primitive.Enter_inlined_apply { dbg }	Flambda_primitive.Enter_inlined_apply, argument 1	inline field	0	flambda_primitive.mli:358
+Flambda_primitive.Enter_inlined_apply { inlined_attribute }	Flambda_primitive.Enter_inlined_apply, argument 2	inline field	0	flambda_primitive.mli:358
 Flambda_primitive.Eq	Flambda_primitive.Eq	constructor	0	flambda_primitive.mli:273
 Flambda_primitive.Eq	Flambda_primitive.Eq_	constructor	0	flambda_primitive.mli:281
 Flambda_primitive.Float32	Flambda_primitive.Float32	constructor	0	flambda_primitive.mli:338
@@ -1841,9 +1787,7 @@ Flambda_primitive.Float_arith	Flambda_primitive.Float_arith_	constructor	2	flamb
 Flambda_primitive.Float_comp	Flambda_primitive.Float_comp	constructor	2	flambda_primitive.mli:558
 Flambda_primitive.Ge	Flambda_primitive.Ge	constructor	1	flambda_primitive.mli:273
 Flambda_primitive.Get_header	Flambda_primitive.Get_header	constructor	0	flambda_primitive.mli:422
-Flambda_primitive.Get_header	Flambda_primitive.mk_Get_header	maker	0	flambda_primitive.mli:422
 Flambda_primitive.Get_tag	Flambda_primitive.Get_tag	constructor	0	flambda_primitive.mli:422
-Flambda_primitive.Get_tag	Flambda_primitive.mk_Get_tag	maker	0	flambda_primitive.mli:422
 Flambda_primitive.Gt	Flambda_primitive.Gt	constructor	1	flambda_primitive.mli:273
 Flambda_primitive.Init_or_assign.t	Flambda_primitive.Init_or_assign.t	type	0	flambda_primitive.mli:101
 Flambda_primitive.Int_arith	Flambda_primitive.Int_arith	constructor	2	flambda_primitive.mli:422
@@ -1853,12 +1797,10 @@ Flambda_primitive.Int_comp	Flambda_primitive.Int_comp	constructor	2	flambda_prim
 Flambda_primitive.Int_shift	Flambda_primitive.Int_shift	constructor	2	flambda_primitive.mli:558
 Flambda_primitive.Invalid	Flambda_primitive.Invalid	constructor	1	flambda_primitive.mli:358
 Flambda_primitive.Is_boxed_float	Flambda_primitive.Is_boxed_float	constructor	0	flambda_primitive.mli:422
-Flambda_primitive.Is_boxed_float	Flambda_primitive.mk_Is_boxed_float	maker	0	flambda_primitive.mli:422
 Flambda_primitive.Is_flat_float_array	Flambda_primitive.Is_flat_float_array	constructor	0	flambda_primitive.mli:422
-Flambda_primitive.Is_flat_float_array	Flambda_primitive.mk_Is_flat_float_array	maker	0	flambda_primitive.mli:422
 Flambda_primitive.Is_int	Flambda_primitive.Is_int	constructor	1	flambda_primitive.mli:422
+Flambda_primitive.Is_int { variant_only }	Flambda_primitive.Is_int, argument 1	inline field	0	flambda_primitive.mli:422
 Flambda_primitive.Is_null	Flambda_primitive.Is_null	constructor	0	flambda_primitive.mli:422
-Flambda_primitive.Is_null	Flambda_primitive.mk_Is_null	maker	0	flambda_primitive.mli:422
 Flambda_primitive.Lazy_block_tag.t	Flambda_primitive.Lazy_block_tag.t	type	0	flambda_primitive.mli:29
 Flambda_primitive.Le	Flambda_primitive.Le	constructor	1	flambda_primitive.mli:273
 Flambda_primitive.Lsl	Flambda_primitive.Lsl	constructor	0	flambda_primitive.mli:541
@@ -1867,6 +1809,8 @@ Flambda_primitive.Lt	Flambda_primitive.Lt	constructor	1	flambda_primitive.mli:27
 Flambda_primitive.Make_array	Flambda_primitive.Make_array	constructor	3	flambda_primitive.mli:653
 Flambda_primitive.Make_block	Flambda_primitive.Make_block	constructor	3	flambda_primitive.mli:653
 Flambda_primitive.Make_lazy	Flambda_primitive.Make_lazy	constructor	2	flambda_primitive.mli:422
+Flambda_primitive.Make_lazy { alloc_region }	Flambda_primitive.Make_lazy, argument 2	inline field	0	flambda_primitive.mli:422
+Flambda_primitive.Make_lazy { lazy_tag }	Flambda_primitive.Make_lazy, argument 1	inline field	0	flambda_primitive.mli:422
 Flambda_primitive.Mixed_block_access_field_kind.Flat_suffix	Flambda_primitive.Mixed_block_access_field_kind.Flat_suffix	constructor	1	flambda_primitive.mli:220
 Flambda_primitive.Mixed_block_access_field_kind.Value_prefix	Flambda_primitive.Mixed_block_access_field_kind.Value_prefix	constructor	1	flambda_primitive.mli:220
 Flambda_primitive.Mod	Flambda_primitive.Mod	constructor	1	flambda_primitive.mli:530
@@ -1878,8 +1822,13 @@ Flambda_primitive.Neq	Flambda_primitive.Neq_	constructor	0	flambda_primitive.mli
 Flambda_primitive.Not	Flambda_primitive.Not	constructor	0	flambda_primitive.mli:401
 Flambda_primitive.Nullary	Flambda_primitive.Nullary	constructor	1	flambda_primitive.mli:667
 Flambda_primitive.Num_conv	Flambda_primitive.Num_conv	constructor	2	flambda_primitive.mli:422
+Flambda_primitive.Num_conv { dst }	Flambda_primitive.Num_conv, argument 2	inline field	0	flambda_primitive.mli:422
+Flambda_primitive.Num_conv { src }	Flambda_primitive.Num_conv, argument 1	inline field	0	flambda_primitive.mli:422
 Flambda_primitive.Obj_dup	Flambda_primitive.Obj_dup	constructor	1	flambda_primitive.mli:422
+Flambda_primitive.Obj_dup { alloc_region }	Flambda_primitive.Obj_dup, argument 1	inline field	0	flambda_primitive.mli:422
 Flambda_primitive.Opaque_identity	Flambda_primitive.Opaque_identity	constructor	2	flambda_primitive.mli:422
+Flambda_primitive.Opaque_identity { kind }	Flambda_primitive.Opaque_identity, argument 2	inline field	0	flambda_primitive.mli:422
+Flambda_primitive.Opaque_identity { middle_end_only }	Flambda_primitive.Opaque_identity, argument 1	inline field	0	flambda_primitive.mli:422
 Flambda_primitive.Optimised_out	Flambda_primitive.Optimised_out	constructor	1	flambda_primitive.mli:358
 Flambda_primitive.Or	Flambda_primitive.Or	constructor	0	flambda_primitive.mli:530
 Flambda_primitive.Peek	Flambda_primitive.Peek	constructor	1	flambda_primitive.mli:422
@@ -1887,8 +1836,14 @@ Flambda_primitive.Phys_equal	Flambda_primitive.Phys_equal	constructor	1	flambda_
 Flambda_primitive.Poke	Flambda_primitive.Poke	constructor	1	flambda_primitive.mli:558
 Flambda_primitive.Poll	Flambda_primitive.Poll	constructor	0	flambda_primitive.mli:358
 Flambda_primitive.Probe_is_enabled	Flambda_primitive.Probe_is_enabled	constructor	2	flambda_primitive.mli:358
+Flambda_primitive.Probe_is_enabled { enabled_at_init }	Flambda_primitive.Probe_is_enabled, argument 2	inline field	0	flambda_primitive.mli:358
+Flambda_primitive.Probe_is_enabled { name }	Flambda_primitive.Probe_is_enabled, argument 1	inline field	0	flambda_primitive.mli:358
 Flambda_primitive.Project_function_slot	Flambda_primitive.Project_function_slot	constructor	2	flambda_primitive.mli:422
+Flambda_primitive.Project_function_slot { move_from }	Flambda_primitive.Project_function_slot, argument 1	inline field	0	flambda_primitive.mli:422
+Flambda_primitive.Project_function_slot { move_to }	Flambda_primitive.Project_function_slot, argument 2	inline field	0	flambda_primitive.mli:422
 Flambda_primitive.Project_value_slot	Flambda_primitive.Project_value_slot	constructor	2	flambda_primitive.mli:422
+Flambda_primitive.Project_value_slot { project_from }	Flambda_primitive.Project_value_slot, argument 1	inline field	0	flambda_primitive.mli:422
+Flambda_primitive.Project_value_slot { value_slot }	Flambda_primitive.Project_value_slot, argument 2	inline field	0	flambda_primitive.mli:422
 Flambda_primitive.Quaternary	Flambda_primitive.Quaternary	constructor	5	flambda_primitive.mli:667
 Flambda_primitive.Read_offset	Flambda_primitive.Read_offset	constructor	2	flambda_primitive.mli:558
 Flambda_primitive.Reinterpret_64_bit_word	Flambda_primitive.Reinterpret_64_bit_word	constructor	1	flambda_primitive.mli:422
@@ -1897,7 +1852,6 @@ Flambda_primitive.Reinterpret_64_bit_word.Unboxed_float64_as_unboxed_int64	Flamb
 Flambda_primitive.Reinterpret_64_bit_word.Unboxed_int64_as_tagged_int63	Flambda_primitive.Reinterpret_64_bit_word.Unboxed_int64_as_tagged_int63	constructor	0	flambda_primitive.mli:414
 Flambda_primitive.Reinterpret_64_bit_word.Unboxed_int64_as_unboxed_float64	Flambda_primitive.Reinterpret_64_bit_word.Unboxed_int64_as_unboxed_float64	constructor	0	flambda_primitive.mli:414
 Flambda_primitive.Reinterpret_boxed_vector	Flambda_primitive.Reinterpret_boxed_vector	constructor	0	flambda_primitive.mli:422
-Flambda_primitive.Reinterpret_boxed_vector	Flambda_primitive.mk_Reinterpret_boxed_vector	maker	0	flambda_primitive.mli:422
 Flambda_primitive.Signed	Flambda_primitive.Signed	constructor	0	flambda_primitive.mli:353
 Flambda_primitive.String_length	Flambda_primitive.String_length	constructor	1	flambda_primitive.mli:422
 Flambda_primitive.String_or_bigstring_load	Flambda_primitive.String_or_bigstring_load	constructor	2	flambda_primitive.mli:558
@@ -1906,14 +1860,12 @@ Flambda_primitive.Sub	Flambda_primitive.Sub_	constructor	0	flambda_primitive.mli
 Flambda_primitive.Swap_byte_endianness	Flambda_primitive.Swap_byte_endianness	constructor	0	flambda_primitive.mli:401
 Flambda_primitive.T.t	Flambda_primitive.T.t	type	0	flambda_primitive.mli:811
 Flambda_primitive.Tag_immediate	Flambda_primitive.Tag_immediate	constructor	0	flambda_primitive.mli:422
-Flambda_primitive.Tag_immediate	Flambda_primitive.mk_Tag_immediate	maker	0	flambda_primitive.mli:422
 Flambda_primitive.Ternary	Flambda_primitive.Ternary	constructor	4	flambda_primitive.mli:667
 Flambda_primitive.Tls_get	Flambda_primitive.Tls_get	constructor	0	flambda_primitive.mli:358
 Flambda_primitive.Unary	Flambda_primitive.Unary	constructor	2	flambda_primitive.mli:667
 Flambda_primitive.Unbox_number	Flambda_primitive.Unbox_number	constructor	1	flambda_primitive.mli:422
 Flambda_primitive.Unsigned	Flambda_primitive.Unsigned	constructor	0	flambda_primitive.mli:353
 Flambda_primitive.Untag_immediate	Flambda_primitive.Untag_immediate	constructor	0	flambda_primitive.mli:422
-Flambda_primitive.Untag_immediate	Flambda_primitive.mk_Untag_immediate	maker	0	flambda_primitive.mli:422
 Flambda_primitive.Variadic	Flambda_primitive.Variadic	constructor	2	flambda_primitive.mli:667
 Flambda_primitive.Variadic_all_of_kind	Flambda_primitive.Variadic_all_of_kind	constructor	1	flambda_primitive.mli:724
 Flambda_primitive.Variadic_mixed	Flambda_primitive.Variadic_mixed	constructor	1	flambda_primitive.mli:724
@@ -1925,50 +1877,29 @@ Flambda_primitive.Write_offset_kind.t	Flambda_primitive.Write_offset_kind.t	type
 Flambda_primitive.Xor	Flambda_primitive.Xor	constructor	0	flambda_primitive.mli:530
 Flambda_primitive.Yielding_bool	Flambda_primitive.Yielding_bool	constructor	1	flambda_primitive.mli:525
 Flambda_primitive.Yielding_int_like_compare_functions	Flambda_primitive.Yielding_int_like_compare_functions	constructor	1	flambda_primitive.mli:525
-Flambda_primitive.alloc_region	Flambda_primitive.alloc_region	field	0	flambda_primitive.mli:422
 Flambda_primitive.arg_kind_of_unary_primitive	Flambda_primitive.arg_kind_of_unary_primitive	value	1	flambda_primitive.mli:712
 Flambda_primitive.args	Flambda_primitive.args	value	1	flambda_primitive.mli:682
-Flambda_primitive.args_kind	Flambda_primitive.args_kind	field	0	flambda_primitive.mli:635
 Flambda_primitive.args_kind_of_binary_primitive	Flambda_primitive.args_kind_of_binary_primitive	value	1	flambda_primitive.mli:714
 Flambda_primitive.args_kind_of_quaternary_primitive	Flambda_primitive.args_kind_of_quaternary_primitive	value	1	flambda_primitive.mli:720
 Flambda_primitive.args_kind_of_ternary_primitive	Flambda_primitive.args_kind_of_ternary_primitive	value	1	flambda_primitive.mli:717
 Flambda_primitive.args_kind_of_variadic_primitive	Flambda_primitive.args_kind_of_variadic_primitive	value	1	flambda_primitive.mli:730
 Flambda_primitive.at_most_generative_effects	Flambda_primitive.at_most_generative_effects	value	1	flambda_primitive.mli:777
-Flambda_primitive.atomic_kind	Flambda_primitive.atomic_kind	field	0	flambda_primitive.mli:635
 Flambda_primitive.atomic_offset_units	Flambda_primitive.atomic_offset_units	type	0	flambda_primitive.mli:553
 Flambda_primitive.bytes_like_value	Flambda_primitive.bytes_like_value	type	0	flambda_primitive.mli:347
 Flambda_primitive.compare	Flambda_primitive.compare	value	2	flambda_primitive.mli:811
 Flambda_primitive.compare_primitive_application	Flambda_primitive.compare_primitive_application	value	3	flambda_primitive.mli:828
-Flambda_primitive.dbg	Flambda_primitive.dbg	field	0	flambda_primitive.mli:358
-Flambda_primitive.dimension	Flambda_primitive.dimension	field	0	flambda_primitive.mli:422
-Flambda_primitive.dst	Flambda_primitive.dst	field	0	flambda_primitive.mli:422
-Flambda_primitive.enabled_at_init	Flambda_primitive.enabled_at_init	field	0	flambda_primitive.mli:358
-Flambda_primitive.field	Flambda_primitive.field	field	0	flambda_primitive.mli:422
 Flambda_primitive.free_names	Flambda_primitive.free_names	value	1	flambda_primitive.mli:678
-Flambda_primitive.ghost	Flambda_primitive.ghost	field	0	flambda_primitive.mli:422
-Flambda_primitive.inlined_attribute	Flambda_primitive.inlined_attribute	field	0	flambda_primitive.mli:358
 Flambda_primitive.int_atomic_op	Flambda_primitive.int_atomic_op	type	0	flambda_primitive.mli:588
 Flambda_primitive.is_end_region	Flambda_primitive.is_end_region	value	1	flambda_primitive.mli:835
-Flambda_primitive.kind	Flambda_primitive.kind	field	0	flambda_primitive.mli:422
 Flambda_primitive.map_args	Flambda_primitive.map_args	value	2	flambda_primitive.mli:684
-Flambda_primitive.mode	Flambda_primitive.mode	field	0	flambda_primitive.mli:635
-Flambda_primitive.move_from	Flambda_primitive.move_from	field	0	flambda_primitive.mli:422
-Flambda_primitive.move_to	Flambda_primitive.move_to	field	0	flambda_primitive.mli:422
-Flambda_primitive.mut	Flambda_primitive.mut	field	0	flambda_primitive.mli:422
-Flambda_primitive.name	Flambda_primitive.name	field	0	flambda_primitive.mli:358
 Flambda_primitive.num_dimensions	Flambda_primitive.num_dimensions	type	0	flambda_primitive.mli:351
-Flambda_primitive.offset_units	Flambda_primitive.offset_units	field	0	flambda_primitive.mli:635
 Flambda_primitive.only_generative_effects	Flambda_primitive.only_generative_effects	value	1	flambda_primitive.mli:781
 Flambda_primitive.primitive_application	Flambda_primitive.primitive_application	type	0	flambda_primitive.mli:676
 Flambda_primitive.print	Flambda_primitive.print	value	2	flambda_primitive.mli:811
-Flambda_primitive.project_from	Flambda_primitive.project_from	field	0	flambda_primitive.mli:422
 Flambda_primitive.result_kind'	Flambda_primitive.result_kind'	value	1	flambda_primitive.mli:768
-Flambda_primitive.src	Flambda_primitive.src	field	0	flambda_primitive.mli:422
 Flambda_primitive.string_accessor_width	Flambda_primitive.string_accessor_width	type	0	flambda_primitive.mli:323
 Flambda_primitive.string_like_value	Flambda_primitive.string_like_value	type	0	flambda_primitive.mli:342
 Flambda_primitive.string_or_bytes	Flambda_primitive.string_or_bytes	type	0	flambda_primitive.mli:269
-Flambda_primitive.value_slot	Flambda_primitive.value_slot	field	0	flambda_primitive.mli:422
-Flambda_primitive.variant_only	Flambda_primitive.variant_only	field	0	flambda_primitive.mli:422
 Flambda_primitive.without_args	Flambda_primitive.without_args	value	1	flambda_primitive.mli:708
 Flambda_unit.body	Flambda_unit.body	value	1	flambda_unit.mli:55
 Flambda_unit.create	Flambda_unit.create	value	5	flambda_unit.mli:35
@@ -2072,14 +2003,22 @@ Flow_types.Mutable_let_prim.original_prim	Flow_types.Mutable_let_prim.original_p
 Flow_types.Mutable_let_prim.prim	Flow_types.Mutable_let_prim.prim	field	0	flow_types.mli:68
 Flow_types.Mutable_let_prim.print	Flow_types.Mutable_let_prim.print	value	2	flow_types.mli:75
 Flow_types.Mutable_prim.Block_load	Flow_types.Mutable_prim.Block_load	constructor	4	flow_types.mli:39
+Flow_types.Mutable_prim.Block_load { bak }	Flow_types.Mutable_prim.Block_load, argument 1	inline field	0	flow_types.mli:39
+Flow_types.Mutable_prim.Block_load { block }	Flow_types.Mutable_prim.Block_load, argument 3	inline field	0	flow_types.mli:39
+Flow_types.Mutable_prim.Block_load { field }	Flow_types.Mutable_prim.Block_load, argument 4	inline field	0	flow_types.mli:39
+Flow_types.Mutable_prim.Block_load { mut }	Flow_types.Mutable_prim.Block_load, argument 2	inline field	0	flow_types.mli:39
 Flow_types.Mutable_prim.Block_set	Flow_types.Mutable_prim.Block_set	constructor	4	flow_types.mli:39
+Flow_types.Mutable_prim.Block_set { bak }	Flow_types.Mutable_prim.Block_set, argument 1	inline field	0	flow_types.mli:39
+Flow_types.Mutable_prim.Block_set { block }	Flow_types.Mutable_prim.Block_set, argument 2	inline field	0	flow_types.mli:39
+Flow_types.Mutable_prim.Block_set { field }	Flow_types.Mutable_prim.Block_set, argument 3	inline field	0	flow_types.mli:39
+Flow_types.Mutable_prim.Block_set { value }	Flow_types.Mutable_prim.Block_set, argument 4	inline field	0	flow_types.mli:39
 Flow_types.Mutable_prim.Get_tag	Flow_types.Mutable_prim.Get_tag	constructor	1	flow_types.mli:39
 Flow_types.Mutable_prim.Is_int	Flow_types.Mutable_prim.Is_int	constructor	1	flow_types.mli:39
 Flow_types.Mutable_prim.Make_block	Flow_types.Mutable_prim.Make_block	constructor	4	flow_types.mli:39
-Flow_types.Mutable_prim.bak	Flow_types.Mutable_prim.bak	field	0	flow_types.mli:39
-Flow_types.Mutable_prim.block	Flow_types.Mutable_prim.block	field	0	flow_types.mli:39
-Flow_types.Mutable_prim.field	Flow_types.Mutable_prim.field	field	0	flow_types.mli:39
-Flow_types.Mutable_prim.mut	Flow_types.Mutable_prim.mut	field	0	flow_types.mli:39
+Flow_types.Mutable_prim.Make_block { alloc_mode }	Flow_types.Mutable_prim.Make_block, argument 3	inline field	0	flow_types.mli:39
+Flow_types.Mutable_prim.Make_block { fields }	Flow_types.Mutable_prim.Make_block, argument 4	inline field	0	flow_types.mli:39
+Flow_types.Mutable_prim.Make_block { kind }	Flow_types.Mutable_prim.Make_block, argument 1	inline field	0	flow_types.mli:39
+Flow_types.Mutable_prim.Make_block { mut }	Flow_types.Mutable_prim.Make_block, argument 2	inline field	0	flow_types.mli:39
 Flow_types.Mutable_prim.print	Flow_types.Mutable_prim.print	value	2	flow_types.mli:61
 Flow_types.Mutable_unboxing_result.additional_epa	Flow_types.Mutable_unboxing_result.additional_epa	field	0	flow_types.mli:187
 Flow_types.Mutable_unboxing_result.did_unbox_a_mutable_block	Flow_types.Mutable_unboxing_result.did_unbox_a_mutable_block	field	0	flow_types.mli:187
@@ -2166,35 +2105,37 @@ Format_doc.doc	Format_doc.doc	type	0	format_doc.mli:161
 Format_doc.t	Format_doc.t	type	0	format_doc.mli:162
 Function_decl_inlining_decision.make_decision	Function_decl_inlining_decision.make_decision	value	6	function_decl_inlining_decision.mli:17
 Function_decl_inlining_decision_type.Attribute_inline	Function_decl_inlining_decision_type.Attribute_inline	constructor	0	function_decl_inlining_decision_type.mli:17
-Function_decl_inlining_decision_type.Attribute_inline	Function_decl_inlining_decision_type.mk_Attribute_inline	maker	0	function_decl_inlining_decision_type.mli:17
 Function_decl_inlining_decision_type.Function_body_too_large	Function_decl_inlining_decision_type.Function_body_too_large	constructor	1	function_decl_inlining_decision_type.mli:17
 Function_decl_inlining_decision_type.Functor_body_too_large	Function_decl_inlining_decision_type.Functor_body_too_large	constructor	1	function_decl_inlining_decision_type.mli:17
 Function_decl_inlining_decision_type.Jsir_inlining_disabled	Function_decl_inlining_decision_type.Jsir_inlining_disabled	constructor	0	function_decl_inlining_decision_type.mli:17
-Function_decl_inlining_decision_type.Jsir_inlining_disabled	Function_decl_inlining_decision_type.mk_Jsir_inlining_disabled	maker	0	function_decl_inlining_decision_type.mli:17
 Function_decl_inlining_decision_type.Never_inline_attribute	Function_decl_inlining_decision_type.Never_inline_attribute	constructor	0	function_decl_inlining_decision_type.mli:17
-Function_decl_inlining_decision_type.Never_inline_attribute	Function_decl_inlining_decision_type.mk_Never_inline_attribute	maker	0	function_decl_inlining_decision_type.mli:17
 Function_decl_inlining_decision_type.Not_yet_decided	Function_decl_inlining_decision_type.Not_yet_decided	constructor	0	function_decl_inlining_decision_type.mli:17
-Function_decl_inlining_decision_type.Not_yet_decided	Function_decl_inlining_decision_type.mk_Not_yet_decided	maker	0	function_decl_inlining_decision_type.mli:17
 Function_decl_inlining_decision_type.Recursive	Function_decl_inlining_decision_type.Recursive	constructor	0	function_decl_inlining_decision_type.mli:17
-Function_decl_inlining_decision_type.Recursive	Function_decl_inlining_decision_type.mk_Recursive	maker	0	function_decl_inlining_decision_type.mli:17
 Function_decl_inlining_decision_type.Small_function	Function_decl_inlining_decision_type.Small_function	constructor	2	function_decl_inlining_decision_type.mli:17
+Function_decl_inlining_decision_type.Small_function { size }	Function_decl_inlining_decision_type.Small_function, argument 1	inline field	0	function_decl_inlining_decision_type.mli:17
+Function_decl_inlining_decision_type.Small_function { small_function_size }	Function_decl_inlining_decision_type.Small_function, argument 2	inline field	0	function_decl_inlining_decision_type.mli:17
 Function_decl_inlining_decision_type.Small_functor	Function_decl_inlining_decision_type.Small_functor	constructor	2	function_decl_inlining_decision_type.mli:17
+Function_decl_inlining_decision_type.Small_functor { size }	Function_decl_inlining_decision_type.Small_functor, argument 1	inline field	0	function_decl_inlining_decision_type.mli:17
+Function_decl_inlining_decision_type.Small_functor { small_functor_size }	Function_decl_inlining_decision_type.Small_functor, argument 2	inline field	0	function_decl_inlining_decision_type.mli:17
 Function_decl_inlining_decision_type.Speculatively_inlinable	Function_decl_inlining_decision_type.Speculatively_inlinable	constructor	3	function_decl_inlining_decision_type.mli:17
+Function_decl_inlining_decision_type.Speculatively_inlinable { large_function_size }	Function_decl_inlining_decision_type.Speculatively_inlinable, argument 3	inline field	0	function_decl_inlining_decision_type.mli:17
+Function_decl_inlining_decision_type.Speculatively_inlinable { size }	Function_decl_inlining_decision_type.Speculatively_inlinable, argument 1	inline field	0	function_decl_inlining_decision_type.mli:17
+Function_decl_inlining_decision_type.Speculatively_inlinable { small_function_size }	Function_decl_inlining_decision_type.Speculatively_inlinable, argument 2	inline field	0	function_decl_inlining_decision_type.mli:17
 Function_decl_inlining_decision_type.Speculatively_inlinable_functor	Function_decl_inlining_decision_type.Speculatively_inlinable_functor	constructor	3	function_decl_inlining_decision_type.mli:17
+Function_decl_inlining_decision_type.Speculatively_inlinable_functor { large_functor_size }	Function_decl_inlining_decision_type.Speculatively_inlinable_functor, argument 3	inline field	0	function_decl_inlining_decision_type.mli:17
+Function_decl_inlining_decision_type.Speculatively_inlinable_functor { size }	Function_decl_inlining_decision_type.Speculatively_inlinable_functor, argument 1	inline field	0	function_decl_inlining_decision_type.mli:17
+Function_decl_inlining_decision_type.Speculatively_inlinable_functor { small_functor_size }	Function_decl_inlining_decision_type.Speculatively_inlinable_functor, argument 2	inline field	0	function_decl_inlining_decision_type.mli:17
 Function_decl_inlining_decision_type.Stub	Function_decl_inlining_decision_type.Stub	constructor	0	function_decl_inlining_decision_type.mli:17
-Function_decl_inlining_decision_type.Stub	Function_decl_inlining_decision_type.mk_Stub	maker	0	function_decl_inlining_decision_type.mli:17
 Function_decl_inlining_decision_type.cannot_be_inlined	Function_decl_inlining_decision_type.cannot_be_inlined	value	1	function_decl_inlining_decision_type.mli:55
 Function_decl_inlining_decision_type.has_attribute_inline	Function_decl_inlining_decision_type.has_attribute_inline	value	1	function_decl_inlining_decision_type.mli:53
 Function_decl_inlining_decision_type.must_be_inlined	Function_decl_inlining_decision_type.must_be_inlined	value	1	function_decl_inlining_decision_type.mli:51
-Function_decl_inlining_decision_type.size	Function_decl_inlining_decision_type.size	field	0	function_decl_inlining_decision_type.mli:17
-Function_decl_inlining_decision_type.small_function_size	Function_decl_inlining_decision_type.small_function_size	field	0	function_decl_inlining_decision_type.mli:17
 Function_declarations.Code_id	Function_declarations.Code_id	constructor	2	function_declarations.mli:25
+Function_declarations.Code_id { code_id }	Function_declarations.Code_id, argument 1	inline field	0	function_declarations.mli:25
+Function_declarations.Code_id { only_full_applications }	Function_declarations.Code_id, argument 2	inline field	0	function_declarations.mli:25
 Function_declarations.Deleted	Function_declarations.Deleted	constructor	2	function_declarations.mli:25
-Function_declarations.code_id	Function_declarations.code_id	field	0	function_declarations.mli:25
-Function_declarations.dbg	Function_declarations.dbg	field	0	function_declarations.mli:25
+Function_declarations.Deleted { dbg }	Function_declarations.Deleted, argument 2	inline field	0	function_declarations.mli:25
+Function_declarations.Deleted { function_slot_size }	Function_declarations.Deleted, argument 1	inline field	0	function_declarations.mli:25
 Function_declarations.free_names	Function_declarations.free_names	value	1	function_declarations.mli:21
-Function_declarations.function_slot_size	Function_declarations.function_slot_size	field	0	function_declarations.mli:25
-Function_declarations.only_full_applications	Function_declarations.only_full_applications	field	0	function_declarations.mli:25
 Function_declarations.t	Function_declarations.t	type	0	function_declarations.mli:19
 Function_slot.Lmap.bindings	Function_slot.Lmap.bindings	value	1	function_slot.mli:26
 Function_slot.Lmap.data	Function_slot.Lmap.data	value	1	function_slot.mli:26
@@ -2316,10 +2257,10 @@ Int_ids.Code_id_or_symbol.Set.elt	Int_ids.Code_id_or_symbol.Set_.elt	type	0	int_
 Int_ids.Code_id_or_symbol.Set.t	Int_ids.Code_id_or_symbol.Set_.t	type	0	int_ids.mli:283
 Int_ids.Code_id_or_symbol.t	Int_ids.Code_id_or_symbol.t	type	0	int_ids.mli:281
 Int_ids.Coercion.Change_depth	Int_ids.Coercion.Change_depth	constructor	2	coercion0.mli:37
+Int_ids.Coercion.Change_depth { from }	Int_ids.Coercion.Change_depth, argument 1	inline field	0	coercion0.mli:37
+Int_ids.Coercion.Change_depth { to_ }	Int_ids.Coercion.Change_depth, argument 2	inline field	0	coercion0.mli:37
 Int_ids.Coercion.Id	Int_ids.Coercion.Id	constructor	0	coercion0.mli:37
-Int_ids.Coercion.from	Int_ids.Coercion.from	field	0	coercion0.mli:37
 Int_ids.Coercion.rec_info_expr	Int_ids.Coercion.rec_info_expr	type	0	int_ids.mli:197
-Int_ids.Coercion.to_	Int_ids.Coercion.to_	field	0	coercion0.mli:37
 Int_ids.Const.Descr.Naked_float	Int_ids.Const.Descr.Naked_float	constructor	1	int_ids.mli:82
 Int_ids.Const.Descr.Naked_float32	Int_ids.Const.Descr.Naked_float32	constructor	1	int_ids.mli:82
 Int_ids.Const.Descr.Naked_immediate	Int_ids.Const.Descr.Naked_immediate	constructor	1	int_ids.mli:82
@@ -2344,15 +2285,15 @@ Int_ids.Name.Set.t	Int_ids.Name.Set_.t	type	0	int_ids.mli:178
 Int_ids.Name.T.t	Int_ids.Name.T.t	type	0	int_ids.mli:178
 Int_ids.Name.t	Int_ids.Name.t	type	0	int_ids.mli:176
 Int_ids.Rec_info_expr.Const	Int_ids.Rec_info_expr.Const	constructor	2	rec_info_expr0.mli:46
+Int_ids.Rec_info_expr.Const { depth }	Int_ids.Rec_info_expr.Const, argument 1	inline field	0	rec_info_expr0.mli:46
+Int_ids.Rec_info_expr.Const { unrolling }	Int_ids.Rec_info_expr.Const, argument 2	inline field	0	rec_info_expr0.mli:46
 Int_ids.Rec_info_expr.Succ	Int_ids.Rec_info_expr.Succ	constructor	1	rec_info_expr0.mli:46
 Int_ids.Rec_info_expr.Unroll_to	Int_ids.Rec_info_expr.Unroll_to	constructor	2	rec_info_expr0.mli:46
 Int_ids.Rec_info_expr.Unrolling_state.Do_not_unroll	Int_ids.Rec_info_expr.Unrolling_state.Do_not_unroll	constructor	0	rec_info_expr0.mli:23
 Int_ids.Rec_info_expr.Unrolling_state.Not_unrolling	Int_ids.Rec_info_expr.Unrolling_state.Not_unrolling	constructor	0	rec_info_expr0.mli:23
 Int_ids.Rec_info_expr.Unrolling_state.Unrolling	Int_ids.Rec_info_expr.Unrolling_state.Unrolling	constructor	1	rec_info_expr0.mli:23
-Int_ids.Rec_info_expr.Unrolling_state.remaining_depth	Int_ids.Rec_info_expr.Unrolling_state.remaining_depth	field	0	rec_info_expr0.mli:23
+Int_ids.Rec_info_expr.Unrolling_state.Unrolling { remaining_depth }	Int_ids.Rec_info_expr.Unrolling_state.Unrolling, argument 1	inline field	0	rec_info_expr0.mli:23
 Int_ids.Rec_info_expr.Var	Int_ids.Rec_info_expr.Var	constructor	1	rec_info_expr0.mli:46
-Int_ids.Rec_info_expr.depth	Int_ids.Rec_info_expr.depth	field	0	rec_info_expr0.mli:46
-Int_ids.Rec_info_expr.unrolling	Int_ids.Rec_info_expr.unrolling	field	0	rec_info_expr0.mli:46
 Int_ids.Rec_info_expr.variable	Int_ids.Rec_info_expr.variable	type	0	int_ids.mli:192
 Int_ids.Simple.Map.Set.t	Int_ids.Simple.Map.Set_.t	type	0	int_ids.mli:204
 Int_ids.Simple.Map.key	Int_ids.Simple.Map.key	type	0	int_ids.mli:204
@@ -2383,23 +2324,33 @@ Join_points.extra_params_and_args	Join_points.extra_params_and_args	field	0	join
 Join_points.handler_env	Join_points.handler_env	field	0	join_points.mli:21
 Join_points.is_single_inlinable_use	Join_points.is_single_inlinable_use	field	0	join_points.mli:21
 Lambda.Assume	Lambda.Assume	constructor	4	lambda.mli:860
+Lambda.Assume { loc }	Lambda.Assume, argument 4	inline field	0	lambda.mli:860
+Lambda.Assume { never_raises }	Lambda.Assume, argument 3	inline field	0	lambda.mli:860
+Lambda.Assume { never_returns_normally }	Lambda.Assume, argument 2	inline field	0	lambda.mli:860
+Lambda.Assume { strict }	Lambda.Assume, argument 1	inline field	0	lambda.mli:860
 Lambda.Check	Lambda.Check	constructor	4	lambda.mli:860
+Lambda.Check { custom_error_msg }	Lambda.Check, argument 3	inline field	0	lambda.mli:860
+Lambda.Check { loc }	Lambda.Check, argument 2	inline field	0	lambda.mli:860
+Lambda.Check { partial }	Lambda.Check, argument 4	inline field	0	lambda.mli:860
+Lambda.Check { strict }	Lambda.Check, argument 1	inline field	0	lambda.mli:860
 Lambda.Default_regalloc	Lambda.Default_regalloc	constructor	0	lambda.mli:883
 Lambda.Default_regalloc_params	Lambda.Default_regalloc_params	constructor	0	lambda.mli:886
 Lambda.Default_zero_alloc	Lambda.Default_zero_alloc	constructor	0	lambda.mli:860
-Lambda.Default_zero_alloc	Lambda.mk_Default_zero_alloc	maker	0	lambda.mli:860
 Lambda.Maybe_alloc_stack	Lambda.Maybe_alloc_stack	constructor	0	lambda.mli:49
 Lambda.Not_alloc_stack	Lambda.Not_alloc_stack	constructor	0	lambda.mli:49
 Lambda.Regalloc	Lambda.Regalloc	constructor	1	lambda.mli:883
 Lambda.Regalloc_params	Lambda.Regalloc_params	constructor	1	lambda.mli:886
-Lambda.custom_error_msg	Lambda.custom_error_msg	field	0	lambda.mli:860
 Lambda.lazy_block_tag	Lambda.lazy_block_tag	type	0	lambda.mli:144
-Lambda.loc	Lambda.loc	field	0	lambda.mli:860
-Lambda.partial	Lambda.partial	field	0	lambda.mli:860
-Lambda.strict	Lambda.strict	field	0	lambda.mli:860
 Lifted_constant.Definition.Block_like	Lifted_constant.Definition_.Block_like	constructor	4	lifted_constant.mli:25
+Lifted_constant.Definition.Block_like { symbol }	Lifted_constant.Definition_.Block_like, argument 1	inline field	0	lifted_constant.mli:25
+Lifted_constant.Definition.Block_like { symbol_projections }	Lifted_constant.Definition_.Block_like, argument 4	inline field	0	lifted_constant.mli:25
+Lifted_constant.Definition.Block_like { ty }	Lifted_constant.Definition_.Block_like, argument 3	inline field	0	lifted_constant.mli:25
+Lifted_constant.Definition.Block_like { typing_env }	Lifted_constant.Definition_.Block_like, argument 2	inline field	0	lifted_constant.mli:25
 Lifted_constant.Definition.Code	Lifted_constant.Definition_.Code	constructor	1	lifted_constant.mli:25
 Lifted_constant.Definition.Set_of_closures	Lifted_constant.Definition_.Set_of_closures	constructor	3	lifted_constant.mli:25
+Lifted_constant.Definition.Set_of_closures { closure_symbols_with_types }	Lifted_constant.Definition_.Set_of_closures, argument 2	inline field	0	lifted_constant.mli:25
+Lifted_constant.Definition.Set_of_closures { symbol_projections }	Lifted_constant.Definition_.Set_of_closures, argument 3	inline field	0	lifted_constant.mli:25
+Lifted_constant.Definition.Set_of_closures { typing_env }	Lifted_constant.Definition_.Set_of_closures, argument 1	inline field	0	lifted_constant.mli:25
 Lifted_constant.Definition.block_like	Lifted_constant.Definition_.block_like	value	5	lifted_constant.mli:58
 Lifted_constant.Definition.bound_static	Lifted_constant.Definition_.bound_static	value	1	lifted_constant.mli:66
 Lifted_constant.Definition.code	Lifted_constant.Definition_.code	value	2	lifted_constant.mli:48
@@ -2611,12 +2562,12 @@ Named_rewrite.Prim_rewrite	Named_rewrite.Prim_rewrite	constructor	1	named_rewrit
 Named_rewrite.Prim_rewrite.Invalid	Named_rewrite.Prim_rewrite.Invalid	constructor	1	named_rewrite.mli:18
 Named_rewrite.Prim_rewrite.Remove_prim	Named_rewrite.Prim_rewrite.Remove_prim	constructor	0	named_rewrite.mli:18
 Named_rewrite.Prim_rewrite.Replace_by_binding	Named_rewrite.Prim_rewrite.Replace_by_binding	constructor	2	named_rewrite.mli:18
-Named_rewrite.Prim_rewrite.bound_to	Named_rewrite.Prim_rewrite.bound_to	field	0	named_rewrite.mli:18
+Named_rewrite.Prim_rewrite.Replace_by_binding { bound_to }	Named_rewrite.Prim_rewrite.Replace_by_binding, argument 2	inline field	0	named_rewrite.mli:18
+Named_rewrite.Prim_rewrite.Replace_by_binding { var }	Named_rewrite.Prim_rewrite.Replace_by_binding, argument 1	inline field	0	named_rewrite.mli:18
 Named_rewrite.Prim_rewrite.invalid	Named_rewrite.Prim_rewrite.invalid	value	1	named_rewrite.mli:30
 Named_rewrite.Prim_rewrite.print	Named_rewrite.Prim_rewrite.print	value	2	named_rewrite.mli:27
 Named_rewrite.Prim_rewrite.remove_prim	Named_rewrite.Prim_rewrite.remove_prim	value	0	named_rewrite.mli:33
 Named_rewrite.Prim_rewrite.replace_by_binding	Named_rewrite.Prim_rewrite.replace_by_binding	value	2	named_rewrite.mli:36
-Named_rewrite.Prim_rewrite.var	Named_rewrite.Prim_rewrite.var	field	0	named_rewrite.mli:18
 Named_rewrite.prim_rewrite	Named_rewrite.prim_rewrite	value	1	named_rewrite.mli:44
 Named_rewrite.print	Named_rewrite.print	value	2	named_rewrite.mli:42
 Named_rewrite_id.Map.add	Named_rewrite_id.Map.add	value	3	named_rewrite_id.mli:19
@@ -5951,15 +5902,15 @@ Or_variable.Var	Or_variable.Var	constructor	2	or_variable.mli:19
 Or_variable.free_names	Or_variable.free_names	value	1	or_variable.mli:33
 Original_handlers.Non_recursive	Original_handlers.Non_recursive	constructor	1	original_handlers.mli:16
 Original_handlers.Recursive	Original_handlers.Recursive	constructor	4	original_handlers.mli:16
+Original_handlers.Recursive { can_be_lifted }	Original_handlers.Recursive, argument 4	inline field	0	original_handlers.mli:16
+Original_handlers.Recursive { continuation_handlers }	Original_handlers.Recursive, argument 3	inline field	0	original_handlers.mli:16
+Original_handlers.Recursive { invariant_params }	Original_handlers.Recursive, argument 1	inline field	0	original_handlers.mli:16
+Original_handlers.Recursive { lifted_params }	Original_handlers.Recursive, argument 2	inline field	0	original_handlers.mli:16
 Original_handlers.add_params_to_lift	Original_handlers.add_params_to_lift	value	2	original_handlers.mli:40
 Original_handlers.bound_continuations	Original_handlers.bound_continuations	value	1	original_handlers.mli:36
-Original_handlers.can_be_lifted	Original_handlers.can_be_lifted	field	0	original_handlers.mli:16
-Original_handlers.can_be_lifted	Original_handlers.can_be_lifted_	value	1	original_handlers.mli:38
-Original_handlers.continuation_handlers	Original_handlers.continuation_handlers	field	0	original_handlers.mli:16
+Original_handlers.can_be_lifted	Original_handlers.can_be_lifted	value	1	original_handlers.mli:38
 Original_handlers.create_non_recursive	Original_handlers.create_non_recursive	value	1	original_handlers.mli:32
 Original_handlers.create_recursive	Original_handlers.create_recursive	value	4	original_handlers.mli:25
-Original_handlers.invariant_params	Original_handlers.invariant_params	field	0	original_handlers.mli:16
-Original_handlers.lifted_params	Original_handlers.lifted_params	field	0	original_handlers.mli:16
 Original_handlers.print	Original_handlers.print	value	2	original_handlers.mli:34
 Oxcaml_args.Extra_options.symbol	Oxcaml_args.Extra_options.symbol	value	5	oxcaml_args.mli:309
 Oxcaml_flags.opt_level	Oxcaml_flags.opt_level_	type	0	oxcaml_flags.mli:132
@@ -6267,7 +6218,11 @@ Simple.var	Simple.var	value	1	int_ids.mli:208
 Simple.with_coercion	Simple.with_coercion	value	2	int_ids.mli:218
 Simple.without_coercion	Simple.without_coercion	value	1	simple.mli:32
 Simplified_expr.Non_recursive	Simplified_expr.Non_recursive	constructor	3	simplified_expr.mli:71
+Simplified_expr.Non_recursive { cont }	Simplified_expr.Non_recursive, argument 1	inline field	0	simplified_expr.mli:71
+Simplified_expr.Non_recursive { handler }	Simplified_expr.Non_recursive, argument 2	inline field	0	simplified_expr.mli:71
+Simplified_expr.Non_recursive { is_single_inlinable_use }	Simplified_expr.Non_recursive, argument 3	inline field	0	simplified_expr.mli:71
 Simplified_expr.Recursive	Simplified_expr.Recursive	constructor	1	simplified_expr.mli:71
+Simplified_expr.Recursive { simplified_continuation_handlers }	Simplified_expr.Recursive, argument 1	inline field	0	simplified_expr.mli:71
 Simplified_expr.Simplified_apply	Simplified_expr.Simplified_apply	constructor	1	simplified_expr.mli:96
 Simplified_expr.Simplified_apply_cont	Simplified_expr.Simplified_apply_cont	constructor	1	simplified_expr.mli:96
 Simplified_expr.Simplified_invalid	Simplified_expr.Simplified_invalid	constructor	1	simplified_expr.mli:96
@@ -6281,12 +6236,9 @@ Simplified_expr.at_unit_toplevel	Simplified_expr.at_unit_toplevel	field	0	simpli
 Simplified_expr.bindings_to_place	Simplified_expr.bindings_to_place	field	0	simplified_expr.mli:44
 Simplified_expr.closure_info	Simplified_expr.closure_info	field	0	simplified_expr.mli:44
 Simplified_expr.condition_dbg	Simplified_expr.condition_dbg	field	0	simplified_expr.mli:108
-Simplified_expr.cont	Simplified_expr.cont	field	0	simplified_expr.mli:71
 Simplified_expr.cse_before_switch	Simplified_expr.cse_before_switch	field	0	simplified_expr.mli:108
 Simplified_expr.exn_cont_use_id	Simplified_expr.exn_cont_use_id	field	0	simplified_expr.mli:88
-Simplified_expr.handler	Simplified_expr.handler	field	0	simplified_expr.mli:71
 Simplified_expr.is_cold	Simplified_expr.is_cold	field	0	simplified_expr.mli:88
-Simplified_expr.is_single_inlinable_use	Simplified_expr.is_single_inlinable_use	field	0	simplified_expr.mli:71
 Simplified_expr.lifted_constants_from_defining_expr	Simplified_expr.lifted_constants_from_defining_expr	field	0	simplified_expr.mli:44
 Simplified_expr.mark_as_cold	Simplified_expr.mark_as_cold	value	1	simplified_expr.mli:126
 Simplified_expr.notify_removed	Simplified_expr.notify_removed	value	2	simplified_expr.mli:124
@@ -6299,7 +6251,6 @@ Simplified_expr.shareable_constants	Simplified_expr.shareable_constants	field	0	
 Simplified_expr.simplified_apply	Simplified_expr.simplified_apply	value	5	simplified_expr.mli:140
 Simplified_expr.simplified_apply_cont	Simplified_expr.simplified_apply_cont	value	3	simplified_expr.mli:148
 Simplified_expr.simplified_apply_cont	Simplified_expr.simplified_apply_cont_	type	0	simplified_expr.mli:102
-Simplified_expr.simplified_continuation_handlers	Simplified_expr.simplified_continuation_handlers	field	0	simplified_expr.mli:71
 Simplified_expr.simplified_handler	Simplified_expr.simplified_handler_	type	0	simplified_expr.mli:59
 Simplified_expr.simplified_invalid	Simplified_expr.simplified_invalid	value	1	simplified_expr.mli:167
 Simplified_expr.simplified_let	Simplified_expr.simplified_let	value	7	simplified_expr.mli:128
@@ -6310,7 +6261,11 @@ Simplified_expr.t	Simplified_expr.t	type	0	simplified_expr.mli:31
 Simplified_expr.typing_env_before_switch	Simplified_expr.typing_env_before_switch	field	0	simplified_expr.mli:108
 Simplified_expr.use_id	Simplified_expr.use_id	field	0	simplified_expr.mli:88
 Simplified_named.Delete_binding	Simplified_named.Delete_binding	constructor	1	simplified_named.mli:58
+Simplified_named.Delete_binding { original_defining_expr }	Simplified_named.Delete_binding, argument 1	inline field	0	simplified_named.mli:58
 Simplified_named.Keep_binding	Simplified_named.Keep_binding	constructor	3	simplified_named.mli:58
+Simplified_named.Keep_binding { let_bound }	Simplified_named.Keep_binding, argument 1	inline field	0	simplified_named.mli:58
+Simplified_named.Keep_binding { original_defining_expr }	Simplified_named.Keep_binding, argument 3	inline field	0	simplified_named.mli:58
+Simplified_named.Keep_binding { simplified_defining_expr }	Simplified_named.Keep_binding, argument 2	inline field	0	simplified_named.mli:58
 Simplified_named.Prim	Simplified_named.Prim	constructor	2	simplified_named.mli:21
 Simplified_named.Rec_info	Simplified_named.Rec_info	constructor	1	simplified_named.mli:21
 Simplified_named.Rewritten	Simplified_named.Rewritten	constructor	1	simplified_named.mli:54
@@ -6322,11 +6277,8 @@ Simplified_named.cost_metrics	Simplified_named.cost_metrics_	value	1	simplified_
 Simplified_named.create	Simplified_named.create	value	2	simplified_named.mli:38
 Simplified_named.create_with_known_free_names	Simplified_named.create_with_known_free_names	value	4	simplified_named.mli:41
 Simplified_named.free_names	Simplified_named.free_names	field	0	simplified_named.mli:29
-Simplified_named.let_bound	Simplified_named.let_bound	field	0	simplified_named.mli:58
 Simplified_named.named	Simplified_named.named	field	0	simplified_named.mli:29
-Simplified_named.original_defining_expr	Simplified_named.original_defining_expr	field	0	simplified_named.mli:58
 Simplified_named.print	Simplified_named.print	value	2	simplified_named.mli:48
-Simplified_named.simplified_defining_expr	Simplified_named.simplified_defining_expr	field	0	simplified_named.mli:58
 Simplified_named.to_named	Simplified_named.to_named	value	1	simplified_named.mli:27
 Simplified_named.update_cost_metrics	Simplified_named.update_cost_metrics	value	2	simplified_named.mli:52
 Simplify.run	Simplify.run	value	5	simplify.mli:31
@@ -6358,7 +6310,7 @@ Simplify_expr.simplify_toplevel	Simplify_expr.simplify_toplevel	value	0	simplify
 Simplify_extcall.Invalid	Simplify_extcall.Invalid	constructor	0	simplify_extcall.mli:18
 Simplify_extcall.Specialised	Simplify_extcall.Specialised	constructor	3	simplify_extcall.mli:18
 Simplify_extcall.Unchanged	Simplify_extcall.Unchanged	constructor	1	simplify_extcall.mli:18
-Simplify_extcall.return_types	Simplify_extcall.return_types	field	0	simplify_extcall.mli:18
+Simplify_extcall.Unchanged { return_types }	Simplify_extcall.Unchanged, argument 1	inline field	0	simplify_extcall.mli:18
 Simplify_extcall.simplify_extcall	Simplify_extcall.simplify_extcall	value	4	simplify_extcall.mli:23
 Simplify_import.debug	Simplify_import.debug	value	1	simplify_import.mli:17
 Simplify_let_cont_expr.rebuild_let_cont	Simplify_let_cont_expr.rebuild_let_cont	value	2	simplify_let_cont_expr.mli:28
@@ -6436,6 +6388,7 @@ Slot_offsets.t	Slot_offsets.t	type	0	slot_offsets.mli:20
 Specialization_cost.At_toplevel	Specialization_cost.At_toplevel	constructor	0	specialization_cost.mli:47
 Specialization_cost.Can_specialize	Specialization_cost.Can_specialize	constructor	1	specialization_cost.mli:56
 Specialization_cost.Cannot_specialize	Specialization_cost.Cannot_specialize	constructor	1	specialization_cost.mli:56
+Specialization_cost.Cannot_specialize { reason }	Specialization_cost.Cannot_specialize, argument 1	inline field	0	specialization_cost.mli:56
 Specialization_cost.Contains_set_of_closures	Specialization_cost.Contains_set_of_closures	constructor	0	specialization_cost.mli:47
 Specialization_cost.Contains_static_consts	Specialization_cost.Contains_static_consts	constructor	0	specialization_cost.mli:47
 Specialization_cost.Specialization_disabled	Specialization_cost.Specialization_disabled	constructor	0	specialization_cost.mli:47
@@ -6448,7 +6401,6 @@ Specialization_cost.cannot_specialize	Specialization_cost.cannot_specialize	valu
 Specialization_cost.cost	Specialization_cost.cost	type	0	specialization_cost.mli:53
 Specialization_cost.cost_metrics	Specialization_cost.cost_metrics	value	6	specialization_cost.mli:87
 Specialization_cost.print	Specialization_cost.print	value	2	specialization_cost.mli:62
-Specialization_cost.reason	Specialization_cost.reason	field	0	specialization_cost.mli:56
 Static_const.Block	Static_const.Block	constructor	4	static_const.mli:25
 Static_const.Boxed_float	Static_const.Boxed_float	constructor	1	static_const.mli:25
 Static_const.Boxed_float32	Static_const.Boxed_float32	constructor	1	static_const.mli:25
@@ -6555,13 +6507,13 @@ Symbol.manufacture	Symbol.manufacture	value	2	symbol.mli:28
 Symbol.print	Symbol.print	value	2	int_ids.mli:149
 Symbol.t	Symbol.t	type	0	int_ids.mli:145
 Symbol_projection.Projection.Block_load	Symbol_projection.Projection.Block_load	constructor	2	symbol_projection.mli:16
+Symbol_projection.Projection.Block_load { block_shape }	Symbol_projection.Projection.Block_load, argument 2	inline field	0	symbol_projection.mli:16
+Symbol_projection.Projection.Block_load { index }	Symbol_projection.Projection.Block_load, argument 1	inline field	0	symbol_projection.mli:16
 Symbol_projection.Projection.Project_value_slot	Symbol_projection.Projection.Project_value_slot	constructor	2	symbol_projection.mli:16
+Symbol_projection.Projection.Project_value_slot { project_from }	Symbol_projection.Projection.Project_value_slot, argument 1	inline field	0	symbol_projection.mli:16
+Symbol_projection.Projection.Project_value_slot { value_slot }	Symbol_projection.Projection.Project_value_slot, argument 2	inline field	0	symbol_projection.mli:16
 Symbol_projection.Projection.block_load	Symbol_projection.Projection.block_load	value	2	symbol_projection.mli:26
-Symbol_projection.Projection.block_shape	Symbol_projection.Projection.block_shape	field	0	symbol_projection.mli:16
-Symbol_projection.Projection.index	Symbol_projection.Projection.index	field	0	symbol_projection.mli:16
-Symbol_projection.Projection.project_from	Symbol_projection.Projection.project_from	field	0	symbol_projection.mli:16
 Symbol_projection.Projection.project_value_slot	Symbol_projection.Projection.project_value_slot	value	2	symbol_projection.mli:29
-Symbol_projection.Projection.value_slot	Symbol_projection.Projection.value_slot	field	0	symbol_projection.mli:16
 Symbol_projection.create	Symbol_projection.create	value	3	symbol_projection.mli:36
 Symbol_projection.equal	Symbol_projection.equal	value	2	symbol_projection.mli:46
 Symbol_projection.free_names	Symbol_projection.free_names	value	1	symbol_projection.mli:50
@@ -6669,11 +6621,13 @@ Targetint_32_64.to_int	Targetint_32_64.to_int	value	1	targetint_32_64.mli:148
 Targetint_32_64.to_int32	Targetint_32_64.to_int32	value	1	targetint_32_64.mli:171
 Targetint_32_64.to_int64	Targetint_32_64.to_int64	value	1	targetint_32_64.mli:178
 Trap_action.Pop	Trap_action.Pop	constructor	2	trap_action.mli:37
+Trap_action.Pop { exn_handler }	Trap_action.Pop, argument 1	inline field	0	trap_action.mli:37
+Trap_action.Pop { raise_kind }	Trap_action.Pop, argument 2	inline field	0	trap_action.mli:37
 Trap_action.Push	Trap_action.Push	constructor	1	trap_action.mli:37
+Trap_action.Push { exn_handler }	Trap_action.Push, argument 1	inline field	0	trap_action.mli:37
 Trap_action.Raise_kind.No_trace	Trap_action.Raise_kind.No_trace	constructor	0	trap_action.mli:26
 Trap_action.Raise_kind.Regular	Trap_action.Raise_kind.Regular	constructor	0	trap_action.mli:26
 Trap_action.Raise_kind.Reraise	Trap_action.Raise_kind.Reraise	constructor	0	trap_action.mli:26
-Trap_action.exn_handler	Trap_action.exn_handler	field	0	trap_action.mli:37
 Unbox_continuation_params.Decisions.print	Unbox_continuation_params.Decisions.print	value	2	unbox_continuation_params.mli:22
 Unbox_continuation_params.Decisions.t	Unbox_continuation_params.Decisions.t	type	0	unbox_continuation_params.mli:20
 Unbox_continuation_params.Non_recursive	Unbox_continuation_params.Non_recursive	constructor	1	unbox_continuation_params.mli:27
@@ -6724,16 +6678,20 @@ Unboxers.unboxing_prim	Unboxers.unboxing_prim	field	0	unboxers.mli:25
 Unboxers.var_kind	Unboxers.var_kind	field	0	unboxers.mli:25
 Unboxers.var_name	Unboxers.var_name	field	0	unboxers.mli:25
 Unboxing_epa.Added_by_wrapper_at_rewrite_use	Unboxing_epa.Added_by_wrapper_at_rewrite_use	constructor	1	unboxing_epa.mli:22
+Unboxing_epa.Added_by_wrapper_at_rewrite_use { nth_arg }	Unboxing_epa.Added_by_wrapper_at_rewrite_use, argument 1	inline field	0	unboxing_epa.mli:22
 Unboxing_epa.Available	Unboxing_epa.Available	constructor	1	unboxing_epa.mli:22
 Unboxing_epa.Generated	Unboxing_epa.Generated	constructor	1	unboxing_epa.mli:22
 Unboxing_epa.Invalid_apply_cont	Unboxing_epa.Invalid_apply_cont	exception	0	_none_
 Unboxing_epa.Poison	Unboxing_epa.Poison	constructor	0	unboxing_epa.mli:22
 Unboxing_epa.add_extra_params_and_args	Unboxing_epa.add_extra_params_and_args	value	3	unboxing_epa.mli:37
 Unboxing_epa.compute_extra_args_for_one_decision_and_use	Unboxing_epa.compute_extra_args_for_one_decision_and_use	value	6	unboxing_epa.mli:28
-Unboxing_epa.nth_arg	Unboxing_epa.nth_arg	field	0	unboxing_epa.mli:22
 Unboxing_types.All_fields_invalid	Unboxing_types.All_fields_invalid	constructor	0	unboxing_types.mli:22
 Unboxing_types.At_least_one	Unboxing_types.At_least_one	constructor	2	unboxing_types.mli:72
+Unboxing_types.At_least_one { ctor }	Unboxing_types.At_least_one, argument 2	inline field	0	unboxing_types.mli:72
+Unboxing_types.At_least_one { is_int }	Unboxing_types.At_least_one, argument 1	inline field	0	unboxing_types.mli:72
 Unboxing_types.Closure_single_entry	Unboxing_types.Closure_single_entry	constructor	2	unboxing_types.mli:46
+Unboxing_types.Closure_single_entry { function_slot }	Unboxing_types.Closure_single_entry, argument 1	inline field	0	unboxing_types.mli:46
+Unboxing_types.Closure_single_entry { vars_within_closure }	Unboxing_types.Closure_single_entry, argument 2	inline field	0	unboxing_types.mli:46
 Unboxing_types.Compute_all_extra_args	Unboxing_types.Compute_all_extra_args	constructor	0	unboxing_types.mli:114
 Unboxing_types.Decisions.decisions	Unboxing_types.Decisions.decisions	field	0	unboxing_types.mli:87
 Unboxing_types.Decisions.print	Unboxing_types.Decisions.print	value	2	unboxing_types.mli:93
@@ -6756,16 +6714,16 @@ Unboxing_types.Number	Unboxing_types.Number	constructor	2	unboxing_types.mli:46
 Unboxing_types.Unbox	Unboxing_types.Unbox	constructor	1	unboxing_types.mli:79
 Unboxing_types.Unboxing_not_requested	Unboxing_types.Unboxing_not_requested	constructor	0	unboxing_types.mli:22
 Unboxing_types.Unique_tag_and_size	Unboxing_types.Unique_tag_and_size	constructor	3	unboxing_types.mli:46
+Unboxing_types.Unique_tag_and_size { fields }	Unboxing_types.Unique_tag_and_size, argument 3	inline field	0	unboxing_types.mli:46
+Unboxing_types.Unique_tag_and_size { shape }	Unboxing_types.Unique_tag_and_size, argument 2	inline field	0	unboxing_types.mli:46
+Unboxing_types.Unique_tag_and_size { tag }	Unboxing_types.Unique_tag_and_size, argument 1	inline field	0	unboxing_types.mli:46
 Unboxing_types.Variant	Unboxing_types.Variant	constructor	3	unboxing_types.mli:46
+Unboxing_types.Variant { const_ctors }	Unboxing_types.Variant, argument 2	inline field	0	unboxing_types.mli:46
+Unboxing_types.Variant { fields_by_tag }	Unboxing_types.Variant, argument 3	inline field	0	unboxing_types.mli:46
+Unboxing_types.Variant { tag }	Unboxing_types.Variant, argument 1	inline field	0	unboxing_types.mli:46
 Unboxing_types.Zero	Unboxing_types.Zero	constructor	0	unboxing_types.mli:72
-Unboxing_types.Zero	Unboxing_types.mk_Zero	maker	0	unboxing_types.mli:72
 Unboxing_types.field_decision	Unboxing_types.field_decision	type	0	unboxing_types.mli:66
-Unboxing_types.fields	Unboxing_types.fields	field	0	unboxing_types.mli:46
-Unboxing_types.function_slot	Unboxing_types.function_slot	field	0	unboxing_types.mli:46
 Unboxing_types.print_decision	Unboxing_types.print_decision	value	2	unboxing_types.mli:84
-Unboxing_types.shape	Unboxing_types.shape	field	0	unboxing_types.mli:46
-Unboxing_types.tag	Unboxing_types.tag	field	0	unboxing_types.mli:46
-Unboxing_types.vars_within_closure	Unboxing_types.vars_within_closure	field	0	unboxing_types.mli:46
 Unit.T.t	Unit.T.t	type	0	unit.mli:19
 Unit.print	Unit.print	value	2	unit.mli:19
 Unit.t	Unit.t	type	0	unit.mli:17
@@ -6893,68 +6851,61 @@ Vector_types.Vec128.Bit_pattern.t	Vector_types.Vec128.Bit_pattern.t	type	0	conta
 Vector_types.Vec256.Bit_pattern.t	Vector_types.Vec256.Bit_pattern.t	type	0	container_types_intf.ml:297
 Vector_types.Vec512.Bit_pattern.t	Vector_types.Vec512.Bit_pattern.t	type	0	container_types_intf.ml:297
 Warnings.All_clauses_guarded	Warnings.All_clauses_guarded	constructor	0	warnings.mli:61
-Warnings.All_clauses_guarded	Warnings.mk_All_clauses_guarded	maker	0	warnings.mli:61
 Warnings.Ambiguous_name	Warnings.Ambiguous_name	constructor	4	warnings.mli:61
 Warnings.Ambiguous_var_in_pattern_guard	Warnings.Ambiguous_var_in_pattern_guard	constructor	1	warnings.mli:61
 Warnings.Atomic_float_record_boxed	Warnings.Atomic_float_record_boxed	constructor	0	warnings.mli:61
-Warnings.Atomic_float_record_boxed	Warnings.mk_Atomic_float_record_boxed	maker	0	warnings.mli:61
 Warnings.Attribute_payload	Warnings.Attribute_payload	constructor	2	warnings.mli:61
 Warnings.Bad_env_variable	Warnings.Bad_env_variable	constructor	2	warnings.mli:61
 Warnings.Bad_module_name	Warnings.Bad_module_name	constructor	1	warnings.mli:61
 Warnings.Comment_not_end	Warnings.Comment_not_end	constructor	0	warnings.mli:61
-Warnings.Comment_not_end	Warnings.mk_Comment_not_end	maker	0	warnings.mli:61
 Warnings.Comment_start	Warnings.Comment_start	constructor	0	warnings.mli:61
-Warnings.Comment_start	Warnings.mk_Comment_start	maker	0	warnings.mli:61
 Warnings.Constraint_on_gadt	Warnings.Constraint_on_gadt	constructor	0	warnings.mli:61
-Warnings.Constraint_on_gadt	Warnings.mk_Constraint_on_gadt	maker	0	warnings.mli:61
 Warnings.Degraded_to_partial_match	Warnings.Degraded_to_partial_match	constructor	0	warnings.mli:61
-Warnings.Degraded_to_partial_match	Warnings.mk_Degraded_to_partial_match	maker	0	warnings.mli:61
 Warnings.Disambiguated_name	Warnings.Disambiguated_name	constructor	1	warnings.mli:61
 Warnings.Duplicate_definitions	Warnings.Duplicate_definitions	constructor	4	warnings.mli:61
 Warnings.Duplicated_attribute	Warnings.Duplicated_attribute	constructor	1	warnings.mli:61
 Warnings.Eliminated_optional_arguments	Warnings.Eliminated_optional_arguments	constructor	1	warnings.mli:61
 Warnings.Eol_in_string	Warnings.Eol_in_string	constructor	0	warnings.mli:61
-Warnings.Eol_in_string	Warnings.mk_Eol_in_string	maker	0	warnings.mli:61
 Warnings.Erroneous_printed_signature	Warnings.Erroneous_printed_signature	constructor	1	warnings.mli:61
 Warnings.Flambda_assignment_to_non_mutable_value	Warnings.Flambda_assignment_to_non_mutable_value	constructor	0	warnings.mli:61
-Warnings.Flambda_assignment_to_non_mutable_value	Warnings.mk_Flambda_assignment_to_non_mutable_value	maker	0	warnings.mli:61
 Warnings.Fragile_literal_pattern	Warnings.Fragile_literal_pattern	constructor	0	warnings.mli:61
-Warnings.Fragile_literal_pattern	Warnings.mk_Fragile_literal_pattern	maker	0	warnings.mli:61
 Warnings.Fragile_match	Warnings.Fragile_match	constructor	1	warnings.mli:61
 Warnings.Generative_application_expects_unit	Warnings.Generative_application_expects_unit	constructor	0	warnings.mli:61
-Warnings.Generative_application_expects_unit	Warnings.mk_Generative_application_expects_unit	maker	0	warnings.mli:61
 Warnings.Ignored_extra_argument	Warnings.Ignored_extra_argument	constructor	0	warnings.mli:61
-Warnings.Ignored_extra_argument	Warnings.mk_Ignored_extra_argument	maker	0	warnings.mli:61
 Warnings.Ignored_kind_modifier	Warnings.Ignored_kind_modifier	constructor	2	warnings.mli:61
+Warnings.Ignored_kind_modifier { abbrev }	Warnings.Ignored_kind_modifier, argument 2	inline field	0	warnings.mli:61
+Warnings.Ignored_kind_modifier { modifier }	Warnings.Ignored_kind_modifier, argument 1	inline field	0	warnings.mli:61
 Warnings.Ignored_partial_application	Warnings.Ignored_partial_application	constructor	0	warnings.mli:61
-Warnings.Ignored_partial_application	Warnings.mk_Ignored_partial_application	maker	0	warnings.mli:61
 Warnings.Illegal_backslash	Warnings.Illegal_backslash	constructor	0	warnings.mli:61
-Warnings.Illegal_backslash	Warnings.mk_Illegal_backslash	maker	0	warnings.mli:61
 Warnings.Implicit_public_methods	Warnings.Implicit_public_methods	constructor	1	warnings.mli:61
 Warnings.Implied_attribute	Warnings.Implied_attribute	constructor	2	warnings.mli:61
+Warnings.Implied_attribute { implied }	Warnings.Implied_attribute, argument 2	inline field	0	warnings.mli:61
+Warnings.Implied_attribute { implying }	Warnings.Implied_attribute, argument 1	inline field	0	warnings.mli:61
 Warnings.Imprecise_kind_annotation	Warnings.Imprecise_kind_annotation	constructor	3	warnings.mli:61
+Warnings.Imprecise_kind_annotation { annotated }	Warnings.Imprecise_kind_annotation, argument 2	inline field	0	warnings.mli:61
+Warnings.Imprecise_kind_annotation { inferred }	Warnings.Imprecise_kind_annotation, argument 3	inline field	0	warnings.mli:61
+Warnings.Imprecise_kind_annotation { name }	Warnings.Imprecise_kind_annotation, argument 1	inline field	0	warnings.mli:61
 Warnings.Incompatible_with_upstream	Warnings.Incompatible_with_upstream	constructor	1	warnings.mli:61
 Warnings.Inlining_impossible	Warnings.Inlining_impossible	constructor	1	warnings.mli:61
 Warnings.Instance_variable_override	Warnings.Instance_variable_override	constructor	1	warnings.mli:61
 Warnings.Labels_omitted	Warnings.Labels_omitted	constructor	1	warnings.mli:61
 Warnings.Lpoly_in_letrec	Warnings.Lpoly_in_letrec	constructor	0	warnings.mli:61
-Warnings.Lpoly_in_letrec	Warnings.mk_Lpoly_in_letrec	maker	0	warnings.mli:61
 Warnings.Match_on_mutable_state_prevent_uncurry	Warnings.Match_on_mutable_state_prevent_uncurry	constructor	0	warnings.mli:61
-Warnings.Match_on_mutable_state_prevent_uncurry	Warnings.mk_Match_on_mutable_state_prevent_uncurry	maker	0	warnings.mli:61
 Warnings.Method_override	Warnings.Method_override	constructor	1	warnings.mli:61
 Warnings.Misplaced_attribute	Warnings.Misplaced_attribute	constructor	1	warnings.mli:61
 Warnings.Missing_mli	Warnings.Missing_mli	constructor	0	warnings.mli:61
-Warnings.Missing_mli	Warnings.mk_Missing_mli	maker	0	warnings.mli:61
 Warnings.Missing_record_field_pattern	Warnings.Missing_record_field_pattern	constructor	2	warnings.mli:61
+Warnings.Missing_record_field_pattern { form }	Warnings.Missing_record_field_pattern, argument 1	inline field	0	warnings.mli:61
+Warnings.Missing_record_field_pattern { unbound }	Warnings.Missing_record_field_pattern, argument 2	inline field	0	warnings.mli:61
 Warnings.Name_out_of_scope	Warnings.Name_out_of_scope	constructor	2	warnings.mli:61
 Warnings.No_cmi_file	Warnings.No_cmi_file	constructor	2	warnings.mli:61
 Warnings.No_cmx_file	Warnings.No_cmx_file	constructor	2	warnings.mli:61
+Warnings.No_cmx_file { missing_extension }	Warnings.No_cmx_file, argument 1	inline field	0	warnings.mli:61
+Warnings.No_cmx_file { module_name }	Warnings.No_cmx_file, argument 2	inline field	0	warnings.mli:61
 Warnings.Non_principal_labels	Warnings.Non_principal_labels	constructor	1	warnings.mli:61
 Warnings.Non_unit_statement	Warnings.Non_unit_statement	constructor	0	warnings.mli:61
-Warnings.Non_unit_statement	Warnings.mk_Non_unit_statement	maker	0	warnings.mli:61
 Warnings.Nonoptional_label	Warnings.Nonoptional_label	constructor	1	warnings.mli:61
 Warnings.Nonreturning_statement	Warnings.Nonreturning_statement	constructor	0	warnings.mli:61
-Warnings.Nonreturning_statement	Warnings.mk_Nonreturning_statement	maker	0	warnings.mli:61
 Warnings.Not_principal	Warnings.Not_principal	constructor	1	warnings.mli:61
 Warnings.Open_shadow_identifier	Warnings.Open_shadow_identifier	constructor	2	warnings.mli:61
 Warnings.Open_shadow_label_constructor	Warnings.Open_shadow_label_constructor	constructor	2	warnings.mli:61
@@ -6963,40 +6914,33 @@ Warnings.Preprocessor	Warnings.Preprocessor	constructor	1	warnings.mli:61
 Warnings.Probe_name_too_long	Warnings.Probe_name_too_long	constructor	1	warnings.mli:61
 Warnings.Redefining_unit	Warnings.Redefining_unit	constructor	1	warnings.mli:61
 Warnings.Redundant_case	Warnings.Redundant_case	constructor	0	warnings.mli:61
-Warnings.Redundant_case	Warnings.mk_Redundant_case	maker	0	warnings.mli:61
 Warnings.Redundant_kind_modifier	Warnings.Redundant_kind_modifier	constructor	1	warnings.mli:61
 Warnings.Redundant_modality	Warnings.Redundant_modality	constructor	0	warnings.mli:61
-Warnings.Redundant_modality	Warnings.mk_Redundant_modality	maker	0	warnings.mli:61
 Warnings.Redundant_modifier	Warnings.Redundant_modifier	constructor	2	warnings.mli:61
+Warnings.Redundant_modifier { modifier }	Warnings.Redundant_modifier, argument 1	inline field	0	warnings.mli:61
+Warnings.Redundant_modifier { reason }	Warnings.Redundant_modifier, argument 2	inline field	0	warnings.mli:61
 Warnings.Redundant_subpat	Warnings.Redundant_subpat	constructor	0	warnings.mli:61
-Warnings.Redundant_subpat	Warnings.mk_Redundant_subpat	maker	0	warnings.mli:61
 Warnings.Tmc_breaks_tailcall	Warnings.Tmc_breaks_tailcall	constructor	0	warnings.mli:61
-Warnings.Tmc_breaks_tailcall	Warnings.mk_Tmc_breaks_tailcall	maker	0	warnings.mli:61
 Warnings.Unboxable_type_in_prim_decl	Warnings.Unboxable_type_in_prim_decl	constructor	1	warnings.mli:61
 Warnings.Unboxing_impossible	Warnings.Unboxing_impossible	constructor	0	warnings.mli:61
-Warnings.Unboxing_impossible	Warnings.mk_Unboxing_impossible	maker	0	warnings.mli:61
 Warnings.Unchecked_zero_alloc_attribute	Warnings.Unchecked_zero_alloc_attribute	constructor	0	warnings.mli:61
-Warnings.Unchecked_zero_alloc_attribute	Warnings.mk_Unchecked_zero_alloc_attribute	maker	0	warnings.mli:61
 Warnings.Undeclared_virtual_method	Warnings.Undeclared_virtual_method	constructor	1	warnings.mli:61
 Warnings.Unerasable_optional_argument	Warnings.Unerasable_optional_argument	constructor	0	warnings.mli:61
-Warnings.Unerasable_optional_argument	Warnings.mk_Unerasable_optional_argument	maker	0	warnings.mli:61
 Warnings.Unerasable_position_argument	Warnings.Unerasable_position_argument	constructor	0	warnings.mli:61
-Warnings.Unerasable_position_argument	Warnings.mk_Unerasable_position_argument	maker	0	warnings.mli:61
 Warnings.Unexpected_docstring	Warnings.Unexpected_docstring	constructor	1	warnings.mli:61
 Warnings.Unmutated_mutable	Warnings.Unmutated_mutable	constructor	1	warnings.mli:61
 Warnings.Unnecessarily_partial_tuple_pattern	Warnings.Unnecessarily_partial_tuple_pattern	constructor	0	warnings.mli:61
-Warnings.Unnecessarily_partial_tuple_pattern	Warnings.mk_Unnecessarily_partial_tuple_pattern	maker	0	warnings.mli:61
 Warnings.Unreachable_case	Warnings.Unreachable_case	constructor	0	warnings.mli:61
-Warnings.Unreachable_case	Warnings.mk_Unreachable_case	maker	0	warnings.mli:61
 Warnings.Unsafe_array_syntax_without_parsing	Warnings.Unsafe_array_syntax_without_parsing	constructor	0	warnings.mli:61
-Warnings.Unsafe_array_syntax_without_parsing	Warnings.mk_Unsafe_array_syntax_without_parsing	maker	0	warnings.mli:61
 Warnings.Untagged_external_small_int_return	Warnings.Untagged_external_small_int_return	constructor	0	warnings.mli:61
-Warnings.Untagged_external_small_int_return	Warnings.mk_Untagged_external_small_int_return	maker	0	warnings.mli:61
 Warnings.Unused_alert_disable	Warnings.Unused_alert_disable	constructor	1	warnings.mli:61
 Warnings.Unused_ancestor	Warnings.Unused_ancestor	constructor	1	warnings.mli:61
 Warnings.Unused_constructor	Warnings.Unused_constructor	constructor	2	warnings.mli:61
 Warnings.Unused_extension	Warnings.Unused_extension	constructor	3	warnings.mli:61
 Warnings.Unused_field	Warnings.Unused_field	constructor	3	warnings.mli:61
+Warnings.Unused_field { complaint }	Warnings.Unused_field, argument 3	inline field	0	warnings.mli:61
+Warnings.Unused_field { field }	Warnings.Unused_field, argument 2	inline field	0	warnings.mli:61
+Warnings.Unused_field { form }	Warnings.Unused_field, argument 1	inline field	0	warnings.mli:61
 Warnings.Unused_for_index	Warnings.Unused_for_index	constructor	1	warnings.mli:61
 Warnings.Unused_functor_parameter	Warnings.Unused_functor_parameter	constructor	1	warnings.mli:61
 Warnings.Unused_kind_declaration	Warnings.Unused_kind_declaration	constructor	1	warnings.mli:61
@@ -7004,38 +6948,27 @@ Warnings.Unused_module	Warnings.Unused_module	constructor	1	warnings.mli:61
 Warnings.Unused_open	Warnings.Unused_open	constructor	1	warnings.mli:61
 Warnings.Unused_open_bang	Warnings.Unused_open_bang	constructor	1	warnings.mli:61
 Warnings.Unused_rec_flag	Warnings.Unused_rec_flag	constructor	0	warnings.mli:61
-Warnings.Unused_rec_flag	Warnings.mk_Unused_rec_flag	maker	0	warnings.mli:61
 Warnings.Unused_tmc_attribute	Warnings.Unused_tmc_attribute	constructor	0	warnings.mli:61
-Warnings.Unused_tmc_attribute	Warnings.mk_Unused_tmc_attribute	maker	0	warnings.mli:61
 Warnings.Unused_type_declaration	Warnings.Unused_type_declaration	constructor	2	warnings.mli:61
 Warnings.Unused_value_declaration	Warnings.Unused_value_declaration	constructor	1	warnings.mli:61
 Warnings.Unused_var	Warnings.Unused_var	constructor	2	warnings.mli:61
+Warnings.Unused_var { mutated }	Warnings.Unused_var, argument 2	inline field	0	warnings.mli:61
+Warnings.Unused_var { name }	Warnings.Unused_var, argument 1	inline field	0	warnings.mli:61
 Warnings.Unused_var_strict	Warnings.Unused_var_strict	constructor	2	warnings.mli:61
+Warnings.Unused_var_strict { mutated }	Warnings.Unused_var_strict, argument 2	inline field	0	warnings.mli:61
+Warnings.Unused_var_strict { name }	Warnings.Unused_var_strict, argument 1	inline field	0	warnings.mli:61
 Warnings.Use_during_borrowing	Warnings.Use_during_borrowing	constructor	0	warnings.mli:61
-Warnings.Use_during_borrowing	Warnings.mk_Use_during_borrowing	maker	0	warnings.mli:61
 Warnings.Useless_record_with	Warnings.Useless_record_with	constructor	1	warnings.mli:61
 Warnings.Useless_valpoly	Warnings.Useless_valpoly	constructor	0	warnings.mli:61
-Warnings.Useless_valpoly	Warnings.mk_Useless_valpoly	maker	0	warnings.mli:61
 Warnings.Wildcard_arg_to_constant_constr	Warnings.Wildcard_arg_to_constant_constr	constructor	0	warnings.mli:61
-Warnings.Wildcard_arg_to_constant_constr	Warnings.mk_Wildcard_arg_to_constant_constr	maker	0	warnings.mli:61
 Warnings.Wrong_tailcall_expectation	Warnings.Wrong_tailcall_expectation	constructor	1	warnings.mli:61
 Warnings.Zero_alloc_all_hidden_arrow	Warnings.Zero_alloc_all_hidden_arrow	constructor	1	warnings.mli:61
-Warnings.abbrev	Warnings.abbrev	field	0	warnings.mli:61
 Warnings.constructor_usage_warning	Warnings.constructor_usage_warning	type	0	warnings.mli:37
 Warnings.field_usage_warning	Warnings.field_usage_warning	type	0	warnings.mli:32
-Warnings.form	Warnings.form	field	0	warnings.mli:61
-Warnings.implied	Warnings.implied	field	0	warnings.mli:61
-Warnings.implying	Warnings.implying	field	0	warnings.mli:61
 Warnings.loc	Warnings.loc	type	0	warnings.mli:23
-Warnings.missing_extension	Warnings.missing_extension	field	0	warnings.mli:61
-Warnings.modifier	Warnings.modifier	field	0	warnings.mli:61
-Warnings.module_name	Warnings.module_name	field	0	warnings.mli:61
-Warnings.mutated	Warnings.mutated	field	0	warnings.mli:61
-Warnings.name	Warnings.name	field	0	warnings.mli:61
 Warnings.name_out_of_scope_warning	Warnings.name_out_of_scope_warning	type	0	warnings.mli:49
 Warnings.redundant_modifier_reason	Warnings.redundant_modifier_reason	type	0	warnings.mli:57
 Warnings.type_declaration_usage_warning	Warnings.type_declaration_usage_warning	type	0	warnings.mli:53
-Warnings.unbound	Warnings.unbound	field	0	warnings.mli:61
 Warnings.upstream_compat_warning	Warnings.upstream_compat_warning	type	0	warnings.mli:42
 Zero_alloc_attribute.t	Zero_alloc_attribute.t	type	0	zero_alloc_attribute.mli:13
 __LOC__	Stdlib_.__LOC__	value	0	stdlib/stdlib.mli
@@ -7048,33 +6981,11 @@ incr	Stdlib_.incr	value	1	stdlib/stdlib.mli
 int32	Stdlib_.int32	type	0	predefined
 int64	Stdlib_.int64	type	0	predefined
 invalid_arg	Stdlib_.invalid_arg	value	1	stdlib/stdlib.mli
-match on Alloc_mode.For_allocations.t	Alloc_mode.For_allocations.match_t	eliminator	3	alloc_mode.mli:84
-match on Alloc_mode.For_applications.t	Alloc_mode.For_applications.match_t	eliminator	3	alloc_mode.mli:47
-match on Are_lifting_conts.t	Are_lifting_conts.match_t	eliminator	4	are_lifting_conts.mli:59
-match on Call_kind.Effect.t	Call_kind.Effect.match_t	eliminator	8	call_kind.mli:51
-match on Call_site_inlining_decision_type.can_inline	Call_site_inlining_decision_type.match_can_inline_	eliminator	3	call_site_inlining_decision_type.mli:54
-match on Continuation_in_env.t	Continuation_in_env.match_t	eliminator	6	continuation_in_env.mli:17
-match on Flambda.expr_descr	Flambda.match_expr_descr	eliminator	7	flambda.mli:53
-match on Flambda2_types.to_lift	Flambda2_types.match_to_lift	eliminator	25	flambda2_types.mli:942
-match on Flambda_primitive.Block_access_kind.t	Flambda_primitive.Block_access_kind.match_t	eliminator	4	flambda_primitive.mli:230
-match on Flambda_primitive.binary_primitive	Flambda_primitive.match_binary_primitive	eliminator	15	flambda_primitive.mli:558
-match on Flambda_primitive.unary_primitive	Flambda_primitive.match_unary_primitive	eliminator	32	flambda_primitive.mli:422
-match on Flow_types.Mutable_prim.t	Flow_types.Mutable_prim.match_t	eliminator	6	flow_types.mli:39
-match on Function_decl_inlining_decision_type.t	Function_decl_inlining_decision_type.match_t	eliminator	13	function_decl_inlining_decision_type.mli:17
-match on Lambda.zero_alloc_attribute	Lambda.match_zero_alloc_attribute	eliminator	4	lambda.mli:860
-match on Lifted_constant.Definition.descr	Lifted_constant.Definition_.match_descr_	eliminator	4	lifted_constant.mli:25
 match on Simplified_expr.simplified_apply_cont	Simplified_expr.match_simplified_apply_cont_	eliminator	2	simplified_expr.mli:102
 match on Simplified_expr.simplified_handler	Simplified_expr.match_simplified_handler_	eliminator	2	simplified_expr.mli:59
 match on Simplified_expr.simplified_let_cont_handlers	Simplified_expr.match_simplified_let_cont_handlers	eliminator	2	simplified_expr.mli:81
-match on Simplified_expr.simplified_lets_and_let_conts	Simplified_expr.match_simplified_lets_and_let_conts_	eliminator	4	simplified_expr.mli:38
-match on Simplified_expr.simplified_terminator	Simplified_expr.match_simplified_terminator_	eliminator	5	simplified_expr.mli:96
 match on Simplified_expr.t	Simplified_expr.match_t	eliminator	2	simplified_expr.mli:31
-match on Simplified_named.binding_to_place	Simplified_named.match_binding_to_place	eliminator	3	simplified_named.mli:58
-match on Trap_action.t	Trap_action.match_t	eliminator	3	trap_action.mli:37
-match on Unboxing_types.const_ctors_decision	Unboxing_types.match_const_ctors_decision	eliminator	3	unboxing_types.mli:72
 match on Unboxing_types.field_decision	Unboxing_types.match_field_decision	eliminator	2	unboxing_types.mli:66
-match on Unboxing_types.unboxing_decision	Unboxing_types.match_unboxing_decision	eliminator	5	unboxing_types.mli:46
-match on Warnings.t	Warnings.match_t	eliminator	94	warnings.mli:61
 max_int	Stdlib_.max_int	value	0	stdlib/stdlib.mli
 open_out	Stdlib_.open_out	value	1	stdlib/stdlib.mli
 out_channel	Stdlib_.out_channel	type	0	stdlib/stdlib.mli

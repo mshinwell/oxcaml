@@ -23,11 +23,11 @@ From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Code_id Continuation Format Variable_.
 
 (* closure_info.mli:16  type t = private | Not_in_a_closure | In_a_set_of_closures_but_not_yet_in_a_specific_closure | Closure of { code_id : Code_id.t; return_continuation : Continuation.t; exn_continuation : Continuation.t; my_closure : Variable.t; my_alloc_region : Variable.t } *)
-Record closure_payload_ : Type := { code_id : Code_id.t; return_continuation : Continuation.t; exn_continuation : Continuation.t; my_closure : Variable_.t; my_alloc_region : Variable_.t }.
 Inductive t : Type :=
 | Not_in_a_closure : t
 | In_a_set_of_closures_but_not_yet_in_a_specific_closure : t
-| Closure : closure_payload_ -> t.
+| Closure : Code_id.t -> Continuation.t -> Continuation.t -> Variable_.t -> Variable_.t -> t.
+Extract Inductive t => "Closure_info.t" [ "(Closure_info.Not_in_a_closure : Closure_info.t)" "Closure_info.In_a_set_of_closures_but_not_yet_in_a_specific_closure" "(fun (x__1, x__2, x__3, x__4, x__5) -> (Closure_info.Closure { code_id = x__1; return_continuation = x__2; exn_continuation = x__3; my_closure = x__4; my_alloc_region = x__5 } : Closure_info.t))" ] "(fun f__1 f__2 f__3 x__0 -> match (x__0 : Closure_info.t) with Closure_info.Not_in_a_closure -> f__1 () | Closure_info.In_a_set_of_closures_but_not_yet_in_a_specific_closure -> f__2 () | Closure_info.Closure { code_id = x__1; return_continuation = x__2; exn_continuation = x__3; my_closure = x__4; my_alloc_region = x__5 } -> f__3 x__1 x__2 x__3 x__4 x__5)".
 (* closure_info.mli:27  val print : Format.formatter -> t -> unit *)
 Parameter print : Format.formatter -> t -> M unit.
 Extract Inlined Constant print => "Closure_info.print".

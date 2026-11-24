@@ -50,6 +50,7 @@ Module Const.
     | Naked_mask : Vector_types.Mask.Bit_pattern.t -> t
     | Null : t
     | Poison : Flambda_kind.t -> string -> t.
+    Extract Inductive t => "Int_ids.Const.Descr.t" [ "Int_ids.Const.Descr.Naked_immediate" "Int_ids.Const.Descr.Tagged_immediate" "Int_ids.Const.Descr.Naked_float32" "Int_ids.Const.Descr.Naked_float" "Int_ids.Const.Descr.Naked_int8" "Int_ids.Const.Descr.Naked_int16" "Int_ids.Const.Descr.Naked_int32" "Int_ids.Const.Descr.Naked_int64" "Int_ids.Const.Descr.Naked_nativeint" "Int_ids.Const.Descr.Naked_vec128" "Int_ids.Const.Descr.Naked_vec256" "Int_ids.Const.Descr.Naked_vec512" "Int_ids.Const.Descr.Naked_mask" "Int_ids.Const.Descr.Null" "Int_ids.Const.Descr.Poison" ].
   End Descr.
 End Const.
 Module Variable_.
@@ -146,29 +147,29 @@ Module Rec_info_expr.
   Extract Inlined Constant variable => "Int_ids.Rec_info_expr.variable".
   Module Unrolling_state.
     (* rec_info_expr0.mli:23  type t = private | Not_unrolling ( ** Unrolling has not begun. * ) | Unrolling of { remaining_depth : int } ( ** Unrolling has begun and will continue until [remaining_depth] is zero. A subsequent [unroll_to] expression may increase the remaining depth. * ) | Do_not_unroll ( ** No unrolling may occur. [unroll_to] has no effect. * ) *)
-    Record unrolling_payload_ : Type := { remaining_depth : int }.
     Inductive t : Type :=
     | Not_unrolling : t
-    | Unrolling : unrolling_payload_ -> t
+    | Unrolling : int -> t
     | Do_not_unroll : t.
+    Extract Inductive t => "Int_ids.Rec_info_expr.Unrolling_state.t" [ "Int_ids.Rec_info_expr.Unrolling_state.Not_unrolling" "(fun x__1 -> (Int_ids.Rec_info_expr.Unrolling_state.Unrolling { remaining_depth = x__1 } : Int_ids.Rec_info_expr.Unrolling_state.t))" "Int_ids.Rec_info_expr.Unrolling_state.Do_not_unroll" ] "(fun f__1 f__2 f__3 x__0 -> match (x__0 : Int_ids.Rec_info_expr.Unrolling_state.t) with Int_ids.Rec_info_expr.Unrolling_state.Not_unrolling -> f__1 () | Int_ids.Rec_info_expr.Unrolling_state.Unrolling { remaining_depth = x__1 } -> f__2 x__1 | Int_ids.Rec_info_expr.Unrolling_state.Do_not_unroll -> f__3 ())".
   End Unrolling_state.
   (* rec_info_expr0.mli:46  type t = private | Const of { depth : int Or_infinity.t; unrolling : Unrolling_state.t } | Var of variable ( ** A variable of kind [Flambda_kind.rec_info]. * ) | Succ of t ( ** The next depth. If we inline an occurrence with depth [d], then in the inlined body, recursive references will have depth [succ d]. * ) | Unroll_to of int * t *)
-  Record const_payload_ : Type := { depth : Or_infinity.t int; unrolling : Int_ids.Rec_info_expr.Unrolling_state.t }.
   Inductive t : Type :=
-  | Const : const_payload_ -> t
+  | Const : Or_infinity.t int -> Int_ids.Rec_info_expr.Unrolling_state.t -> t
   | Var : variable -> t
   | Succ : t -> t
   | Unroll_to : int -> t -> t.
+  Extract Inductive t => "Int_ids.Rec_info_expr.t" [ "(fun (x__1, x__2) -> (Int_ids.Rec_info_expr.Const { depth = x__1; unrolling = x__2 } : Int_ids.Rec_info_expr.t))" "Int_ids.Rec_info_expr.Var" "Int_ids.Rec_info_expr.Succ" "Int_ids.Rec_info_expr.Unroll_to" ] "(fun f__1 f__2 f__3 f__4 x__0 -> match (x__0 : Int_ids.Rec_info_expr.t) with Int_ids.Rec_info_expr.Const { depth = x__1; unrolling = x__2 } -> f__1 x__1 x__2 | Int_ids.Rec_info_expr.Var x__1 -> f__2 x__1 | Int_ids.Rec_info_expr.Succ x__1 -> f__3 x__1 | Int_ids.Rec_info_expr.Unroll_to (x__1, x__2) -> f__4 x__1 x__2)".
 End Rec_info_expr.
 Module Coercion.
   (* int_ids.mli:197  and type rec_info_expr = Rec_info_expr.t *)
   Definition rec_info_expr : Type := Int_ids.Rec_info_expr.t.
   Extract Inlined Constant rec_info_expr => "Int_ids.Coercion.rec_info_expr".
   (* coercion0.mli:37  type t = private | Id | Change_depth of { from : rec_info_expr; to_ : rec_info_expr } *)
-  Record change_depth_payload_ : Type := { from : rec_info_expr; to_ : rec_info_expr }.
   Inductive t : Type :=
   | Id : t
-  | Change_depth : change_depth_payload_ -> t.
+  | Change_depth : rec_info_expr -> rec_info_expr -> t.
+  Extract Inductive t => "Int_ids.Coercion.t" [ "Int_ids.Coercion.Id" "(fun (x__1, x__2) -> (Int_ids.Coercion.Change_depth { from = x__1; to_ = x__2 } : Int_ids.Coercion.t))" ] "(fun f__1 f__2 x__0 -> match (x__0 : Int_ids.Coercion.t) with Int_ids.Coercion.Id -> f__1 () | Int_ids.Coercion.Change_depth { from = x__1; to_ = x__2 } -> f__2 x__1 x__2)".
 End Coercion.
 Module Simple.
   (* int_ids.mli:200  type t = private Table_by_int_id.Id.t *)

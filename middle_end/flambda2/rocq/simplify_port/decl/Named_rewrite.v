@@ -24,11 +24,11 @@ From SimplifyPort.decl Require Flambda_kind Format Simple Variable_.
 
 Module Prim_rewrite.
   (* named_rewrite.mli:18  type t = private | Remove_prim | Invalid of Flambda_kind.t | Replace_by_binding of { var : Variable.t; bound_to : Simple.t } *)
-  Record replace_by_binding_payload_ : Type := { var : Variable_.t; bound_to : Simple.t }.
   Inductive t : Type :=
   | Remove_prim : t
   | Invalid : Flambda_kind.t -> t
-  | Replace_by_binding : replace_by_binding_payload_ -> t.
+  | Replace_by_binding : Variable_.t -> Simple.t -> t.
+  Extract Inductive t => "Named_rewrite.Prim_rewrite.t" [ "Named_rewrite.Prim_rewrite.Remove_prim" "Named_rewrite.Prim_rewrite.Invalid" "(fun (x__1, x__2) -> (Named_rewrite.Prim_rewrite.Replace_by_binding { var = x__1; bound_to = x__2 } : Named_rewrite.Prim_rewrite.t))" ] "(fun f__1 f__2 f__3 x__0 -> match (x__0 : Named_rewrite.Prim_rewrite.t) with Named_rewrite.Prim_rewrite.Remove_prim -> f__1 () | Named_rewrite.Prim_rewrite.Invalid x__1 -> f__2 x__1 | Named_rewrite.Prim_rewrite.Replace_by_binding { var = x__1; bound_to = x__2 } -> f__3 x__1 x__2)".
   (* named_rewrite.mli:27  val print : Format.formatter -> t -> unit *)
   Parameter print : Format.formatter -> t -> M unit.
   Extract Inlined Constant print => "Named_rewrite.Prim_rewrite.print".
@@ -45,6 +45,7 @@ End Prim_rewrite.
 (* named_rewrite.mli:40  type t = private Prim_rewrite of Prim_rewrite.t *)
 Inductive t : Type :=
 | Prim_rewrite : Named_rewrite.Prim_rewrite.t -> t.
+Extract Inductive t => "Named_rewrite.t" [ "Named_rewrite.Prim_rewrite" ].
 (* named_rewrite.mli:42  val print : Format.formatter -> t -> unit *)
 Parameter print : Format.formatter -> t -> M unit.
 Extract Inlined Constant print => "Named_rewrite.print".

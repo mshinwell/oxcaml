@@ -27,6 +27,7 @@ Module Pass.
   | After_closure_conversion : t
   | Before_simplify : t
   | After_simplify : t.
+  Extract Inductive t => "Inlining_report.Pass.t" [ "Inlining_report.Pass.After_closure_conversion" "Inlining_report.Pass.Before_simplify" "Inlining_report.Pass.After_simplify" ].
 End Pass.
 (* inlining_report.mli:107  val record_decision_at_call_site_for_known_function : tracker:Inlining_history.Tracker.t -> unrolling_depth:int option -> apply:Apply_expr.t -> pass:Pass.t -> callee:Inlining_history.Absolute.t -> are_rebuilding_terms:Are_rebuilding_terms.t -> inlined_forwarded_from:Inlined_debuginfo.t option -> Call_site_inlining_decision_type.t -> unit *)
 Parameter record_decision_at_call_site_for_known_function : Inlining_history.Tracker.t -> option int -> Apply_expr.t -> Inlining_report.Pass.t -> Inlining_history.Absolute.t -> Are_rebuilding_terms.t -> option Inlined_debuginfo.t -> Call_site_inlining_decision_type.t -> M unit.

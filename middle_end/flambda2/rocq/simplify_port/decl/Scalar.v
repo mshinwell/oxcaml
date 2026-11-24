@@ -14,4 +14,5 @@ Module Signedness.
   Inductive t : Type :=
   | Signed : t
   | Unsigned : t.
+  Extract Inductive t => "Scalar.Signedness.t" [ "Scalar.Signedness.Signed" "Scalar.Signedness.Unsigned" ].
 End Signedness.

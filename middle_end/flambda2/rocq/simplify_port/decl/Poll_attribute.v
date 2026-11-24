@@ -24,3 +24,4 @@ From SimplifyPort Require Import Port_monad.
 Inductive t : Type :=
 | Default : t
 | Error : t.
+Extract Inductive t => "Poll_attribute.t" [ "Poll_attribute.Default" "Poll_attribute.Error" ].

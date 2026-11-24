@@ -38,6 +38,7 @@ Module Naked_number_kind.
   | Naked_vec256 : t
   | Naked_vec512 : t
   | Naked_mask : t.
+  Extract Inductive t => "Flambda_kind.Naked_number_kind.t" [ "Flambda_kind.Naked_number_kind.Naked_immediate" "Flambda_kind.Naked_number_kind.Naked_float32" "Flambda_kind.Naked_number_kind.Naked_float" "Flambda_kind.Naked_number_kind.Naked_int8" "Flambda_kind.Naked_number_kind.Naked_int16" "Flambda_kind.Naked_number_kind.Naked_int32" "Flambda_kind.Naked_number_kind.Naked_int64" "Flambda_kind.Naked_number_kind.Naked_nativeint" "Flambda_kind.Naked_number_kind.Naked_vec128" "Flambda_kind.Naked_number_kind.Naked_vec256" "Flambda_kind.Naked_number_kind.Naked_vec512" "Flambda_kind.Naked_number_kind.Naked_mask" ].
   (* flambda_kind.mli:37  val print : Format.formatter -> t -> unit *)
   Parameter print : Format.formatter -> t -> M unit.
   Extract Inlined Constant print => "Flambda_kind.Naked_number_kind.print".
@@ -48,6 +49,7 @@ Inductive t : Type :=
 | Naked_number : Flambda_kind.Naked_number_kind.t -> t
 | Region : t
 | Rec_info : t.
+Extract Inductive t => "Flambda_kind.t" [ "Flambda_kind.Value" "Flambda_kind.Naked_number" "Flambda_kind.Region" "Flambda_kind.Rec_info" ].
 (* flambda_kind.mli:54  type kind = t *)
 Definition kind : Type := t.
 Extract Inlined Constant kind => "Flambda_kind.kind".
@@ -138,12 +140,14 @@ Module Scannable_block_shape.
   Inductive t : Type :=
   | Value_only : t
   | Mixed_record : Flambda_kind.Mixed_block_shape.t -> t.
+  Extract Inductive t => "Flambda_kind.Scannable_block_shape.t" [ "Flambda_kind.Scannable_block_shape.Value_only" "Flambda_kind.Scannable_block_shape.Mixed_record" ].
 End Scannable_block_shape.
 Module Block_shape.
   (* flambda_kind.mli:154  type t = | Scannable of Scannable_block_shape.t | Float_record *)
   Inductive t : Type :=
   | Scannable : Flambda_kind.Scannable_block_shape.t -> t
   | Float_record : t.
+  Extract Inductive t => "Flambda_kind.Block_shape.t" [ "Flambda_kind.Block_shape.Scannable" "Flambda_kind.Block_shape.Float_record" ].
   (* flambda_kind.mli:162  val print : Format.formatter -> t -> unit *)
   Parameter print : Format.formatter -> t -> M unit.
   Extract Inlined Constant print => "Flambda_kind.Block_shape.print".
@@ -161,6 +165,7 @@ Module Standard_int.
   | Naked_int32 : t
   | Naked_int64 : t
   | Naked_nativeint : t.
+  Extract Inductive t => "Flambda_kind.Standard_int.t" [ "Flambda_kind.Standard_int.Tagged_immediate" "Flambda_kind.Standard_int.Naked_immediate" "Flambda_kind.Standard_int.Naked_int8" "Flambda_kind.Standard_int.Naked_int16" "Flambda_kind.Standard_int.Naked_int32" "Flambda_kind.Standard_int.Naked_int64" "Flambda_kind.Standard_int.Naked_nativeint" ].
   (* flambda_kind.mli:180  val to_kind : t -> kind *)
   Parameter to_kind : t -> M Flambda_kind.kind.
   Extract Inlined Constant to_kind => "Flambda_kind.Standard_int.to_kind".
@@ -180,6 +185,7 @@ Module Boxable_number.
   | Naked_vec256 : t
   | Naked_vec512 : t
   | Naked_mask : t.
+  Extract Inductive t => "Flambda_kind.Boxable_number.t" [ "Flambda_kind.Boxable_number.Naked_float32" "Flambda_kind.Boxable_number.Naked_float" "Flambda_kind.Boxable_number.Naked_int32" "Flambda_kind.Boxable_number.Naked_int64" "Flambda_kind.Boxable_number.Naked_nativeint" "Flambda_kind.Boxable_number.Naked_vec128" "Flambda_kind.Boxable_number.Naked_vec256" "Flambda_kind.Boxable_number.Naked_vec512" "Flambda_kind.Boxable_number.Naked_mask" ].
   (* flambda_kind.mli:202  val unboxed_kind : t -> kind *)
   Parameter unboxed_kind : t -> M Flambda_kind.kind.
   Extract Inlined Constant unboxed_kind => "Flambda_kind.Boxable_number.unboxed_kind".
@@ -193,14 +199,13 @@ Module With_subkind.
     Inductive t : Type :=
     | Nullable : t
     | Non_nullable : t.
+    Extract Inductive t => "Flambda_kind.With_subkind.Nullable.t" [ "Flambda_kind.With_subkind.Nullable.Nullable" "Flambda_kind.With_subkind.Nullable.Non_nullable" ].
   End Nullable.
   Module Non_null_value_subkind.
     (* flambda_kind.mli:258  and constructor_shape = | Undetermined | Determined of Block_shape.t * full_kind list *)
     Parameter constructor_shape : Type.
     Extract Inlined Constant constructor_shape => "Flambda_kind.With_subkind.Non_null_value_subkind.constructor_shape".
     (* flambda_kind.mli:224  type t = | Anything | Boxed_float32 | Boxed_float | Boxed_int32 | Boxed_int64 | Boxed_nativeint | Boxed_vec128 | Boxed_vec256 | Boxed_vec512 | Boxed_mask | Tagged_immediate | Variant of { consts : Target_ocaml_int.Set.t; non_consts : constructor_shape Tag.Scannable.Map.t } | Float_block of { num_fields : int } | Float_array | Immediate_array | Value_array | Generic_array | Unboxed_float32_array... *)
-    Record variant_payload_ : Type := { consts : Target_ocaml_int.Set_.t; non_consts : Tag.Scannable.Map.t constructor_shape }.
-    Record float_block_payload_ : Type := { num_fields : int }.
     Inductive t : Type :=
     | Anything : t
     | Boxed_float32 : t
@@ -213,8 +218,8 @@ Module With_subkind.
     | Boxed_vec512 : t
     | Boxed_mask : t
     | Tagged_immediate : t
-    | Variant : variant_payload_ -> t
-    | Float_block : float_block_payload_ -> t
+    | Variant : Target_ocaml_int.Set_.t -> Tag.Scannable.Map.t constructor_shape -> t
+    | Float_block : int -> t
     | Float_array : t
     | Immediate_array : t
     | Value_array : t
@@ -231,6 +236,7 @@ Module With_subkind.
     | Unboxed_vec512_array : t
     | Unboxed_mask_array : t
     | Unboxed_product_array : t.
+    Extract Inductive t => "Flambda_kind.With_subkind.Non_null_value_subkind.t" [ "Flambda_kind.With_subkind.Non_null_value_subkind.Anything" "Flambda_kind.With_subkind.Non_null_value_subkind.Boxed_float32" "Flambda_kind.With_subkind.Non_null_value_subkind.Boxed_float" "Flambda_kind.With_subkind.Non_null_value_subkind.Boxed_int32" "Flambda_kind.With_subkind.Non_null_value_subkind.Boxed_int64" "Flambda_kind.With_subkind.Non_null_value_subkind.Boxed_nativeint" "Flambda_kind.With_subkind.Non_null_value_subkind.Boxed_vec128" "Flambda_kind.With_subkind.Non_null_value_subkind.Boxed_vec256" "Flambda_kind.With_subkind.Non_null_value_subkind.Boxed_vec512" "Flambda_kind.With_subkind.Non_null_value_subkind.Boxed_mask" "Flambda_kind.With_subkind.Non_null_value_subkind.Tagged_immediate" "(fun (x__1, x__2) -> (Flambda_kind.With_subkind.Non_null_value_subkind.Variant { consts = x__1; non_consts = x__2 } : Flambda_kind.With_subkind.Non_null_value_subkind.t))" "(fun x__1 -> (Flambda_kind.With_subkind.Non_null_value_subkind.Float_block { num_fields = x__1 } : Flambda_kind.With_subkind.Non_null_value_subkind.t))" "Flambda_kind.With_subkind.Non_null_value_subkind.Float_array" "Flambda_kind.With_subkind.Non_null_value_subkind.Immediate_array" "Flambda_kind.With_subkind.Non_null_value_subkind.Value_array" "Flambda_kind.With_subkind.Non_null_value_subkind.Generic_array" "Flambda_kind.With_subkind.Non_null_value_subkind.Unboxed_float32_array" "Flambda_kind.With_subkind.Non_null_value_subkind.Untagged_int_array" "Flambda_kind.With_subkind.Non_null_value_subkind.Untagged_int8_array" "Flambda_kind.With_subkind.Non_null_value_subkind.Untagged_int16_array" "Flambda_kind.With_subkind.Non_null_value_subkind.Unboxed_int32_array" "Flambda_kind.With_subkind.Non_null_value_subkind.Unboxed_int64_array" "Flambda_kind.With_subkind.Non_null_value_subkind.Unboxed_nativeint_array" "Flambda_kind.With_subkind.Non_null_value_subkind.Unboxed_vec128_array" "Flambda_kind.With_subkind.Non_null_value_subkind.Unboxed_vec256_array" "Flambda_kind.With_subkind.Non_null_value_subkind.Unboxed_vec512_array" "Flambda_kind.With_subkind.Non_null_value_subkind.Unboxed_mask_array" "Flambda_kind.With_subkind.Non_null_value_subkind.Unboxed_product_array" ] "(fun f__1 f__2 f__3 f__4 f__5 f__6 f__7 f__8 f__9 f__10 f__11 f__12 f__13 f__14 f__15 f__16 f__17 f__18 f__19 f__20 f__21 f__22 f__23 f__24 f__25 f__26 f__27 f__28 f__29 x__0 -> match (x__0 : Flambda_kind.With_subkind.Non_null_value_subkind.t) with Flambda_kind.With_subkind.Non_null_value_subkind.Anything -> f__1 () | Flambda_kind.With_subkind.Non_null_value_subkind.Boxed_float32 -> f__2 () | Flambda_kind.With_subkind.Non_null_value_subkind.Boxed_float -> f__3 () | Flambda_kind.With_subkind.Non_null_value_subkind.Boxed_int32 -> f__4 () | Flambda_kind.With_subkind.Non_null_value_subkind.Boxed_int64 -> f__5 () | Flambda_kind.With_subkind.Non_null_value_subkind.Boxed_nativeint -> f__6 () | Flambda_kind.With_subkind.Non_null_value_subkind.Boxed_vec128 -> f__7 () | Flambda_kind.With_subkind.Non_null_value_subkind.Boxed_vec256 -> f__8 () | Flambda_kind.With_subkind.Non_null_value_subkind.Boxed_vec512 -> f__9 () | Flambda_kind.With_subkind.Non_null_value_subkind.Boxed_mask -> f__10 () | Flambda_kind.With_subkind.Non_null_value_subkind.Tagged_immediate -> f__11 () | Flambda_kind.With_subkind.Non_null_value_subkind.Variant { consts = x__1; non_consts = x__2 } -> f__12 x__1 x__2 | Flambda_kind.With_subkind.Non_null_value_subkind.Float_block { num_fields = x__1 } -> f__13 x__1 | Flambda_kind.With_subkind.Non_null_value_subkind.Float_array -> f__14 () | Flambda_kind.With_subkind.Non_null_value_subkind.Immediate_array -> f__15 () | Flambda_kind.With_subkind.Non_null_value_subkind.Value_array -> f__16 () | Flambda_kind.With_subkind.Non_null_value_subkind.Generic_array -> f__17 () | Flambda_kind.With_subkind.Non_null_value_subkind.Unboxed_float32_array -> f__18 () | Flambda_kind.With_subkind.Non_null_value_subkind.Untagged_int_array -> f__19 () | Flambda_kind.With_subkind.Non_null_value_subkind.Untagged_int8_array -> f__20 () | Flambda_kind.With_subkind.Non_null_value_subkind.Untagged_int16_array -> f__21 () | Flambda_kind.With_subkind.Non_null_value_subkind.Unboxed_int32_array -> f__22 () | Flambda_kind.With_subkind.Non_null_value_subkind.Unboxed_int64_array -> f__23 () | Flambda_kind.With_subkind.Non_null_value_subkind.Unboxed_nativeint_array -> f__24 () | Flambda_kind.With_subkind.Non_null_value_subkind.Unboxed_vec128_array -> f__25 () | Flambda_kind.With_subkind.Non_null_value_subkind.Unboxed_vec256_array -> f__26 () | Flambda_kind.With_subkind.Non_null_value_subkind.Unboxed_vec512_array -> f__27 () | Flambda_kind.With_subkind.Non_null_value_subkind.Unboxed_mask_array -> f__28 () | Flambda_kind.With_subkind.Non_null_value_subkind.Unboxed_product_array -> f__29 ())".
   End Non_null_value_subkind.
   (* flambda_kind.mli:265  type t = full_kind *)
   Definition t : Type := full_kind.
@@ -330,6 +336,7 @@ Module Standard_int_or_float.
   | Naked_int32 : t
   | Naked_int64 : t
   | Naked_nativeint : t.
+  Extract Inductive t => "Flambda_kind.Standard_int_or_float.t" [ "Flambda_kind.Standard_int_or_float.Tagged_immediate" "Flambda_kind.Standard_int_or_float.Naked_immediate" "Flambda_kind.Standard_int_or_float.Naked_float32" "Flambda_kind.Standard_int_or_float.Naked_float" "Flambda_kind.Standard_int_or_float.Naked_int8" "Flambda_kind.Standard_int_or_float.Naked_int16" "Flambda_kind.Standard_int_or_float.Naked_int32" "Flambda_kind.Standard_int_or_float.Naked_int64" "Flambda_kind.Standard_int_or_float.Naked_nativeint" ].
   (* flambda_kind.mli:405  val to_kind : t -> kind *)
   Parameter to_kind : t -> M Flambda_kind.kind.
   Extract Inlined Constant to_kind => "Flambda_kind.Standard_int_or_float.to_kind".

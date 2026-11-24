@@ -57,6 +57,7 @@ Extract Inlined Constant split_direct_over_application => "Simplify_common.split
 Inductive apply_cont_context : Type :=
 | Apply_cont_expr : apply_cont_context
 | Switch_branch : apply_cont_context.
+Extract Inductive apply_cont_context => "Simplify_common.apply_cont_context" [ "Simplify_common.Apply_cont_expr" "Simplify_common.Switch_branch" ].
 (* simplify_common.mli:137  val apply_cont_use_kind : context:apply_cont_context -> Apply_cont.t -> Continuation_use_kind.t *)
 Parameter apply_cont_use_kind : apply_cont_context -> Flambda.Apply_cont.t -> M Continuation_use_kind.t.
 Extract Inlined Constant apply_cont_use_kind => "Simplify_common.apply_cont_use_kind".

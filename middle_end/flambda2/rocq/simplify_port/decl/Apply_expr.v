@@ -34,12 +34,14 @@ Module Result_continuation.
   Inductive t : Type :=
   | Return : Continuation.t -> t
   | Never_returns : t.
+  Extract Inductive t => "Apply_expr.Result_continuation.t" [ "Apply_expr.Result_continuation.Return" "Apply_expr.Result_continuation.Never_returns" ].
 End Result_continuation.
 Module Position.
   (* apply_expr.mli:41  type t = | Normal | Nontail *)
   Inductive t : Type :=
   | Normal : t
   | Nontail : t.
+  Extract Inductive t => "Apply_expr.Position.t" [ "Apply_expr.Position.Normal" "Apply_expr.Position.Nontail" ].
 End Position.
 (* apply_expr.mli:83  val return_arity : t -> [`Complex] Flambda_arity.t *)
 Parameter return_arity : t -> M Flambda_arity.t.

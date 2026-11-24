@@ -29,6 +29,7 @@ Inductive t (A : Type) : Type :=
 | Invalid : t A.
 Arguments Ok {A}.
 Arguments Invalid {A}.
+Extract Inductive t => "Or_invalid.t" [ "Or_invalid.Ok" "Or_invalid.Invalid" ].
 (* or_invalid.mli:23  val print : (Format.formatter -> 'a -> unit) -> Format.formatter -> 'a t -> unit *)
 Parameter print : forall {A : Type}, (Format.formatter -> A -> M unit) -> Format.formatter -> t A -> M unit.
 Extract Inlined Constant print => "Or_invalid.print".

@@ -29,6 +29,7 @@ Module Extra_arg.
   | Already_in_scope : Simple.t -> t
   | New_let_binding : Variable_.t -> Flambda_primitive.t -> t
   | New_let_binding_with_named_args : Variable_.t -> (list Simple.t -> M Flambda_primitive.t) -> t.
+  Extract Inductive t => "Continuation_extra_params_and_args.Extra_arg.t" [ "Continuation_extra_params_and_args.Extra_arg.Already_in_scope" "Continuation_extra_params_and_args.Extra_arg.New_let_binding" "Continuation_extra_params_and_args.Extra_arg.New_let_binding_with_named_args" ].
   (* continuation_extra_params_and_args.mli:24  val print : Format.formatter -> t -> unit *)
   Parameter print : Format.formatter -> t -> M unit.
   Extract Inlined Constant print => "Continuation_extra_params_and_args.Extra_arg.print".
@@ -42,10 +43,10 @@ Module Extra_arg.
   End List.
 End Extra_arg.
 (* continuation_extra_params_and_args.mli:33  type t = private | Empty | Non_empty of { extra_params : Bound_parameters.t; extra_args : Extra_arg.t list Or_invalid.t Apply_cont_rewrite_id.Map.t } *)
-Record non_empty_payload_ : Type := { extra_params : Bound_parameters.t; extra_args : Apply_cont_rewrite_id.Map.t (Or_invalid.t (list Continuation_extra_params_and_args.Extra_arg.t)) }.
 Inductive t : Type :=
 | Empty : t
-| Non_empty : non_empty_payload_ -> t.
+| Non_empty : Bound_parameters.t -> Apply_cont_rewrite_id.Map.t (Or_invalid.t (list Continuation_extra_params_and_args.Extra_arg.t)) -> t.
+Extract Inductive t => "Continuation_extra_params_and_args.t" [ "Continuation_extra_params_and_args.Empty" "(fun (x__1, x__2) -> (Continuation_extra_params_and_args.Non_empty { extra_params = x__1; extra_args = x__2 } : Continuation_extra_params_and_args.t))" ] "(fun f__1 f__2 x__0 -> match (x__0 : Continuation_extra_params_and_args.t) with Continuation_extra_params_and_args.Empty -> f__1 () | Continuation_extra_params_and_args.Non_empty { extra_params = x__1; extra_args = x__2 } -> f__2 x__1 x__2)".
 (* continuation_extra_params_and_args.mli:40  val print : Format.formatter -> t -> unit *)
 Parameter print : Format.formatter -> t -> M unit.
 Extract Inlined Constant print => "Continuation_extra_params_and_args.print".
@@ -71,8 +72,8 @@ Extract Inlined Constant concat => "Continuation_extra_params_and_args.concat".
 Parameter replace_extra_args : t -> Apply_cont_rewrite_id.Map.t (Or_invalid.t (list Continuation_extra_params_and_args.Extra_arg.t)) -> M t.
 Extract Inlined Constant replace_extra_args => "Continuation_extra_params_and_args.replace_extra_args".
 (* continuation_extra_params_and_args.mli:71  val extra_params : t -> Bound_parameters.t *)
-Parameter extra_params_ : t -> M Bound_parameters.t.
-Extract Inlined Constant extra_params_ => "Continuation_extra_params_and_args.extra_params".
+Parameter extra_params : t -> M Bound_parameters.t.
+Extract Inlined Constant extra_params => "Continuation_extra_params_and_args.extra_params".
 (* continuation_extra_params_and_args.mli:73  val extra_args : t -> Extra_arg.t list Or_invalid.t Apply_cont_rewrite_id.Map.t *)
-Parameter extra_args_ : t -> M (Apply_cont_rewrite_id.Map.t (Or_invalid.t (list Continuation_extra_params_and_args.Extra_arg.t))).
-Extract Inlined Constant extra_args_ => "Continuation_extra_params_and_args.extra_args".
+Parameter extra_args : t -> M (Apply_cont_rewrite_id.Map.t (Or_invalid.t (list Continuation_extra_params_and_args.Extra_arg.t))).
+Extract Inlined Constant extra_args => "Continuation_extra_params_and_args.extra_args".

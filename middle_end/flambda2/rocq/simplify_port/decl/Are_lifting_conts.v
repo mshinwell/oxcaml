@@ -29,16 +29,13 @@ Inductive reason : Type :=
 | In_continuation_specialization : reason
 | In_recursive_continuation : reason
 | In_inlinable_continuation : reason.
+Extract Inductive reason => "Are_lifting_conts.reason" [ "Are_lifting_conts.At_toplevel" "Are_lifting_conts.In_speculative_inlining" "Are_lifting_conts.In_continuation_specialization" "Are_lifting_conts.In_recursive_continuation" "Are_lifting_conts.In_inlinable_continuation" ].
 (* are_lifting_conts.mli:59  type t = private | Not_lifting of reason | Analyzing of { continuation : Continuation.t; is_exn_handler : bool; uses : Continuation_uses.t } | Lifting_out_of of { continuation : Continuation.t } *)
-Record analyzing_payload_ : Type := { continuation : Continuation.t; is_exn_handler : bool; uses : Continuation_uses.t }.
-(* The inline record of [Lifting_out_of]: abstract (a name of its fields is taken, or it holds the type); [mk_Lifting_out_of] makes one, [match_t] reads it. *)
-Parameter lifting_out_of_payload_ : Type.
 Inductive t : Type :=
 | Not_lifting : reason -> t
-| Analyzing : analyzing_payload_ -> t
-| Lifting_out_of : lifting_out_of_payload_ -> t.
-Parameter match_t : forall {Res : Type}, t -> (reason -> M Res) -> (Continuation.t -> bool -> Continuation_uses.t -> M Res) -> (Continuation.t -> M Res) -> M Res.
-Extract Inlined Constant match_t => "(fun x__0 f__1 f__2 f__3 -> match x__0 with Are_lifting_conts.Not_lifting x__1 -> f__1 x__1 | Are_lifting_conts.Analyzing { continuation = x__1; is_exn_handler = x__2; uses = x__3 } -> f__2 x__1 x__2 x__3 | Are_lifting_conts.Lifting_out_of { continuation = x__1 } -> f__3 x__1)".
+| Analyzing : Continuation.t -> bool -> Continuation_uses.t -> t
+| Lifting_out_of : Continuation.t -> t.
+Extract Inductive t => "Are_lifting_conts.t" [ "Are_lifting_conts.Not_lifting" "(fun (x__1, x__2, x__3) -> (Are_lifting_conts.Analyzing { continuation = x__1; is_exn_handler = x__2; uses = x__3 } : Are_lifting_conts.t))" "(fun x__1 -> (Are_lifting_conts.Lifting_out_of { continuation = x__1 } : Are_lifting_conts.t))" ] "(fun f__1 f__2 f__3 x__0 -> match (x__0 : Are_lifting_conts.t) with Are_lifting_conts.Not_lifting x__1 -> f__1 x__1 | Are_lifting_conts.Analyzing { continuation = x__1; is_exn_handler = x__2; uses = x__3 } -> f__2 x__1 x__2 x__3 | Are_lifting_conts.Lifting_out_of { continuation = x__1 } -> f__3 x__1)".
 (* are_lifting_conts.mli:70  val print : Format.formatter -> t -> unit *)
 Parameter print : Format.formatter -> t -> M unit.
 Extract Inlined Constant print => "Are_lifting_conts.print".

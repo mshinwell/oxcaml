@@ -30,3 +30,4 @@ Inductive t (A : Type) : Type :=
 Arguments Unknown {A}.
 Arguments Ok {A}.
 Arguments Bottom {A}.
+Extract Inductive t => "Or_unknown_or_bottom.t" [ "Or_unknown_or_bottom.Unknown" "Or_unknown_or_bottom.Ok" "Or_unknown_or_bottom.Bottom" ].

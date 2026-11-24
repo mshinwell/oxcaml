@@ -29,6 +29,7 @@ Module Pattern.
   | Code : Code_id.t -> t
   | Set_of_closures : Function_slot.Lmap.t Symbol.t -> t
   | Block_like : Symbol.t -> t.
+  Extract Inductive t => "Bound_static.Pattern.t" [ "Bound_static.Pattern.Code" "Bound_static.Pattern.Set_of_closures" "Bound_static.Pattern.Block_like" ].
   (* bound_static.mli:27  val code : Code_id.t -> t *)
   Parameter code : Code_id.t -> M t.
   Extract Inlined Constant code => "Bound_static.Pattern.code".

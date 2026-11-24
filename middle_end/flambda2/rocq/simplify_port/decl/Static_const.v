@@ -52,6 +52,7 @@ Inductive t : Type :=
 | Immutable_value_array : list Simple.With_debuginfo.t -> t
 | Empty_array : Empty_array_kind.t -> t
 | Immutable_string : string -> t.
+Extract Inductive t => "Static_const.t" [ "Static_const.Set_of_closures" "Static_const.Block" "Static_const.Boxed_float32" "Static_const.Boxed_float" "Static_const.Boxed_int32" "Static_const.Boxed_int64" "Static_const.Boxed_nativeint" "Static_const.Boxed_vec128" "Static_const.Boxed_vec256" "Static_const.Boxed_vec512" "Static_const.Boxed_mask" "Static_const.Immutable_float_block" "Static_const.Immutable_float_array" "Static_const.Immutable_float32_array" "Static_const.Immutable_int_array" "Static_const.Immutable_int8_array" "Static_const.Immutable_int16_array" "Static_const.Immutable_int32_array" "Static_const.Immutable_int64_array" "Static_const.Immutable_nativeint_array" "Static_const.Immutable_vec128_array" "Static_const.Immutable_vec256_array" "Static_const.Immutable_vec512_array" "Static_const.Immutable_mask_array" "Static_const.Immutable_value_array" "Static_const.Empty_array" "Static_const.Immutable_string" ].
 Module T.
   (* static_const.mli:71  include Container_types.S with type t := t *)
   Definition t : Type := Static_const.t.

@@ -208,6 +208,7 @@ Module Disable_inlining_reason.
   Inductive t : Type :=
   | Stub : t
   | Speculative_inlining : t.
+  Extract Inductive t => "Downwards_env.Disable_inlining_reason.t" [ "Downwards_env.Disable_inlining_reason.Stub" "Downwards_env.Disable_inlining_reason.Speculative_inlining" ].
 End Disable_inlining_reason.
 (* downwards_env.mli:184  val set_do_not_rebuild_terms_and_disable_inlining : t -> Disable_inlining_reason.t -> t *)
 Parameter set_do_not_rebuild_terms_and_disable_inlining : t -> Downwards_env.Disable_inlining_reason.t -> M t.
@@ -220,6 +221,7 @@ Module Disable_inlining.
   Inductive t : Type :=
   | Disable_inlining : Downwards_env.Disable_inlining_reason.t -> t
   | Do_not_disable_inlining : t.
+  Extract Inductive t => "Downwards_env.Disable_inlining.t" [ "Downwards_env.Disable_inlining.Disable_inlining" "Downwards_env.Disable_inlining.Do_not_disable_inlining" ].
 End Disable_inlining.
 (* downwards_env.mli:195  val disable_inlining : t -> Disable_inlining.t *)
 Parameter disable_inlining : t -> M Downwards_env.Disable_inlining.t.

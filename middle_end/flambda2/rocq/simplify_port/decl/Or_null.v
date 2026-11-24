@@ -15,6 +15,7 @@ Inductive t (A : Type) : Type :=
 | This : A -> t A.
 Arguments Null {A}.
 Arguments This {A}.
+Extract Inductive t => "Or_null.t" [ "Or_null.Null" "Or_null.This" ].
 (* or_null.mli:38  val null : 'a t *)
 Parameter null : forall {A : Type}, t A.
 Extract Inlined Constant null => "Or_null.null".

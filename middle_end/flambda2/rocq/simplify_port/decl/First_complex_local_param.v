@@ -13,3 +13,4 @@ From SimplifyPort Require Import Port_monad.
 Inductive t : Type :=
 | Index : int -> t
 | Never_partially_applied : t.
+Extract Inductive t => "First_complex_local_param.t" [ "First_complex_local_param.Index" "First_complex_local_param.Never_partially_applied" ].

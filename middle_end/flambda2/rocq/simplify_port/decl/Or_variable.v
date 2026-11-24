@@ -29,6 +29,7 @@ Inductive t (A : Type) : Type :=
 | Var : Variable_.t -> Debuginfo.t -> t A.
 Arguments Const {A}.
 Arguments Var {A}.
+Extract Inductive t => "Or_variable.t" [ "Or_variable.Const" "Or_variable.Var" ].
 (* or_variable.mli:33  val free_names : _ t -> Name_occurrences.t *)
 Parameter free_names : forall {A : Type}, t A -> M Name_occurrences.t.
 Extract Inlined Constant free_names => "Or_variable.free_names".

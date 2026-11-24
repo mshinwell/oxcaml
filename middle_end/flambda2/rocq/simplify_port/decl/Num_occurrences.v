@@ -27,3 +27,4 @@ Inductive t : Type :=
 | Zero : t
 | One : t
 | More_than_one : t.
+Extract Inductive t => "Num_occurrences.t" [ "Num_occurrences.Zero" "Num_occurrences.One" "Num_occurrences.More_than_one" ].

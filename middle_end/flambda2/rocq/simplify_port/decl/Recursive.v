@@ -26,3 +26,4 @@ From SimplifyPort Require Import Port_monad.
 Inductive t : Type :=
 | Non_recursive : t
 | Recursive : t.
+Extract Inductive t => "Recursive.t" [ "Recursive.Non_recursive" "Recursive.Recursive" ].

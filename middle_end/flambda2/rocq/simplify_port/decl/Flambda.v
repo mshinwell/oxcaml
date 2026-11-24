@@ -42,19 +42,19 @@ Extract Inlined Constant function_params_and_body => "Flambda.function_params_an
 Parameter static_const_group : Type.
 Extract Inlined Constant static_const_group => "Flambda.static_const_group".
 (* flambda.mli:85  and let_cont_expr = private | Non_recursive of { handler : non_recursive_let_cont_handler; num_free_occurrences : Num_occurrences.t Or_unknown.t; ( ** [num_free_occurrences] can be used, for example, to decide whether to inline out a linearly-used continuation. It will always be strictly greater than zero. * ) is_applied_with_traps : bool; ( ** [is_applied_with_traps] is used to prevent inlinin... *)
-Record non_recursive_payload_ : Type := { handler : non_recursive_let_cont_handler; num_free_occurrences : Or_unknown.t Num_occurrences.t; is_applied_with_traps : bool; can_be_lifted : bool }.
 Inductive let_cont_expr : Type :=
-| Non_recursive : non_recursive_payload_ -> let_cont_expr
+| Non_recursive : non_recursive_let_cont_handler -> Or_unknown.t Num_occurrences.t -> bool -> bool -> let_cont_expr
 | Recursive : recursive_let_cont_handlers -> let_cont_expr.
+Extract Inductive let_cont_expr => "Flambda.let_cont_expr" [ "(fun (x__1, x__2, x__3, x__4) -> (Flambda.Non_recursive { handler = x__1; num_free_occurrences = x__2; is_applied_with_traps = x__3; can_be_lifted = x__4 } : Flambda.let_cont_expr))" "Flambda.Recursive" ] "(fun f__1 f__2 x__0 -> match (x__0 : Flambda.let_cont_expr) with Flambda.Non_recursive { handler = x__1; num_free_occurrences = x__2; is_applied_with_traps = x__3; can_be_lifted = x__4 } -> f__1 x__1 x__2 x__3 x__4 | Flambda.Recursive x__1 -> f__2 x__1)".
 (* flambda.mli:53  type expr_descr = private | Let of let_expr ( ** Bind variable(s), symbol(s) and/or code ID(s). The defining expression (the part after the '=', as in 'let x = defining_expr in body') never has any effect on control flow. * ) | Let_cont of let_cont_expr ( ** Define one or more continuations. * ) | Apply of Apply_expr.t ( ** Call an OCaml function, external function or method. * ) | Apply_cont o... *)
-Record invalid_payload_ : Type := { message : string }.
 Inductive expr_descr : Type :=
 | Let : let_expr -> expr_descr
 | Let_cont : let_cont_expr -> expr_descr
 | Apply : Apply_expr.t -> expr_descr
 | Apply_cont : Apply_cont_expr.t -> expr_descr
 | Switch : Switch_expr.t -> expr_descr
-| Invalid : invalid_payload_ -> expr_descr.
+| Invalid : string -> expr_descr.
+Extract Inductive expr_descr => "Flambda.expr_descr" [ "Flambda.Let" "Flambda.Let_cont" "Flambda.Apply" "Flambda.Apply_cont" "Flambda.Switch" "(fun x__1 -> (Flambda.Invalid { message = x__1 } : Flambda.expr_descr))" ] "(fun f__1 f__2 f__3 f__4 f__5 f__6 x__0 -> match (x__0 : Flambda.expr_descr) with Flambda.Let x__1 -> f__1 x__1 | Flambda.Let_cont x__1 -> f__2 x__1 | Flambda.Apply x__1 -> f__3 x__1 | Flambda.Apply_cont x__1 -> f__4 x__1 | Flambda.Switch x__1 -> f__5 x__1 | Flambda.Invalid { message = x__1 } -> f__6 x__1)".
 (* flambda.mli:70  and named = private | Simple of Simple.t ( ** Things that fit in a register (variables, symbols, constants). These do not have to be [Let]-bound but are allowed here for convenience. * ) | Prim of Flambda_primitive.t * Debuginfo.t ( ** Primitive operations (arithmetic, memory access, allocation, etc). * ) | Set_of_closures of Set_of_closures.t * Alloc_mode.For_allocations.t ( ** Definition of a... *)
 Inductive named : Type :=
 | Simple : Simple.t -> named
@@ -62,22 +62,21 @@ Inductive named : Type :=
 | Set_of_closures : decl.Set_of_closures.t -> Alloc_mode.For_allocations.t -> named
 | Static_consts : static_const_group -> named
 | Rec_info : Rec_info_expr.t -> named.
+Extract Inductive named => "Flambda.named" [ "Flambda.Simple" "Flambda.Prim" "Flambda.Set_of_closures" "Flambda.Static_consts" "Flambda.Rec_info" ].
 (* flambda.mli:101  and static_const_or_code = private | Code of function_params_and_body Code0.t | Deleted_code | Static_const of Static_const.t *)
 Inductive static_const_or_code : Type :=
 | Code : Code0.t function_params_and_body -> static_const_or_code
 | Deleted_code : static_const_or_code
 | Static_const : decl.Static_const.t -> static_const_or_code.
-Parameter match_expr_descr : forall {Res : Type}, expr_descr -> (let_expr -> M Res) -> (let_cont_expr -> M Res) -> (Apply_expr.t -> M Res) -> (Apply_cont_expr.t -> M Res) -> (Switch_expr.t -> M Res) -> (string -> M Res) -> M Res.
-Extract Inlined Constant match_expr_descr => "(fun x__0 f__1 f__2 f__3 f__4 f__5 f__6 -> match x__0 with Flambda.Let x__1 -> f__1 x__1 | Flambda.Let_cont x__1 -> f__2 x__1 | Flambda.Apply x__1 -> f__3 x__1 | Flambda.Apply_cont x__1 -> f__4 x__1 | Flambda.Switch x__1 -> f__5 x__1 | Flambda.Invalid { message = x__1 } -> f__6 x__1)".
+Extract Inductive static_const_or_code => "Flambda.static_const_or_code" [ "Flambda.Code" "Flambda.Deleted_code" "Flambda.Static_const" ].
 Module Invalid.
   (* flambda.mli:110  type t = | Body_of_unreachable_continuation of Continuation.t | Apply_cont_of_unreachable_continuation of Continuation.t | Defining_expr_of_let of Bound_pattern.t * named | Closure_type_was_invalid of Apply_expr.t | Direct_application_parameter_kind_mismatch of { params_arity : [`Complex] Flambda_arity.t; args_arity : [`Complex] Flambda_arity.t; apply : Apply_expr.t } | Application_argument_kin... *)
-  Record direct_application_parameter_kind_mismatch_payload_ : Type := { params_arity : Flambda_arity.t; args_arity : Flambda_arity.t; apply : Apply_expr.t }.
   Inductive t : Type :=
   | Body_of_unreachable_continuation : Continuation.t -> t
   | Apply_cont_of_unreachable_continuation : Continuation.t -> t
   | Defining_expr_of_let : Bound_pattern.t -> Flambda.named -> t
   | Closure_type_was_invalid : Apply_expr.t -> t
-  | Direct_application_parameter_kind_mismatch : direct_application_parameter_kind_mismatch_payload_ -> t
+  | Direct_application_parameter_kind_mismatch : Flambda_arity.t -> Flambda_arity.t -> Apply_expr.t -> t
   | Application_argument_kind_mismatch : Flambda_arity.t -> Apply_expr.t -> t
   | Application_result_kind_mismatch : Flambda_arity.t -> Apply_expr.t -> t
   | Application_result_kind_mismatch_in_lambda : Debuginfo.t -> t
@@ -90,6 +89,7 @@ Module Invalid.
   | Application_never_returns : Apply_expr.t -> t
   | Over_application_never_returns : Apply_expr.t -> t
   | Message : string -> t.
+  Extract Inductive t => "Flambda.Invalid.t" [ "Flambda.Invalid.Body_of_unreachable_continuation" "Flambda.Invalid.Apply_cont_of_unreachable_continuation" "Flambda.Invalid.Defining_expr_of_let" "Flambda.Invalid.Closure_type_was_invalid" "(fun (x__1, x__2, x__3) -> (Flambda.Invalid.Direct_application_parameter_kind_mismatch { params_arity = x__1; args_arity = x__2; apply = x__3 } : Flambda.Invalid.t))" "Flambda.Invalid.Application_argument_kind_mismatch" "Flambda.Invalid.Application_result_kind_mismatch" "Flambda.Invalid.Application_result_kind_mismatch_in_lambda" "Flambda.Invalid.Partial_application_mode_mismatch" "Flambda.Invalid.Partial_application_mode_mismatch_in_lambda" "Flambda.Invalid.Calling_local_returning_closure_with_normal_apply" "Flambda.Invalid.Zero_switch_arms" "Flambda.Invalid.Code_not_rebuilt" "Flambda.Invalid.To_cmm_dummy_body" "Flambda.Invalid.Application_never_returns" "Flambda.Invalid.Over_application_never_returns" "Flambda.Invalid.Message" ] "(fun f__1 f__2 f__3 f__4 f__5 f__6 f__7 f__8 f__9 f__10 f__11 f__12 f__13 f__14 f__15 f__16 f__17 x__0 -> match (x__0 : Flambda.Invalid.t) with Flambda.Invalid.Body_of_unreachable_continuation x__1 -> f__1 x__1 | Flambda.Invalid.Apply_cont_of_unreachable_continuation x__1 -> f__2 x__1 | Flambda.Invalid.Defining_expr_of_let (x__1, x__2) -> f__3 x__1 x__2 | Flambda.Invalid.Closure_type_was_invalid x__1 -> f__4 x__1 | Flambda.Invalid.Direct_application_parameter_kind_mismatch { params_arity = x__1; args_arity = x__2; apply = x__3 } -> f__5 x__1 x__2 x__3 | Flambda.Invalid.Application_argument_kind_mismatch (x__1, x__2) -> f__6 x__1 x__2 | Flambda.Invalid.Application_result_kind_mismatch (x__1, x__2) -> f__7 x__1 x__2 | Flambda.Invalid.Application_result_kind_mismatch_in_lambda x__1 -> f__8 x__1 | Flambda.Invalid.Partial_application_mode_mismatch (x__1, x__2) -> f__9 x__1 x__2 | Flambda.Invalid.Partial_application_mode_mismatch_in_lambda x__1 -> f__10 x__1 | Flambda.Invalid.Calling_local_returning_closure_with_normal_apply x__1 -> f__11 x__1 | Flambda.Invalid.Zero_switch_arms -> f__12 () | Flambda.Invalid.Code_not_rebuilt -> f__13 () | Flambda.Invalid.To_cmm_dummy_body -> f__14 () | Flambda.Invalid.Application_never_returns x__1 -> f__15 x__1 | Flambda.Invalid.Over_application_never_returns x__1 -> f__16 x__1 | Flambda.Invalid.Message x__1 -> f__17 x__1)".
 End Invalid.
 Module Expr.
   (* flambda.mli:139  type t = expr *)

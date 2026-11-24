@@ -30,6 +30,7 @@ Module Use_info.
   | Unused_because_of_call_site_decision : t
   | Unused_because_function_unknown : t
   | Jsir_inlining_disabled : t.
+  Extract Inductive t => "Inlined_attribute.Use_info.t" [ "Inlined_attribute.Use_info.Expected_to_be_used" "Inlined_attribute.Use_info.Unused_because_of_call_site_decision" "Inlined_attribute.Use_info.Unused_because_function_unknown" "Inlined_attribute.Use_info.Jsir_inlining_disabled" ].
 End Use_info.
 (* inlined_attribute.mli:29  type t = | Always_inlined of Use_info.t | Hint_inlined | Forward_inlined | Never_inlined | Unroll of int * Use_info.t | Default_inlined *)
 Inductive t : Type :=
@@ -39,6 +40,7 @@ Inductive t : Type :=
 | Never_inlined : t
 | Unroll : int -> Inlined_attribute.Use_info.t -> t
 | Default_inlined : t.
+Extract Inductive t => "Inlined_attribute.t" [ "Inlined_attribute.Always_inlined" "Inlined_attribute.Hint_inlined" "Inlined_attribute.Forward_inlined" "Inlined_attribute.Never_inlined" "Inlined_attribute.Unroll" "Inlined_attribute.Default_inlined" ].
 (* inlined_attribute.mli:37  val print : Format.formatter -> t -> unit *)
 Parameter print : Format.formatter -> t -> M unit.
 Extract Inlined Constant print => "Inlined_attribute.print".

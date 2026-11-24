@@ -31,6 +31,7 @@ Inductive used : Type :=
 | Unused : used
 | Used : used
 | Used_as_invariant : used.
+Extract Inductive used => "Apply_cont_rewrite.used" [ "Apply_cont_rewrite.Unused" "Apply_cont_rewrite.Used" "Apply_cont_rewrite.Used_as_invariant" ].
 (* apply_cont_rewrite.mli:29  val print : Format.formatter -> t -> unit *)
 Parameter print : Format.formatter -> t -> M unit.
 Extract Inlined Constant print => "Apply_cont_rewrite.print".
@@ -53,6 +54,7 @@ Extract Inlined Constant original_params_arity => "Apply_cont_rewrite.original_p
 Inductive rewrite_apply_cont_ctx : Type :=
 | Apply_cont : rewrite_apply_cont_ctx
 | Apply_expr : list Simple.t -> rewrite_apply_cont_ctx.
+Extract Inductive rewrite_apply_cont_ctx => "Apply_cont_rewrite.rewrite_apply_cont_ctx" [ "Apply_cont_rewrite.Apply_cont" "Apply_cont_rewrite.Apply_expr" ].
 (* apply_cont_rewrite.mli:51  val make_rewrite : t -> machine_width:Target_system.Machine_width.t -> ctx:rewrite_apply_cont_ctx -> Apply_cont_rewrite_id.t -> Simple.t list -> ((Bound_var.t * Code_size.t * Flambda.Named.t) list * Simple.t list) Or_invalid.t *)
 Parameter make_rewrite : t -> Target_system.Machine_width.t -> rewrite_apply_cont_ctx -> Apply_cont_rewrite_id.t -> list Simple.t -> M (Or_invalid.t (list (tuple3 Bound_var.t Code_size.t Flambda.Named.t) * list Simple.t)).
 Extract Inlined Constant make_rewrite => "Apply_cont_rewrite.make_rewrite".

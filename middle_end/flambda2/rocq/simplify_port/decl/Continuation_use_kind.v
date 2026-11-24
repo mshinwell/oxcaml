@@ -23,7 +23,7 @@
 From SimplifyPort Require Import Port_monad.
 
 (* continuation_use_kind.mli:17  type t = | Inlinable | Non_inlinable of { escaping : bool } *)
-Record non_inlinable_payload_ : Type := { escaping : bool }.
 Inductive t : Type :=
 | Inlinable : t
-| Non_inlinable : non_inlinable_payload_ -> t.
+| Non_inlinable : bool -> t.
+Extract Inductive t => "Continuation_use_kind.t" [ "Continuation_use_kind.Inlinable" "(fun x__1 -> (Continuation_use_kind.Non_inlinable { escaping = x__1 } : Continuation_use_kind.t))" ] "(fun f__1 f__2 x__0 -> match (x__0 : Continuation_use_kind.t) with Continuation_use_kind.Inlinable -> f__1 () | Continuation_use_kind.Non_inlinable { escaping = x__1 } -> f__2 x__1)".

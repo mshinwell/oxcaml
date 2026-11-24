@@ -33,6 +33,7 @@ Extract Inlined Constant wrap_inlined_body_for_exn_extra_args => "Inlining_helpe
 Inductive attribute_kind : Type :=
 | Inlined : attribute_kind
 | Unrolled : attribute_kind.
+Extract Inductive attribute_kind => "Inlining_helpers.attribute_kind" [ "Inlining_helpers.Inlined" "Inlining_helpers.Unrolled" ].
 (* inlining_helpers.mli:78  val inlined_attribute_on_partial_application_msg : attribute_kind -> string *)
 Parameter inlined_attribute_on_partial_application_msg : attribute_kind -> M string.
 Extract Inlined Constant inlined_attribute_on_partial_application_msg => "Inlining_helpers.inlined_attribute_on_partial_application_msg".

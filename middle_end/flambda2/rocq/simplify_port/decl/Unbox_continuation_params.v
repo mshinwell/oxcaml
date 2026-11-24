@@ -38,6 +38,7 @@ Extract Inlined Constant make_do_not_unbox_decisions => "Unbox_continuation_para
 Inductive continuation_arg_types : Type :=
 | Recursive : continuation_arg_types
 | Non_recursive : Continuation_uses.arg_types_by_use_id -> continuation_arg_types.
+Extract Inductive continuation_arg_types => "Unbox_continuation_params.continuation_arg_types" [ "Unbox_continuation_params.Recursive" "Unbox_continuation_params.Non_recursive" ].
 (* unbox_continuation_params.mli:31  val make_decisions : continuation_arg_types:continuation_arg_types -> DE.t -> Bound_parameters.t -> T.t list -> DE.t * Decisions.t *)
 Parameter make_decisions : continuation_arg_types -> Downwards_env.t -> Bound_parameters.t -> list Flambda2_types.t -> M (Downwards_env.t * Unbox_continuation_params.Decisions.t).
 Extract Inlined Constant make_decisions => "Unbox_continuation_params.make_decisions".

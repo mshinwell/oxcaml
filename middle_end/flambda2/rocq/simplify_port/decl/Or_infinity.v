@@ -26,6 +26,7 @@ Inductive t (A : Type) : Type :=
 | Infinity : t A.
 Arguments Finite {A}.
 Arguments Infinity {A}.
+Extract Inductive t => "Or_infinity.t" [ "Or_infinity.Finite" "Or_infinity.Infinity" ].
 (* or_infinity.mli:19  val compare : f:('a -> 'a -> int) -> 'a t -> 'a t -> int *)
 Parameter compare : forall {A : Type}, (A -> A -> M int) -> t A -> t A -> M int.
 Extract Inlined Constant compare => "Or_infinity.compare".

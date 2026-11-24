@@ -27,35 +27,20 @@ Module Cont_arg.
   | Function_result : t
   | Simple : Simple.t -> t
   | New_let_binding : Variable_.t -> Name_occurrences.t -> t.
+  Extract Inductive t => "Flow_types.Cont_arg.t" [ "Flow_types.Cont_arg.Function_result" "Flow_types.Cont_arg.Simple" "Flow_types.Cont_arg.New_let_binding" ].
   (* flow_types.mli:32  val print : Format.formatter -> t -> unit *)
   Parameter print : Format.formatter -> t -> M unit.
   Extract Inlined Constant print => "Flow_types.Cont_arg.print".
 End Cont_arg.
 Module Mutable_prim.
   (* flow_types.mli:39  type t = | Is_int of Variable.t | Get_tag of Variable.t | Block_load of { bak : Flambda_primitive.Block_access_kind.t; mut : Mutability.t; block : Variable.t; field : int } | Block_set of { bak : Flambda_primitive.Block_access_kind.t; block : Variable.t; field : int; value : Simple.t } | Make_block of { kind : Flambda_primitive.Block_kind.t; mut : Mutability.t; alloc_mode : Alloc_mode.For_alloc... *)
-  Record block_load_payload_ : Type := { bak : Flambda_primitive.Block_access_kind.t; mut : Mutability.t; block : Variable_.t; field : int }.
-  (* The inline record of [Block_set]: abstract (a name of its fields is taken, or it holds the type); [mk_Block_set] makes one, [match_t] reads it. *)
-  Parameter block_set_payload_ : Type.
-  (* The inline record of [Make_block]: abstract (a name of its fields is taken, or it holds the type); [mk_Make_block] makes one, [match_t] reads it. *)
-  Parameter make_block_payload_ : Type.
   Inductive t : Type :=
   | Is_int : Variable_.t -> t
   | Get_tag : Variable_.t -> t
-  | Block_load : block_load_payload_ -> t
-  | Block_set : block_set_payload_ -> t
-  | Make_block : make_block_payload_ -> t.
-  Parameter mk_Is_int : Variable_.t -> t.
-  Extract Inlined Constant mk_Is_int => "(fun x__1 -> Flow_types.Mutable_prim.Is_int x__1)".
-  Parameter mk_Get_tag : Variable_.t -> t.
-  Extract Inlined Constant mk_Get_tag => "(fun x__1 -> Flow_types.Mutable_prim.Get_tag x__1)".
-  Parameter mk_Block_load : Flambda_primitive.Block_access_kind.t -> Mutability.t -> Variable_.t -> int -> t.
-  Extract Inlined Constant mk_Block_load => "(fun x__1 x__2 x__3 x__4 -> Flow_types.Mutable_prim.Block_load { bak = x__1; mut = x__2; block = x__3; field = x__4 })".
-  Parameter mk_Block_set : Flambda_primitive.Block_access_kind.t -> Variable_.t -> int -> Simple.t -> t.
-  Extract Inlined Constant mk_Block_set => "(fun x__1 x__2 x__3 x__4 -> Flow_types.Mutable_prim.Block_set { bak = x__1; block = x__2; field = x__3; value = x__4 })".
-  Parameter mk_Make_block : Flambda_primitive.Block_kind.t -> Mutability.t -> Alloc_mode.For_allocations.t -> list Simple.t -> t.
-  Extract Inlined Constant mk_Make_block => "(fun x__1 x__2 x__3 x__4 -> Flow_types.Mutable_prim.Make_block { kind = x__1; mut = x__2; alloc_mode = x__3; fields = x__4 })".
-  Parameter match_t : forall {Res : Type}, t -> (Variable_.t -> M Res) -> (Variable_.t -> M Res) -> (Flambda_primitive.Block_access_kind.t -> Mutability.t -> Variable_.t -> int -> M Res) -> (Flambda_primitive.Block_access_kind.t -> Variable_.t -> int -> Simple.t -> M Res) -> (Flambda_primitive.Block_kind.t -> Mutability.t -> Alloc_mode.For_allocations.t -> list Simple.t -> M Res) -> M Res.
-  Extract Inlined Constant match_t => "(fun x__0 f__1 f__2 f__3 f__4 f__5 -> match x__0 with Flow_types.Mutable_prim.Is_int x__1 -> f__1 x__1 | Flow_types.Mutable_prim.Get_tag x__1 -> f__2 x__1 | Flow_types.Mutable_prim.Block_load { bak = x__1; mut = x__2; block = x__3; field = x__4 } -> f__3 x__1 x__2 x__3 x__4 | Flow_types.Mutable_prim.Block_set { bak = x__1; block = x__2; field = x__3; value = x__4 } -> f__4 x__1 x__2 x__3 x__4 | Flow_types.Mutable_prim.Make_block { kind = x__1; mut = x__2; alloc_mode = x__3; fields = x__4 } -> f__5 x__1 x__2 x__3 x__4)".
+  | Block_load : Flambda_primitive.Block_access_kind.t -> Mutability.t -> Variable_.t -> int -> t
+  | Block_set : Flambda_primitive.Block_access_kind.t -> Variable_.t -> int -> Simple.t -> t
+  | Make_block : Flambda_primitive.Block_kind.t -> Mutability.t -> Alloc_mode.For_allocations.t -> list Simple.t -> t.
+  Extract Inductive t => "Flow_types.Mutable_prim.t" [ "Flow_types.Mutable_prim.Is_int" "Flow_types.Mutable_prim.Get_tag" "(fun (x__1, x__2, x__3, x__4) -> (Flow_types.Mutable_prim.Block_load { bak = x__1; mut = x__2; block = x__3; field = x__4 } : Flow_types.Mutable_prim.t))" "(fun (x__1, x__2, x__3, x__4) -> (Flow_types.Mutable_prim.Block_set { bak = x__1; block = x__2; field = x__3; value = x__4 } : Flow_types.Mutable_prim.t))" "(fun (x__1, x__2, x__3, x__4) -> (Flow_types.Mutable_prim.Make_block { kind = x__1; mut = x__2; alloc_mode = x__3; fields = x__4 } : Flow_types.Mutable_prim.t))" ] "(fun f__1 f__2 f__3 f__4 f__5 x__0 -> match (x__0 : Flow_types.Mutable_prim.t) with Flow_types.Mutable_prim.Is_int x__1 -> f__1 x__1 | Flow_types.Mutable_prim.Get_tag x__1 -> f__2 x__1 | Flow_types.Mutable_prim.Block_load { bak = x__1; mut = x__2; block = x__3; field = x__4 } -> f__3 x__1 x__2 x__3 x__4 | Flow_types.Mutable_prim.Block_set { bak = x__1; block = x__2; field = x__3; value = x__4 } -> f__4 x__1 x__2 x__3 x__4 | Flow_types.Mutable_prim.Make_block { kind = x__1; mut = x__2; alloc_mode = x__3; fields = x__4 } -> f__5 x__1 x__2 x__3 x__4)".
   (* flow_types.mli:61  val print : Format.formatter -> t -> unit *)
   Parameter print : Format.formatter -> t -> M unit.
   Extract Inlined Constant print => "Flow_types.Mutable_prim.print".
@@ -108,6 +93,7 @@ Module Continuation_param_aliases.
   Inductive recursive_continuation_wrapper_ : Type :=
   | No_wrapper : recursive_continuation_wrapper_
   | Wrapper_needed : recursive_continuation_wrapper_.
+  Extract Inductive recursive_continuation_wrapper_ => "Flow_types.Continuation_param_aliases.recursive_continuation_wrapper" [ "Flow_types.Continuation_param_aliases.No_wrapper" "Flow_types.Continuation_param_aliases.Wrapper_needed" ].
   (* flow_types.mli:159  type t = { removed_aliased_params_and_extra_params : Variable.Set.t; lets_to_introduce : Simple.t Variable.Lmap.t; ( * We are using a [Variable.Lmap.t] here in order to ensure a stable order for the introduced [lets]. * ) extra_args_for_aliases : Variable.Set.t; recursive_continuation_wrapper : recursive_continuation_wrapper } *)
   Record t : Type := { removed_aliased_params_and_extra_params : Variable_.Set_.t; lets_to_introduce : Variable_.Lmap.t Simple.t; extra_args_for_aliases : Variable_.Set_.t; recursive_continuation_wrapper : recursive_continuation_wrapper_ }.
   (* flow_types.mli:168  val print : Format.formatter -> t -> unit *)
