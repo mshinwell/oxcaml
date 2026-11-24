@@ -20,11 +20,17 @@
    change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
-From SimplifyPort.decl Require Apply_cont_rewrite_id Continuation.
+From SimplifyPort.decl Require Apply_cont_rewrite_id Continuation Format.
 
 (* continuation_callsite_map.mli:18  type 'a t = 'a Apply_cont_rewrite_id.Map.t Continuation.Map.t *)
 Definition t (A : Type) : Type := Continuation.Map.t (Apply_cont_rewrite_id.Map.t A).
 Extract Constant t "'a1" => "('a1) Continuation_callsite_map.t".
+(* continuation_callsite_map.mli:21  val print : (Format.formatter -> 'a -> unit) -> Format.formatter -> 'a t -> unit *)
+Parameter print : forall {A : Type}, (Format.formatter -> A -> M unit) -> Format.formatter -> t A -> M unit.
+Extract Inlined Constant print => "Continuation_callsite_map.print".
 (* continuation_callsite_map.mli:28  val find : Continuation.t -> Apply_cont_rewrite_id.t -> 'a t -> 'a *)
 Parameter find : forall {A : Type}, Continuation.t -> Apply_cont_rewrite_id.t -> t A -> M A.
 Extract Inlined Constant find => "Continuation_callsite_map.find".
+(* continuation_callsite_map.mli:32  val add : Continuation.t -> Apply_cont_rewrite_id.t -> 'a -> 'a t -> 'a t *)
+Parameter add : forall {A : Type}, Continuation.t -> Apply_cont_rewrite_id.t -> A -> t A -> M (t A).
+Extract Inlined Constant add => "Continuation_callsite_map.add".

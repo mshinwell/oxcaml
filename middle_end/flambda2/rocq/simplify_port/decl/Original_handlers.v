@@ -23,8 +23,10 @@ From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Bound_parameters Continuation Format Lifted_cont_params Non_recursive_handler One_recursive_handler.
 
 (* original_handlers.mli:16  type t = private | Recursive of { invariant_params : Bound_parameters.t; lifted_params : Lifted_cont_params.t; continuation_handlers : One_recursive_handler.t Continuation.Lmap.t; can_be_lifted : bool } | Non_recursive of Non_recursive_handler.t *)
-Parameter t : Type.
-Extract Inlined Constant t => "Original_handlers.t".
+Record recursive_payload_ : Type := { invariant_params : Bound_parameters.t; lifted_params : Lifted_cont_params.t; continuation_handlers : Continuation.Lmap.t One_recursive_handler.t; can_be_lifted : bool }.
+Inductive t : Type :=
+| Recursive : recursive_payload_ -> t
+| Non_recursive : Non_recursive_handler.t -> t.
 (* original_handlers.mli:25  val create_recursive : invariant_params:Bound_parameters.t -> lifted_params:Lifted_cont_params.t -> continuation_handlers:One_recursive_handler.t Continuation.Lmap.t -> can_be_lifted:bool -> t *)
 Parameter create_recursive : Bound_parameters.t -> Lifted_cont_params.t -> Continuation.Lmap.t One_recursive_handler.t -> bool -> M t.
 Extract Inlined Constant create_recursive => "Original_handlers.create_recursive".
@@ -38,8 +40,8 @@ Extract Inlined Constant print => "Original_handlers.print".
 Parameter bound_continuations : t -> M (list Continuation.t).
 Extract Inlined Constant bound_continuations => "Original_handlers.bound_continuations".
 (* original_handlers.mli:38  val can_be_lifted : t -> bool *)
-Parameter can_be_lifted : t -> M bool.
-Extract Inlined Constant can_be_lifted => "Original_handlers.can_be_lifted".
+Parameter can_be_lifted_ : t -> M bool.
+Extract Inlined Constant can_be_lifted_ => "Original_handlers.can_be_lifted".
 (* original_handlers.mli:40  val add_params_to_lift : t -> Lifted_cont_params.t -> t *)
 Parameter add_params_to_lift : t -> Lifted_cont_params.t -> M t.
 Extract Inlined Constant add_params_to_lift => "Original_handlers.add_params_to_lift".

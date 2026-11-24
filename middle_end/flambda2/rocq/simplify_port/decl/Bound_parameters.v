@@ -21,7 +21,7 @@
    change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
-From SimplifyPort.decl Require Bound_parameter Format Int_ids.
+From SimplifyPort.decl Require Bound_parameter Flambda_arity Format Int_ids Name_occurrences Renaming Variable_.
 
 (* bound_parameters.mli:17  type t *)
 Parameter t : Type.
@@ -29,15 +29,60 @@ Extract Inlined Constant t => "Bound_parameters.t".
 (* bound_parameters.mli:19  val empty : t *)
 Parameter empty : t.
 Extract Inlined Constant empty => "Bound_parameters.empty".
+(* bound_parameters.mli:21  val create : Bound_parameter.t list -> t *)
+Parameter create : list Bound_parameter.t -> M t.
+Extract Inlined Constant create => "Bound_parameters.create".
+(* bound_parameters.mli:23  val cons : Bound_parameter.t -> t -> t *)
+Parameter cons : Bound_parameter.t -> t -> M t.
+Extract Inlined Constant cons => "Bound_parameters.cons".
 (* bound_parameters.mli:25  val append : t -> t -> t *)
 Parameter append : t -> t -> M t.
 Extract Inlined Constant append => "Bound_parameters.append".
 (* bound_parameters.mli:27  val to_list : t -> Bound_parameter.t list *)
 Parameter to_list : t -> M (list Bound_parameter.t).
 Extract Inlined Constant to_list => "Bound_parameters.to_list".
+(* bound_parameters.mli:29  val is_empty : t -> bool *)
+Parameter is_empty : t -> M bool.
+Extract Inlined Constant is_empty => "Bound_parameters.is_empty".
+(* bound_parameters.mli:31  val same_number : t -> t -> bool *)
+Parameter same_number : t -> t -> M bool.
+Extract Inlined Constant same_number => "Bound_parameters.same_number".
+(* bound_parameters.mli:33  val equal : t -> t -> bool *)
+Parameter equal : t -> t -> M bool.
+Extract Inlined Constant equal => "Bound_parameters.equal".
+(* bound_parameters.mli:35  val arity : t -> [> ] Flambda_arity.t *)
+Parameter arity : t -> M Flambda_arity.t.
+Extract Inlined Constant arity => "Bound_parameters.arity".
+(* bound_parameters.mli:37  val check_no_duplicates : t -> unit *)
+Parameter check_no_duplicates : t -> M unit.
+Extract Inlined Constant check_no_duplicates => "Bound_parameters.check_no_duplicates".
+(* bound_parameters.mli:39  val cardinal : t -> int *)
+Parameter cardinal : t -> M int.
+Extract Inlined Constant cardinal => "Bound_parameters.cardinal".
 (* bound_parameters.mli:41  val simples : t -> Int_ids.Simple.t list *)
 Parameter simples : t -> M (list Int_ids.Simple.t).
 Extract Inlined Constant simples => "Bound_parameters.simples".
+(* bound_parameters.mli:43  val to_set : t -> Bound_parameter.Set.t *)
+Parameter to_set : t -> M Bound_parameter.Set_.t.
+Extract Inlined Constant to_set => "Bound_parameters.to_set".
+(* bound_parameters.mli:45  val vars : t -> Variable.t list *)
+Parameter vars : t -> M (list Variable_.t).
+Extract Inlined Constant vars => "Bound_parameters.vars".
+(* bound_parameters.mli:49  val var_set : t -> Variable.Set.t *)
+Parameter var_set : t -> M Variable_.Set_.t.
+Extract Inlined Constant var_set => "Bound_parameters.var_set".
+(* bound_parameters.mli:53  val filter : (Bound_parameter.t -> bool) -> t -> t *)
+Parameter filter : (Bound_parameter.t -> M bool) -> t -> M t.
+Extract Inlined Constant filter => "Bound_parameters.filter".
+(* bound_parameters.mli:57  include Bindable.S with type t := t *)
+Parameter free_names : t -> M Name_occurrences.t.
+Extract Inlined Constant free_names => "Bound_parameters.free_names".
 (* bound_parameters.mli:57  include Bindable.S with type t := t *)
 Parameter print : Format.formatter -> t -> M unit.
 Extract Inlined Constant print => "Bound_parameters.print".
+(* bound_parameters.mli:57  include Bindable.S with type t := t *)
+Parameter rename : t -> M t.
+Extract Inlined Constant rename => "Bound_parameters.rename".
+(* bound_parameters.mli:57  include Bindable.S with type t := t *)
+Parameter renaming : t -> t -> M Renaming.t.
+Extract Inlined Constant renaming => "Bound_parameters.renaming".

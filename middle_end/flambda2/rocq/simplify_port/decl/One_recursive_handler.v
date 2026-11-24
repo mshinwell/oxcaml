@@ -23,8 +23,7 @@ From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Bound_parameters Flambda Format.
 
 (* one_recursive_handler.mli:16  type t = private { params : Bound_parameters.t; handler : Flambda.Expr.t; is_cold : bool } *)
-Parameter t : Type.
-Extract Inlined Constant t => "One_recursive_handler.t".
+Record t : Type := { params : Bound_parameters.t; handler : Flambda.Expr.t; is_cold : bool }.
 (* one_recursive_handler.mli:22  val create : params:Bound_parameters.t -> handler:Flambda.Expr.t -> is_cold:bool -> t *)
 Parameter create : Bound_parameters.t -> Flambda.Expr.t -> bool -> M t.
 Extract Inlined Constant create => "One_recursive_handler.create".

@@ -41,8 +41,10 @@ Extract Inlined Constant in_a_set_of_closures => "Closure_info.in_a_set_of_closu
 Parameter in_a_closure : Code_id.t -> Continuation.t -> Continuation.t -> Variable_.t -> Variable_.t -> M t.
 Extract Inlined Constant in_a_closure => "Closure_info.in_a_closure".
 (* closure_info.mli:41  type in_or_out_of_closure = | In_a_closure | Not_in_a_closure *)
-Parameter in_or_out_of_closure_ : Type.
-Extract Inlined Constant in_or_out_of_closure_ => "Closure_info.in_or_out_of_closure".
+Inductive in_or_out_of_closure_ : Type :=
+| In_a_closure : in_or_out_of_closure_
+| Not_in_a_closure_ : in_or_out_of_closure_.
+Extract Inductive in_or_out_of_closure_ => "Closure_info.in_or_out_of_closure" [ "Closure_info.In_a_closure" "Closure_info.Not_in_a_closure" ].
 (* closure_info.mli:45  val in_or_out_of_closure : t -> in_or_out_of_closure *)
 Parameter in_or_out_of_closure : t -> M in_or_out_of_closure_.
 Extract Inlined Constant in_or_out_of_closure => "Closure_info.in_or_out_of_closure".

@@ -39,8 +39,7 @@ Extract Inlined Constant add_use => "Continuation_uses.add_use".
 Parameter get_uses : t -> M (list One_continuation_use.t).
 Extract Inlined Constant get_uses => "Continuation_uses.get_uses".
 (* continuation_uses.mli:32  type arg_at_use = { arg_type : Flambda2_types.t; typing_env : Flambda2_types.Typing_env.t } *)
-Parameter arg_at_use : Type.
-Extract Inlined Constant arg_at_use => "Continuation_uses.arg_at_use".
+Record arg_at_use : Type := { arg_type : Flambda2_types.t; typing_env : Flambda2_types.Typing_env.t }.
 (* continuation_uses.mli:37  type arg_types_by_use_id = arg_at_use Apply_cont_rewrite_id.Map.t list *)
 Definition arg_types_by_use_id : Type := list (Apply_cont_rewrite_id.Map.t arg_at_use).
 Extract Inlined Constant arg_types_by_use_id => "Continuation_uses.arg_types_by_use_id".

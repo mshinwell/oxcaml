@@ -23,5 +23,7 @@
 From SimplifyPort Require Import Port_monad.
 
 (* num_occurrences.mli:17  type t = | Zero | One | More_than_one *)
-Parameter t : Type.
-Extract Inlined Constant t => "Num_occurrences.t".
+Inductive t : Type :=
+| Zero : t
+| One : t
+| More_than_one : t.

@@ -205,8 +205,9 @@ Parameter with_cse : t -> Common_subexpression_elimination.t -> M t.
 Extract Inlined Constant with_cse => "Downwards_env.with_cse".
 Module Disable_inlining_reason.
   (* downwards_env.mli:179  type t = | Stub | Speculative_inlining *)
-  Parameter t : Type.
-  Extract Inlined Constant t => "Downwards_env.Disable_inlining_reason.t".
+  Inductive t : Type :=
+  | Stub : t
+  | Speculative_inlining : t.
 End Disable_inlining_reason.
 (* downwards_env.mli:184  val set_do_not_rebuild_terms_and_disable_inlining : t -> Disable_inlining_reason.t -> t *)
 Parameter set_do_not_rebuild_terms_and_disable_inlining : t -> Downwards_env.Disable_inlining_reason.t -> M t.
@@ -216,8 +217,9 @@ Parameter set_disable_inlining : t -> Downwards_env.Disable_inlining_reason.t ->
 Extract Inlined Constant set_disable_inlining => "Downwards_env.set_disable_inlining".
 Module Disable_inlining.
   (* downwards_env.mli:190  type t = | Disable_inlining of Disable_inlining_reason.t | Do_not_disable_inlining *)
-  Parameter t : Type.
-  Extract Inlined Constant t => "Downwards_env.Disable_inlining.t".
+  Inductive t : Type :=
+  | Disable_inlining : Downwards_env.Disable_inlining_reason.t -> t
+  | Do_not_disable_inlining : t.
 End Disable_inlining.
 (* downwards_env.mli:195  val disable_inlining : t -> Disable_inlining.t *)
 Parameter disable_inlining : t -> M Downwards_env.Disable_inlining.t.

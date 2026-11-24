@@ -21,7 +21,14 @@
    change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
+From SimplifyPort.decl Require Debuginfo Name_occurrences Variable_.
 
 (* or_variable.mli:19  type 'a t = | Const of 'a | Var of Variable.t * Debuginfo.t *)
-Parameter t : Type -> Type.
-Extract Constant t "'a1" => "('a1) Or_variable.t".
+Inductive t (A : Type) : Type :=
+| Const : A -> t A
+| Var : Variable_.t -> Debuginfo.t -> t A.
+Arguments Const {A}.
+Arguments Var {A}.
+(* or_variable.mli:33  val free_names : _ t -> Name_occurrences.t *)
+Parameter free_names : forall {A : Type}, t A -> M Name_occurrences.t.
+Extract Inlined Constant free_names => "Or_variable.free_names".

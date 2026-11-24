@@ -23,5 +23,16 @@
 From SimplifyPort Require Import Port_monad.
 
 (* or_bottom.mli:17  type 'a t = | Ok of 'a | Bottom *)
-Parameter t : Type -> Type.
-Extract Constant t "'a1" => "('a1) Or_bottom.t".
+Inductive t (A : Type) : Type :=
+| Ok : A -> t A
+| Bottom : t A.
+Arguments Ok {A}.
+Arguments Bottom {A}.
+Module Let_syntax.
+  (* or_bottom.mli:34  val ( let<* ) : 'a t -> ('a -> 'b t) -> 'b t *)
+  Parameter let_op_lt_star : forall {A B : Type}, Or_bottom.t A -> (A -> M (Or_bottom.t B)) -> M (Or_bottom.t B).
+  Extract Inlined Constant let_op_lt_star => "Or_bottom.Let_syntax.( let<* )".
+  (* or_bottom.mli:36  val ( let<+ ) : 'a t -> ('a -> 'b) -> 'b t *)
+  Parameter let_op_lt_plus : forall {A B : Type}, Or_bottom.t A -> (A -> M B) -> M (Or_bottom.t B).
+  Extract Inlined Constant let_op_lt_plus => "Or_bottom.Let_syntax.( let<+ )".
+End Let_syntax.

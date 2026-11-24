@@ -1,0 +1,30 @@
+(**************************************************************************)
+(*                                                                        *)
+(*                                 OCaml                                  *)
+(*                                                                        *)
+(*             Xavier Leroy, projet Cristal, INRIA Rocquencourt           *)
+(*                                                                        *)
+(*   Copyright 1996 Institut National de Recherche en Informatique et     *)
+(*     en Automatique.                                                    *)
+(*                                                                        *)
+(*   All rights reserved.  This file is distributed under the terms of    *)
+(*   the GNU Lesser General Public License version 2.1, with the          *)
+(*   special exception on linking described in the file LICENSE.          *)
+(*                                                                        *)
+(**************************************************************************)
+
+(* GENERATED, not written by hand: the declarations of what the port of
+   Simplify uses of the compiler's module [ArrayLabels], after its interface
+   stdlib/arrayLabels.mli
+   at commit ecc5c0d968c892b4312065caef0f19ffffa042a9. Made by tools/declgen (see decl/README.md): a
+   change is made there, not here. *)
+
+From SimplifyPort Require Import Port_monad.
+From SimplifyPort.decl Require Stdlib_.
+
+(* stdlib/arrayLabels.mli  val map : f:('a -> 'b) -> 'a array -> 'b array *)
+Parameter map : forall {A B : Type}, (A -> M B) -> Stdlib_.array A -> M (Stdlib_.array B).
+Extract Inlined Constant map => "ArrayLabels.map".
+(* stdlib/arrayLabels.mli  val fold_left : f:('acc -> 'a -> 'acc) -> init:'acc -> 'a array -> 'acc *)
+Parameter fold_left : forall {Acc A : Type}, (Acc -> A -> M Acc) -> Acc -> Stdlib_.array A -> M Acc.
+Extract Inlined Constant fold_left => "ArrayLabels.fold_left".

@@ -47,8 +47,11 @@ Extract Inlined Constant record_inlining_decision => "Replay_history.record_inli
 Parameter must_inline : t -> M bool.
 Extract Inlined Constant must_inline => "Replay_history.must_inline".
 (* replay_history.mli:84  type 'a replay_result = | Still_recording | Replayed of 'a *)
-Parameter replay_result : Type -> Type.
-Extract Constant replay_result "'a1" => "('a1) Replay_history.replay_result".
+Inductive replay_result (A : Type) : Type :=
+| Still_recording : replay_result A
+| Replayed : A -> replay_result A.
+Arguments Still_recording {A}.
+Arguments Replayed {A}.
 (* replay_history.mli:90  val replay_variable_mapping : t -> Variable.t Variable.Map.t replay_result *)
 Parameter replay_variable_mapping : t -> M (replay_result (Variable_.Map.t Variable_.t)).
 Extract Inlined Constant replay_variable_mapping => "Replay_history.replay_variable_mapping".

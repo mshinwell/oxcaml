@@ -8,7 +8,11 @@
    change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
+From SimplifyPort.decl Require Likelihood.
 
 (* branch_annotations.mli:30  type t *)
 Parameter t : Type.
 Extract Inlined Constant t => "Branch_annotations.t".
+(* branch_annotations.mli:46  val with_likelihood : t -> Likelihood.t -> t *)
+Parameter with_likelihood : t -> Likelihood.t -> M t.
+Extract Inlined Constant with_likelihood => "Branch_annotations.with_likelihood".

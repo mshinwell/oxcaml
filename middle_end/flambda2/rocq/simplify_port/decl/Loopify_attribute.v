@@ -21,5 +21,12 @@
 From SimplifyPort Require Import Port_monad.
 
 (* loopify_attribute.mli:15  type t = | Always_loopify | Never_loopify | Already_loopified | Default_loopify_and_tailrec | Default_loopify_and_not_tailrec *)
-Parameter t : Type.
-Extract Inlined Constant t => "Loopify_attribute.t".
+Inductive t : Type :=
+| Always_loopify : t
+| Never_loopify : t
+| Already_loopified : t
+| Default_loopify_and_tailrec : t
+| Default_loopify_and_not_tailrec : t.
+(* loopify_attribute.mli:24  val should_loopify : t -> bool *)
+Parameter should_loopify : t -> M bool.
+Extract Inlined Constant should_loopify => "Loopify_attribute.should_loopify".

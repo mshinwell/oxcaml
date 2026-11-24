@@ -21,7 +21,17 @@
    change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
+From SimplifyPort.decl Require Format.
 
 (* or_invalid.mli:19  type 'a t = | Ok of 'a | Invalid *)
-Parameter t : Type -> Type.
-Extract Constant t "'a1" => "('a1) Or_invalid.t".
+Inductive t (A : Type) : Type :=
+| Ok : A -> t A
+| Invalid : t A.
+Arguments Ok {A}.
+Arguments Invalid {A}.
+(* or_invalid.mli:23  val print : (Format.formatter -> 'a -> unit) -> Format.formatter -> 'a t -> unit *)
+Parameter print : forall {A : Type}, (Format.formatter -> A -> M unit) -> Format.formatter -> t A -> M unit.
+Extract Inlined Constant print => "Or_invalid.print".
+(* or_invalid.mli:25  val map : 'a t -> f:('a -> 'b) -> 'b t *)
+Parameter map : forall {A B : Type}, t A -> (A -> M B) -> M (t B).
+Extract Inlined Constant map => "Or_invalid.map".

@@ -10,5 +10,6 @@
 From SimplifyPort Require Import Port_monad.
 
 (* first_complex_local_param.mli:35  type t = | Index of int | Never_partially_applied *)
-Parameter t : Type.
-Extract Inlined Constant t => "First_complex_local_param.t".
+Inductive t : Type :=
+| Index : int -> t
+| Never_partially_applied : t.

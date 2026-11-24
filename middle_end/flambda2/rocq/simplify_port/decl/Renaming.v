@@ -21,7 +21,17 @@
    change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
+From SimplifyPort.decl Require Variable_.
 
 (* renaming.mli:28  type t *)
 Parameter t : Type.
 Extract Inlined Constant t => "Renaming.t".
+(* renaming.mli:30  val empty : t *)
+Parameter empty : t.
+Extract Inlined Constant empty => "Renaming.empty".
+(* renaming.mli:54  val compose : second:t -> first:t -> t *)
+Parameter compose : t -> t -> M t.
+Extract Inlined Constant compose => "Renaming.compose".
+(* renaming.mli:56  val add_variable : t -> Variable.t -> Variable.t -> t *)
+Parameter add_variable : t -> Variable_.t -> Variable_.t -> M t.
+Extract Inlined Constant add_variable => "Renaming.add_variable".

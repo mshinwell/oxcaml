@@ -19,7 +19,17 @@
    change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
+From SimplifyPort.decl Require Bound_parameters Flambda2_types Format.
 
 (* result_types.mli:15  type t *)
 Parameter t : Type.
 Extract Inlined Constant t => "Result_types.t".
+(* result_types.mli:17  val create : params:Bound_parameters.t -> results:Bound_parameters.t -> Flambda2_types.Typing_env_extension.With_extra_variables.t -> t *)
+Parameter create : Bound_parameters.t -> Bound_parameters.t -> Flambda2_types.Typing_env_extension.With_extra_variables.t -> M t.
+Extract Inlined Constant create => "Result_types.create".
+(* result_types.mli:23  val pattern_match : t -> f: (params:Bound_parameters.t -> results:Bound_parameters.t -> Flambda2_types.Typing_env_extension.With_extra_variables.t -> 'a) -> 'a *)
+Parameter pattern_match : forall {A : Type}, t -> (Bound_parameters.t -> Bound_parameters.t -> Flambda2_types.Typing_env_extension.With_extra_variables.t -> M A) -> M A.
+Extract Inlined Constant pattern_match => "Result_types.pattern_match".
+(* result_types.mli:36  val print : Format.formatter -> t -> unit *)
+Parameter print : Format.formatter -> t -> M unit.
+Extract Inlined Constant print => "Result_types.print".

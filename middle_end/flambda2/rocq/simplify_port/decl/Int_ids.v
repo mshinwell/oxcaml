@@ -21,27 +21,94 @@
    change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
+From SimplifyPort.decl Require Flambda_kind Int32 Int64 Numeric_types Or_infinity Target_ocaml_int Targetint_32_64 Vector_types.
 
+Module Const.
+  (* int_ids.mli:22  type t = private Table_by_int_id.Id.t *)
+  Parameter t : Type.
+  Extract Inlined Constant t => "Int_ids.Const.t".
+  Module T.
+    (* int_ids.mli:26  include Container_types.S with type t := t *)
+    Definition t : Type := Int_ids.Const.t.
+    Extract Inlined Constant t => "Int_ids.Const.T.t".
+  End T.
+  Module Descr.
+    (* int_ids.mli:82  type t = private | Naked_immediate of Target_ocaml_int.t | Tagged_immediate of Target_ocaml_int.t | Naked_float32 of Numeric_types.Float32_by_bit_pattern.t | Naked_float of Numeric_types.Float_by_bit_pattern.t | Naked_int8 of Numeric_types.Int8.t | Naked_int16 of Numeric_types.Int16.t | Naked_int32 of Int32.t | Naked_int64 of Int64.t | Naked_nativeint of Targetint_32_64.t | Naked_vec128 of Vect... *)
+    Inductive t : Type :=
+    | Naked_immediate : Target_ocaml_int.t -> t
+    | Tagged_immediate : Target_ocaml_int.t -> t
+    | Naked_float32 : Numeric_types.Float32_by_bit_pattern.t -> t
+    | Naked_float : Numeric_types.Float_by_bit_pattern.t -> t
+    | Naked_int8 : Numeric_types.Int8.t -> t
+    | Naked_int16 : Numeric_types.Int16.t -> t
+    | Naked_int32 : Int32.t -> t
+    | Naked_int64 : Int64.t -> t
+    | Naked_nativeint : Targetint_32_64.t -> t
+    | Naked_vec128 : Vector_types.Vec128.Bit_pattern.t -> t
+    | Naked_vec256 : Vector_types.Vec256.Bit_pattern.t -> t
+    | Naked_vec512 : Vector_types.Vec512.Bit_pattern.t -> t
+    | Naked_mask : Vector_types.Mask.Bit_pattern.t -> t
+    | Null : t
+    | Poison : Flambda_kind.t -> string -> t.
+  End Descr.
+End Const.
 Module Variable_.
   (* int_ids.mli:110  type t = private Table_by_int_id.Id.t *)
   Parameter t : Type.
   Extract Inlined Constant t => "Int_ids.Variable.t".
+  Module T.
+    (* int_ids.mli:114  include Container_types.S_plus_iterator with type t := t *)
+    Definition t : Type := Int_ids.Variable_.t.
+    Extract Inlined Constant t => "Int_ids.Variable.T.t".
+  End T.
+  Module Set_.
+    (* int_ids.mli:114  include Container_types.S_plus_iterator with type t := t *)
+    Definition elt : Type := Int_ids.Variable_.t.
+    Extract Inlined Constant elt => "Int_ids.Variable.Set.elt".
+    (* int_ids.mli:114  include Container_types.S_plus_iterator with type t := t *)
+    Parameter t : Type.
+    Extract Inlined Constant t => "Int_ids.Variable.Set.t".
+  End Set_.
   Module Map.
+    (* int_ids.mli:114  include Container_types.S_plus_iterator with type t := t *)
+    Definition key : Type := Int_ids.Variable_.t.
+    Extract Inlined Constant key => "Int_ids.Variable.Map.key".
     (* int_ids.mli:114  include Container_types.S_plus_iterator with type t := t *)
     Parameter t : Type -> Type.
     Extract Constant t "'a1" => "('a1) Int_ids.Variable.Map.t".
   End Map.
+  Module Lmap.
+    (* int_ids.mli:116  module Lmap : Lmap.S with type key := t *)
+    Parameter t : Type -> Type.
+    Extract Constant t "'a1" => "('a1) Int_ids.Variable.Lmap.t".
+  End Lmap.
 End Variable_.
 Module Symbol.
   (* int_ids.mli:145  type t = private Table_by_int_id.Id.t *)
   Parameter t : Type.
   Extract Inlined Constant t => "Int_ids.Symbol.t".
+  Module T.
+    (* int_ids.mli:149  include Container_types.S_plus_iterator with type t := t *)
+    Definition t : Type := Int_ids.Symbol.t.
+    Extract Inlined Constant t => "Int_ids.Symbol.T.t".
+  End T.
   Module Set_.
+    (* int_ids.mli:149  include Container_types.S_plus_iterator with type t := t *)
+    Definition elt : Type := Int_ids.Symbol.t.
+    Extract Inlined Constant elt => "Int_ids.Symbol.Set.elt".
     (* int_ids.mli:149  include Container_types.S_plus_iterator with type t := t *)
     Parameter t : Type.
     Extract Inlined Constant t => "Int_ids.Symbol.Set.t".
   End Set_.
   Module Map.
+    (* int_ids.mli:149  include Container_types.S_plus_iterator with type t := t *)
+    Definition key : Type := Int_ids.Symbol.t.
+    Extract Inlined Constant key => "Int_ids.Symbol.Map.key".
+    Module Set_.
+      (* int_ids.mli:149  include Container_types.S_plus_iterator with type t := t *)
+      Definition t : Type := Int_ids.Symbol.Set_.t.
+      Extract Inlined Constant t => "Int_ids.Symbol.Map.Set.t".
+    End Set_.
     (* int_ids.mli:149  include Container_types.S_plus_iterator with type t := t *)
     Parameter t : Type -> Type.
     Extract Constant t "'a1" => "('a1) Int_ids.Symbol.Map.t".
@@ -51,12 +118,58 @@ Module Name.
   (* int_ids.mli:176  type t = private Table_by_int_id.Id.t *)
   Parameter t : Type.
   Extract Inlined Constant t => "Int_ids.Name.t".
+  Module T.
+    (* int_ids.mli:178  include Container_types.S_plus_iterator with type t := t *)
+    Definition t : Type := Int_ids.Name.t.
+    Extract Inlined Constant t => "Int_ids.Name.T.t".
+  End T.
   Module Set_.
+    (* int_ids.mli:178  include Container_types.S_plus_iterator with type t := t *)
+    Definition elt : Type := Int_ids.Name.t.
+    Extract Inlined Constant elt => "Int_ids.Name.Set.elt".
     (* int_ids.mli:178  include Container_types.S_plus_iterator with type t := t *)
     Parameter t : Type.
     Extract Inlined Constant t => "Int_ids.Name.Set.t".
   End Set_.
+  Module Map.
+    (* int_ids.mli:178  include Container_types.S_plus_iterator with type t := t *)
+    Definition key : Type := Int_ids.Name.t.
+    Extract Inlined Constant key => "Int_ids.Name.Map.key".
+    (* int_ids.mli:178  include Container_types.S_plus_iterator with type t := t *)
+    Parameter t : Type -> Type.
+    Extract Constant t "'a1" => "('a1) Int_ids.Name.Map.t".
+  End Map.
 End Name.
+Module Rec_info_expr.
+  (* int_ids.mli:192  module Rec_info_expr : Rec_info_expr0.S with type variable = Variable.t *)
+  Definition variable : Type := Int_ids.Variable_.t.
+  Extract Inlined Constant variable => "Int_ids.Rec_info_expr.variable".
+  Module Unrolling_state.
+    (* rec_info_expr0.mli:23  type t = private | Not_unrolling ( ** Unrolling has not begun. * ) | Unrolling of { remaining_depth : int } ( ** Unrolling has begun and will continue until [remaining_depth] is zero. A subsequent [unroll_to] expression may increase the remaining depth. * ) | Do_not_unroll ( ** No unrolling may occur. [unroll_to] has no effect. * ) *)
+    Record unrolling_payload_ : Type := { remaining_depth : int }.
+    Inductive t : Type :=
+    | Not_unrolling : t
+    | Unrolling : unrolling_payload_ -> t
+    | Do_not_unroll : t.
+  End Unrolling_state.
+  (* rec_info_expr0.mli:46  type t = private | Const of { depth : int Or_infinity.t; unrolling : Unrolling_state.t } | Var of variable ( ** A variable of kind [Flambda_kind.rec_info]. * ) | Succ of t ( ** The next depth. If we inline an occurrence with depth [d], then in the inlined body, recursive references will have depth [succ d]. * ) | Unroll_to of int * t *)
+  Record const_payload_ : Type := { depth : Or_infinity.t int; unrolling : Int_ids.Rec_info_expr.Unrolling_state.t }.
+  Inductive t : Type :=
+  | Const : const_payload_ -> t
+  | Var : variable -> t
+  | Succ : t -> t
+  | Unroll_to : int -> t -> t.
+End Rec_info_expr.
+Module Coercion.
+  (* int_ids.mli:197  and type rec_info_expr = Rec_info_expr.t *)
+  Definition rec_info_expr : Type := Int_ids.Rec_info_expr.t.
+  Extract Inlined Constant rec_info_expr => "Int_ids.Coercion.rec_info_expr".
+  (* coercion0.mli:37  type t = private | Id | Change_depth of { from : rec_info_expr; to_ : rec_info_expr } *)
+  Record change_depth_payload_ : Type := { from : rec_info_expr; to_ : rec_info_expr }.
+  Inductive t : Type :=
+  | Id : t
+  | Change_depth : change_depth_payload_ -> t.
+End Coercion.
 Module Simple.
   (* int_ids.mli:200  type t = private Table_by_int_id.Id.t *)
   Parameter t : Type.
@@ -66,19 +179,80 @@ Module Simple.
     Definition t : Type := Int_ids.Simple.t.
     Extract Inlined Constant t => "Int_ids.Simple.T.t".
   End T.
+  Module Set_.
+    (* int_ids.mli:204  include Container_types.S_plus_iterator with type t := t *)
+    Definition elt : Type := Int_ids.Simple.t.
+    Extract Inlined Constant elt => "Int_ids.Simple.Set.elt".
+    (* int_ids.mli:204  include Container_types.S_plus_iterator with type t := t *)
+    Parameter t : Type.
+    Extract Inlined Constant t => "Int_ids.Simple.Set.t".
+  End Set_.
+  Module Map.
+    (* int_ids.mli:204  include Container_types.S_plus_iterator with type t := t *)
+    Definition key : Type := Int_ids.Simple.t.
+    Extract Inlined Constant key => "Int_ids.Simple.Map.key".
+    Module Set_.
+      (* int_ids.mli:204  include Container_types.S_plus_iterator with type t := t *)
+      Definition t : Type := Int_ids.Simple.Set_.t.
+      Extract Inlined Constant t => "Int_ids.Simple.Map.Set.t".
+    End Set_.
+    (* int_ids.mli:204  include Container_types.S_plus_iterator with type t := t *)
+    Parameter t : Type -> Type.
+    Extract Constant t "'a1" => "('a1) Int_ids.Simple.Map.t".
+  End Map.
 End Simple.
 Module Code_id.
   (* int_ids.mli:247  type t = private Table_by_int_id.Id.t *)
   Parameter t : Type.
   Extract Inlined Constant t => "Int_ids.Code_id.t".
+  Module T.
+    (* int_ids.mli:251  include Container_types.S with type t := t *)
+    Definition t : Type := Int_ids.Code_id.t.
+    Extract Inlined Constant t => "Int_ids.Code_id.T.t".
+  End T.
   Module Set_.
+    (* int_ids.mli:251  include Container_types.S with type t := t *)
+    Definition elt : Type := Int_ids.Code_id.t.
+    Extract Inlined Constant elt => "Int_ids.Code_id.Set.elt".
     (* int_ids.mli:251  include Container_types.S with type t := t *)
     Parameter t : Type.
     Extract Inlined Constant t => "Int_ids.Code_id.Set.t".
   End Set_.
   Module Map.
     (* int_ids.mli:251  include Container_types.S with type t := t *)
+    Definition key : Type := Int_ids.Code_id.t.
+    Extract Inlined Constant key => "Int_ids.Code_id.Map.key".
+    (* int_ids.mli:251  include Container_types.S with type t := t *)
     Parameter t : Type -> Type.
     Extract Constant t "'a1" => "('a1) Int_ids.Code_id.Map.t".
   End Map.
 End Code_id.
+Module Code_id_or_symbol.
+  (* int_ids.mli:281  type t = private Table_by_int_id.Id.t *)
+  Parameter t : Type.
+  Extract Inlined Constant t => "Int_ids.Code_id_or_symbol.t".
+  Module Set_.
+    (* int_ids.mli:283  include Container_types.S with type t := t *)
+    Definition elt : Type := Int_ids.Code_id_or_symbol.t.
+    Extract Inlined Constant elt => "Int_ids.Code_id_or_symbol.Set.elt".
+    (* int_ids.mli:283  include Container_types.S with type t := t *)
+    Parameter t : Type.
+    Extract Inlined Constant t => "Int_ids.Code_id_or_symbol.Set.t".
+  End Set_.
+  Module Map.
+    (* int_ids.mli:283  include Container_types.S with type t := t *)
+    Definition key : Type := Int_ids.Code_id_or_symbol.t.
+    Extract Inlined Constant key => "Int_ids.Code_id_or_symbol.Map.key".
+    (* int_ids.mli:283  include Container_types.S with type t := t *)
+    Parameter t : Type -> Type.
+    Extract Constant t "'a1" => "('a1) Int_ids.Code_id_or_symbol.Map.t".
+  End Map.
+  Module Lmap.
+    (* int_ids.mli:285  module Lmap : Lmap.S with type key = t *)
+    Definition key : Type := Int_ids.Code_id_or_symbol.t.
+    Extract Inlined Constant key => "Int_ids.Code_id_or_symbol.Lmap.key".
+    (* lmap.mli:48  type +'a t *)
+    Parameter t : Type -> Type.
+    Extract Constant t "'a1" => "('a1) Int_ids.Code_id_or_symbol.Lmap.t".
+  End Lmap.
+End Code_id_or_symbol.

@@ -21,5 +21,6 @@
 From SimplifyPort Require Import Port_monad.
 
 (* poll_attribute.mli:15  type t = | Default | Error *)
-Parameter t : Type.
-Extract Inlined Constant t => "Poll_attribute.t".
+Inductive t : Type :=
+| Default : t
+| Error : t.

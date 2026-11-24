@@ -21,7 +21,7 @@
    change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
-From SimplifyPort.decl Require Format Lifted_constant Symbol.
+From SimplifyPort.decl Require Format Lifted_constant Stdlib_ Symbol.
 
 (* module LC = Lifted_constant *)
 Module LC := Lifted_constant.
@@ -56,8 +56,7 @@ Extract Inlined Constant fold => "Lifted_constant_state.fold".
 Parameter all_defined_symbols : t -> M Symbol.Set_.t.
 Extract Inlined Constant all_defined_symbols => "Lifted_constant_state.all_defined_symbols".
 (* lifted_constant_state.mli:39  type sort_result = private { innermost_first : LC.t array } *)
-Parameter sort_result : Type.
-Extract Inlined Constant sort_result => "Lifted_constant_state.sort_result".
+Record sort_result : Type := { innermost_first : Stdlib_.array Lifted_constant.t }.
 (* lifted_constant_state.mli:41  val sort : t -> sort_result *)
 Parameter sort : t -> M sort_result.
 Extract Inlined Constant sort => "Lifted_constant_state.sort".

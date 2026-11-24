@@ -19,7 +19,14 @@
    change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
+From SimplifyPort.decl Require Stdlib_.
 
 (* inlining_arguments.mli:23  type t *)
 Parameter t : Type.
 Extract Inlined Constant t => "Inlining_arguments.t".
+(* inlining_arguments.mli:37  val combine : from_env:t -> from_metadata:t -> t *)
+Parameter combine : t -> t -> M t.
+Extract Inlined Constant combine => "Inlining_arguments.combine".
+(* inlining_arguments.mli:63  val threshold : t -> float *)
+Parameter threshold : t -> M Stdlib_.float_.
+Extract Inlined Constant threshold => "Inlining_arguments.threshold".

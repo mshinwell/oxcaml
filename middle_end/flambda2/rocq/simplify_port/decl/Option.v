@@ -21,6 +21,24 @@
 
 From SimplifyPort Require Import Port_monad.
 
+(* stdlib/option.mli  val value : 'a option -> default:'a -> 'a *)
+Parameter value : forall {A : Type}, option A -> A -> M A.
+Extract Inlined Constant value => "Option.value".
+(* stdlib/option.mli  val get : 'a option -> 'a *)
+Parameter get : forall {A : Type}, option A -> M A.
+Extract Inlined Constant get => "Option.get".
+(* stdlib/option.mli  val bind : 'a option -> ('a -> 'b option) -> 'b option *)
+Parameter bind : forall {A B : Type}, option A -> (A -> M (option B)) -> M (option B).
+Extract Inlined Constant bind => "Option.bind".
+(* stdlib/option.mli  val map : ('a -> 'b) -> 'a option -> 'b option *)
+Parameter map : forall {A B : Type}, (A -> M B) -> option A -> M (option B).
+Extract Inlined Constant map => "Option.map".
 (* stdlib/option.mli  val is_none : 'a option -> bool *)
 Parameter is_none : forall {A : Type}, option A -> M bool.
 Extract Inlined Constant is_none => "Option.is_none".
+(* stdlib/option.mli  val is_some : 'a option -> bool *)
+Parameter is_some : forall {A : Type}, option A -> M bool.
+Extract Inlined Constant is_some => "Option.is_some".
+(* stdlib/option.mli  val equal : ('a -> 'a -> bool) -> 'a option -> 'a option -> bool *)
+Parameter equal : forall {A : Type}, (A -> A -> M bool) -> option A -> option A -> M bool.
+Extract Inlined Constant equal => "Option.equal".

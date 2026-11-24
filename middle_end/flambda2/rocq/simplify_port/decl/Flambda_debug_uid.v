@@ -23,3 +23,6 @@ From SimplifyPort Require Import Port_monad.
 (* flambda_debug_uid.mli:18  type t = private | Uid of Lambda.debug_uid | Proj of { uid : Lambda.debug_uid; unboxed_field : int } *)
 Parameter t : Type.
 Extract Inlined Constant t => "Flambda_debug_uid.t".
+(* flambda_debug_uid.mli:25  val none : t *)
+Parameter none : t.
+Extract Inlined Constant none => "Flambda_debug_uid.none".

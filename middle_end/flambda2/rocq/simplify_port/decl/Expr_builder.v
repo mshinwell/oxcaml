@@ -21,7 +21,7 @@
    change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
-From SimplifyPort.decl Require Apply_cont_rewrite Apply_cont_rewrite_id Bound_pattern Cost_metrics Debuginfo Exn_continuation Flambda Flambda_arity Lifted_constant Lifted_constant_state Name_occurrences Rebuilt_expr Simple Simplified_named Switch_arm Target_ocaml_int Upwards_acc Upwards_env.
+From SimplifyPort.decl Require Apply_cont_rewrite Apply_cont_rewrite_id Bound_pattern Continuation Cost_metrics Debuginfo Exn_continuation Flambda Flambda_arity Lifted_constant Lifted_constant_state Name_occurrences Rebuilt_expr Simple Simplified_named Switch_arm Target_ocaml_int Upwards_acc Upwards_env.
 
 (* expr_builder.mli:28  val create_let_binding : Upwards_acc.t -> Bound_pattern.t -> Named.t -> free_names_of_defining_expr:Name_occurrences.t -> body:Rebuilt_expr.t -> cost_metrics_of_defining_expr:Cost_metrics.t -> Rebuilt_expr.t * Upwards_acc.t *)
 Parameter create_let_binding : Upwards_acc.t -> Bound_pattern.t -> Flambda.Import_.Named.t -> Name_occurrences.t -> Rebuilt_expr.t -> Cost_metrics.t -> M (Rebuilt_expr.t * Upwards_acc.t).
@@ -39,8 +39,7 @@ Extract Inlined Constant place_lifted_constants => "Expr_builder.place_lifted_co
 Parameter create_switch : Upwards_acc.t -> Debuginfo.t -> Simple.t -> Target_ocaml_int.Map.t Switch_arm.t -> M (Rebuilt_expr.t * Upwards_acc.t).
 Extract Inlined Constant create_switch => "Expr_builder.create_switch".
 (* expr_builder.mli:84  type new_let_cont = { cont : Continuation.t; handler : Rebuilt_expr.Continuation_handler.t; free_names_of_handler : Name_occurrences.t; cost_metrics_of_handler : Cost_metrics.t } *)
-Parameter new_let_cont : Type.
-Extract Inlined Constant new_let_cont => "Expr_builder.new_let_cont".
+Record new_let_cont : Type := { cont : Continuation.t; handler : Rebuilt_expr.Continuation_handler.t; free_names_of_handler : Name_occurrences.t; cost_metrics_of_handler : Cost_metrics.t }.
 (* expr_builder.mli:91  val bind_let_conts : Upwards_acc.t -> body:Rebuilt_expr.t -> new_let_cont list -> Upwards_acc.t * Rebuilt_expr.t *)
 Parameter bind_let_conts : Upwards_acc.t -> Rebuilt_expr.t -> list new_let_cont -> M (Upwards_acc.t * Rebuilt_expr.t).
 Extract Inlined Constant bind_let_conts => "Expr_builder.bind_let_conts".
@@ -54,8 +53,17 @@ Inductive rewrite_apply_cont_result : Type :=
 | Apply_cont : Flambda.Import_.Apply_cont.t -> rewrite_apply_cont_result
 | Expr : ((Flambda.Import_.Apply_cont.t -> M (tuple3 Rebuilt_expr.t Cost_metrics.t Name_occurrences.t)) -> M (tuple3 Rebuilt_expr.t Cost_metrics.t Name_occurrences.t)) -> rewrite_apply_cont_result.
 (* expr_builder.mli:114  type rewrite_switch_arm_result = private | Invalid of { message : string } | Apply_cont of Apply_cont.t | New_wrapper of new_let_cont *)
+(* PORT-GAP(type): the name of the field [message] is taken in Rocq: abstract, with a maker for each constructor and one eliminator. *)
 Parameter rewrite_switch_arm_result : Type.
 Extract Inlined Constant rewrite_switch_arm_result => "Expr_builder.rewrite_switch_arm_result".
+Parameter mk_Invalid : string -> rewrite_switch_arm_result.
+Extract Inlined Constant mk_Invalid => "(fun x__1 -> Expr_builder.Invalid { message = x__1 })".
+Parameter mk_Apply_cont : Flambda.Import_.Apply_cont.t -> rewrite_switch_arm_result.
+Extract Inlined Constant mk_Apply_cont => "(fun x__1 -> Expr_builder.Apply_cont x__1)".
+Parameter mk_New_wrapper : new_let_cont -> rewrite_switch_arm_result.
+Extract Inlined Constant mk_New_wrapper => "(fun x__1 -> Expr_builder.New_wrapper x__1)".
+Parameter match_rewrite_switch_arm_result : forall {Res : Type}, rewrite_switch_arm_result -> (string -> M Res) -> (Flambda.Import_.Apply_cont.t -> M Res) -> (new_let_cont -> M Res) -> M Res.
+Extract Inlined Constant match_rewrite_switch_arm_result => "(fun x__0 f__1 f__2 f__3 -> match x__0 with Expr_builder.Invalid { message = x__1 } -> f__1 x__1 | Expr_builder.Apply_cont x__1 -> f__2 x__1 | Expr_builder.New_wrapper x__1 -> f__3 x__1)".
 (* expr_builder.mli:119  val no_rewrite_apply_cont : Upwards_env.t -> Apply_cont.t -> rewrite_apply_cont_result *)
 Parameter no_rewrite_apply_cont : Upwards_env.t -> Flambda.Import_.Apply_cont.t -> M rewrite_apply_cont_result.
 Extract Inlined Constant no_rewrite_apply_cont => "Expr_builder.no_rewrite_apply_cont".

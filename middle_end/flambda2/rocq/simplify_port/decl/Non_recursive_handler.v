@@ -23,8 +23,7 @@ From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Bound_parameters Continuation Flambda Format Lifted_cont_params.
 
 (* non_recursive_handler.mli:16  type t = private { cont : Continuation.t; params : Bound_parameters.t; lifted_params : Lifted_cont_params.t; handler : Flambda.Expr.t; is_exn_handler : bool; can_be_lifted : bool; is_cold : bool } *)
-Parameter t : Type.
-Extract Inlined Constant t => "Non_recursive_handler.t".
+Record t : Type := { cont : Continuation.t; params : Bound_parameters.t; lifted_params : Lifted_cont_params.t; handler : Flambda.Expr.t; is_exn_handler : bool; can_be_lifted : bool; is_cold : bool }.
 (* non_recursive_handler.mli:26  val create : cont:Continuation.t -> params:Bound_parameters.t -> lifted_params:Lifted_cont_params.t -> handler:Flambda.Expr.t -> is_exn_handler:bool -> can_be_lifted:bool -> is_cold:bool -> t *)
 Parameter create : Continuation.t -> Bound_parameters.t -> Lifted_cont_params.t -> Flambda.Expr.t -> bool -> bool -> bool -> M t.
 Extract Inlined Constant create => "Non_recursive_handler.create".

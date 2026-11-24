@@ -1,0 +1,53 @@
+(**************************************************************************)
+(*                                                                        *)
+(*                                 OCaml                                  *)
+(*                                                                        *)
+(*   Nathanaëlle Courant, Guillaume Bury and Pierre Chambart, OCamlPro    *)
+(*                                                                        *)
+(*   Copyright 2022--2022 OCamlPro SAS                                    *)
+(*   Copyright 2022--2022 Jane Street Group LLC                           *)
+(*                                                                        *)
+(*   All rights reserved.  This file is distributed under the terms of    *)
+(*   the GNU Lesser General Public License version 2.1, with the          *)
+(*   special exception on linking described in the file LICENSE.          *)
+(*                                                                        *)
+(**************************************************************************)
+
+(* GENERATED, not written by hand: the declarations of what the port of
+   Simplify uses of the compiler's module [Named_rewrite], after its interface
+   middle_end/flambda2/simplify/named_rewrite.mli
+   at commit ecc5c0d968c892b4312065caef0f19ffffa042a9. Made by tools/declgen (see decl/README.md): a
+   change is made there, not here. *)
+
+From SimplifyPort Require Import Port_monad.
+From SimplifyPort.decl Require Flambda_kind Format Simple Variable_.
+
+Module Prim_rewrite.
+  (* named_rewrite.mli:18  type t = private | Remove_prim | Invalid of Flambda_kind.t | Replace_by_binding of { var : Variable.t; bound_to : Simple.t } *)
+  Record replace_by_binding_payload_ : Type := { var : Variable_.t; bound_to : Simple.t }.
+  Inductive t : Type :=
+  | Remove_prim : t
+  | Invalid : Flambda_kind.t -> t
+  | Replace_by_binding : replace_by_binding_payload_ -> t.
+  (* named_rewrite.mli:27  val print : Format.formatter -> t -> unit *)
+  Parameter print : Format.formatter -> t -> M unit.
+  Extract Inlined Constant print => "Named_rewrite.Prim_rewrite.print".
+  (* named_rewrite.mli:30  val invalid : Flambda_kind.t -> t *)
+  Parameter invalid : Flambda_kind.t -> M t.
+  Extract Inlined Constant invalid => "Named_rewrite.Prim_rewrite.invalid".
+  (* named_rewrite.mli:33  val remove_prim : t *)
+  Parameter remove_prim : t.
+  Extract Inlined Constant remove_prim => "Named_rewrite.Prim_rewrite.remove_prim".
+  (* named_rewrite.mli:36  val replace_by_binding : var:Variable.t -> bound_to:Simple.t -> t *)
+  Parameter replace_by_binding : Variable_.t -> Simple.t -> M t.
+  Extract Inlined Constant replace_by_binding => "Named_rewrite.Prim_rewrite.replace_by_binding".
+End Prim_rewrite.
+(* named_rewrite.mli:40  type t = private Prim_rewrite of Prim_rewrite.t *)
+Inductive t : Type :=
+| Prim_rewrite : Named_rewrite.Prim_rewrite.t -> t.
+(* named_rewrite.mli:42  val print : Format.formatter -> t -> unit *)
+Parameter print : Format.formatter -> t -> M unit.
+Extract Inlined Constant print => "Named_rewrite.print".
+(* named_rewrite.mli:44  val prim_rewrite : Prim_rewrite.t -> t *)
+Parameter prim_rewrite : Named_rewrite.Prim_rewrite.t -> M t.
+Extract Inlined Constant prim_rewrite => "Named_rewrite.prim_rewrite".

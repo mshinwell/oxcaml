@@ -21,7 +21,35 @@
    change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
+From SimplifyPort.decl Require Alloc_mode Call_kind Continuation Flambda_arity Format Inlined_attribute.
 
 (* apply_expr.mli:20  type t *)
 Parameter t : Type.
 Extract Inlined Constant t => "Apply_expr.t".
+(* apply_expr.mli:24  include Expr_std.S with type t := t *)
+Parameter print : Format.formatter -> t -> M unit.
+Extract Inlined Constant print => "Apply_expr.print".
+Module Result_continuation.
+  (* apply_expr.mli:31  type t = | Return of Continuation.t | Never_returns *)
+  Inductive t : Type :=
+  | Return : Continuation.t -> t
+  | Never_returns : t.
+End Result_continuation.
+Module Position.
+  (* apply_expr.mli:41  type t = | Normal | Nontail *)
+  Inductive t : Type :=
+  | Normal : t
+  | Nontail : t.
+End Position.
+(* apply_expr.mli:83  val return_arity : t -> [`Complex] Flambda_arity.t *)
+Parameter return_arity : t -> M Flambda_arity.t.
+Extract Inlined Constant return_arity => "Apply_expr.return_arity".
+(* apply_expr.mli:89  val return_mode : t -> Alloc_mode.For_applications.t *)
+Parameter return_mode : t -> M Alloc_mode.For_applications.t.
+Extract Inlined Constant return_mode => "Apply_expr.return_mode".
+(* apply_expr.mli:120  val with_call_kind : t -> Call_kind.t -> t *)
+Parameter with_call_kind : t -> Call_kind.t -> M t.
+Extract Inlined Constant with_call_kind => "Apply_expr.with_call_kind".
+(* apply_expr.mli:134  val with_inlined_attribute : t -> Inlined_attribute.t -> t *)
+Parameter with_inlined_attribute : t -> Inlined_attribute.t -> M t.
+Extract Inlined Constant with_inlined_attribute => "Apply_expr.with_inlined_attribute".

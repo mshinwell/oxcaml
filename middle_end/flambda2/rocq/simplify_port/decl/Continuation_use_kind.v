@@ -23,5 +23,7 @@
 From SimplifyPort Require Import Port_monad.
 
 (* continuation_use_kind.mli:17  type t = | Inlinable | Non_inlinable of { escaping : bool } *)
-Parameter t : Type.
-Extract Inlined Constant t => "Continuation_use_kind.t".
+Record non_inlinable_payload_ : Type := { escaping : bool }.
+Inductive t : Type :=
+| Inlinable : t
+| Non_inlinable : non_inlinable_payload_ -> t.

@@ -21,7 +21,7 @@
    change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
-From SimplifyPort.decl Require Apply_cont_rewrite_id Bound_parameters Continuation_extra_params_and_args Flambda2_types Flambda_primitive Format Scope Simple.
+From SimplifyPort.decl Require Apply_cont_rewrite_id Bound_parameters Continuation_extra_params_and_args Flambda2_types Flambda_primitive Format Name_occurrences Scope Simple.
 
 (* module EPA = Continuation_extra_params_and_args *)
 Module EPA := Continuation_extra_params_and_args.
@@ -52,8 +52,7 @@ Parameter find : t -> Flambda_primitive.Eligible_for_cse.t -> M (option Simple.t
 Extract Inlined Constant find => "Common_subexpression_elimination.find".
 Module Join_result.
   (* common_subexpression_elimination.mli:42  type nonrec t = private { cse_at_join_point : t; extra_params : EPA.t; env_extension : TEE.t; extra_allowed_names : Name_occurrences.t } *)
-  Parameter t : Type.
-  Extract Inlined Constant t => "Common_subexpression_elimination.Join_result.t".
+  Record t : Type := { cse_at_join_point : Common_subexpression_elimination.t; extra_params : Continuation_extra_params_and_args.t; env_extension : Flambda2_types.Typing_env_extension.t; extra_allowed_names : Name_occurrences.t }.
 End Join_result.
 (* common_subexpression_elimination.mli:52  val join : typing_env_at_fork:TE.t -> cse_at_fork:t -> use_info:'a list -> get_typing_env:('a -> TE.t) -> get_rewrite_id:('a -> RI.t) -> get_cse:('a -> t) -> params:Bound_parameters.t -> Join_result.t option *)
 Parameter join : forall {A : Type}, Flambda2_types.Typing_env.t -> t -> list A -> (A -> M Flambda2_types.Typing_env.t) -> (A -> M Apply_cont_rewrite_id.t) -> (A -> M t) -> Bound_parameters.t -> M (option Common_subexpression_elimination.Join_result.t).

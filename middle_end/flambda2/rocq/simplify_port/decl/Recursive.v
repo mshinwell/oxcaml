@@ -23,5 +23,6 @@
 From SimplifyPort Require Import Port_monad.
 
 (* recursive.mli:17  type t = | Non_recursive | Recursive *)
-Parameter t : Type.
-Extract Inlined Constant t => "Recursive.t".
+Inductive t : Type :=
+| Non_recursive : t
+| Recursive : t.

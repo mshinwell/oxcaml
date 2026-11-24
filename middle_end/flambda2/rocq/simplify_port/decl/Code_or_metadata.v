@@ -20,7 +20,29 @@
    change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
+From SimplifyPort.decl Require Code Code_metadata.
 
 (* code_or_metadata.mli:16  type t *)
 Parameter t : Type.
 Extract Inlined Constant t => "Code_or_metadata.t".
+Module View.
+  (* code_or_metadata.mli:21  type t = private | Code_present of Code.t | Metadata_only of Code_metadata.t *)
+  Inductive t : Type :=
+  | Code_present : Code.t -> t
+  | Metadata_only : Code_metadata.t -> t.
+End View.
+(* code_or_metadata.mli:28  val view : t -> View.t *)
+Parameter view : t -> M Code_or_metadata.View.t.
+Extract Inlined Constant view => "Code_or_metadata.view".
+(* code_or_metadata.mli:31  val get_code : t -> Code.t *)
+Parameter get_code : t -> M Code.t.
+Extract Inlined Constant get_code => "Code_or_metadata.get_code".
+(* code_or_metadata.mli:39  val create : Code.t -> t *)
+Parameter create : Code.t -> M t.
+Extract Inlined Constant create => "Code_or_metadata.create".
+(* code_or_metadata.mli:53  val code_metadata : t -> Code_metadata.t *)
+Parameter code_metadata : t -> M Code_metadata.t.
+Extract Inlined Constant code_metadata => "Code_or_metadata.code_metadata".
+(* code_or_metadata.mli:55  val code_present : t -> bool *)
+Parameter code_present : t -> M bool.
+Extract Inlined Constant code_present => "Code_or_metadata.code_present".

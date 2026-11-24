@@ -21,11 +21,10 @@
    change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
-From SimplifyPort.decl Require Bound_var Downwards_acc Flambda Flambda_kind Simplified_named.
+From SimplifyPort.decl Require Bound_var Downwards_acc Flambda Flambda_kind Or_invalid Simplified_named.
 
 (* simplify_primitive_result.mli:19  type t_simplified = private { simplified_named : Simplified_named.t Or_invalid.t; try_reify : bool; dacc : Downwards_acc.t } *)
-Parameter t_simplified : Type.
-Extract Inlined Constant t_simplified => "Simplify_primitive_result.t_simplified".
+Record t_simplified : Type := { simplified_named : Or_invalid.t Simplified_named.t; try_reify : bool; dacc : Downwards_acc.t }.
 (* simplify_primitive_result.mli:25  type t = t_simplified Simplified_named.or_rewritten *)
 Definition t : Type := Simplified_named.or_rewritten t_simplified.
 Extract Inlined Constant t => "Simplify_primitive_result.t".

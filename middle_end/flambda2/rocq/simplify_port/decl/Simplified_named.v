@@ -21,17 +21,19 @@
    change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
-From SimplifyPort.decl Require Bound_pattern Code_id Cost_metrics Flambda Format Name_occurrences Target_system.
+From SimplifyPort.decl Require Alloc_mode Bound_pattern Code_id Cost_metrics Debuginfo Flambda Flambda_primitive Format Name_occurrences Rec_info_expr Simple Target_system.
 
 (* simplified_named.mli:21  type simplified_named = private | Simple of Simple.t | Prim of Flambda_primitive.t * Debuginfo.t | Set_of_closures of Set_of_closures.t * Alloc_mode.For_allocations.t | Rec_info of Rec_info_expr.t *)
-Parameter simplified_named : Type.
-Extract Inlined Constant simplified_named => "Simplified_named.simplified_named".
+Inductive simplified_named : Type :=
+| Simple : Simple.t -> simplified_named
+| Prim : Flambda_primitive.t -> Debuginfo.t -> simplified_named
+| Set_of_closures : Flambda.Import_.Set_of_closures.t -> Alloc_mode.For_allocations.t -> simplified_named
+| Rec_info : Rec_info_expr.t -> simplified_named.
 (* simplified_named.mli:27  val to_named : simplified_named -> Named.t *)
 Parameter to_named : simplified_named -> M Flambda.Import_.Named.t.
 Extract Inlined Constant to_named => "Simplified_named.to_named".
 (* simplified_named.mli:29  type t = private { named : simplified_named; cost_metrics : Cost_metrics.t; free_names : Name_occurrences.t } *)
-Parameter t : Type.
-Extract Inlined Constant t => "Simplified_named.t".
+Record t : Type := { named : simplified_named; cost_metrics : Cost_metrics.t; free_names : Name_occurrences.t }.
 (* simplified_named.mli:38  val create : machine_width:Target_system.Machine_width.t -> Named.t -> t *)
 Parameter create : Target_system.Machine_width.t -> Flambda.Import_.Named.t -> M t.
 Extract Inlined Constant create => "Simplified_named.create".
@@ -42,14 +44,17 @@ Extract Inlined Constant create_with_known_free_names => "Simplified_named.creat
 Parameter print : Format.formatter -> t -> M unit.
 Extract Inlined Constant print => "Simplified_named.print".
 (* simplified_named.mli:50  val cost_metrics : t -> Cost_metrics.t *)
-Parameter cost_metrics : t -> M Cost_metrics.t.
-Extract Inlined Constant cost_metrics => "Simplified_named.cost_metrics".
+Parameter cost_metrics_ : t -> M Cost_metrics.t.
+Extract Inlined Constant cost_metrics_ => "Simplified_named.cost_metrics".
 (* simplified_named.mli:52  val update_cost_metrics : Cost_metrics.t -> t -> t *)
 Parameter update_cost_metrics : Cost_metrics.t -> t -> M t.
 Extract Inlined Constant update_cost_metrics => "Simplified_named.update_cost_metrics".
 (* simplified_named.mli:54  type 'a or_rewritten = | Simplified of 'a | Rewritten of (body:Flambda.Expr.t -> Flambda.Expr.t) *)
-Parameter or_rewritten : Type -> Type.
-Extract Constant or_rewritten "'a1" => "('a1) Simplified_named.or_rewritten".
+Inductive or_rewritten (A : Type) : Type :=
+| Simplified : A -> or_rewritten A
+| Rewritten : (Flambda.Expr.t -> M Flambda.Expr.t) -> or_rewritten A.
+Arguments Simplified {A}.
+Arguments Rewritten {A}.
 (* simplified_named.mli:58  type binding_to_place = | Keep_binding of { let_bound : Bound_pattern.t; simplified_defining_expr : t; original_defining_expr : Named.t option } | Delete_binding of { original_defining_expr : Named.t option } *)
 (* PORT-GAP(type): the name of the field [original_defining_expr] is taken in Rocq: abstract, with a maker for each constructor and one eliminator. *)
 Parameter binding_to_place : Type.

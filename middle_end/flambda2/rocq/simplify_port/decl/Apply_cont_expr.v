@@ -34,3 +34,20 @@ Module T.
   Definition t : Type := Apply_cont_expr.t.
   Extract Inlined Constant t => "Apply_cont_expr.T.t".
 End T.
+Module Set_.
+  (* apply_cont_expr.mli:60  include Container_types.S with type t := t *)
+  Definition elt : Type := Apply_cont_expr.t.
+  Extract Inlined Constant elt => "Apply_cont_expr.Set.elt".
+  (* apply_cont_expr.mli:60  include Container_types.S with type t := t *)
+  Parameter t : Type.
+  Extract Inlined Constant t => "Apply_cont_expr.Set.t".
+  (* apply_cont_expr.mli:60  include Container_types.S with type t := t *)
+  Parameter empty : t.
+  Extract Inlined Constant empty => "Apply_cont_expr.Set.empty".
+  (* apply_cont_expr.mli:60  include Container_types.S with type t := t *)
+  Parameter add : elt -> t -> M t.
+  Extract Inlined Constant add => "Apply_cont_expr.Set.add".
+  (* apply_cont_expr.mli:60  include Container_types.S with type t := t *)
+  Parameter get_singleton : t -> M (option elt).
+  Extract Inlined Constant get_singleton => "Apply_cont_expr.Set.get_singleton".
+End Set_.

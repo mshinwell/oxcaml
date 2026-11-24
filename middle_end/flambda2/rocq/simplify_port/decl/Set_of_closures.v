@@ -21,7 +21,14 @@
    change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
+From SimplifyPort.decl Require Function_declarations Simple Value_slot.
 
 (* set_of_closures.mli:17  type t *)
 Parameter t : Type.
 Extract Inlined Constant t => "Set_of_closures.t".
+(* set_of_closures.mli:36  val function_decls : t -> Function_declarations.t *)
+Parameter function_decls : t -> M Function_declarations.t.
+Extract Inlined Constant function_decls => "Set_of_closures.function_decls".
+(* set_of_closures.mli:39  val value_slots : t -> Simple.t Value_slot.Map.t *)
+Parameter value_slots : t -> M (Value_slot.Map.t Simple.t).
+Extract Inlined Constant value_slots => "Set_of_closures.value_slots".

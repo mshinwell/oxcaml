@@ -21,6 +21,30 @@
 
 From SimplifyPort Require Import Port_monad.
 
+(* stdlib/listLabels.mli  val map : f:('a -> 'b) -> 'a list -> 'b list *)
+Parameter map : forall {A B : Type}, (A -> M B) -> list A -> M (list B).
+Extract Inlined Constant map => "ListLabels.map".
+(* stdlib/listLabels.mli  val filter_map : f:('a -> 'b option) -> 'a list -> 'b list *)
+Parameter filter_map : forall {A B : Type}, (A -> M (option B)) -> list A -> M (list B).
+Extract Inlined Constant filter_map => "ListLabels.filter_map".
+(* stdlib/listLabels.mli  val fold_left : f:('acc -> 'a -> 'acc) -> init:'acc -> 'a list -> 'acc *)
+Parameter fold_left : forall {Acc A : Type}, (Acc -> A -> M Acc) -> Acc -> list A -> M Acc.
+Extract Inlined Constant fold_left => "ListLabels.fold_left".
+(* stdlib/listLabels.mli  val fold_right : f:('a -> 'acc -> 'acc) -> 'a list -> init:'acc -> 'acc *)
+Parameter fold_right : forall {A Acc : Type}, (A -> Acc -> M Acc) -> list A -> Acc -> M Acc.
+Extract Inlined Constant fold_right => "ListLabels.fold_right".
 (* stdlib/listLabels.mli  val map2 : f:('a -> 'b -> 'c) -> 'a list -> 'b list -> 'c list *)
-Parameter map2 : forall {C A B : Type}, (A -> B -> M C) -> list A -> list B -> M (list C).
+Parameter map2 : forall {A B C : Type}, (A -> B -> M C) -> list A -> list B -> M (list C).
 Extract Inlined Constant map2 => "ListLabels.map2".
+(* stdlib/listLabels.mli  val fold_left2 : f:('acc -> 'a -> 'b -> 'acc) -> init:'acc -> 'a list -> 'b list -> 'acc *)
+Parameter fold_left2 : forall {Acc A B : Type}, (Acc -> A -> B -> M Acc) -> Acc -> list A -> list B -> M Acc.
+Extract Inlined Constant fold_left2 => "ListLabels.fold_left2".
+(* stdlib/listLabels.mli  val for_all : f:('a -> bool) -> 'a list -> bool *)
+Parameter for_all : forall {A : Type}, (A -> M bool) -> list A -> M bool.
+Extract Inlined Constant for_all => "ListLabels.for_all".
+(* stdlib/listLabels.mli  val find_opt : f:('a -> bool) -> 'a list -> 'a option *)
+Parameter find_opt : forall {A : Type}, (A -> M bool) -> list A -> M (option A).
+Extract Inlined Constant find_opt => "ListLabels.find_opt".
+(* stdlib/listLabels.mli  val sort : cmp:('a -> 'a -> int) -> 'a list -> 'a list *)
+Parameter sort : forall {A : Type}, (A -> A -> M int) -> list A -> M (list A).
+Extract Inlined Constant sort => "ListLabels.sort".

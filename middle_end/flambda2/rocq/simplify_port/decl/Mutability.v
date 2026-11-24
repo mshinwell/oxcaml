@@ -21,7 +21,13 @@
    change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
+From SimplifyPort.decl Require Format.
 
 (* mutability.mli:17  type t = | Mutable | Immutable | Immutable_unique *)
-Parameter t : Type.
-Extract Inlined Constant t => "Mutability.t".
+Inductive t : Type :=
+| Mutable : t
+| Immutable : t
+| Immutable_unique : t.
+(* mutability.mli:30  val print : Format.formatter -> t -> unit *)
+Parameter print : Format.formatter -> t -> M unit.
+Extract Inlined Constant print => "Mutability.print".

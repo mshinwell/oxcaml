@@ -23,5 +23,10 @@
 From SimplifyPort Require Import Port_monad.
 
 (* or_unknown_or_bottom.mli:17  type 'a t = | Unknown | Ok of 'a | Bottom *)
-Parameter t : Type -> Type.
-Extract Constant t "'a1" => "('a1) Or_unknown_or_bottom.t".
+Inductive t (A : Type) : Type :=
+| Unknown : t A
+| Ok : A -> t A
+| Bottom : t A.
+Arguments Unknown {A}.
+Arguments Ok {A}.
+Arguments Bottom {A}.

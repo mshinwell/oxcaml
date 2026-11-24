@@ -23,5 +23,9 @@
 From SimplifyPort Require Import Port_monad.
 
 (* inline_attribute.mli:19  type t = | Always_inline | Available_inline | Never_inline | Unroll of int | Default_inline *)
-Parameter t : Type.
-Extract Inlined Constant t => "Inline_attribute.t".
+Inductive t : Type :=
+| Always_inline : t
+| Available_inline : t
+| Never_inline : t
+| Unroll : int -> t
+| Default_inline : t.

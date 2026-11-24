@@ -80,11 +80,13 @@ Type variables are capitals (`'a` is `A`). `INDEX.tsv` has every name.
 | labels | dropped: arguments by place |
 | optional arguments | `option` by place, a closed function as realisation |
 | format strings | a family by the number of arguments (0 to 16) |
-| operators (`&&`, `<>`, `@`) | not declared: the kit has what Rocq writes |
+| operators of `Stdlib` (`&&`, `<>`, `@`) | not declared: the kit and Rocq have their own |
+| operators of other modules (`Code_size.(+)`, `let<*`) | a name spelled from the characters: `op_plus`, `let_op_lt_star` |
 | functors | not declared. An instance that an interface names (`Variable.Map`) is a module like another |
 | a functor applied inside a file of Simplify | not seen here: the port's own |
 | module types | not declared |
-| GADTs, polymorphic variants | the type is abstract; a polymorphic variant given as an index to an abstract type (``[`Unarized] Flambda_arity.t``) is dropped, with its parameter |
+| GADTs | abstract, with makers and, when the index is dropped, the eliminator |
+| polymorphic variants | given as an index to an abstract type or a GADT (``[`Unarized] Flambda_arity.t``): dropped, with the parameter. Elsewhere the declaration is left out |
 | first-class modules, objects | the declaration is left out |
 | a type with parameters in a module whose name Rocq reserves (`Variable.Map.t`) | printed by Rocq as `Variable_.Map.t`: the OCaml side needs `module Variable_ = Variable` |
 
@@ -94,3 +96,15 @@ Type variables are capitals (`'a` is `A`). `INDEX.tsv` has every name.
 reason. The kit (`Port_monad.v`) has `ref`, `!`, `:=`, `raise`, `ignore`,
 `compare`, `not`, `Lazy.force`, `Not_found`, the fatal errors: they are not
 declared here.
+
+The modules that a file of Simplify makes for itself by applying a functor of
+outside (11 places; the module is local to the file, so no interface names
+it): `Container_types.Make` (common_subexpression_elimination.ml:95),
+`Container_types.Make_pair` (number_adjuncts.ml:612 and :738,
+simplify_binary_primitive.ml:511), `Container_types.Make_set`
+(simplify_binary_primitive.ml:115), `Strongly_connected_components.Make`
+(flow/control_flow_graph.ml:16, flow/dominator_graph.ml:16,
+lifting/lifted_constant_state.ml:82, simplify_let_cont_expr.ml:1048),
+`Code_metadata.Code_metadata_accessors` (non_constructed_code.ml:27),
+`Hashtbl.Make` (rebuilt_expr.ml:390). Module types (9, in the same list) are
+not declared.

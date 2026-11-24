@@ -27,8 +27,10 @@ From SimplifyPort.decl Require Apply_cont_rewrite_id Bound_parameter Bound_param
 Parameter t : Type.
 Extract Inlined Constant t => "Apply_cont_rewrite.t".
 (* apply_cont_rewrite.mli:24  type used = | Unused | Used | Used_as_invariant *)
-Parameter used : Type.
-Extract Inlined Constant used => "Apply_cont_rewrite.used".
+Inductive used : Type :=
+| Unused : used
+| Used : used
+| Used_as_invariant : used.
 (* apply_cont_rewrite.mli:29  val print : Format.formatter -> t -> unit *)
 Parameter print : Format.formatter -> t -> M unit.
 Extract Inlined Constant print => "Apply_cont_rewrite.print".
@@ -48,8 +50,9 @@ Extract Inlined Constant get_unused_params => "Apply_cont_rewrite.get_unused_par
 Parameter original_params_arity : t -> M Flambda_arity.t.
 Extract Inlined Constant original_params_arity => "Apply_cont_rewrite.original_params_arity".
 (* apply_cont_rewrite.mli:47  type rewrite_apply_cont_ctx = | Apply_cont | Apply_expr of Simple.t list *)
-Parameter rewrite_apply_cont_ctx : Type.
-Extract Inlined Constant rewrite_apply_cont_ctx => "Apply_cont_rewrite.rewrite_apply_cont_ctx".
+Inductive rewrite_apply_cont_ctx : Type :=
+| Apply_cont : rewrite_apply_cont_ctx
+| Apply_expr : list Simple.t -> rewrite_apply_cont_ctx.
 (* apply_cont_rewrite.mli:51  val make_rewrite : t -> machine_width:Target_system.Machine_width.t -> ctx:rewrite_apply_cont_ctx -> Apply_cont_rewrite_id.t -> Simple.t list -> ((Bound_var.t * Code_size.t * Flambda.Named.t) list * Simple.t list) Or_invalid.t *)
 Parameter make_rewrite : t -> Target_system.Machine_width.t -> rewrite_apply_cont_ctx -> Apply_cont_rewrite_id.t -> list Simple.t -> M (Or_invalid.t (list (tuple3 Bound_var.t Code_size.t Flambda.Named.t) * list Simple.t)).
 Extract Inlined Constant make_rewrite => "Apply_cont_rewrite.make_rewrite".

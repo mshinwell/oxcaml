@@ -19,12 +19,43 @@
    change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
+From SimplifyPort.decl Require Flambda_kind Format Function_slot Name_occurrences Symbol Target_ocaml_int Value_slot.
 
 Module Projection.
   (* symbol_projection.mli:16  type t = private | Block_load of { index : Target_ocaml_int.t; block_shape : Flambda_kind.Block_shape.t } | Project_value_slot of { project_from : Function_slot.t; value_slot : Value_slot.t } *)
-  Parameter t : Type.
-  Extract Inlined Constant t => "Symbol_projection.Projection.t".
+  Record block_load_payload_ : Type := { index : Target_ocaml_int.t; block_shape : Flambda_kind.Block_shape.t }.
+  Record project_value_slot_payload_ : Type := { project_from : Function_slot.t; value_slot : Value_slot.t }.
+  Inductive t : Type :=
+  | Block_load : block_load_payload_ -> t
+  | Project_value_slot : project_value_slot_payload_ -> t.
+  (* symbol_projection.mli:26  val block_load : index:Target_ocaml_int.t -> block_shape:Flambda_kind.Block_shape.t -> t *)
+  Parameter block_load : Target_ocaml_int.t -> Flambda_kind.Block_shape.t -> M t.
+  Extract Inlined Constant block_load => "Symbol_projection.Projection.block_load".
+  (* symbol_projection.mli:29  val project_value_slot : Function_slot.t -> Value_slot.t -> t *)
+  Parameter project_value_slot : Function_slot.t -> Value_slot.t -> M t.
+  Extract Inlined Constant project_value_slot => "Symbol_projection.Projection.project_value_slot".
 End Projection.
 (* symbol_projection.mli:32  type t *)
 Parameter t : Type.
 Extract Inlined Constant t => "Symbol_projection.t".
+(* symbol_projection.mli:34  val print : Format.formatter -> t -> unit *)
+Parameter print : Format.formatter -> t -> M unit.
+Extract Inlined Constant print => "Symbol_projection.print".
+(* symbol_projection.mli:36  val create : Symbol.t -> Projection.t -> Flambda_kind.With_subkind.t -> t *)
+Parameter create : Symbol.t -> Symbol_projection.Projection.t -> Flambda_kind.With_subkind.t -> M t.
+Extract Inlined Constant create => "Symbol_projection.create".
+(* symbol_projection.mli:38  val kind : t -> Flambda_kind.With_subkind.t *)
+Parameter kind : t -> M Flambda_kind.With_subkind.t.
+Extract Inlined Constant kind => "Symbol_projection.kind".
+(* symbol_projection.mli:40  val symbol : t -> Symbol.t *)
+Parameter symbol : t -> M Symbol.t.
+Extract Inlined Constant symbol => "Symbol_projection.symbol".
+(* symbol_projection.mli:42  val projection : t -> Projection.t *)
+Parameter projection : t -> M Symbol_projection.Projection.t.
+Extract Inlined Constant projection => "Symbol_projection.projection".
+(* symbol_projection.mli:46  val equal : t -> t -> bool *)
+Parameter equal : t -> t -> M bool.
+Extract Inlined Constant equal => "Symbol_projection.equal".
+(* symbol_projection.mli:50  include Contains_names.S with type t := t *)
+Parameter free_names : t -> M Name_occurrences.t.
+Extract Inlined Constant free_names => "Symbol_projection.free_names".
