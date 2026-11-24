@@ -81,14 +81,11 @@ let mark_non_inlinable t0 =
     | Continuation_use_kind.Inlinable -> f__1 ()
     | Continuation_use_kind.Non_inlinable { escaping = x__1 } -> f__2 x__1)
     (fun _ ->
-      { id = t0.id;
-        kind =
-          (fun x__1 ->
-            (Continuation_use_kind.Non_inlinable { escaping = x__1 }
-              : Continuation_use_kind.t))
-            false;
-        arg_types = t0.arg_types;
-        env = t0.env
-      })
+      (fun t x__1 -> { t with kind = x__1 })
+        t0
+        ((fun x__1 ->
+           (Continuation_use_kind.Non_inlinable { escaping = x__1 }
+             : Continuation_use_kind.t))
+           false))
     (fun _ -> t0)
     t0.kind

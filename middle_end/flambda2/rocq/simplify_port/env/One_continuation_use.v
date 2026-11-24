@@ -78,16 +78,22 @@ Definition use_kind (t : One_continuation_use.t) : M Continuation_use_kind.t :=
 (* 44 *)
 Definition env_at_use (t : One_continuation_use.t) : M DE.t := ret t.(env).
 
+(* PORT-GAP(update): 48, [{ t with kind }]. *)
+Definition update_kind (t : One_continuation_use.t)
+    (kind : Continuation_use_kind.t) : One_continuation_use.t :=
+  {| id := t.(id);
+     kind := kind;
+     arg_types := t.(arg_types);
+     env := t.(env)
+  |}.
+Extract Inlined Constant update_kind =>
+  "(fun t x__1 -> { t with kind = x__1 })".
+
 (* 46-49 *)
 Definition mark_non_inlinable (t : One_continuation_use.t)
     : M One_continuation_use.t :=
   match t.(kind) with
   | Continuation_use_kind.Inlinable =>
-    ret
-      {| id := t.(id);
-         kind := Continuation_use_kind.Non_inlinable false;
-         arg_types := t.(arg_types);
-         env := t.(env)
-      |}
+    ret (update_kind t (Continuation_use_kind.Non_inlinable false))
   | Continuation_use_kind.Non_inlinable _ => ret t
   end.
