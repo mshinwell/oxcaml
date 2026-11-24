@@ -133,6 +133,10 @@ real build.
 - An exception of the file: `exception E` verbatim, `Parameter E : exception
   unit.` and `Extract Inlined Constant E => "((fun () -> E), (function E ->
   Some () | _ -> None))".`
+- A module that the file makes with a functor (`module SCC =
+  Strongly_connected_components.Make (...)`): the OCaml line verbatim, and
+  `From SimplifyPort.decl Require Import Foo__local.`, which declares it
+  (`decl/README.md` lists the seven files that have one).
 - A ported function with an OPTIONAL parameter: `(x : option T)` by place,
   and at the end `(*OCAML-END let f ?x a = f x a OCAML-END*)`.
 - One name space: where a type of the file has the name of a function or a
