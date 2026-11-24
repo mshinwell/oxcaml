@@ -385,7 +385,7 @@ Definition update_replay_history (t : Downwards_env.t)
        t.(has_seen_a_non_liftable_continuation);
      is_cold := t.(is_cold) |}.
 Extract Inlined Constant update_replay_history =>
-  "(fun t x__1 -> { t with replay_history = x__1 })".
+  "(fun t replay_history -> { t with replay_history = replay_history })".
 
 (* 190-194. In the compiler: [~can_be_lifted t conts]. *)
 Definition define_continuations (can_be_lifted : bool) (t : Downwards_env.t)
@@ -434,10 +434,11 @@ Definition update_typing_env_replay_history_variables_defined_at_toplevel_define
        t.(has_seen_a_non_liftable_continuation);
      is_cold := t.(is_cold) |}.
 Extract Inlined Constant update_typing_env_replay_history_variables_defined_at_toplevel_defined_variables_by_scope =>
-  "(fun t x__1 x__2 x__3 x__4 ->
-     { t with typing_env = x__1; replay_history = x__2;
-       variables_defined_at_toplevel = x__3;
-       defined_variables_by_scope = x__4 })".
+  "(fun t typing_env replay_history variables_defined_at_toplevel
+   defined_variables_by_scope -> { t with typing_env = typing_env;
+   replay_history = replay_history; variables_defined_at_toplevel =
+   variables_defined_at_toplevel; defined_variables_by_scope =
+   defined_variables_by_scope })".
 
 (* 196-232. In the compiler: [~extra t var kind]. *)
 Definition define_variable0 (extra : bool) (t : Downwards_env.t)
@@ -600,7 +601,7 @@ Definition update_at_unit_toplevel (t : Downwards_env.t)
        t.(has_seen_a_non_liftable_continuation);
      is_cold := t.(is_cold) |}.
 Extract Inlined Constant update_at_unit_toplevel =>
-  "(fun t x__1 -> { t with at_unit_toplevel = x__1 })".
+  "(fun t at_unit_toplevel -> { t with at_unit_toplevel = at_unit_toplevel })".
 
 (* 307 *)
 Definition set_at_unit_toplevel_state (t : Downwards_env.t)
@@ -649,7 +650,7 @@ Definition update_inlining_state (t : Downwards_env.t)
        t.(has_seen_a_non_liftable_continuation);
      is_cold := t.(is_cold) |}.
 Extract Inlined Constant update_inlining_state =>
-  "(fun t x__1 -> { t with inlining_state = x__1 })".
+  "(fun t inlining_state -> { t with inlining_state = inlining_state })".
 
 (* 316 *)
 Definition set_inlining_state (t : Downwards_env.t)
@@ -695,7 +696,8 @@ Definition update_inlining_history_tracker (t : Downwards_env.t)
        t.(has_seen_a_non_liftable_continuation);
      is_cold := t.(is_cold) |}.
 Extract Inlined Constant update_inlining_history_tracker =>
-  "(fun t x__1 -> { t with inlining_history_tracker = x__1 })".
+  "(fun t inlining_history_tracker -> { t with inlining_history_tracker =
+   inlining_history_tracker })".
 
 (* 323-324 *)
 Definition set_inlining_history_tracker
@@ -737,7 +739,7 @@ Definition update_typing_env (t : Downwards_env.t)
        t.(has_seen_a_non_liftable_continuation);
      is_cold := t.(is_cold) |}.
 Extract Inlined Constant update_typing_env =>
-  "(fun t x__1 -> { t with typing_env = x__1 })".
+  "(fun t typing_env -> { t with typing_env = typing_env })".
 
 (* 326-327 *)
 Definition increment_continuation_scope (t : Downwards_env.t)
@@ -791,9 +793,10 @@ Definition update_disable_inlining_disable_partial_application_stub_generation
        t.(has_seen_a_non_liftable_continuation);
      is_cold := t.(is_cold) |}.
 Extract Inlined Constant update_disable_inlining_disable_partial_application_stub_generation =>
-  "(fun t x__1 x__2 ->
-     { t with disable_inlining = x__1;
-       disable_partial_application_stub_generation = x__2 })".
+  "(fun t disable_inlining disable_partial_application_stub_generation -> { t
+   with disable_inlining = disable_inlining;
+   disable_partial_application_stub_generation =
+   disable_partial_application_stub_generation })".
 
 (* 332-338 *)
 Definition enter_stub_function (t : Downwards_env.t) : M Downwards_env.t :=
@@ -1156,7 +1159,8 @@ Definition update_variables_defined_at_toplevel (t : Downwards_env.t)
        t.(has_seen_a_non_liftable_continuation);
      is_cold := t.(is_cold) |}.
 Extract Inlined Constant update_variables_defined_at_toplevel =>
-  "(fun t x__1 -> { t with variables_defined_at_toplevel = x__1 })".
+  "(fun t variables_defined_at_toplevel -> { t with
+   variables_defined_at_toplevel = variables_defined_at_toplevel })".
 
 (* 526-531 *)
 Definition mark_parameters_as_toplevel (t : Downwards_env.t)
@@ -1302,7 +1306,8 @@ Definition update_typing_env_all_code (t : Downwards_env.t)
        t.(has_seen_a_non_liftable_continuation);
      is_cold := t.(is_cold) |}.
 Extract Inlined Constant update_typing_env_all_code =>
-  "(fun t x__1 x__2 -> { t with typing_env = x__1; all_code = x__2 })".
+  "(fun t typing_env all_code -> { t with typing_env = typing_env; all_code =
+   all_code })".
 
 (* 590-604. In the compiler: [t ~code_id ~code]. *)
 Definition define_code (t : Downwards_env.t) (code_id : Code_id.t)
@@ -1364,7 +1369,8 @@ Definition update_cse_comparison_results (t : Downwards_env.t)
        t.(has_seen_a_non_liftable_continuation);
      is_cold := t.(is_cold) |}.
 Extract Inlined Constant update_cse_comparison_results =>
-  "(fun t x__1 x__2 -> { t with cse = x__1; comparison_results = x__2 })".
+  "(fun t cse comparison_results -> { t with cse = cse; comparison_results =
+   comparison_results })".
 
 (* 610-626. In the compiler: [t prim ~bound_to ~name_mode]. *)
 (* PORT-GAP(loose): 618-621, the two matched values are calls: each is
@@ -1437,8 +1443,7 @@ Definition update_cse (t : Downwards_env.t)
      has_seen_a_non_liftable_continuation :=
        t.(has_seen_a_non_liftable_continuation);
      is_cold := t.(is_cold) |}.
-Extract Inlined Constant update_cse =>
-  "(fun t x__1 -> { t with cse = x__1 })".
+Extract Inlined Constant update_cse => "(fun t cse -> { t with cse = cse })".
 
 (* 633 *)
 Definition with_cse (t : Downwards_env.t)
@@ -1480,8 +1485,9 @@ Definition update_are_rebuilding_terms_disable_inlining (t : Downwards_env.t)
        t.(has_seen_a_non_liftable_continuation);
      is_cold := t.(is_cold) |}.
 Extract Inlined Constant update_are_rebuilding_terms_disable_inlining =>
-  "(fun t x__1 x__2 ->
-     { t with are_rebuilding_terms = x__1; disable_inlining = x__2 })".
+  "(fun t are_rebuilding_terms disable_inlining -> { t with
+   are_rebuilding_terms = are_rebuilding_terms; disable_inlining =
+   disable_inlining })".
 
 (* 635-639 *)
 Definition set_do_not_rebuild_terms_and_disable_inlining
@@ -1526,7 +1532,7 @@ Definition update_disable_inlining (t : Downwards_env.t)
        t.(has_seen_a_non_liftable_continuation);
      is_cold := t.(is_cold) |}.
 Extract Inlined Constant update_disable_inlining =>
-  "(fun t x__1 -> { t with disable_inlining = x__1 })".
+  "(fun t disable_inlining -> { t with disable_inlining = disable_inlining })".
 
 (* 641-642 *)
 Definition set_disable_inlining (t : Downwards_env.t)
@@ -1566,7 +1572,8 @@ Definition update_are_rebuilding_terms (t : Downwards_env.t)
        t.(has_seen_a_non_liftable_continuation);
      is_cold := t.(is_cold) |}.
 Extract Inlined Constant update_are_rebuilding_terms =>
-  "(fun t x__1 -> { t with are_rebuilding_terms = x__1 })".
+  "(fun t are_rebuilding_terms -> { t with are_rebuilding_terms =
+   are_rebuilding_terms })".
 
 (* 644-645 *)
 Definition set_rebuild_terms (t : Downwards_env.t) : M Downwards_env.t :=
@@ -1605,7 +1612,7 @@ Definition update_closure_info (t : Downwards_env.t)
        t.(has_seen_a_non_liftable_continuation);
      is_cold := t.(is_cold) |}.
 Extract Inlined Constant update_closure_info =>
-  "(fun t x__1 -> { t with closure_info = x__1 })".
+  "(fun t closure_info -> { t with closure_info = closure_info })".
 
 (* 649-655. In the compiler: [code_id ~return_continuation
    ~exn_continuation ~my_closure ~my_alloc_region t]. *)
@@ -1667,7 +1674,8 @@ Definition update_inlined_debuginfo (t : Downwards_env.t)
        t.(has_seen_a_non_liftable_continuation);
      is_cold := t.(is_cold) |}.
 Extract Inlined Constant update_inlined_debuginfo =>
-  "(fun t x__1 -> { t with inlined_debuginfo = x__1 })".
+  "(fun t inlined_debuginfo -> { t with inlined_debuginfo = inlined_debuginfo
+   })".
 
 (* 670-671. In the compiler: [t ~from]. *)
 Definition set_inlined_debuginfo (t from : Downwards_env.t)
@@ -1734,9 +1742,9 @@ Definition update_inlined_attribute_to_forward_inlined_debuginfo
        t.(has_seen_a_non_liftable_continuation);
      is_cold := t.(is_cold) |}.
 Extract Inlined Constant update_inlined_attribute_to_forward_inlined_debuginfo =>
-  "(fun t x__1 x__2 ->
-     { t with inlined_attribute_to_forward = x__1;
-       inlined_debuginfo = x__2 })".
+  "(fun t inlined_attribute_to_forward inlined_debuginfo -> { t with
+   inlined_attribute_to_forward = inlined_attribute_to_forward;
+   inlined_debuginfo = inlined_debuginfo })".
 
 (* 687-697. In the compiler: [t ~from_apply_expr ~inlined_attribute]. *)
 Definition merge_inlined_debuginfo_and_forward_inlined_attribute
@@ -1798,9 +1806,10 @@ Definition update_inlined_debuginfo_inlined_attribute_to_forward_inlining_state_
        t.(has_seen_a_non_liftable_continuation);
      is_cold := t.(is_cold) |}.
 Extract Inlined Constant update_inlined_debuginfo_inlined_attribute_to_forward_inlining_state_inlining_history_tracker =>
-  "(fun t x__1 x__2 x__3 x__4 ->
-     { t with inlined_debuginfo = x__1; inlined_attribute_to_forward = x__2;
-       inlining_state = x__3; inlining_history_tracker = x__4 })".
+  "(fun t inlined_debuginfo inlined_attribute_to_forward inlining_state
+   inlining_history_tracker -> { t with inlined_debuginfo = inlined_debuginfo;
+   inlined_attribute_to_forward = inlined_attribute_to_forward; inlining_state
+   = inlining_state; inlining_history_tracker = inlining_history_tracker })".
 
 (* 702-751. In the compiler: [~called_code ~apply ~was_inline_always t]. *)
 Definition enter_inlined_apply (called_code : Code.t) (apply : Apply.t)
@@ -1908,7 +1917,7 @@ Definition update_loopify_state (t : Downwards_env.t)
        t.(has_seen_a_non_liftable_continuation);
      is_cold := t.(is_cold) |}.
 Extract Inlined Constant update_loopify_state =>
-  "(fun t x__1 -> { t with loopify_state = x__1 })".
+  "(fun t loopify_state -> { t with loopify_state = loopify_state })".
 
 (* 762 *)
 Definition set_loopify_state (loopify_state : Loopify_state.t)
@@ -1960,7 +1969,7 @@ Definition update_join_analysis (t : Downwards_env.t)
        t.(has_seen_a_non_liftable_continuation);
      is_cold := t.(is_cold) |}.
 Extract Inlined Constant update_join_analysis =>
-  "(fun t x__1 -> { t with join_analysis = x__1 })".
+  "(fun t join_analysis -> { t with join_analysis = join_analysis })".
 
 (* 769 *)
 Definition with_join_analysis
@@ -2020,11 +2029,15 @@ Definition update_lifted_defined_variables_by_scope_cost_of_lifting_continuation
        has_seen_a_non_liftable_continuation;
      is_cold := t.(is_cold) |}.
 Extract Inlined Constant update_lifted_defined_variables_by_scope_cost_of_lifting_continuations_out_of_current_one_has_seen_a_non_liftable_continuation_specialization_cost =>
-  "(fun t x__1 x__2 x__3 x__4 x__5 ->
-     { t with lifted = x__1; defined_variables_by_scope = x__2;
-       cost_of_lifting_continuations_out_of_current_one = x__3;
-       has_seen_a_non_liftable_continuation = x__4;
-       specialization_cost = x__5 })".
+  "(fun t lifted defined_variables_by_scope
+   cost_of_lifting_continuations_out_of_current_one
+   has_seen_a_non_liftable_continuation specialization_cost -> { t with lifted
+   = lifted; defined_variables_by_scope = defined_variables_by_scope;
+   cost_of_lifting_continuations_out_of_current_one =
+   cost_of_lifting_continuations_out_of_current_one;
+   has_seen_a_non_liftable_continuation =
+   has_seen_a_non_liftable_continuation; specialization_cost =
+   specialization_cost })".
 
 (* 784-801. [Lifted_cont_params.fold ~init ~f lifted_params]: the arguments
    are in the order of the interface. *)
@@ -2171,8 +2184,9 @@ Definition update_cost_of_lifting_continuations_out_of_current_one
        t.(has_seen_a_non_liftable_continuation);
      is_cold := t.(is_cold) |}.
 Extract Inlined Constant update_cost_of_lifting_continuations_out_of_current_one =>
-  "(fun t x__1 ->
-     { t with cost_of_lifting_continuations_out_of_current_one = x__1 })".
+  "(fun t cost_of_lifting_continuations_out_of_current_one -> { t with
+   cost_of_lifting_continuations_out_of_current_one =
+   cost_of_lifting_continuations_out_of_current_one })".
 
 (* 861-868 *)
 Definition add_lifting_cost (cost : int) (t : Downwards_env.t)
@@ -2219,7 +2233,9 @@ Definition update_has_seen_a_non_liftable_continuation (t : Downwards_env.t)
        has_seen_a_non_liftable_continuation;
      is_cold := t.(is_cold) |}.
 Extract Inlined Constant update_has_seen_a_non_liftable_continuation =>
-  "(fun t x__1 -> { t with has_seen_a_non_liftable_continuation = x__1 })".
+  "(fun t has_seen_a_non_liftable_continuation -> { t with
+   has_seen_a_non_liftable_continuation = has_seen_a_non_liftable_continuation
+   })".
 
 (* 873-876 *)
 Definition set_has_seen_a_non_liftable_continuation (t : Downwards_env.t)
@@ -2262,7 +2278,7 @@ Definition update_is_cold (t : Downwards_env.t) (is_cold : bool)
        t.(has_seen_a_non_liftable_continuation);
      is_cold := is_cold |}.
 Extract Inlined Constant update_is_cold =>
-  "(fun t x__1 -> { t with is_cold = x__1 })".
+  "(fun t is_cold -> { t with is_cold = is_cold })".
 
 (* 880 *)
 Definition mark_as_cold (t : Downwards_env.t) : M Downwards_env.t :=
@@ -2318,7 +2334,8 @@ Definition update_specialization_cost (t : Downwards_env.t)
        t.(has_seen_a_non_liftable_continuation);
      is_cold := t.(is_cold) |}.
 Extract Inlined Constant update_specialization_cost =>
-  "(fun t x__1 -> { t with specialization_cost = x__1 })".
+  "(fun t specialization_cost -> { t with specialization_cost =
+   specialization_cost })".
 
 (* 892-894. In the compiler: [~f t]. *)
 Definition map_specialization_cost

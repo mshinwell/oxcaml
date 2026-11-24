@@ -348,7 +348,7 @@ let define_continuations can_be_lifted t0 conts =
   let replay_history0 =
     Replay_history.define_continuations can_be_lifted conts t0.replay_history
   in
-  (fun t x__1 -> { t with replay_history = x__1 }) t0 replay_history0
+  (fun t replay_history -> { t with replay_history }) t0 replay_history0
 
 (** val define_variable0 : bool -> t -> Bound_var.t -> Flambda_kind.t -> t coq_M
     **)
@@ -384,12 +384,17 @@ let define_variable0 extra t0 var kind =
     then Variable.Set.add (Bound_var.var var) t0.variables_defined_at_toplevel
     else t0.variables_defined_at_toplevel
   in
-  (fun t x__1 x__2 x__3 x__4 ->
+  (fun t
+    typing_env
+    replay_history
+    variables_defined_at_toplevel
+    defined_variables_by_scope
+  ->
     { t with
-      typing_env = x__1;
-      replay_history = x__2;
-      variables_defined_at_toplevel = x__3;
-      defined_variables_by_scope = x__4
+      typing_env;
+      replay_history;
+      variables_defined_at_toplevel;
+      defined_variables_by_scope
     })
     t0 typing_env0 replay_history0 variables_defined_at_toplevel0
     defined_variables_by_scope0
@@ -461,7 +466,7 @@ let get_continuation_scope t0 =
 (** val set_at_unit_toplevel_state : t -> bool -> t coq_M **)
 
 let set_at_unit_toplevel_state =
- fun t x__1 -> { t with at_unit_toplevel = x__1 }
+ fun t at_unit_toplevel -> { t with at_unit_toplevel }
 
 (** val is_defined_at_toplevel : t -> Variable.t -> bool coq_M **)
 
@@ -474,7 +479,7 @@ let get_inlining_state t0 = t0.inlining_state
 
 (** val set_inlining_state : t -> Inlining_state.t -> t coq_M **)
 
-let set_inlining_state = fun t x__1 -> { t with inlining_state = x__1 }
+let set_inlining_state = fun t inlining_state -> { t with inlining_state }
 
 (** val relative_history : t -> Inlining_history.Relative.t coq_M **)
 
@@ -485,31 +490,28 @@ let relative_history t0 =
     coq_M **)
 
 let set_inlining_history_tracker inlining_history_tracker0 t0 =
-  (fun t x__1 -> { t with inlining_history_tracker = x__1 })
+  (fun t inlining_history_tracker -> { t with inlining_history_tracker })
     t0 inlining_history_tracker0
 
 (** val increment_continuation_scope : t -> t coq_M **)
 
 let increment_continuation_scope t0 =
-  (fun t x__1 -> { t with typing_env = x__1 })
+  (fun t typing_env -> { t with typing_env })
     t0
     (Flambda2_types.Typing_env.increment_scope t0.typing_env)
 
 (** val bump_current_level_scope : t -> t coq_M **)
 
 let bump_current_level_scope t0 =
-  (fun t x__1 -> { t with typing_env = x__1 })
+  (fun t typing_env -> { t with typing_env })
     t0
     (Flambda2_types.Typing_env.bump_current_level_scope t0.typing_env)
 
 (** val enter_stub_function : t -> t coq_M **)
 
 let enter_stub_function t0 =
-  (fun t x__1 x__2 ->
-    { t with
-      disable_inlining = x__1;
-      disable_partial_application_stub_generation = x__2
-    })
+  (fun t disable_inlining disable_partial_application_stub_generation ->
+    { t with disable_inlining; disable_partial_application_stub_generation })
     t0 (Disable_inlining.Disable_inlining Disable_inlining_reason.Stub)
     (Flambda_features.simplify_stubs ()
     || t0.disable_partial_application_stub_generation)
@@ -595,7 +597,7 @@ let define_symbol t0 sym kind =
     let sym0 = Bound_name.create (Name.symbol sym) Name_mode.normal in
     Flambda2_types.Typing_env.add_definition t0.typing_env sym0 kind
   in
-  (fun t x__1 -> { t with typing_env = x__1 }) t0 typing_env0
+  (fun t typing_env -> { t with typing_env }) t0 typing_env0
 
 (** val define_name : t -> Bound_name.t -> Flambda_kind.t -> t coq_M **)
 
@@ -613,7 +615,7 @@ let define_name t0 name kind =
 
 let add_variable0 extra t0 var ty =
   let t1 = define_variable0 extra t0 var (Flambda2_types.kind ty) in
-  (fun t x__1 -> { t with typing_env = x__1 })
+  (fun t typing_env -> { t with typing_env })
     t1
     (Flambda2_types.Typing_env.add_equation t1.typing_env
        (Name.var (Bound_var.var var))
@@ -627,7 +629,7 @@ let add_variable t0 var ty = add_variable0 false t0 var ty
 
 let add_symbol t0 sym ty =
   let t1 = define_symbol t0 sym (Flambda2_types.kind ty) in
-  (fun t x__1 -> { t with typing_env = x__1 })
+  (fun t typing_env -> { t with typing_env })
     t1
     (Flambda2_types.Typing_env.add_equation t1.typing_env (Name.symbol sym) ty)
 
@@ -649,7 +651,7 @@ let add_equation_on_variable t0 var ty =
   let typing_env0 =
     Flambda2_types.Typing_env.add_equation t0.typing_env (Name.var var) ty
   in
-  (fun t x__1 -> { t with typing_env = x__1 }) t0 typing_env0
+  (fun t typing_env -> { t with typing_env }) t0 typing_env0
 
 (** val mem_name : t -> Name.t -> bool coq_M **)
 
@@ -672,7 +674,7 @@ let add_equation_on_symbol t0 sym ty =
     let sym0 = Name.symbol sym in
     Flambda2_types.Typing_env.add_equation t0.typing_env sym0 ty
   in
-  (fun t x__1 -> { t with typing_env = x__1 }) t0 typing_env0
+  (fun t typing_env -> { t with typing_env }) t0 typing_env0
 
 (** val mem_symbol : t -> Symbol.t -> bool coq_M **)
 
@@ -688,7 +690,7 @@ let find_symbol t0 sym =
     coq_M **)
 
 let add_symbol_projection t0 var proj =
-  (fun t x__1 -> { t with typing_env = x__1 })
+  (fun t typing_env -> { t with typing_env })
     t0
     (Flambda2_types.Typing_env.add_symbol_projection t0.typing_env var proj)
 
@@ -715,7 +717,7 @@ let add_equation_on_name t0 name ty =
   let typing_env0 =
     Flambda2_types.Typing_env.add_equation t0.typing_env name ty
   in
-  (fun t x__1 -> { t with typing_env = x__1 }) t0 typing_env0
+  (fun t typing_env -> { t with typing_env }) t0 typing_env0
 
 (** val define_parameters : bool -> t -> Bound_parameters.t -> t coq_M **)
 
@@ -796,7 +798,8 @@ let mark_parameters_as_toplevel t0 params =
     Variable.Set.union t0.variables_defined_at_toplevel
       (Bound_parameters.var_set params)
   in
-  (fun t x__1 -> { t with variables_defined_at_toplevel = x__1 })
+  (fun t variables_defined_at_toplevel ->
+    { t with variables_defined_at_toplevel })
     t0 variables_defined_at_toplevel0
 
 (** val extend_typing_environment : t ->
@@ -807,11 +810,11 @@ let extend_typing_environment t0 env_extension =
     Flambda2_types.Typing_env.add_env_extension_with_extra_variables
       t0.typing_env env_extension
   in
-  (fun t x__1 -> { t with typing_env = x__1 }) t0 typing_env0
+  (fun t typing_env -> { t with typing_env }) t0 typing_env0
 
 (** val with_typing_env : t -> Flambda2_types.Typing_env.t -> t coq_M **)
 
-let with_typing_env = fun t x__1 -> { t with typing_env = x__1 }
+let with_typing_env = fun t typing_env -> { t with typing_env }
 
 (** val map_typing_env : t -> (Flambda2_types.Typing_env.t ->
     Flambda2_types.Typing_env.t coq_M) -> t coq_M **)
@@ -899,7 +902,7 @@ let define_code t0 code_id code =
       (Code.newer_version_of code)
   in
   let all_code0 = Code_id.Map.add code_id code t0.all_code in
-  (fun t x__1 x__2 -> { t with typing_env = x__1; all_code = x__2 })
+  (fun t typing_env all_code -> { t with typing_env; all_code })
     t0 typing_env0 all_code0
 
 (** val add_cse : t -> Flambda_primitive.Eligible_for_cse.t -> Simple.t ->
@@ -928,7 +931,7 @@ let add_cse t0 prim bound_to name_mode =
         | None -> t0.comparison_results)
       | None -> t0.comparison_results
     in
-    (fun t x__1 x__2 -> { t with cse = x__1; comparison_results = x__2 })
+    (fun t cse comparison_results -> { t with cse; comparison_results })
       t0 cse0 comparison_results0
 
 (** val find_cse : t -> Flambda_primitive.Eligible_for_cse.t -> Simple.t option
@@ -944,27 +947,27 @@ let find_comparison_result t0 var =
 
 (** val with_cse : t -> Common_subexpression_elimination.t -> t coq_M **)
 
-let with_cse = fun t x__1 -> { t with cse = x__1 }
+let with_cse = fun t cse -> { t with cse }
 
 (** val set_do_not_rebuild_terms_and_disable_inlining : t ->
     Disable_inlining_reason.t -> t coq_M **)
 
 let set_do_not_rebuild_terms_and_disable_inlining t0 disable_inlining_reason =
-  (fun t x__1 x__2 ->
-    { t with are_rebuilding_terms = x__1; disable_inlining = x__2 })
+  (fun t are_rebuilding_terms disable_inlining ->
+    { t with are_rebuilding_terms; disable_inlining })
     t0 Are_rebuilding_terms.are_not_rebuilding
     (Disable_inlining.Disable_inlining disable_inlining_reason)
 
 (** val set_disable_inlining : t -> Disable_inlining_reason.t -> t coq_M **)
 
 let set_disable_inlining t0 reason =
-  (fun t x__1 -> { t with disable_inlining = x__1 })
+  (fun t disable_inlining -> { t with disable_inlining })
     t0 (Disable_inlining.Disable_inlining reason)
 
 (** val set_rebuild_terms : t -> t coq_M **)
 
 let set_rebuild_terms t0 =
-  (fun t x__1 -> { t with are_rebuilding_terms = x__1 })
+  (fun t are_rebuilding_terms -> { t with are_rebuilding_terms })
     t0 Are_rebuilding_terms.are_rebuilding
 
 (** val enter_closure : Code_id.t -> Continuation.t -> Continuation.t ->
@@ -972,7 +975,7 @@ let set_rebuild_terms t0 =
 
 let enter_closure code_id return_continuation exn_continuation my_closure
     my_alloc_region t0 =
-  (fun t x__1 -> { t with closure_info = x__1 })
+  (fun t closure_info -> { t with closure_info })
     t0
     (Closure_info.in_a_closure code_id return_continuation exn_continuation
        my_closure my_alloc_region)
@@ -984,14 +987,15 @@ let inlining_arguments t0 = Inlining_state.arguments t0.inlining_state
 (** val set_inlining_arguments : Inlining_arguments.t -> t -> t coq_M **)
 
 let set_inlining_arguments arguments t0 =
-  (fun t x__1 -> { t with inlining_state = x__1 })
+  (fun t inlining_state -> { t with inlining_state })
     t0
     (Inlining_state.with_arguments arguments t0.inlining_state)
 
 (** val set_inlined_debuginfo : t -> t -> t coq_M **)
 
 let set_inlined_debuginfo t0 from =
-  (fun t x__1 -> { t with inlined_debuginfo = x__1 }) t0 from.inlined_debuginfo
+  (fun t inlined_debuginfo -> { t with inlined_debuginfo })
+    t0 from.inlined_debuginfo
 
 (** val inlined_attribute_to_forward_through_inlined_apply : t ->
     Inlined_debuginfo.t -> Inlined_attribute.t -> (Inlined_attribute.t *
@@ -1045,8 +1049,8 @@ let merge_inlined_debuginfo_and_forward_inlined_attribute t0 from_apply_expr
     inlined_attribute_to_forward_through_inlined_apply t0 from_apply_expr
       inlined_attribute
   in
-  (fun t x__1 x__2 ->
-    { t with inlined_attribute_to_forward = x__1; inlined_debuginfo = x__2 })
+  (fun t inlined_attribute_to_forward inlined_debuginfo ->
+    { t with inlined_attribute_to_forward; inlined_debuginfo })
     t0 inlined_attribute_to_forward0
     (Inlined_debuginfo.merge t0.inlined_debuginfo from_apply_expr)
 
@@ -1087,12 +1091,17 @@ let enter_inlined_apply called_code apply was_inline_always t0 =
     inlined_attribute_to_forward_through_inlined_apply t0 inlined_debuginfo0
       (Flambda.Import.Apply.inlined apply)
   in
-  (fun t x__1 x__2 x__3 x__4 ->
+  (fun t
+    inlined_debuginfo
+    inlined_attribute_to_forward
+    inlining_state
+    inlining_history_tracker
+  ->
     { t with
-      inlined_debuginfo = x__1;
-      inlined_attribute_to_forward = x__2;
-      inlining_state = x__3;
-      inlining_history_tracker = x__4
+      inlined_debuginfo;
+      inlined_attribute_to_forward;
+      inlining_state;
+      inlining_history_tracker
     })
     t0 inlined_debuginfo0 inlined_attribute_to_forward0 inlining_state0
     (Inlining_history.Tracker.enter_inlined_apply
@@ -1111,13 +1120,13 @@ let generate_phantom_lets t0 =
 (** val set_loopify_state : Loopify_state.t -> t -> t coq_M **)
 
 let set_loopify_state loopify_state0 t0 =
-  (fun t x__1 -> { t with loopify_state = x__1 }) t0 loopify_state0
+  (fun t loopify_state -> { t with loopify_state }) t0 loopify_state0
 
 (** val with_code_age_relation : Flambda2_types.Code_age_relation.t -> t -> t
     coq_M **)
 
 let with_code_age_relation code_age_relation t0 =
-  (fun t x__1 -> { t with typing_env = x__1 })
+  (fun t typing_env -> { t with typing_env })
     t0
     (Flambda2_types.Typing_env.with_code_age_relation t0.typing_env
        code_age_relation)
@@ -1126,7 +1135,7 @@ let with_code_age_relation code_age_relation t0 =
     Flambda2_types.Join_analysis.t option -> t -> t coq_M **)
 
 let with_join_analysis join_analysis0 t0 =
-  (fun t x__1 -> { t with join_analysis = x__1 }) t0 join_analysis0
+  (fun t join_analysis -> { t with join_analysis }) t0 join_analysis0
 
 (** val with_replay_history : (Replay_history.t * bool) option -> t -> t coq_M **)
 
@@ -1138,7 +1147,7 @@ let with_replay_history replay t0 =
       Replay_history.replay always_inline previous_history
     | None -> Replay_history.first_pass
   in
-  (fun t x__1 -> { t with replay_history = x__1 }) t0 replay_history0
+  (fun t replay_history -> { t with replay_history }) t0 replay_history0
 
 (** val enter_continuation_handler : Lifted_cont_params.t -> t -> t coq_M **)
 
@@ -1148,13 +1157,19 @@ let enter_continuation_handler lifted_params t0 =
       (fun bp set -> Variable.Set.add (Bound_parameter.var bp) set)
       lifted_params
   in
-  (fun t x__1 x__2 x__3 x__4 x__5 ->
+  (fun t
+    lifted
+    defined_variables_by_scope
+    cost_of_lifting_continuations_out_of_current_one
+    has_seen_a_non_liftable_continuation
+    specialization_cost
+  ->
     { t with
-      lifted = x__1;
-      defined_variables_by_scope = x__2;
-      cost_of_lifting_continuations_out_of_current_one = x__3;
-      has_seen_a_non_liftable_continuation = x__4;
-      specialization_cost = x__5
+      lifted;
+      defined_variables_by_scope;
+      cost_of_lifting_continuations_out_of_current_one;
+      has_seen_a_non_liftable_continuation;
+      specialization_cost
     })
     t0 lifted0
     (lifted_params :: t0.defined_variables_by_scope)
@@ -1237,8 +1252,8 @@ let add_lifting_cost cost t0 =
   if cost < 0
   then Misc.fatal_errorf "Negative cost of lifting continuation"
   else
-    (fun t x__1 ->
-      { t with cost_of_lifting_continuations_out_of_current_one = x__1 })
+    (fun t cost_of_lifting_continuations_out_of_current_one ->
+      { t with cost_of_lifting_continuations_out_of_current_one })
       t0
       (t0.cost_of_lifting_continuations_out_of_current_one + cost)
 
@@ -1248,13 +1263,14 @@ let set_has_seen_a_non_liftable_continuation t0 =
   if t0.has_seen_a_non_liftable_continuation
   then t0
   else
-    (fun t x__1 -> { t with has_seen_a_non_liftable_continuation = x__1 })
+    (fun t has_seen_a_non_liftable_continuation ->
+      { t with has_seen_a_non_liftable_continuation })
       t0 true
 
 (** val mark_as_cold : t -> t coq_M **)
 
 let mark_as_cold t0 =
-  if t0.is_cold then t0 else (fun t x__1 -> { t with is_cold = x__1 }) t0 true
+  if t0.is_cold then t0 else (fun t is_cold -> { t with is_cold }) t0 true
 
 (** val must_inline : t -> bool coq_M **)
 
@@ -1264,7 +1280,7 @@ let must_inline t0 = Replay_history.must_inline t0.replay_history
     Call_site_inlining_decision_type.t -> t -> t coq_M **)
 
 let record_inlining_decision apply decision t0 =
-  (fun t x__1 -> { t with replay_history = x__1 })
+  (fun t replay_history -> { t with replay_history })
     t0
     (Replay_history.record_inlining_decision apply decision t0.replay_history)
 
@@ -1273,7 +1289,8 @@ let record_inlining_decision apply decision t0 =
 
 let map_specialization_cost f t0 =
   let specialization_cost0 = f t0.specialization_cost in
-  (fun t x__1 -> { t with specialization_cost = x__1 }) t0 specialization_cost0
+  (fun t specialization_cost -> { t with specialization_cost })
+    t0 specialization_cost0
 
 (** val denv_for_lifted_continuation : t -> t -> t coq_M **)
 
