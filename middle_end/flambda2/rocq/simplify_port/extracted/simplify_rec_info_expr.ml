@@ -33,7 +33,7 @@ module T = Flambda2_types
 module TE = T.Typing_env
 
 (** val compute_succ : int Or_infinity.t -> Rec_info_expr.Unrolling_state.t ->
-    Int_ids.Rec_info_expr.t coq_M **)
+    Rec_info_expr.t coq_M **)
 
 let compute_succ depth0 unrolling0 =
   let depth1 =
@@ -62,7 +62,7 @@ let compute_succ depth0 unrolling0 =
   Rec_info_expr.const depth1 unrolling1
 
 (** val compute_unroll_to : int Or_infinity.t -> Rec_info_expr.Unrolling_state.t
-    -> int -> Int_ids.Rec_info_expr.t coq_M **)
+    -> int -> Rec_info_expr.t coq_M **)
 
 let compute_unroll_to depth0 old_unrolling_state unroll_to =
   let unrolling0 =
@@ -85,10 +85,10 @@ let compute_unroll_to depth0 old_unrolling_state unroll_to =
 
 type on_unknown =
   | Leave_unevaluated
-  | Assume_value of Int_ids.Rec_info_expr.t
+  | Assume_value of Rec_info_expr.t
 
-(** val simplify_rec_info_expr0 : Downwards_env.t -> Int_ids.Rec_info_expr.t ->
-    on_unknown -> Int_ids.Rec_info_expr.t coq_M **)
+(** val simplify_rec_info_expr0 : Downwards_env.t -> Rec_info_expr.t ->
+    on_unknown -> Rec_info_expr.t coq_M **)
 
 let rec simplify_rec_info_expr0 denv orig on_unknown0 =
   (fun f__1 f__2 f__3 f__4 x__0 ->
@@ -177,8 +177,8 @@ let rec simplify_rec_info_expr0 denv orig on_unknown0 =
         new_ri)
     orig
 
-(** val simplify_rec_info_expr : Downwards_acc.t -> Int_ids.Rec_info_expr.t ->
-    Int_ids.Rec_info_expr.t coq_M **)
+(** val simplify_rec_info_expr : Downwards_acc.t -> Rec_info_expr.t ->
+    Rec_info_expr.t coq_M **)
 
 let simplify_rec_info_expr dacc rec_info_expr =
   let ans =
@@ -208,7 +208,7 @@ module Evaluated_rec_info_expr = struct
     Rec_info_expr.print ppf (Rec_info_expr.const depth0 unrolling0)
 end
 
-(** val evaluate_rec_info_expr : Downwards_acc.t -> Int_ids.Rec_info_expr.t ->
+(** val evaluate_rec_info_expr : Downwards_acc.t -> Rec_info_expr.t ->
     Evaluated_rec_info_expr.t coq_M **)
 
 let evaluate_rec_info_expr dacc rec_info_expr =
@@ -235,8 +235,8 @@ let evaluate_rec_info_expr dacc rec_info_expr =
     (simplify_rec_info_expr0 (Downwards_acc.denv dacc) rec_info_expr
        (Assume_value Rec_info_expr.unknown))
 
-(** val depth_may_exceed : Downwards_acc.t -> Int_ids.Rec_info_expr.t -> int ->
-    bool coq_M **)
+(** val depth_may_exceed : Downwards_acc.t -> Rec_info_expr.t -> int -> bool
+    coq_M **)
 
 let depth_may_exceed dacc rec_info_expr bound =
   let { Evaluated_rec_info_expr.depth = depth0;
@@ -246,8 +246,8 @@ let depth_may_exceed dacc rec_info_expr bound =
   in
   Or_infinity.compare Int.compare depth0 (Or_infinity.Finite bound) > 0
 
-(** val known_remaining_unrolling_depth : Downwards_acc.t ->
-    Int_ids.Rec_info_expr.t -> int option coq_M **)
+(** val known_remaining_unrolling_depth : Downwards_acc.t -> Rec_info_expr.t ->
+    int option coq_M **)
 
 let known_remaining_unrolling_depth dacc rec_info_expr =
   let { Evaluated_rec_info_expr.depth = _;
@@ -267,7 +267,7 @@ let known_remaining_unrolling_depth dacc rec_info_expr =
     (fun _ -> None)
     unrolling0
 
-(** val can_unroll : Downwards_acc.t -> Int_ids.Rec_info_expr.t -> bool coq_M **)
+(** val can_unroll : Downwards_acc.t -> Rec_info_expr.t -> bool coq_M **)
 
 let can_unroll dacc rec_info_expr =
   let { Evaluated_rec_info_expr.depth = _;
