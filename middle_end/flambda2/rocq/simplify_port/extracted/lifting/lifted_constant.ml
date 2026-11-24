@@ -389,11 +389,15 @@ let create_block_like symbol symbol_projections0 defining_expr0 denv ty =
     Definition_.block_like denv symbol ty symbol_projections0 defining_expr0
   in
   let definitions0 = definition :: [] in
+  let is_fully_static0 = Rebuilt_static_const.is_fully_static defining_expr0 in
+  let symbol_projections1 = Definition_.symbol_projections definition in
+  let defining_exprs0 = compute_defining_exprs definitions0 in
+  let bound_static0 = compute_bound_static definitions0 in
   { definitions = definitions0;
-    bound_static = compute_bound_static definitions0;
-    defining_exprs = compute_defining_exprs definitions0;
-    symbol_projections = Definition_.symbol_projections definition;
-    is_fully_static = Rebuilt_static_const.is_fully_static defining_expr0
+    bound_static = bound_static0;
+    defining_exprs = defining_exprs0;
+    symbol_projections = symbol_projections1;
+    is_fully_static = is_fully_static0
   }
 
 (** val create_set_of_closures : Flambda2_types.Typing_env.t -> (Symbol.t *
@@ -414,11 +418,15 @@ let create_set_of_closures denv closure_symbols_with_types symbol_projections0
       symbol_projections0 defining_expr0
   in
   let definitions0 = definition :: [] in
+  let is_fully_static0 = Rebuilt_static_const.is_fully_static defining_expr0 in
+  let symbol_projections1 = Definition_.symbol_projections definition in
+  let defining_exprs0 = compute_defining_exprs definitions0 in
+  let bound_static0 = compute_bound_static definitions0 in
   { definitions = definitions0;
-    bound_static = compute_bound_static definitions0;
-    defining_exprs = compute_defining_exprs definitions0;
-    symbol_projections = Definition_.symbol_projections definition;
-    is_fully_static = Rebuilt_static_const.is_fully_static defining_expr0
+    bound_static = bound_static0;
+    defining_exprs = defining_exprs0;
+    symbol_projections = symbol_projections1;
+    is_fully_static = is_fully_static0
   }
 
 (** val create_code : Code_id.t -> Rebuilt_static_const.t -> t coq_M **)
@@ -433,23 +441,32 @@ let create_code code_id defining_expr0 =
   in
   let definition = Definition_.code code_id defining_expr0 in
   let definitions0 = definition :: [] in
+  let is_fully_static0 = Rebuilt_static_const.is_fully_static defining_expr0 in
+  let symbol_projections0 = Definition_.symbol_projections definition in
+  let defining_exprs0 = compute_defining_exprs definitions0 in
+  let bound_static0 = compute_bound_static definitions0 in
   { definitions = definitions0;
-    bound_static = compute_bound_static definitions0;
-    defining_exprs = compute_defining_exprs definitions0;
-    symbol_projections = Definition_.symbol_projections definition;
-    is_fully_static = Rebuilt_static_const.is_fully_static defining_expr0
+    bound_static = bound_static0;
+    defining_exprs = defining_exprs0;
+    symbol_projections = symbol_projections0;
+    is_fully_static = is_fully_static0
   }
 
 (** val create_definition : Definition_.t -> t coq_M **)
 
 let create_definition definition =
   let definitions0 = definition :: [] in
+  let is_fully_static0 =
+    Rebuilt_static_const.is_fully_static definition.Definition_.defining_expr
+  in
+  let symbol_projections0 = Definition_.symbol_projections definition in
+  let defining_exprs0 = compute_defining_exprs definitions0 in
+  let bound_static0 = compute_bound_static definitions0 in
   { definitions = definitions0;
-    bound_static = compute_bound_static definitions0;
-    defining_exprs = compute_defining_exprs definitions0;
-    symbol_projections = Definition_.symbol_projections definition;
-    is_fully_static =
-      Rebuilt_static_const.is_fully_static definition.Definition_.defining_expr
+    bound_static = bound_static0;
+    defining_exprs = defining_exprs0;
+    symbol_projections = symbol_projections0;
+    is_fully_static = is_fully_static0
   }
 
 (** val concat : t list -> t coq_M **)

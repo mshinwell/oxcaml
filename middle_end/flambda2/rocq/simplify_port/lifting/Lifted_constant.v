@@ -316,17 +316,20 @@ Definition create_block_like (symbol : Symbol.t)
   in
   let& definitions := [definition] in
   (* PORT-GAP(record-order): 180-185, four fields of the record are calls:
-     they are taken in the order of the type, the last field first. *)
-  let! tmp1 := Rebuilt_static_const.is_fully_static defining_expr in
-  let! tmp2 := Definition_.symbol_projections definition in
-  let! tmp3 := compute_defining_exprs definitions in
-  let! tmp4 := compute_bound_static definitions in
+     each is bound before the record, in the order of the type, the last
+     field first. *)
+  let* is_fully_static :=
+    Rebuilt_static_const.is_fully_static defining_expr
+  in
+  let* symbol_projections := Definition_.symbol_projections definition in
+  let* defining_exprs := compute_defining_exprs definitions in
+  let* bound_static := compute_bound_static definitions in
   ret
     {| Lifted_constant.definitions := definitions;
-       bound_static_ := tmp4;
-       defining_exprs_ := tmp3;
-       Lifted_constant.symbol_projections := tmp2;
-       is_fully_static := tmp1
+       bound_static_ := bound_static;
+       defining_exprs_ := defining_exprs;
+       Lifted_constant.symbol_projections := symbol_projections;
+       Lifted_constant.is_fully_static := is_fully_static
     |}.
 
 (* 187-203. In the compiler: [denv ~closure_symbols_with_types
@@ -348,17 +351,20 @@ Definition create_set_of_closures (denv : Flambda2_types.Typing_env.t)
   in
   let& definitions := [definition] in
   (* PORT-GAP(record-order): 198-203, four fields of the record are calls:
-     they are taken in the order of the type, the last field first. *)
-  let! tmp1 := Rebuilt_static_const.is_fully_static defining_expr in
-  let! tmp2 := Definition_.symbol_projections definition in
-  let! tmp3 := compute_defining_exprs definitions in
-  let! tmp4 := compute_bound_static definitions in
+     each is bound before the record, in the order of the type, the last
+     field first. *)
+  let* is_fully_static :=
+    Rebuilt_static_const.is_fully_static defining_expr
+  in
+  let* symbol_projections := Definition_.symbol_projections definition in
+  let* defining_exprs := compute_defining_exprs definitions in
+  let* bound_static := compute_bound_static definitions in
   ret
     {| Lifted_constant.definitions := definitions;
-       bound_static_ := tmp4;
-       defining_exprs_ := tmp3;
-       Lifted_constant.symbol_projections := tmp2;
-       is_fully_static := tmp1
+       bound_static_ := bound_static;
+       defining_exprs_ := defining_exprs;
+       Lifted_constant.symbol_projections := symbol_projections;
+       Lifted_constant.is_fully_static := is_fully_static
     |}.
 
 (* 205-217 *)
@@ -373,38 +379,42 @@ Definition create_code (code_id : Code_id.t)
   let* definition := Definition_.code code_id defining_expr in
   let& definitions := [definition] in
   (* PORT-GAP(record-order): 212-217, four fields of the record are calls:
-     they are taken in the order of the type, the last field first. *)
-  let! tmp1 := Rebuilt_static_const.is_fully_static defining_expr in
-  let! tmp2 := Definition_.symbol_projections definition in
-  let! tmp3 := compute_defining_exprs definitions in
-  let! tmp4 := compute_bound_static definitions in
+     each is bound before the record, in the order of the type, the last
+     field first. *)
+  let* is_fully_static :=
+    Rebuilt_static_const.is_fully_static defining_expr
+  in
+  let* symbol_projections := Definition_.symbol_projections definition in
+  let* defining_exprs := compute_defining_exprs definitions in
+  let* bound_static := compute_bound_static definitions in
   ret
     {| Lifted_constant.definitions := definitions;
-       bound_static_ := tmp4;
-       defining_exprs_ := tmp3;
-       Lifted_constant.symbol_projections := tmp2;
-       is_fully_static := tmp1
+       bound_static_ := bound_static;
+       defining_exprs_ := defining_exprs;
+       Lifted_constant.symbol_projections := symbol_projections;
+       Lifted_constant.is_fully_static := is_fully_static
     |}.
 
 (* 219-227 *)
 Definition create_definition (definition : Definition_.t) : M t :=
   let& definitions := [definition] in
   (* PORT-GAP(record-order): 221-227, four fields of the record are calls:
-     they are taken in the order of the type, the last field first. 225:
-     [Definition.defining_expr definition] is the projection. *)
-  let! tmp1 :=
+     each is bound before the record, in the order of the type, the last
+     field first. 225: [Definition.defining_expr definition] is the
+     projection. *)
+  let* is_fully_static :=
     Rebuilt_static_const.is_fully_static
       definition.(Definition_.defining_expr)
   in
-  let! tmp2 := Definition_.symbol_projections definition in
-  let! tmp3 := compute_defining_exprs definitions in
-  let! tmp4 := compute_bound_static definitions in
+  let* symbol_projections := Definition_.symbol_projections definition in
+  let* defining_exprs := compute_defining_exprs definitions in
+  let* bound_static := compute_bound_static definitions in
   ret
     {| Lifted_constant.definitions := definitions;
-       bound_static_ := tmp4;
-       defining_exprs_ := tmp3;
-       Lifted_constant.symbol_projections := tmp2;
-       is_fully_static := tmp1
+       bound_static_ := bound_static;
+       defining_exprs_ := defining_exprs;
+       Lifted_constant.symbol_projections := symbol_projections;
+       Lifted_constant.is_fully_static := is_fully_static
     |}.
 
 (* 229-261 *)
