@@ -331,9 +331,10 @@ Definition match_exn {P A B : Type} (body : unit -> M A) (e : exception P)
    with that smaller [fuel]. A caller that is not itself in the recursion
    writes [let_fuel! fuel in]. In the implementation that is extracted the
    fuel is a proposition, which Rocq's extraction erases: the OCaml function
-   is the compiler's [let rec], and it does not run out. So what this file
-   says of a function is said of the OCaml runs for which the fuel of the
-   world was enough. No axiom is used here. *)
+   is the compiler's [let rec], and it does not run out. No axiom is used
+   here. What this file says of a function can only be about runs for which
+   the fuel of the world was enough; that it holds of the extracted OCaml
+   is not established (GUIDE.md, section 7). *)
 Inductive fuel : Type :=
 | Out
 | More (fuel : fuel).
