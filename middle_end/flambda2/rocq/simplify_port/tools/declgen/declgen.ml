@@ -84,6 +84,7 @@ let units () =
   Hashtbl.iter (fun _ (c, _) -> add c) Uses.values;
   Hashtbl.iter (fun _ (u : Uses.type_use) -> add u.comps) Uses.types;
   Hashtbl.iter (fun _ c -> add c) Uses.exceptions;
+  Hashtbl.iter (fun _ c -> add c) Uses.modtypes;
   Hashtbl.iter (fun _ c -> add c) Tr.needed_types;
   SS.elements !s
 
@@ -287,6 +288,25 @@ let () =
     (List.map
        (fun (o, r, k, a, p) -> Printf.sprintf "%s\t%s\t%s\t%d\t%s" o r k a p)
        !Decl_out.index);
+  (* the modules that the files give to their functors, where a module
+     type with a name is wanted: in OCaml and in Rocq *)
+  let rocq_module comps =
+    match comps with
+    | u :: mods -> String.concat "." (Sigs.unit_rocq u :: Print.modules_rocq u mods)
+    | [] -> ""
+  in
+  let rocq_modtype comps =
+    let modc, name = Print.split_last comps in
+    match Hashtbl.find_opt Sigs.modtype_rocq (key (modc @ [modtype_component name])) with
+    | Some n -> rocq_module modc ^ "." ^ n
+    | None -> ""
+  in
+  tsv "FUNCTOR-ARGUMENTS.tsv"
+    (List.map
+       (fun (file, f, mt, given) ->
+         Printf.sprintf "%s\t%s\t%s\t%s\t%s\t%s" file f (Print.ocaml_name mt)
+           (Print.ocaml_name given) (rocq_modtype mt) (rocq_module given))
+       !Uses.functor_arguments);
   tsv "NOT-DECLARED.tsv"
     (List.map (fun (o, why) -> Printf.sprintf "%s\t%s" o why) !Decl_out.left
     @ List.map

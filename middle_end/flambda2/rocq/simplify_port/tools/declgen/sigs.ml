@@ -76,11 +76,24 @@ let path_of_comps comps : Path.t =
         (fun p s -> Path.Pdot (p, s))
         (Path.Pident r.l_id)
         (drop (List.length r.l_comps) comps)
-    | None ->
-      List.fold_left
-        (fun p s -> Path.Pdot (p, s))
-        (Path.Pident (Ident.create_persistent u))
-        rest)
+    | None -> (
+      (* under a module type that is declared: under the module that
+         stands for it *)
+      let under =
+        List.find_opt (fun (_, mt) -> is_prefix mt comps) !modtype_idents
+      in
+      match under with
+      | Some (id, mt) ->
+        let rec drop n l = if n = 0 then l else drop (n - 1) (List.tl l) in
+        List.fold_left
+          (fun p s -> Path.Pdot (p, s))
+          (Path.Pident id)
+          (drop (List.length mt) comps)
+      | None ->
+        List.fold_left
+          (fun p s -> Path.Pdot (p, s))
+          (Path.Pident (Ident.create_persistent u))
+          rest))
 
 type module_shape =
   | Signature of Types.signature
@@ -122,6 +135,11 @@ let alias_as_written comps =
   | exception Not_found -> None
 
 (* ---- names in Rocq ---- *)
+
+(* The name in Rocq of each module type that is declared (key of its name
+   in OCaml): it is not always the one that a module of that name would
+   have. *)
+let modtype_rocq : (string, string) Hashtbl.t = Hashtbl.create 17
 
 (* Words that Rocq does not take as names, and the names of the kit's types,
    which the declarations write unqualified. *)

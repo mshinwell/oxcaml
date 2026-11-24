@@ -49,6 +49,9 @@ let types : (string, type_use) Hashtbl.t = Hashtbl.create 997
 
 let exceptions : (string, string list) Hashtbl.t = Hashtbl.create 17
 
+(* The module types of other units that the files name. *)
+let modtypes : (string, string list) Hashtbl.t = Hashtbl.create 17
+
 let cur_file = ref ""
 
 let use_value comps =
@@ -200,6 +203,17 @@ let param_uses : (Ident.t * string list * [`Value | `Type]) list ref = ref []
    given. *)
 let applications : (Ident.t * modval list) list ref = ref []
 
+(* Where the module type of a parameter, or of a module under it, has a
+   name ([Lhs : Container_types.S]): the parameter, the modules under it,
+   and the module type. *)
+let param_modtypes : (Ident.t * string list * string list) list ref = ref []
+
+(* The modules that the files give where a functor of theirs wants a
+   module type that has a name: file, functor, module type, module. For
+   the whole run. *)
+let functor_arguments : (string * string * string list * string list) list ref =
+  ref []
+
 (* What a functor of the file uses of a module that could not be
    followed: file, functor, what. *)
 let not_followed : (string * string * string) list ref = ref []
@@ -252,10 +266,60 @@ let rec modval_of_path env (p : Path.t) =
   | Pdot (q, s) -> project (modval_of_path env q) [s]
   | Papply _ | Pextra_ty _ -> Unknown
 
+let add_param_modtype param names mt =
+  if not
+       (List.exists
+          (fun (p, n, m) -> Ident.same p param && n = names && m = mt)
+          !param_modtypes)
+  then param_modtypes := (param, names, mt) :: !param_modtypes
+
+let add_param_use param names kind =
+  if not
+       (List.exists
+          (fun (p, n, k) -> Ident.same p param && n = names && k = kind)
+          !param_uses)
+  then param_uses := (param, names, kind) :: !param_uses
+
+(* The values and the types that a module type names, each with the
+   modules above it; and the module types of other units that are named
+   on the way. *)
+let rec items_of_modtype env (mty : Types.module_type) prefix acc =
+  let acc =
+    match mty with
+    | Mty_ident p -> (
+      match comps_of_path (source_path env p) with
+      | Some (u :: _ as comps) when not (is_local_unit u) ->
+        Hashtbl.replace modtypes (key comps) comps;
+        (prefix, `Module_type comps) :: acc
+      | _ -> acc)
+    | _ -> acc
+  in
+  match Mtype.scrape env mty with
+  | Mty_signature sg ->
+    let env = try Env.add_signature sg env with _ -> env in
+    List.fold_left
+      (fun acc (item : Types.signature_item) ->
+        match item with
+        | Sig_value (id, _, _) -> (prefix @ [Ident.name id], `Value) :: acc
+        | Sig_type (id, _, _, _) -> (prefix @ [Ident.name id], `Type) :: acc
+        | Sig_module (id, _, md, _, _) ->
+          items_of_modtype env md.md_type (prefix @ [Ident.name id]) acc
+        | _ -> acc)
+      acc sg
+  | _ -> acc
+  | exception _ -> acc
+
+(* The parameters of a functor (each with what its module type names) and
+   its body. *)
 let rec functor_of (me : module_expr) =
   match (strip me).mod_desc with
   | Tmod_functor (param, body) ->
-    let p = match param with Named (id, _, _) -> id | Unit -> None in
+    let p =
+      match param with
+      | Named (Some id, _, mty) ->
+        Some (id, items_of_modtype (env_of mty.mty_env) mty.mty_type [] [])
+      | Named (None, _, _) | Unit -> None
+    in
     let ps, body = functor_of body in
     p :: ps, body
   | _ -> [], me
@@ -296,17 +360,24 @@ and module_defined id (me : module_expr) =
     | ps, body ->
       List.iter
         (function
-          | Some p -> if not (List.exists (Ident.same p) !params) then params := p :: !params
+          | Some (p, _) ->
+            if not (List.exists (Ident.same p) !params) then params := p :: !params
           | None -> ())
         ps;
-      functors := (id, (ps, modval_of body)) :: !functors
-
-let add_param_use param names kind =
-  if not
-       (List.exists
-          (fun (p, n, k) -> Ident.same p param && n = names && k = kind)
-          !param_uses)
-  then param_uses := (param, names, kind) :: !param_uses
+      functors := (id, (List.map (Option.map fst) ps, modval_of body)) :: !functors;
+      (* A module that is given to the functor must have all that the
+         parameter's module type names: the functor uses all of it. *)
+      List.iter
+        (function
+          | Some (p, items) ->
+            List.iter
+              (fun (names, kind) ->
+                match kind with
+                | (`Value | `Type) as kind -> add_param_use p names kind
+                | `Module_type mt -> add_param_modtype p names mt)
+              items
+          | None -> ())
+        ps
 
 (* A value or a type whose module has no global name as it is written. *)
 let indirect_use use kind env (p : Path.t) =
@@ -332,7 +403,7 @@ let uses_of_applications use =
     | [] -> [], ""
   in
   let rec round () =
-    let before = List.length !param_uses in
+    let before = List.length !param_uses + List.length !param_modtypes in
     List.iter
       (fun (f, args) ->
         match find_ident f !functors with
@@ -365,11 +436,26 @@ let uses_of_applications use =
                                  String.concat "." (Ident.name param :: names) )
                                :: !not_followed
                       | Struct _ | Applied _ | Own -> ())
-                  !param_uses)
+                  !param_uses;
+                List.iter
+                  (fun (id, names, mt) ->
+                    if Ident.same id param
+                    then
+                      match project arg names with
+                      | Path (env, q) -> (
+                        match comps_of_path (source_module (env_of env) q) with
+                        | Some given ->
+                          let row = !cur_file, Ident.name f, mt, given in
+                          if not (List.mem row !functor_arguments)
+                          then functor_arguments := row :: !functor_arguments
+                        | None -> ())
+                      | Under (param', names') -> add_param_modtype param' names' mt
+                      | Struct _ | Applied _ | Own | Unknown -> ())
+                  !param_modtypes)
             ps args
         | _ -> ())
       !applications;
-    if List.length !param_uses > before then round ()
+    if List.length !param_uses + List.length !param_modtypes > before then round ()
   in
   round ()
 
@@ -467,6 +553,24 @@ let iterator =
           | _ -> ())
         incl.incl_type;
       super.structure_item sub si
+    | Tstr_include incl ->
+      (* [include X], where [X] is a module with a name: what the file
+         then names without [X.] is what [X] has *)
+      (match (strip incl.incl_mod).mod_desc with
+      | Tmod_ident (p, _) -> (
+        match comps_of_path (source_module (env_of incl.incl_mod.mod_env) p) with
+        | Some comps ->
+          List.iter
+            (fun (item : Types.signature_item) ->
+              match item with
+              | Sig_value (id, _, _) | Sig_type (id, _, _, _)
+              | Sig_module (id, _, _, _, _) ->
+                local_idents := (id, comps @ [Ident.name id]) :: !local_idents
+              | _ -> ())
+            incl.incl_type
+        | None -> ())
+      | _ -> ());
+      super.structure_item sub si
     | _ -> super.structure_item sub si
   in
   let use kind comps =
@@ -517,7 +621,17 @@ let iterator =
     | _ -> ());
     super.typ sub ct
   in
-  { super with expr; pat; typ; structure; structure_item; module_expr }
+  let module_type sub (mt : module_type) =
+    (match mt.mty_desc with
+    | Tmty_ident (p, _) -> (
+      match comps_of_path (source_path (env_of mt.mty_env) p) with
+      | Some (u :: _ as comps) when not (is_local_unit u) ->
+        Hashtbl.replace modtypes (key comps) comps
+      | _ -> ())
+    | _ -> ());
+    super.module_type sub mt
+  in
+  { super with expr; pat; typ; structure; structure_item; module_expr; module_type }
 
 (* Reads one typed tree. Returns the unit's name. *)
 let scan file =
@@ -537,6 +651,7 @@ let scan file =
   modules := [];
   functors := [];
   param_uses := [];
+  param_modtypes := [];
   applications := [];
   (match cmt.cmt_annots with
   | Implementation str -> iterator.structure iterator str

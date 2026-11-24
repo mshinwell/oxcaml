@@ -140,6 +140,17 @@ let source_path env (p : Path.t) : Path.t =
    [FILE__local]. *)
 let local_idents : (Ident.t * string list) list ref = ref []
 
+(* A module type that is declared is walked as a module of that type,
+   which stands in the environment under an identifier of its own: the
+   identifier, and the name of the module type (unit, modules, name). Kept
+   for the whole run. *)
+let modtype_idents : (Ident.t * string list) list ref = ref []
+
+(* In such a name the module type has this mark, for a module of the same
+   module may have its name ([Numeric_types.Float_by_bit_pattern] is a
+   module and a module type). *)
+let modtype_component name = name ^ " (module type)"
+
 let is_local_unit u =
   let suffix = "__local" in
   let n = String.length u and k = String.length suffix in
@@ -153,7 +164,10 @@ let rec comps_of_path (p : Path.t) : string list option =
     else
       match List.find_opt (fun (i, _) -> Ident.same i id) !local_idents with
       | Some (_, comps) -> Some comps
-      | None -> None)
+      | None -> (
+        match List.find_opt (fun (i, _) -> Ident.same i id) !modtype_idents with
+        | Some (_, comps) -> Some comps
+        | None -> None))
   | Pdot (p, s) -> (
     match comps_of_path p with Some l -> Some (l @ [s]) | None -> None)
   | Papply _ | Pextra_ty _ -> None

@@ -139,7 +139,7 @@ let emit_instances comps params rname place =
         if params = []
         then extract iname applied
         else
-          line "Extract Constant %s %s => %s." iname
+          directive "Extract Constant %s %s => %s." iname
             (String.concat " "
                (List.mapi (fun i _ -> Print.quote (Printf.sprintf "'a%d" (i + 1))) params))
             (Print.quote applied);
@@ -562,18 +562,87 @@ let rec emit_items ~full ~canon modc (sg : Types.signature) =
         then emit_exception modc name ext
       | Sig_module (id, _, _, _, Exported) ->
         let name = Ident.name id in
-        emit_module ~full
+        emit_module ~modtype:None ~full
           ~canon:(Option.map (fun t -> t @ [name]) canon)
           (modc @ [name])
       | Sig_modtype (id, _, Exported) ->
-        if full then not_declared (modc @ [Ident.name id]) "a module type"
+        let name = Ident.name id in
+        if Hashtbl.mem Uses.modtypes (key (modc @ [name]))
+        then emit_modtype modc name
+        else if full
+        then
+          not_declared (modc @ [name])
+            "a module type that no file of Simplify names from outside the file \
+             that defines it"
       | _ -> ());
       go rest
   in
   go sg
 
-and emit_module ~full ~canon modc =
+(* A module type: a [Module Type] of Rocq with all that the module type
+   names, in the form of a module, without directives. It is walked as a
+   module of that type that stands in the environment for the time of the
+   walk. In Rocq a module and a module type of one module cannot have the
+   same name: the module keeps it, the module type takes one [_]. *)
+and emit_modtype modc name =
+  let comps = modc @ [modtype_component name] in
+  let env = !Sigs.base_env in
+  if !in_modtype
+  then not_declared comps "a module type inside a module type"
+  else
+    match
+      Env.find_modtype (Path.Pdot (Sigs.path_of_comps modc, name)) env
+    with
+    | exception Not_found -> not_declared comps "the module type is not found"
+    | { mtd_type = None; _ } -> not_declared comps "a module type without a definition"
+    | { mtd_type = Some mty; _ } -> (
+      match Mtype.scrape env mty with
+      | Mty_signature _ ->
+        let id =
+          match
+            List.find_opt (fun (_, c) -> c = comps) !modtype_idents
+          with
+          | Some (id, _) -> id
+          | None ->
+            let id = Ident.create_local name in
+            modtype_idents := (id, comps) :: !modtype_idents;
+            id
+        in
+        Sigs.base_env := Env.add_module id Types.Mp_present mty env;
+        in_modtype := true;
+        (match emit_module ~modtype:(Some name) ~full:true ~canon:None comps with
+        | () ->
+          in_modtype := false;
+          Sigs.base_env := env
+        | exception e ->
+          in_modtype := false;
+          Sigs.base_env := env;
+          raise e)
+      | _ -> not_declared comps "a module type that is not a plain signature"
+      | exception _ -> not_declared comps "a module type that is not a plain signature")
+
+and emit_module ~modtype ~full ~canon modc =
   let name = List.nth modc (List.length modc - 1) in
+  let rocq_name =
+    match modtype with
+    | None -> Sigs.module_rocq name
+    | Some name ->
+      let parent, _ = Print.split_last modc in
+      let is_module =
+        match Sigs.module_shape parent with
+        | Signature sg ->
+          List.exists
+            (fun (item : Types.signature_item) ->
+              match item with
+              | Sig_module (id, _, _, _, _) -> Ident.name id = name
+              | _ -> false)
+            sg
+        | _ -> false
+      in
+      if is_module then Sigs.module_rocq name ^ "_" else Sigs.module_rocq name
+  in
+  if modtype <> None then Hashtbl.replace Sigs.modtype_rocq (key modc) rocq_name;
+  let keyword = if modtype <> None then "Module Type" else "Module" in
   let body ~canon ~rewrite sg =
     let outer_buf = !buf and outer_declared = !declared in
     let outer_native = !native and outer_item = !item_start in
@@ -599,9 +668,17 @@ and emit_module ~full ~canon modc =
         line "(* module %s = %s: declared again here under this name. *)" name
           (Print.ocaml_name target)
       | None -> ());
-      line "Module %s." (Sigs.module_rocq name);
+      (match modtype with
+      | Some name ->
+        let parent, _ = Print.split_last modc in
+        line
+          "(* The module type %s: all that it names. No directive: in a \
+           functor, Rocq prints what the parameter has by its name here. *)"
+          (Print.ocaml_name (parent @ [name]))
+      | None -> ());
+      line "%s %s." keyword rocq_name;
       Buffer.add_string !buf body;
-      line "End %s." (Sigs.module_rocq name))
+      line "End %s." rocq_name)
   in
   match Sigs.module_shape modc with
   | Signature sg -> body ~canon ~rewrite:None sg
@@ -614,7 +691,7 @@ and emit_module ~full ~canon modc =
         let rocq =
           match target with
           | u :: mods ->
-            String.concat "." (Print.unit_ref u :: List.map Sigs.module_rocq mods)
+            String.concat "." (Print.unit_ref u :: Print.modules_rocq u mods)
           | [] -> ""
         in
         line "(* module %s = %s *)" name (Print.ocaml_name target);
@@ -732,7 +809,7 @@ let emit_local_unit u : (string * SS.t) option =
       match r.l_kind with
       | `Module ->
         line "(* module %s, lines %d-%d of the file *)" name r.l_line r.l_last_line;
-        emit_module ~full:false ~canon:None r.l_comps
+        emit_module ~modtype:None ~full:false ~canon:None r.l_comps
       | `Value ->
         if Hashtbl.mem Uses.values (key r.l_comps) then emit_value modc name
       | `Type ->

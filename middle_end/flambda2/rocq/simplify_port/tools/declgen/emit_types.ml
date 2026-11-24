@@ -269,7 +269,7 @@ let extract_inductive modc name rname ocaml_type arity ctors =
                         else String.concat " " (xs (List.length c.c_args))))
                    ctors)))
   in
-  line "Extract Inductive %s => %s [ %s ]%s." rname (Print.quote ocaml_type)
+  directive "Extract Inductive %s => %s [ %s ]%s." rname (Print.quote ocaml_type)
     (String.concat " " (List.map (fun c -> Print.quote (ctor_string c)) ctors))
     match_string
 
@@ -497,7 +497,7 @@ let labelled_tuple (l : (string option * Types.type_expr) list) : Tr.ty =
         line "Inductive %s : Type :=" rname;
         line "| %s : %s." cname
           (String.concat " -> " (List.map Print.pp_arg tys @ [rname]));
-        line "Extract Inductive %s => %s [ %s ] %s." rname (Print.quote ocaml)
+        directive "Extract Inductive %s => %s [ %s ] %s." rname (Print.quote ocaml)
           (Print.quote (Printf.sprintf "(fun %s -> %s)" tuple with_labels))
           (Print.quote
              (Printf.sprintf "(fun f__1 x__0 -> let %s = x__0 in f__1 %s)" with_labels

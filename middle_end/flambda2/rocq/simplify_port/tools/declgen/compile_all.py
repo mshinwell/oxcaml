@@ -32,8 +32,11 @@ process at a time, in the order of their requirements, in a copy under
 _build/declcheck (nothing is written beside the sources). The kit is the
 file named by the variable KIT, or monad/real/Port_monad.v, or
 Port_monad.v. Only what has changed is compiled again. Prints the first
-lines of each failure and a count. This file follows no file of the
-compiler."""
+lines of each failure and a count. Then, when all the files are compiled:
+each module of decl/FUNCTOR-ARGUMENTS.tsv is given to a functor of Rocq
+whose parameter has the module type of its row, so that Rocq says whether
+the module has all that the module type names. This file follows no file of
+the compiler."""
 import filecmp, os, re, shutil, subprocess, sys
 
 kit = os.environ.get("KIT")
@@ -114,4 +117,39 @@ for n in order:
         bad += 1; failed.add(n)
         print("FAILED %s\n%s" % (n, "\n".join((r.stdout + r.stderr).strip().split("\n")[:6])))
 print("%d files, %d compiled now, %d failed or skipped" % (len(order), len(made), bad))
+
+# The modules that the files of Simplify give to their functors: Rocq
+# checks that each has all that the module type names, by giving it to a
+# functor of Rocq whose parameter has that module type.
+table = os.path.join("decl", "FUNCTOR-ARGUMENTS.tsv")
+pairs = []
+if not sys.argv[1:] and os.path.exists(os.path.join("..", "..", table)):
+    for l in open(os.path.join("..", "..", table)):
+        c = l.rstrip("\n").split("\t")
+        if len(c) == 6 and c[4] and c[5] and (c[4], c[5]) not in pairs:
+            pairs.append((c[4], c[5]))
+if pairs and not bad:
+    types = sorted(set(t for t, _ in pairs))
+    units = sorted(set(x.split(".")[0] for pair in pairs for x in pair))
+    head = ["From SimplifyPort Require Import Port_monad.",
+            "From SimplifyPort.decl Require %s." % " ".join(units)]
+    head += ["Module Wants_%d (N : %s). End Wants_%d." % (i, t, i) for i, t in enumerate(types)]
+    def given(lines):
+        open("Functor_arguments_check.v", "w").write("\n".join(head + lines) + "\n")
+        return run("Functor_arguments_check.v")
+    line = lambda k: "Module Given_%d := Wants_%d %s." % (k, types.index(pairs[k][0]), pairs[k][1])
+    r = given([line(k) for k in range(len(pairs))])
+    wrong = 0
+    if r.returncode:
+        # which ones: each alone
+        for k in range(len(pairs)):
+            r = given([line(k)])
+            if r.returncode:
+                wrong += 1
+                print("NOT OF ITS MODULE TYPE: %s given where %s is wanted\n%s"
+                      % (pairs[k][1], pairs[k][0],
+                         "\n".join((r.stdout + r.stderr).strip().split("\n")[:4])))
+    print("%d modules given where one of %d module types is wanted: %d do not have what the module type names"
+          % (len(pairs), len(types), wrong))
+    bad += wrong
 sys.exit(1 if bad else 0)

@@ -71,6 +71,22 @@ let set_type_name comps rname =
     Hashtbl.replace type_names (key comps) rname;
     Tr.changed := true)
 
+(* The names in Rocq of the modules [mods] of the unit [u], outermost
+   first: one of them may be a module type. *)
+let modules_rocq u mods =
+  let rec go prefix = function
+    | [] -> []
+    | m :: rest ->
+      let prefix = prefix @ [m] in
+      let name =
+        match Hashtbl.find_opt Sigs.modtype_rocq (key prefix) with
+        | Some n -> n
+        | None -> Sigs.module_rocq m
+      in
+      name :: go prefix rest
+  in
+  go [u] mods
+
 (* The name in Rocq of a declared thing. *)
 let global_name kind comps =
   let modc, last = split_last comps in
@@ -88,9 +104,7 @@ let global_name kind comps =
   then name
   else
     match modc with
-    | u :: mods ->
-      String.concat "."
-        ((unit_ref u :: List.map Sigs.module_rocq mods) @ [name])
+    | u :: mods -> String.concat "." ((unit_ref u :: modules_rocq u mods) @ [name])
     | [] -> name
 
 (* The name in OCaml: what the realisation says. An operator is in

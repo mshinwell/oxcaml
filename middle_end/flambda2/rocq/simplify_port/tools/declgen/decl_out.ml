@@ -115,8 +115,18 @@ let rocq_qualified name =
       ((Sigs.unit_rocq u :: List.map Sigs.module_rocq mods) @ [name])
   | [] -> name
 
+(* Inside a module type: its items have no directive (Rocq honours none
+   there: what a functor uses of its parameter is printed by its name in
+   Rocq) and no row in the index (they are no names of OCaml). *)
+let in_modtype = ref false
+
 let add_index ocaml rname kind arity place =
-  index := (ocaml, rocq_qualified rname, kind, arity, place) :: !index
+  if not !in_modtype
+  then index := (ocaml, rocq_qualified rname, kind, arity, place) :: !index
+
+(* A directive of the extraction. *)
+let directive fmt =
+  Printf.ksprintf (fun s -> if not !in_modtype then line "%s" s) fmt
 
 let not_declared comps why =
   left := (Print.ocaml_name comps, why) :: !left;
@@ -130,7 +140,7 @@ let comment (loc : Location.t) fallback =
   place
 
 let extract rname ocaml =
-  line "Extract Inlined Constant %s => %s." rname (Print.quote ocaml)
+  directive "Extract Inlined Constant %s => %s." rname (Print.quote ocaml)
 
 (* The directive for a type. One without parameters has its OCaml name as
    an inlined string. One with parameters cannot (Rocq has no inlined
@@ -159,7 +169,7 @@ let extract_type ?(kept = []) rname ocaml nparams =
   then extract rname applied
   else
     let vars = List.init nparams (fun i -> Printf.sprintf "'a%d" (i + 1)) in
-    line "Extract Constant %s %s => %s." rname
+    directive "Extract Constant %s %s => %s." rname
       (String.concat " " (List.map Print.quote vars))
       (Print.quote applied)
 

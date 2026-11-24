@@ -106,6 +106,14 @@ for f in sorted(os.listdir("decl")):
         where = "decl/%s:%d" % (f, i + 1)
         before = len(checks)
         group_before = cur_group if (cur_group is not None and cur_ok) else None
+        # a module type has nothing to check: to its end
+        mt = re.match(r"Module Type (\w+)\.$", l)
+        if mt:
+            end = lines[i][:len(lines[i]) - len(lines[i].lstrip())] + "End %s." % mt.group(1)
+            while lines[i] != end:
+                i += 1
+            i += 1
+            continue
         m = re.match(r"Module (\w+)\.$", l)
         if local and local_source is None and l.endswith(".ml"):
             local_source = l.strip()
