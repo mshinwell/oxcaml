@@ -63,9 +63,20 @@ scrutinee of
 a `match` or `if` that is a call is a `let!` before it. A value at the end
 is `ret v`. Never: a call as an argument; Rocq's own `let x := f a in`; a
 `Definition x : M T` without arguments; a computation in a pair, a list or a
-record, or passed as an argument (but `or_else`, `and_then`). HUMAN: OCaml
-leaves the order of evaluation of arguments unspecified; the port fixes
-right-to-left, which is what ocamlopt does. `a |> f b` is `f b a`.
+record, or passed as an argument (but `or_else`, `and_then`). `a |> f b` is
+`f b a`.
+
+THE ORDER IS A FACT, by the human's word: "evaluation order in an oxcaml
+compiler should always be right-to-left. Any occurrence otherwise in the
+compiler is a bug. Note that record field order is unspecified in oxcaml
+right now." So: right to left for the arguments of an application, of a
+constructor and of a tuple. A RECORD (also an inline record) that has calls
+in MORE THAN ONE field: the port takes the fields in the order of the TYPE,
+the last field first, and the place is marked `PORT-GAP(record-order)`; a
+record with a call in at most one field needs no mark. A place of the
+compiler whose result depends on another order than right to left, or on
+the order of the fields of a record: tell the lead (it is a suspected bug
+of the compiler, for the human).
 
 A function OF THE FILE applied to its first arguments only (`let simplifier
 = simplify_x a b in`) is a value in both builds: `let&`, no mark.
@@ -179,7 +190,7 @@ M r.` and `Extract Constant f => "fun _ -> Misc.fatal_error
 `fatal_error "PORT-GAP(partial): ..."`); `loose` (ported, but not line
 beside line: say what differs; an attribute such as `[@inline]` that is not
 kept); `order` (you are not sure of the order of evaluation); `type`;
-`verbatim`; `papp`; `init` (a top-level value that the compiler computes
+`verbatim`; `papp`; `record-order` (section 2); `init` (a top-level value that the compiler computes
 with effects when the module starts: a `Parameter`, its OCaml text
 verbatim, and `Extract Inlined Constant x => "x".`); `decl`. Prefer a marked
 gap now to a long fight: the first version is for the structure.
@@ -254,8 +265,8 @@ Rocq's extraction takes every term for a pure one:
 8. The identity build is NOT a model: its `fatal_error : forall A, string ->
    A` is a parameter, its fuel never ends. Nothing is proved in it;
    statements are about `monad/real`. That the extracted OCaml does what
-   `monad/real` says is not established: it needs enough fuel, the
-   assumptions on order and partial application, AND an answer to the
-   problems 1 to 7.
+   `monad/real` says is not established: it needs enough fuel, the order
+   of evaluation that the human states, the assumption on partial
+   application, AND an answer to the problems 1 to 7.
 9. `int` is `Z`: no overflow in Rocq. Physical equality and the contents of
    references are parameters; the printing of a fatal error is not modelled.

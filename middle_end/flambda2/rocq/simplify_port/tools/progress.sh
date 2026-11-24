@@ -40,7 +40,7 @@
 #            of the monad
 #   OCaml    how the extracted file type-checks (tools/check.sh)
 simplify=$1; B=$2
-kinds="unported partial loose type verbatim init order decl papp"
+kinds="unported partial loose type verbatim init order decl papp record-order"
 names_ml() {
   sed -n -E 's/^(let|and)( rec)?( ?\[@[^]]*\])* +([a-z_][A-Za-z0-9_'"'"']*).*/\4/p' "$1" \
     | grep -v '^_$' | sort -u
