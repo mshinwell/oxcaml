@@ -238,10 +238,18 @@ Definition union (t1 t2 : Continuation_uses_env.t)
 Definition remove (t : Continuation_uses_env.t) (cont : Continuation.t)
     : M Continuation_uses_env.t :=
   (* PORT-GAP(record-order): the two fields of the record are calls; they
-     are taken in the order of the type, the last field first. *)
-  let! tmp1 := Continuation.Map.remove cont t.(continuation_arities) in
-  let! tmp2 := Continuation.Map.remove cont t.(continuation_uses) in
-  ret {| continuation_uses := tmp2; continuation_arities := tmp1 |}.
+     are taken in the order of the type, the last field first, and each is
+     bound before the record is built. *)
+  let* continuation_arities :=
+    Continuation.Map.remove cont t.(continuation_arities)
+  in
+  let* continuation_uses :=
+    Continuation.Map.remove cont t.(continuation_uses)
+  in
+  ret
+    {| continuation_uses := continuation_uses;
+       continuation_arities := continuation_arities
+    |}.
 
 (* 150 *)
 Definition delete_continuation_uses

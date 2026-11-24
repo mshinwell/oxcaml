@@ -228,8 +228,12 @@ let union t1 t2 =
 (** val remove : t -> Continuation.t -> t coq_M **)
 
 let remove t0 cont0 =
-  { continuation_uses = Continuation.Map.remove cont0 t0.continuation_uses;
-    continuation_arities = Continuation.Map.remove cont0 t0.continuation_arities
+  let continuation_arities0 =
+    Continuation.Map.remove cont0 t0.continuation_arities
+  in
+  let continuation_uses0 = Continuation.Map.remove cont0 t0.continuation_uses in
+  { continuation_uses = continuation_uses0;
+    continuation_arities = continuation_arities0
   }
 
 (** val delete_continuation_uses : t -> Continuation.t -> t coq_M **)
