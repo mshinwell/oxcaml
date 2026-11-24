@@ -32,8 +32,9 @@ Record t : Type := {
   args : list Simple.t
 }.
 
-(* 22-33. PORT-GAP(loose): the attribute [@ocamlformat "disable"] is not
-   kept; the lines of the format are joined. *)
+(* 22-33 *)
+(* PORT-GAP(loose): the attribute [@ocamlformat "disable"] is not kept; the
+   lines of the format are joined. *)
 Definition print (ppf : Format.formatter)
     '({| params := params; continuation := continuation; args := args |} : t)
     : M unit :=
