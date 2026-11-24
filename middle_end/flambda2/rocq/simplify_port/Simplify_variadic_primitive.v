@@ -167,7 +167,7 @@ Definition simplify_make_array (array_kind : P.Array_kind.t)
   let* num_element_kinds := List.length element_kinds in
   (* 100-105 *)
   (let! tmp1 := List.length args in
-   let! tmp2 := Stdlib_.mod_ tmp1 num_element_kinds in
+   let! tmp2 := int_mod tmp1 num_element_kinds in
    if tmp2 <>? 0
    then
      let! tmp3 := List.length args in
