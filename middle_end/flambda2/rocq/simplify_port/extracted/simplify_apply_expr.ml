@@ -1687,11 +1687,13 @@ let simplify_apply_shared dacc apply0 =
         match
           Downwards_env.inlined_attribute_to_forward (Downwards_acc.denv dacc)
         with
-        | Some labelled ->
-          (fun x__0 f__1 ->
+        | Some f ->
+          (fun f__1 x__0 ->
             let x__1, ~forwarded_from:x__2 = x__0 in
-            f__1 x__1 x__2) labelled (fun inlined_from_env forwarded_from ->
+            f__1 x__1 x__2)
+            (fun inlined_from_env forwarded_from ->
               inlined_from_env, Some forwarded_from)
+            f
         | None -> inlined, None)
       | Inlined_attribute.Never_inlined -> inlined, None
       | Inlined_attribute.Unroll (_, _) -> inlined, None

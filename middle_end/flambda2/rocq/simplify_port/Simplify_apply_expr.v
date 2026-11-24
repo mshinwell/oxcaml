@@ -18,8 +18,7 @@
    commit ecc5c0d968c892b4312065caef0f19ffffa042a9, function by function
    under the compiler's names; the numbers in the comments are the lines of
    that file. What is not from that file: the form (the monad, the
-   temporaries [tmpN] and their order) is that of GUIDE.md, and the
-   eliminator of one tuple with a label, below. The donor opens
+   temporaries [tmpN] and their order) is that of GUIDE.md. The donor opens
    [Flambda.Import] and then [Simplify_import]: so does this file. No
    proof. *)
 
@@ -51,16 +50,6 @@ Local Open Scope list_scope.
 open! Flambda.Import
 open! Simplify_import
 OCAML*)
-
-(* PORT-GAP(decl): 1317, [DE.inlined_attribute_to_forward] gives a tuple
-   with a label, [(inlined_from_env, ~forwarded_from)], which decl/ gives as
-   a plain pair: OCaml does not take a pattern without the label for it.
-   The eliminator of that tuple is here. *)
-Definition match_inlined_attribute_to_forward {Res : Type}
-    (x : Inlined_attribute.t * Inlined_debuginfo.t)
-    (f : Inlined_attribute.t -> Inlined_debuginfo.t -> M Res) : M Res :=
-  match x with (x1, x2) => f x1 x2 end.
-Extract Inlined Constant match_inlined_attribute_to_forward => "(fun x__0 f__1 -> let (x__1, ~forwarded_from:x__2) = x__0 in f__1 x__1 x__2)".
 
 (* 20-27 *)
 Definition fail_if_probe (apply : Apply.t) : M unit :=
@@ -1710,10 +1699,8 @@ Definition simplify_apply_shared (dacc : DA.t) (apply : Apply.t)
         let! tmp3 := DE.inlined_attribute_to_forward tmp2 in
         match tmp3 with
         | None => ret (inlined, None)
-        | Some labelled =>
-          match_inlined_attribute_to_forward labelled
-            (fun inlined_from_env forwarded_from =>
-              ret (inlined_from_env, Some forwarded_from))
+        | Some (DE.Forwarded_from_tuple inlined_from_env forwarded_from) =>
+          ret (inlined_from_env, Some forwarded_from)
         end
       end
     in
