@@ -72,6 +72,11 @@ let create_have_lifted_set_of_closures dacc0 bound_vars_to_symbols
       List.mapi
         (fun i pat ->
           let var, sym = pat in
+          let simplified_defining_expr =
+            Simplified_named.create machine_width
+              (Flambda.Import.Named.create_simple (Simple.symbol sym))
+          in
+          let let_bound = Bound_pattern.singleton var in
           (fun (x__1, x__2, x__3) ->
             (Simplified_named.Keep_binding
                { let_bound = x__1;
@@ -79,9 +84,8 @@ let create_have_lifted_set_of_closures dacc0 bound_vars_to_symbols
                  original_defining_expr = x__3
                }
               : Simplified_named.binding_to_place))
-            ( Bound_pattern.singleton var,
-              Simplified_named.create machine_width
-                (Flambda.Import.Named.create_simple (Simple.symbol sym)),
+            ( let_bound,
+              simplified_defining_expr,
               if i = 0 then Some original_defining_expr else None ))
         bound_vars_to_symbols;
     was_lifted_set_of_closures = true

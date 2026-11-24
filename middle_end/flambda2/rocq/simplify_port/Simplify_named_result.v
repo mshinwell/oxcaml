@@ -86,22 +86,26 @@ Definition create_have_lifted_set_of_closures (dacc : Downwards_acc.t)
      two fields, [let_bound] and [simplified_defining_expr]. OCaml leaves the
      order of the fields of a record unspecified; this is the order that the
      port chooses for a record: the fields in the order of the type, the
-     last first ([simplified_defining_expr], then [let_bound]). *)
-  let! tmp5 :=
+     last first ([simplified_defining_expr], then [let_bound]). Each of the
+     two calls is bound by [let*], so that the extracted code has that
+     order too. *)
+  let! tmp3 :=
     List.mapi
       (fun (i : int) '(var, sym) =>
-        let! tmp1 := Simple.symbol sym in
-        let! tmp2 := Named.create_simple tmp1 in
-        let! tmp3 := Simplified_named.create machine_width tmp2 in
-        let! tmp4 := Bound_pattern.singleton var in
+        let* simplified_defining_expr :=
+          let! tmp1 := Simple.symbol sym in
+          let! tmp2 := Named.create_simple tmp1 in
+          Simplified_named.create machine_width tmp2
+        in
+        let* let_bound := Bound_pattern.singleton var in
         ret
-          (Simplified_named.Keep_binding tmp4 tmp3
+          (Simplified_named.Keep_binding let_bound simplified_defining_expr
              (if i =? 0 then Some original_defining_expr else None)))
       bound_vars_to_symbols
   in
   ret
     {| dacc := dacc;
-       bindings_to_place := tmp5;
+       bindings_to_place := tmp3;
        was_lifted_set_of_closures := true
     |}.
 
