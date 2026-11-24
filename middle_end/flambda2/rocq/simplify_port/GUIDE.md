@@ -74,8 +74,10 @@ compiler is a bug. Note that record field order is unspecified in oxcaml
 right now." So: right to left for the arguments of an application, of a
 constructor and of a tuple. A RECORD (also an inline record) that has calls
 in MORE THAN ONE field: the port takes the fields in the order of the TYPE,
-the last field first, and the place is marked `PORT-GAP(record-order)`; a
-record with a call in at most one field needs no mark. A place of the
+the last field first, binds each call by `let*` (NOT `let!`: Rocq would put
+the calls back inside the record, where OCaml's order is not fixed), and
+the place is marked `PORT-GAP(record-order)`; a record with a call in at
+most one field needs no mark. A place of the
 compiler whose result depends on another order than right to left, or on
 the order of the fields of a record: tell the lead (it is a suspected bug
 of the compiler, for the human).
