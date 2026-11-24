@@ -87,6 +87,7 @@ let emit_type ~forbidden ~canon modc name : (unit -> unit) option =
       Tr.reset_vars ();
       let params = List.map Tr.var_name (type_params decl k) in
       let rname = claim (Sigs.type_rocq modc name) in
+      Print.set_type_name comps rname;
       let sort = String.concat " -> " (List.map (fun _ -> "Type") params @ ["Type"]) in
       let place = comment decl.type_loc ("type " ^ name) in
       let abstract gap =
@@ -248,6 +249,7 @@ and emit_module ~full ~canon modc =
   | Alias (Some target) -> (
     if full
     then
+      let target = Option.value ~default:target (Sigs.alias_as_written modc) in
       if SS.mem (key target) !emitted_before
       then (
         let rocq =

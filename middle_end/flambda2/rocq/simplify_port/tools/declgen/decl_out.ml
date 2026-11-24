@@ -136,8 +136,8 @@ let emit_value modc name =
   let ocaml = Print.ocaml_name comps in
   if List.mem (key comps) in_kit
   then line "(* %s: in the kit (Port_monad.v). *)" ocaml
-  else if not (Sigs.is_identifier name)
-  then not_declared comps "an operator, which has no name in Rocq"
+  else if (not (Sigs.is_identifier name)) && List.hd comps = "Stdlib"
+  then not_declared comps "an operator of Stdlib: the kit and Rocq have their own"
   else
     match Env.find_value (Sigs.path_of_comps comps) !Sigs.base_env with
     | exception Not_found -> not_declared comps "not found in the interface"

@@ -74,6 +74,15 @@ let module_shape comps =
     Hashtbl.replace shape_cache (key comps) s;
     s
 
+(* For a module that is an alias: the module that it names, as the
+   sources write it ([Flambda.Apply], itself an alias of [Apply_expr]). *)
+let alias_as_written comps =
+  let env = !base_env in
+  match Env.find_module (path_of_comps comps) env with
+  | { md_type = Mty_alias p; _ } -> comps_of_path (source_module env p)
+  | _ -> None
+  | exception Not_found -> None
+
 (* ---- names in Rocq ---- *)
 
 (* Words that Rocq does not take as names, and the names of the kit's types,
@@ -149,7 +158,30 @@ let names_of_module comps =
     Hashtbl.replace names_cache (key comps) n;
     n
 
-let value_rocq s = sanitize s
+(* An operator that a module other than [Stdlib] declares (the addition of
+   [Code_size], the binding operators of [Or_bottom.Let_syntax]) has a name
+   spelled from its characters: [op_plus], [let_op_lt_star]. *)
+let operator_name s =
+  let spell c =
+    match c with
+    | '+' -> "plus" | '-' -> "minus" | '*' -> "star" | '/' -> "slash"
+    | '<' -> "lt" | '>' -> "gt" | '=' -> "eq" | '!' -> "bang" | '|' -> "bar"
+    | '&' -> "amp" | '@' -> "at" | '^' -> "hat" | '~' -> "tilde"
+    | ':' -> "colon" | '$' -> "dollar" | '.' -> "dot" | '%' -> "percent"
+    | '?' -> "question" | '#' -> "hash"
+    | c -> String.make 1 c
+  in
+  let prefix, symbols =
+    let starts p = String.length s > String.length p && String.sub s 0 (String.length p) = p in
+    if starts "let"
+    then "let_op", String.sub s 3 (String.length s - 3)
+    else if starts "and"
+    then "and_op", String.sub s 3 (String.length s - 3)
+    else "op", s
+  in
+  String.concat "_" (prefix :: List.map spell (List.of_seq (String.to_seq symbols)))
+
+let value_rocq s = if is_identifier s then sanitize s else operator_name s
 
 (* [modc] is the module that declares the item. *)
 let field_rocq modc s =

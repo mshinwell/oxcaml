@@ -110,9 +110,13 @@ let format_arity comps =
   | ["Stdlib"; "format6"] | ["CamlinternalFormatBasics"; "format6"] -> Some 6
   | _ -> None
 
+(* Can a parameter of this type be an index that Rocq does not need? Yes
+   for an abstract type, and for a GADT (whose constructors fix it). *)
 let is_abstract comps =
   match Env.find_type (Sigs.path_of_comps comps) !Sigs.base_env with
   | { type_kind = Type_abstract _; type_manifest = None; _ } -> true
+  | { type_kind = Type_variant (cds, _); _ } ->
+    List.exists (fun (cd : Types.constructor_declaration) -> cd.cd_res <> None) cds
   | _ -> false
   | exception Not_found -> false
 
@@ -214,12 +218,13 @@ and tr_arrow ty : ty * Asttypes.arg_label list * bool =
   in
   match split [] args with
   | None ->
-    Arrow (List.map (fun (_, a) -> tr a) args, tr res), List.map fst args, false
+    let args' = List.map (fun (_, a) -> tr a) args in
+    let res' = tr res in
+    Arrow (args', res'), List.map fst args, false
   | Some (before, l, result, []) ->
-    ( Arrow
-        ( List.map (fun (_, a) -> tr a) before
-          @ [Constr (Kit "string", [])],
-          tr result ),
+    let before' = List.map (fun (_, a) -> tr a) before in
+    let result' = tr result in
+    ( Arrow (before' @ [Constr (Kit "string", [])], result'),
       List.map fst before @ [l],
       true )
   | Some _ -> raise (Unsupported "arguments after a format")

@@ -58,12 +58,28 @@ let split_last l =
   | last :: rest -> List.rev rest, last
   | [] -> invalid_arg "split_last"
 
+(* The name that a type was given where it was declared, when it is not
+   the one that the rules give (a second declaration of a name in a module
+   gets one more underscore). Kept from one pass to the next. *)
+let type_names : (string, string) Hashtbl.t = Hashtbl.create 97
+
+let set_type_name comps rname =
+  let modc, last = split_last comps in
+  if rname <> Sigs.type_rocq modc last
+     && Hashtbl.find_opt type_names (key comps) <> Some rname
+  then (
+    Hashtbl.replace type_names (key comps) rname;
+    Tr.changed := true)
+
 (* The name in Rocq of a declared thing. *)
 let global_name kind comps =
   let modc, last = split_last comps in
   let name =
     match kind with
-    | `Type -> Sigs.type_rocq modc last
+    | `Type -> (
+      match Hashtbl.find_opt type_names (key comps) with
+      | Some n -> n
+      | None -> Sigs.type_rocq modc last)
     | `Value -> Sigs.value_rocq last
     | `Field -> Sigs.field_rocq modc last
     | `Ctor -> Sigs.ctor_rocq last
@@ -77,8 +93,15 @@ let global_name kind comps =
         ((unit_ref u :: List.map Sigs.module_rocq mods) @ [name])
     | [] -> name
 
-(* The name in OCaml: what the realisation says. *)
+(* The name in OCaml: what the realisation says. An operator is in
+   parentheses. *)
 let ocaml_name comps =
+  let comps =
+    match List.rev comps with
+    | last :: rest when not (Sigs.is_identifier last) ->
+      List.rev (("( " ^ last ^ " )") :: rest)
+    | _ -> comps
+  in
   match comps with
   | "%predef" :: rest -> String.concat "." rest
   | "Stdlib" :: rest -> String.concat "." rest

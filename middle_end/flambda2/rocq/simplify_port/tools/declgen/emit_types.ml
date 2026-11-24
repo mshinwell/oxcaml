@@ -311,7 +311,7 @@ let emit_makers ~params modc name rname (sh : shape) place =
           (Option.value ~default:self_ty c.c_res)
           (lam (List.length c.c_args) (ocaml_ctor modc c)))
       ctors;
-    if List.for_all (fun c -> c.c_res = None) ctors
+    if List.for_all (fun c -> c.c_res = None || c.c_res = Some self_ty) ctors
     then
       eliminator
         (List.map (fun c -> c.c_args) ctors)
