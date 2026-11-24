@@ -83,7 +83,10 @@ let rec refused_place self (ty : Tr.ty) =
 
 let shape_of (decl : Types.type_declaration) : shape option =
   let field (ld : Types.label_declaration) =
-    Ident.name ld.ld_id, Tr.tr ld.ld_type, ld.ld_mutable = Asttypes.Mutable
+    let name = Ident.name ld.ld_id in
+    ( name,
+      Tr.with_place (Some name) (fun () -> Tr.tr ld.ld_type),
+      ld.ld_mutable = Asttypes.Mutable )
   in
   match decl.type_kind with
   | Type_variant (cds, _) ->
@@ -356,3 +359,151 @@ let emit_makers ~params ~private_ modc name rname (sh : shape) place =
       (Printf.sprintf "(fun x__0 f__1 -> let %s = x__0 in f__1 %s)"
          (ocaml_record modc fields) (String.concat " " (xs n)))
 
+(* ---- tuples with labels ---- *)
+
+(* Rocq has no label in a tuple, and OCaml refuses a tuple without its
+   labels. So each type of a tuple with labels that the interfaces write
+   is a type of its own here, with one constructor. Its directive makes
+   the tuple with its labels from a plain tuple, and takes it apart. The
+   type is declared in the module that writes it first, before the item
+   that writes it. Its name is that of the labelled argument or of the
+   field where it is first written, or else its own labels, then
+   [_tuple]. *)
+
+(* The labels and the types -> the module that declares the type, and its
+   name there. Kept from pass to pass. *)
+let labelled : (string, string list * string) Hashtbl.t = Hashtbl.create 17
+
+(* Those declared in this pass. *)
+let labelled_now : (string, unit) Hashtbl.t = Hashtbl.create 17
+
+let rec ty_key (ty : Tr.ty) =
+  match ty with
+  | Var v -> "'" ^ v
+  | Arrow (args, res) ->
+    "(" ^ String.concat " -> " (List.map ty_key args) ^ " -> M " ^ ty_key res ^ ")"
+  | Arrow_pure (args, res) ->
+    "(" ^ String.concat " -> " (List.map ty_key (args @ [res])) ^ ")"
+  | Tuple l -> "(" ^ String.concat " * " (List.map ty_key l) ^ ")"
+  | Constr (r, args) ->
+    let name = match r with Tr.Kit s -> s | Tr.Global comps -> key comps in
+    "(" ^ String.concat " " (name :: List.map ty_key args) ^ ")"
+
+(* A type of OCaml as OCaml writes it, with the names that the
+   realisations have. *)
+let rec ocaml_type (ty : Types.type_expr) =
+  match Types.get_desc ty with
+  | Tconstr (p, args, _) -> (
+    let name =
+      match source_path !Sigs.base_env p with
+      | Pident id when Ident.is_predef id -> Ident.name id
+      | p' -> (
+        match comps_of_path p' with
+        | Some comps -> Print.ocaml_name comps
+        | None ->
+          raise (Tr.Unsupported ("the type " ^ Path.name p ^ " is not a global name")))
+    in
+    match args with
+    | [] -> name
+    | [a] -> ocaml_type_atom a ^ " " ^ name
+    | l -> "(" ^ String.concat ", " (List.map ocaml_type l) ^ ") " ^ name)
+  | Ttuple l ->
+    String.concat " * "
+      (List.map
+         (fun (label, t) ->
+           (match label with Some s -> s ^ ":" | None -> "") ^ ocaml_type_atom t)
+         l)
+  | Tvariant _ -> (
+    match Tr.fixed_tags ty with
+    | Some tags ->
+      "[ " ^ String.concat " | " (List.map (fun t -> "`" ^ t) tags) ^ " ]"
+    | None -> raise (Tr.Unsupported "a polymorphic variant in a tuple with labels"))
+  | Tpoly (t, []) -> ocaml_type t
+  | Tvar _ | Tunivar _ ->
+    raise (Tr.Unsupported "a type variable in a tuple with labels")
+  | _ -> raise (Tr.Unsupported "a tuple with labels that holds a function or an object")
+
+and ocaml_type_atom ty =
+  match Types.get_desc ty with
+  | Ttuple _ -> "(" ^ ocaml_type ty ^ ")"
+  | _ -> ocaml_type ty
+
+let ocaml_type_atom_list (l : (string option * Types.type_expr) list) =
+  String.concat " * "
+    (List.map
+       (fun (label, t) ->
+         (match label with Some s -> s ^ ":" | None -> "") ^ ocaml_type_atom t)
+       l)
+
+let labelled_tuple (l : (string option * Types.type_expr) list) : Tr.ty =
+  let written_at = !Tr.place in
+  let tys = List.map (fun (_, t) -> Tr.with_place None (fun () -> Tr.tr t)) l in
+  if List.fold_left vars_of [] tys <> []
+  then raise (Tr.Unsupported "a type variable in a tuple with labels");
+  let label_of (label, _) = match label with Some s -> s ^ ":" | None -> "" in
+  let k = String.concat " * " (List.map2 (fun c ty -> label_of c ^ ty_key ty) l tys) in
+  let home, name =
+    match Hashtbl.find_opt labelled k with
+    | Some x -> x
+    | None ->
+      let home = !Print.cur_mod in
+      let base =
+        match written_at with
+        | Some s -> s
+        | None -> String.concat "_" (List.filter_map fst l)
+      in
+      let taken name =
+        Hashtbl.fold (fun _ (h, n) found -> found || (h = home && n = name)) labelled false
+      in
+      let rec fresh i =
+        let name =
+          if i = 1 then base ^ "_tuple" else Printf.sprintf "%s_tuple%d" base i
+        in
+        if taken name then fresh (i + 1) else name
+      in
+      let x = home, fresh 1 in
+      Hashtbl.replace labelled k x;
+      Tr.changed := true;
+      x
+  in
+  let comps = home @ [name] in
+  if home <> !Print.cur_mod
+  then
+    warn "a tuple with labels (%s) is written in %s; its type is declared in %s" name
+      (key !Print.cur_mod) (key home)
+  else if not (Hashtbl.mem labelled_now k)
+  then (
+    Hashtbl.replace labelled_now k ();
+    let ocaml = "(" ^ ocaml_type_atom_list l ^ ")" in
+    before_item (fun () ->
+        let rname = claim name in
+        Print.set_type_name comps rname;
+        let cname = claim (String.capitalize_ascii name) in
+        let vars = xs (List.length l) in
+        let tuple = "(" ^ String.concat ", " vars ^ ")" in
+        let with_labels =
+          "("
+          ^ String.concat ", "
+              (List.map2
+                 (fun (label, _) x ->
+                   match label with Some s -> "~" ^ s ^ ":" ^ x | None -> x)
+                 l vars)
+          ^ ")"
+        in
+        line
+          "(* The tuple with labels %s that the interface writes: Rocq has no \
+           label in a tuple. [%s] makes one, and a [match] takes it apart. *)"
+          ocaml cname;
+        line "Inductive %s : Type :=" rname;
+        line "| %s : %s." cname
+          (String.concat " -> " (List.map Print.pp_arg tys @ [rname]));
+        line "Extract Inductive %s => %s [ %s ] %s." rname (Print.quote ocaml)
+          (Print.quote (Printf.sprintf "(fun %s -> %s)" tuple with_labels))
+          (Print.quote
+             (Printf.sprintf "(fun f__1 x__0 -> let %s = x__0 in f__1 %s)" with_labels
+                (String.concat " " vars)));
+        add_index ocaml rname "type" 0 "a tuple with labels";
+        add_index ocaml cname "constructor" (List.length l) "a tuple with labels"));
+  Tr.Constr (Tr.Global comps, [])
+
+let () = Tr.labelled_tuple := labelled_tuple

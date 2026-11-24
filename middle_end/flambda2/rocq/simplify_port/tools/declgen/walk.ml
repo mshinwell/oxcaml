@@ -314,13 +314,25 @@ let makers modc c rname place () =
 let deferred : (unit -> unit) list ref = ref []
 
 (* Abstract, with makers and an eliminator (written after the whole
-   definition). *)
+   definition). A private type has no maker, and a GADT no eliminator. *)
 let emit_fallback modc c why =
   let rname, place = start modc c in
-  line
-    "(* PORT-GAP(type): %s: abstract, with a maker for each constructor and one \
-     eliminator. *)"
-    why;
+  let private_ = c.c_decl.type_private = Asttypes.Private in
+  let gadt =
+    match c.c_shape with
+    | Variant ctors -> List.exists (fun (ct : Emit_types.ctor) -> ct.c_res <> None) ctors
+    | Record _ -> false
+  in
+  let record = match c.c_shape with Record _ -> true | Variant _ -> false in
+  let maker_text =
+    if private_
+    then "no maker (OCaml makes no value of a private type outside its module)"
+    else if record
+    then "one maker"
+    else "a maker for each constructor"
+  in
+  let eliminator = if gadt then "no eliminator (its branches could not have one type)" else "one eliminator" in
+  line "(* PORT-GAP(type): %s: abstract, with %s and %s. *)" why maker_text eliminator;
   declare_abstract c.c_comps c.c_decl c.c_params rname place;
   deferred := makers modc c rname place :: !deferred
 
@@ -534,9 +546,11 @@ let rec emit_items ~full ~canon modc (sg : Types.signature) =
         | rest -> List.rev acc, rest
       in
       let group, rest = take [Ident.name id] rest in
+      begin_item ();
       emit_group ~full ~canon modc group;
       go rest
     | item :: rest ->
+      begin_item ();
       (match item with
       | Sig_value (id, _, Exported) ->
         let name = Ident.name id in
@@ -562,7 +576,7 @@ and emit_module ~full ~canon modc =
   let name = List.nth modc (List.length modc - 1) in
   let body ~canon ~rewrite sg =
     let outer_buf = !buf and outer_declared = !declared in
-    let outer_native = !native in
+    let outer_native = !native and outer_item = !item_start in
     let outer_mod = !Print.cur_mod and outer_rewrite = !Tr.rewrite in
     buf := Buffer.create 4096;
     declared := SS.empty;
@@ -572,6 +586,7 @@ and emit_module ~full ~canon modc =
     emit_items ~full ~canon modc sg;
     let body = Buffer.contents !buf in
     buf := outer_buf;
+    item_start := outer_item;
     declared := outer_declared;
     native := outer_native;
     Print.cur_mod := outer_mod;
@@ -669,6 +684,7 @@ let nested modc f =
   let name = List.nth modc (List.length modc - 1) in
   let outer_buf = !buf and outer_declared = !declared in
   let outer_native = !native and outer_mod = !Print.cur_mod in
+  let outer_item = !item_start in
   buf := Buffer.create 4096;
   declared := SS.empty;
   native := SS.empty;
@@ -676,6 +692,7 @@ let nested modc f =
   f ();
   let body = Buffer.contents !buf in
   buf := outer_buf;
+  item_start := outer_item;
   declared := outer_declared;
   native := outer_native;
   Print.cur_mod := outer_mod;
@@ -709,6 +726,7 @@ let emit_local_unit u : (string * SS.t) option =
            SS.empty roots;
     let saved_env = !Sigs.base_env in
     let emit_root (r : Sigs.local_root) =
+      begin_item ();
       Sigs.base_env := env_of_root r;
       let modc, name = Print.split_last r.l_comps in
       match r.l_kind with

@@ -226,12 +226,35 @@ let format_of (ty : Types.type_expr) =
     | None -> None)
   | _ -> None
 
+(* The label of the argument, or the name of the field, whose type is being
+   translated: a tuple with labels that is written there is named after
+   it. *)
+let place : string option ref = ref None
+
+let with_place name f =
+  let outer = !place in
+  place := name;
+  match f () with
+  | x ->
+    place := outer;
+    x
+  | exception e ->
+    place := outer;
+    raise e
+
+(* A tuple with labels: the declared type that stands for it (given by
+   [Emit_types], which declares it). *)
+let labelled_tuple : ((string option * Types.type_expr) list -> ty) ref =
+  ref (fun _ -> raise (Unsupported "a tuple with labels"))
+
 let rec tr (ty : Types.type_expr) : ty =
   match Types.get_desc ty with
   | Tvar _ | Tunivar _ -> Var (var_name ty)
   | Tarrow _ ->
     let t, _, _ = tr_arrow ty in
     t
+  | Ttuple l when List.exists (fun (label, _) -> label <> None) l ->
+    !labelled_tuple l
   | Ttuple l -> Tuple (List.map (fun (_, t) -> tr t) l)
   | Tconstr (p, args, _) -> (
     match resolve p with
@@ -302,16 +325,23 @@ and tr_arrow ty : ty * Asttypes.arg_label list * bool =
       | Some result -> Some (List.rev before, l, result, rest)
       | None -> split ((l, a) :: before) rest)
   in
+  let tr_arg ((l : Asttypes.arg_label), a) =
+    let name =
+      match l with Labelled s | Optional s -> Some s | Nolabel -> None
+    in
+    with_place name (fun () -> tr a)
+  in
+  let tr_res res = with_place None (fun () -> tr res) in
   match split [] args with
   | None ->
-    let args' = List.map (fun (_, a) -> tr a) args in
-    let res' = tr res in
+    let args' = List.map tr_arg args in
+    let res' = tr_res res in
     ( (if expands_to_arrow res then Arrow_pure (args', res') else Arrow (args', res')),
       List.map fst args,
       false )
   | Some (before, l, result, []) ->
-    let before' = List.map (fun (_, a) -> tr a) before in
-    let result' = tr result in
+    let before' = List.map tr_arg before in
+    let result' = tr_res result in
     ( Arrow (before' @ [Constr (Kit "string", [])], result'),
       List.map fst before @ [l],
       true )

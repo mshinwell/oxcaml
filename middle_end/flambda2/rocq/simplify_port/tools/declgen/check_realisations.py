@@ -146,6 +146,12 @@ for f in sorted(os.listdir("decl")):
                     checks.append((where, "let _ = function %s _ -> () | _ -> ()" % c))
             if match:
                 checks.append((where, "let _ = %s" % match))
+            if ty.startswith("(") and match:
+                # a tuple with labels: its two functions make and take the
+                # type that the directive names
+                c = re.findall(r'"([^"]*)"', ctors)[0]
+                checks.append((where, "let _ = fun x__ -> (%s x__ : %s)" % (c, ty)))
+                checks.append((where, "let _ = fun f__ (x__ : %s) -> %s f__ x__" % (ty, match)))
         if local:
             group_now = cur_group if (cur_group is not None and cur_ok) else group_before
             if group_now is not None:

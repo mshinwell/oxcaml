@@ -165,6 +165,214 @@ let register kind name id (loc : Location.t) =
 let rec strip (me : module_expr) =
   match me.mod_desc with Tmod_constraint (me, _, _, _) -> strip me | _ -> me
 
+(* ---- what a functor of the file uses of the modules that it is given ---- *)
+
+(* A file of Simplify that has a functor of its own and applies it
+   ([Edge (Name.Map) (Name.Set)] in data_flow_graph.ml) uses, of the
+   modules that it gives, what the body of the functor uses of its
+   parameters: [Src_map.find] is then [Name.Map.find]. The module that is
+   given may itself be made in the file (a structure written in the place,
+   the result of another functor of the file), so the modules of the file
+   are followed. What a module of the file is: *)
+type modval =
+  | Path of Env.t * Path.t  (** a module with a name, in an environment *)
+  | Under of Ident.t * string list
+      (** a module under a parameter of a functor of the file *)
+  | Struct of (string * modval) list  (** a structure: its modules *)
+  | Applied of Ident.t * modval list  (** a functor of the file, applied *)
+  | Own  (** what the file defines itself: nothing of outside *)
+  | Unknown
+
+(* The parameters of the functors of the file. *)
+let params : Ident.t list ref = ref []
+
+(* The modules of the file that are not functors. *)
+let modules : (Ident.t * modval) list ref = ref []
+
+(* The functors of the file: the parameters in order, and the body. *)
+let functors : (Ident.t * (Ident.t option list * modval)) list ref = ref []
+
+(* What the bodies use of a parameter: the parameter, the names under it,
+   and whether the thing is a value or a type. *)
+let param_uses : (Ident.t * string list * [`Value | `Type]) list ref = ref []
+
+(* The applications of a functor of the file: the functor and what it is
+   given. *)
+let applications : (Ident.t * modval list) list ref = ref []
+
+(* What a functor of the file uses of a module that could not be
+   followed: file, functor, what. *)
+let not_followed : (string * string * string) list ref = ref []
+
+let find_ident id l =
+  match List.find_opt (fun (id', _) -> Ident.same id id') l with
+  | Some (_, x) -> Some x
+  | None -> None
+
+(* [v] where each parameter of [sigma] is the module given for it. *)
+let rec subst sigma (v : modval) =
+  match v with
+  | Under (p, names) -> (
+    match find_ident p sigma with Some a -> project a names | None -> v)
+  | Struct l -> Struct (List.map (fun (n, v) -> n, subst sigma v) l)
+  | Applied (f, args) -> Applied (f, List.map (subst sigma) args)
+  | Path _ | Own | Unknown -> v
+
+(* The module of these names under [v]. *)
+and project (v : modval) (names : string list) =
+  match names with
+  | [] -> v
+  | n :: rest -> (
+    match v with
+    | Path (env, p) -> project (Path (env, Path.Pdot (p, n))) rest
+    | Under (p, ns) -> Under (p, ns @ names)
+    | Struct l -> (
+      match List.assoc_opt n l with Some v -> project v rest | None -> Own)
+    | Applied (f, args) -> (
+      match apply f args with Some v -> project v names | None -> Unknown)
+    | Own -> Own
+    | Unknown -> Unknown)
+
+and apply f args =
+  match find_ident f !functors with
+  | Some (ps, body) when List.length ps = List.length args ->
+    let sigma =
+      List.concat
+        (List.map2 (fun p a -> match p with Some p -> [p, a] | None -> []) ps args)
+    in
+    Some (subst sigma body)
+  | _ -> None
+
+let rec modval_of_path env (p : Path.t) =
+  match p with
+  | Pident id -> (
+    if List.exists (Ident.same id) !params
+    then Under (id, [])
+    else match find_ident id !modules with Some v -> v | None -> Path (env, p))
+  | Pdot (q, s) -> project (modval_of_path env q) [s]
+  | Papply _ | Pextra_ty _ -> Unknown
+
+let rec functor_of (me : module_expr) =
+  match (strip me).mod_desc with
+  | Tmod_functor (param, body) ->
+    let p = match param with Named (id, _, _) -> id | Unit -> None in
+    let ps, body = functor_of body in
+    p :: ps, body
+  | _ -> [], me
+
+let rec modval_of (me : module_expr) : modval =
+  let me = strip me in
+  match me.mod_desc with
+  | Tmod_ident (p, _) -> modval_of_path me.mod_env p
+  | Tmod_structure str ->
+    Struct
+      (List.filter_map
+         (fun (item : structure_item) ->
+           match item.str_desc with
+           | Tstr_module { mb_id = Some id; mb_expr; _ } -> (
+             module_defined id mb_expr;
+             match find_ident id !modules with
+             | Some v -> Some (Ident.name id, v)
+             | None -> None)
+           | _ -> None)
+         str.str_items)
+  | Tmod_apply _ -> (
+    match spine me [] with Some (f, args) -> Applied (f, args) | None -> Unknown)
+  | _ -> Unknown
+
+(* The functor of the file that is applied, and what it is given. *)
+and spine (me : module_expr) args =
+  match (strip me).mod_desc with
+  | Tmod_apply (f, arg, _) -> spine f (modval_of arg :: args)
+  | Tmod_ident (Pident id, _) when Option.is_some (find_ident id !functors) -> Some (id, args)
+  | _ -> None
+
+(* A module of the file is defined. *)
+and module_defined id (me : module_expr) =
+  if Option.is_none (find_ident id !modules) && Option.is_none (find_ident id !functors)
+  then
+    match functor_of me with
+    | [], _ -> modules := (id, modval_of me) :: !modules
+    | ps, body ->
+      List.iter
+        (function
+          | Some p -> if not (List.exists (Ident.same p) !params) then params := p :: !params
+          | None -> ())
+        ps;
+      functors := (id, (ps, modval_of body)) :: !functors
+
+let add_param_use param names kind =
+  if not
+       (List.exists
+          (fun (p, n, k) -> Ident.same p param && n = names && k = kind)
+          !param_uses)
+  then param_uses := (param, names, kind) :: !param_uses
+
+(* A value or a type whose module has no global name as it is written. *)
+let indirect_use use kind env (p : Path.t) =
+  match p with
+  | Pdot (m, x) -> (
+    match modval_of_path env m with
+    | Under (param, names) -> add_param_use param (names @ [x]) kind
+    | Path (env', q) when not (Path.same q m) -> (
+      match comps_of_path (source_path (env_of env') (Path.Pdot (q, x))) with
+      | Some comps -> use kind comps
+      | None -> ())
+    | _ -> ())
+  | _ -> ()
+
+(* At the end of a file: what each application makes the file use. An
+   application inside another functor may give a module under that
+   functor's parameter: that is a use of the parameter, so this is done
+   until nothing is new. *)
+let uses_of_applications use =
+  let split names =
+    match List.rev names with
+    | last :: rest -> List.rev rest, last
+    | [] -> [], ""
+  in
+  let rec round () =
+    let before = List.length !param_uses in
+    List.iter
+      (fun (f, args) ->
+        match find_ident f !functors with
+        | Some (ps, _) when List.length ps = List.length args ->
+          List.iter2
+            (fun p arg ->
+              match p with
+              | None -> ()
+              | Some param ->
+                List.iter
+                  (fun (id, names, kind) ->
+                    if Ident.same id param
+                    then
+                      let mods, last = split names in
+                      match project arg mods with
+                      | Path (env, q) -> (
+                        match
+                          comps_of_path (source_path (env_of env) (Path.Pdot (q, last)))
+                        with
+                        | Some comps -> use kind comps
+                        | None -> ())
+                      | Under (param', names') ->
+                        add_param_use param' (names' @ [last]) kind
+                      | Unknown ->
+                        if kind = `Value
+                        then
+                          not_followed
+                            := ( !cur_file,
+                                 Ident.name f,
+                                 String.concat "." (Ident.name param :: names) )
+                               :: !not_followed
+                      | Struct _ | Applied _ | Own -> ())
+                  !param_uses)
+            ps args
+        | _ -> ())
+      !applications;
+    if List.length !param_uses > before then round ()
+  in
+  round ()
+
 (* Is the module the application of a functor of outside Simplify? *)
 let outside_application (me : module_expr) =
   let rec head (me : module_expr) =
@@ -193,10 +401,19 @@ let iterator =
   in
   let module_expr sub (me : module_expr) =
     match me.mod_desc with
-    | Tmod_functor _ ->
+    | Tmod_functor (param, _) ->
+      (match param with
+      | Named (Some id, _, _) ->
+        if not (List.exists (Ident.same id) !params) then params := id :: !params
+      | Named (None, _, _) | Unit -> ());
       incr functor_depth;
       super.module_expr sub me;
       decr functor_depth
+    | Tmod_apply _ ->
+      (match spine me [] with
+      | Some app -> applications := app :: !applications
+      | None -> ());
+      super.module_expr sub me
     | _ -> super.module_expr sub me
   in
   let structure_item sub (si : structure_item) =
@@ -204,6 +421,7 @@ let iterator =
     | Tstr_module ({ mb_id = Some id; _ } as mb) ->
       let name = Ident.name id in
       let me = strip mb.mb_expr in
+      module_defined id mb.mb_expr;
       let by_include =
         match me.mod_desc with
         | Tmod_structure str ->
@@ -251,12 +469,19 @@ let iterator =
       super.structure_item sub si
     | _ -> super.structure_item sub si
   in
+  let use kind comps =
+    match kind with
+    | `Value -> use_value comps
+    | `Type -> ignore (type_use comps)
+  in
   let expr sub (e : expression) =
     (match e.exp_desc with
     | Texp_ident (p, _, _) -> (
-      match comps_of_path (source_path (env_of e.exp_env) p) with
+      let p = source_path (env_of e.exp_env) p in
+      match comps_of_path p with
       | Some comps -> use_value comps
-      | None -> ())
+      | None -> indirect_use use `Value e.exp_env p)
+    | Texp_letmodule (Some id, _, _, me, _) -> module_defined id me
     | Texp_construct (_, cd, _) -> constructor e.exp_env cd `Built
     | Texp_record { fields; _ } ->
       Array.iter (fun (l, _) -> field e.exp_env l `Read) fields
@@ -265,9 +490,10 @@ let iterator =
     | Texp_letop { let_; ands; _ } ->
       List.iter
         (fun (b : binding_op) ->
-          match comps_of_path (source_path (env_of e.exp_env) b.bop_op_path) with
+          let p = source_path (env_of e.exp_env) b.bop_op_path in
+          match comps_of_path p with
           | Some comps -> use_value comps
-          | None -> ())
+          | None -> indirect_use use `Value e.exp_env p)
         (let_ :: ands)
     | _ -> ());
     super.expr sub e
@@ -284,9 +510,10 @@ let iterator =
   let typ sub (ct : core_type) =
     (match ct.ctyp_desc with
     | Ttyp_constr (p, _, _) -> (
-      match comps_of_path (source_path (env_of ct.ctyp_env) p) with
+      let p = source_path (env_of ct.ctyp_env) p in
+      match comps_of_path p with
       | Some comps -> ignore (type_use comps)
-      | None -> ())
+      | None -> indirect_use use `Type ct.ctyp_env p)
     | _ -> ());
     super.typ sub ct
   in
@@ -306,9 +533,18 @@ let scan file =
   enclosing := [];
   in_root := false;
   final_envs := [];
+  params := [];
+  modules := [];
+  functors := [];
+  param_uses := [];
+  applications := [];
   (match cmt.cmt_annots with
   | Implementation str -> iterator.structure iterator str
   | _ -> warn "not an implementation: %s" file);
+  uses_of_applications (fun kind comps ->
+      match kind with
+      | `Value -> use_value comps
+      | `Type -> ignore (type_use comps));
   if !roots <> [] then Hashtbl.replace Sigs.locals !pseudo (List.rev !roots, !cur_file);
   local_idents := [];
   cmt

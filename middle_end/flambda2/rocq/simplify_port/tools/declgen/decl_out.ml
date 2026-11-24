@@ -53,6 +53,30 @@ let line fmt =
       Buffer.add_char !buf '\n')
     fmt
 
+(* Where the item that is being written begins in the buffer. *)
+let item_start = ref (-1)
+
+let begin_item () = item_start := Buffer.length !buf
+
+(* Writes the lines of [f] before the item that is being written. *)
+let before_item f =
+  let outer = !buf in
+  let b = Buffer.create 1024 in
+  buf := b;
+  (match f () with
+  | () -> buf := outer
+  | exception e ->
+    buf := outer;
+    raise e);
+  let text = Buffer.contents b in
+  let n = Buffer.length outer in
+  let pos = if !item_start < 0 || !item_start > n then n else !item_start in
+  let rest = Buffer.sub outer pos (n - pos) in
+  Buffer.truncate outer pos;
+  Buffer.add_string outer text;
+  Buffer.add_string outer rest;
+  item_start := pos + String.length text
+
 (* The names of constructors and fields that the open module has under
    the compiler's own names (Rocq prints them, so they cannot change). *)
 let native : SS.t ref = ref SS.empty

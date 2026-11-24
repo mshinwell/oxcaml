@@ -106,6 +106,7 @@ let pass scanned =
   Decl_out.left := [];
   Walk.emitted_now := SS.empty;
   Hashtbl.reset Decl_out.native_now;
+  Hashtbl.reset Emit_types.labelled_now;
   let forced_units =
     SS.filter (fun k -> not (String.contains k '.')) !Walk.forced
   in
@@ -275,5 +276,11 @@ let () =
             what place)
         !Uses.inside_functor);
   List.iter prerr_endline (List.sort_uniq compare !warnings);
+  List.iter
+    (fun (file, f, what) ->
+      Printf.eprintf
+        "%s: the functor %s uses %s of a module that could not be followed\n"
+        file f what)
+    (List.sort_uniq compare !Uses.not_followed);
   Printf.printf "%d files, %d declarations, %d not declared, %d passes\n"
     (List.length results) (List.length !Decl_out.index) (List.length !Decl_out.left) passes
