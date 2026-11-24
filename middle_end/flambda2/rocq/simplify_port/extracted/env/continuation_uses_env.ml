@@ -22,21 +22,19 @@
 
 module DE = Downwards_env
 module T = Flambda2_types
-open Continuation
-open Non_recursive_handler
-open One_recursive_handler
 open Port_monad
 
 type t =
-  { continuation_uses : Continuation_uses.t Map.t;
-    continuation_arities : [`Unarized] Flambda_arity.t Map.t
+  { continuation_uses : Continuation_uses.t Continuation.Map.t;
+    continuation_arities : [`Unarized] Flambda_arity.t Continuation.Map.t
   }
 
-(** val continuation_uses : t -> Continuation_uses.t Map.t **)
+(** val continuation_uses : t -> Continuation_uses.t Continuation.Map.t **)
 
 let continuation_uses t0 = t0.continuation_uses
 
-(** val continuation_arities : t -> [ `Unarized ] Flambda_arity.t Map.t **)
+(** val continuation_arities : t -> [ `Unarized ] Flambda_arity.t
+    Continuation.Map.t **)
 
 let continuation_arities t0 = t0.continuation_arities
 
@@ -102,15 +100,15 @@ let record_continuation_arity t0 handlers =
         (fun cont0 handler0 cont_uses_env ->
           record_continuation cont_uses_env cont0
             (Flambda_arity.concat invariant_arity
-               (Bound_parameters.arity handler0.params)))
+               (Bound_parameters.arity handler0.One_recursive_handler.params)))
         continuation_handlers t0)
     (fun t1 ->
-      let { cont = cont0;
+      let { Non_recursive_handler.cont = cont0;
             Non_recursive_handler.params = params0;
-            lifted_params = _;
+            Non_recursive_handler.lifted_params = _;
             Non_recursive_handler.handler = _;
-            is_exn_handler = _;
-            can_be_lifted = _;
+            Non_recursive_handler.is_exn_handler = _;
+            Non_recursive_handler.can_be_lifted = _;
             Non_recursive_handler.is_cold = _
           } =
         t1

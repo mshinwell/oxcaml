@@ -22,18 +22,15 @@
    middle_end/flambda2/rocq/simplify_port. *)
 
 open! Simplify_import
-open Apply_cont_rewrite_id
-open Continuation_uses
 open Port_monad
-open Unboxing_types
 module U = Unboxing_types
 module Decisions = U.Decisions
 
 (** val refine_decision_based_on_arg_types_at_uses : Unboxing_types.pass ->
     Apply_cont_rewrite_id.Set.t -> Apply_cont_rewrite_id.Set.t ->
-    Target_system.Machine_width.t -> int -> arg_at_use Map.t ->
-    Unboxing_types.decision -> (Unboxing_types.decision *
-    Apply_cont_rewrite_id.Set.t) coq_M **)
+    Target_system.Machine_width.t -> int -> Continuation_uses.arg_at_use
+    Apply_cont_rewrite_id.Map.t -> Unboxing_types.decision ->
+    (Unboxing_types.decision * Apply_cont_rewrite_id.Set.t) coq_M **)
 
 let refine_decision_based_on_arg_types_at_uses pass0 rewrite_ids_seen0
     rewrites_ids_known_as_invalid0 machine_width nth_arg arg_type_by_use_id
@@ -49,8 +46,8 @@ let refine_decision_based_on_arg_types_at_uses pass0 rewrite_ids_seen0
                rewrites_ids_known_as_invalid0
         then decision0, invalids
         else
-          let typing_env_at_use = arg_at_use0.typing_env in
-          let arg_type_at_use = arg_at_use0.arg_type in
+          let typing_env_at_use = arg_at_use0.Continuation_uses.typing_env in
+          let arg_type_at_use = arg_at_use0.Continuation_uses.arg_type in
           let unboxed_arg =
             Port_monad.match_exn
               (fun _ ->

@@ -22,8 +22,6 @@
 
 open! Simplify_import
 open Port_monad
-open Simplify_common
-open Simplify_import
 
 (** val inline_linearly_used_continuation : Upwards_acc.t -> Bound_parameters.t
     -> Rebuilt_expr.t -> Name_occurrences.t -> Cost_metrics.t ->
@@ -203,11 +201,13 @@ let rebuild_apply_cont args rewrite_id apply_cont uacc after_rebuild =
   create_apply_cont apply_cont_to_expr
 
 (** val simplify_apply_cont : Downwards_acc.t -> Flambda.Apply_cont.t ->
-    Simplified_expr.t down_to_up -> (Simplified_expr.t * Downwards_acc.t) coq_M
-    **)
+    Simplified_expr.t Simplify_common.down_to_up -> (Simplified_expr.t *
+    Downwards_acc.t) coq_M **)
 
 let simplify_apply_cont dacc apply_cont down_to_up0 =
-  let { S.simples = args; S.simple_tys = arg_types } =
+  let { Simplify_import.S.simples = args;
+        Simplify_import.S.simple_tys = arg_types
+      } =
     Simplify_simple.simplify_simples dacc (Flambda.Apply_cont.args apply_cont)
   in
   let use_kind =

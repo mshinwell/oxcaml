@@ -21,7 +21,6 @@
    middle_end/flambda2/rocq/simplify_port. *)
 
 open! Flambda.Import
-open Cost_metrics
 open Port_monad
 
 type simplified_named =
@@ -88,8 +87,8 @@ let create machine_width named0 =
   }
 
 (** val create_with_known_free_names : Target_system.Machine_width.t ->
-    (Code_id.t -> code_characteristics coq_M) -> Flambda.Import.Named.t ->
-    Name_occurrences.t -> t coq_M **)
+    (Code_id.t -> Cost_metrics.code_characteristics coq_M) ->
+    Flambda.Import.Named.t -> Name_occurrences.t -> t coq_M **)
 
 let create_with_known_free_names machine_width find_code_characteristics named0
     free_names0 =

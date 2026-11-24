@@ -24,16 +24,12 @@ module CUE = Continuation_uses_env
 module DE = Downwards_env
 module LCS = Lifted_constant_state
 module TE = Flambda2_types.Typing_env
-open Code_id
-open Continuation_callsite_map
 open Port_monad
-open Simple
-open Static_const
 
 type t =
   { denv : Downwards_env.t;
     continuation_uses_env : Continuation_uses_env.t;
-    shareable_constants : Symbol.t Map.t;
+    shareable_constants : Symbol.t Static_const.Map.t;
     used_value_slots : Name_occurrences.t;
     lifted_constants : Lifted_constant_state.t;
     flow_acc : Flow.Acc.t;
@@ -58,7 +54,7 @@ let denv t0 = t0.denv
 
 let continuation_uses_env t0 = t0.continuation_uses_env
 
-(** val shareable_constants : t -> Symbol.t Map.t **)
+(** val shareable_constants : t -> Symbol.t Static_const.Map.t **)
 
 let shareable_constants t0 = t0.shareable_constants
 
@@ -522,7 +518,7 @@ let consider_constant_for_sharing t0 symbol static_const =
       specialization_map = t0.specialization_map
     }
 
-(** val with_shareable_constants : t -> Symbol.t Map.t -> t coq_M **)
+(** val with_shareable_constants : t -> Symbol.t Static_const.Map.t -> t coq_M **)
 
 let with_shareable_constants t0 shareable_constants0 =
   { denv = t0.denv;

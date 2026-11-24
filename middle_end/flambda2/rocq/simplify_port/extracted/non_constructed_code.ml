@@ -20,8 +20,6 @@
    not edit this file: change the .v file and run make in
    middle_end/flambda2/rocq/simplify_port. *)
 
-open Code0
-open Code_metadata
 open Port_monad
 
 type t = unit Code0.t
@@ -35,7 +33,7 @@ let code_metadata = Code0.code_metadata
 
 let create_with_metadata = Code0.create_with_metadata Unit.print ()
 
-(** val create : Name_occurrences.t -> t create_type **)
+(** val create : Name_occurrences.t -> t Code_metadata.create_type **)
 
 let create = Code0.create Unit.print ()
 

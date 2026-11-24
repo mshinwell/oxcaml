@@ -21,7 +21,6 @@
 
 open! Simplify_import
 open Port_monad
-open Removed_operations
 module RO = Removed_operations
 
 type t =

@@ -21,15 +21,14 @@
    middle_end/flambda2/rocq/simplify_port. *)
 
 open Port_monad
-open Simplified_named
 
 type t_simplified =
-  { simplified_named : t Or_invalid.t;
+  { simplified_named : Simplified_named.t Or_invalid.t;
     try_reify : bool;
     dacc : Downwards_acc.t
   }
 
-(** val simplified_named : t_simplified -> t Or_invalid.t **)
+(** val simplified_named : t_simplified -> Simplified_named.t Or_invalid.t **)
 
 let simplified_named t0 = t0.simplified_named
 

@@ -22,7 +22,6 @@
 
 open! Simplify_import
 open Port_monad
-open Simplify_common
 
 (** val rebuild_terminator : Simplified_expr.simplified_terminator ->
     Upwards_acc.t -> Simplify_common.after_rebuild -> (Rebuilt_expr.t *
@@ -93,10 +92,10 @@ let rec rebuild_expr expr uacc after_rebuild =
         after_rebuild)
 
 (** val simplify_toplevel_common : Downwards_acc.t -> (Downwards_acc.t ->
-    Simplified_expr.t down_to_up -> (Simplified_expr.t * Downwards_acc.t) coq_M)
-    -> Bound_parameters.t -> Bound_parameters.t -> Continuation.t -> (_)
-    Flambda_arity.t -> Continuation.t -> (Rebuilt_expr.t * Upwards_acc.t) coq_M
-    **)
+    Simplified_expr.t Simplify_common.down_to_up -> (Simplified_expr.t *
+    Downwards_acc.t) coq_M) -> Bound_parameters.t -> Bound_parameters.t ->
+    Continuation.t -> (_) Flambda_arity.t -> Continuation.t -> (Rebuilt_expr.t *
+    Upwards_acc.t) coq_M **)
 
 let simplify_toplevel_common dacc simplify params implicit_params
     return_continuation return_arity exn_continuation =
@@ -226,7 +225,7 @@ let simplify_toplevel_common dacc simplify params implicit_params
   expr0, uacc
 
 (** val simplify_expr : Downwards_acc.t -> Flambda.Expr.t -> Simplified_expr.t
-    down_to_up -> (Simplified_expr.t * Downwards_acc.t) coq_M **)
+    Simplify_common.down_to_up -> (Simplified_expr.t * Downwards_acc.t) coq_M **)
 
 let rec simplify_expr dacc expr down_to_up0 =
   (fun f__1 f__2 f__3 f__4 f__5 f__6 x__0 ->
@@ -286,7 +285,7 @@ and simplify_function_body dacc expr return_continuation return_arity
       params implicit_params return_continuation return_arity exn_continuation
 
 (** val simplify_let : Downwards_acc.t -> Flambda.Let.t -> Simplified_expr.t
-    down_to_up -> (Simplified_expr.t * Downwards_acc.t) coq_M **)
+    Simplify_common.down_to_up -> (Simplified_expr.t * Downwards_acc.t) coq_M **)
 
 and simplify_let dacc let_expr down_to_up0 =
   Simplify_let_expr.simplify_let simplify_expr simplify_function_body dacc

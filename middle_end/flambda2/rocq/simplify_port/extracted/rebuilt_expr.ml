@@ -22,11 +22,7 @@ open! Flambda.Import
 exception Match_failure
 
 module HV = Hashtbl.Make (Variable)
-open Are_rebuilding_terms
-open Continuation
-open Numeric_types
 open Port_monad
-open Variable_
 module ART = Are_rebuilding_terms
 
 type contents_hash_ =
@@ -580,17 +576,17 @@ module Matching_for_unique_handler = struct
   end
 
   type matching_env =
-    { permutable_params1 : Match_permutable_parameters.t Map.t;
-      permutable_params2 : Match_permutable_parameters.t Map.t
+    { permutable_params1 : Match_permutable_parameters.t Variable_.Map.t;
+      permutable_params2 : Match_permutable_parameters.t Variable_.Map.t
     }
 
   (** val permutable_params1 : matching_env -> Match_permutable_parameters.t
-      Map.t **)
+      Variable_.Map.t **)
 
   let permutable_params1 m = m.permutable_params1
 
   (** val permutable_params2 : matching_env -> Match_permutable_parameters.t
-      Map.t **)
+      Variable_.Map.t **)
 
   let permutable_params2 m = m.permutable_params2
 
@@ -901,9 +897,9 @@ module Unique_continuation_handlers = struct
 
   let payload e = e.payload
 
-  type 'a t = { hash_map : 'a entry list Int.Map.t }
+  type 'a t = { hash_map : 'a entry list Numeric_types.Int.Map.t }
 
-  (** val hash_map : 'a1 t -> 'a1 entry list Int.Map.t **)
+  (** val hash_map : 'a1 t -> 'a1 entry list Numeric_types.Int.Map.t **)
 
   let hash_map t0 = t0.hash_map
 

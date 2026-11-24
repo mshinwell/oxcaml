@@ -24,15 +24,8 @@ open! Simplify_import
 
 exception Argument_cannot_be_used_in_lookup_table
 
-open Expr_builder
-open Flambda2_types
 open Port_monad
-open Reg_width_const
-open Simplify_common
-open Simplify_import
-open Static_const
-open Target_ocaml_int
-module TE = Typing_env
+module TE = Flambda2_types.Typing_env
 module TI = Target_ocaml_int
 module Alias_set = TE.Alias_set
 module RWC = Reg_width_const
@@ -92,9 +85,9 @@ let find_all_aliases env arg =
 (** val rebuild_arm : Upwards_acc.t -> Target_ocaml_int.t -> (Apply_cont_expr.t,
     Branch_annotations.t, Apply_cont_rewrite_id.t, [ `Unarized ]
     Flambda_arity.t, Flambda2_types.Typing_env.t) Port_monad.tuple5 ->
-    (EB.new_let_cont list, Switch_arm.t TI.Map.t, mergeable_arms)
-    Port_monad.tuple3 -> (EB.new_let_cont list, Switch_arm.t TI.Map.t,
-    mergeable_arms) Port_monad.tuple3 coq_M **)
+    (Simplify_import.EB.new_let_cont list, Switch_arm.t TI.Map.t,
+    mergeable_arms) Port_monad.tuple3 -> (Simplify_import.EB.new_let_cont list,
+    Switch_arm.t TI.Map.t, mergeable_arms) Port_monad.tuple3 coq_M **)
 
 let rebuild_arm uacc arm pat pat0 =
   (fun x__0 f__1 ->
@@ -388,7 +381,9 @@ let rebuild_arm uacc arm pat pat0 =
           | None -> new_let_conts, arms0, mergeable_arms0)
         (fun new_let_cont0 ->
           let new_let_conts0 = new_let_cont0 :: new_let_conts in
-          let action1 = Flambda.Apply_cont.goto new_let_cont0.cont in
+          let action1 =
+            Flambda.Apply_cont.goto new_let_cont0.Expr_builder.cont
+          in
           let arms1 = Target_ocaml_int.Map.add arm (create_arm action1) arms0 in
           new_let_conts0, arms1, Not_mergeable)
         (Expr_builder.rewrite_switch_arm uacc action0 use_id arity))
@@ -1269,17 +1264,17 @@ let recognize_mergeable_argument machine_width scrutinee0 required_names dbg arg
                    Affine_argument { kind = x__1; offset = x__2; slope = x__3 })
                    (kind, offset, slope))))
 
-(** val rebuild_switch : SE.simplified_switch_ -> Upwards_acc.t ->
-    Simplify_common.after_rebuild -> (Rebuilt_expr.t * Upwards_acc.t) coq_M **)
+(** val rebuild_switch : Simplify_import.SE.simplified_switch_ -> Upwards_acc.t
+    -> Simplify_common.after_rebuild -> (Rebuilt_expr.t * Upwards_acc.t) coq_M **)
 
 let rebuild_switch pat uacc after_rebuild =
-  let { SE.arms = arms0;
-        SE.condition_dbg = condition_dbg0;
-        SE.scrutinee = scrutinee0;
-        SE.scrutinee_ty = scrutinee_ty0;
-        SE.shareable_constants = shareable_constants0;
-        SE.typing_env_before_switch = typing_env_before_switch0;
-        SE.cse_before_switch = cse_before_switch0
+  let { Simplify_import.SE.arms = arms0;
+        Simplify_import.SE.condition_dbg = condition_dbg0;
+        Simplify_import.SE.scrutinee = scrutinee0;
+        Simplify_import.SE.scrutinee_ty = scrutinee_ty0;
+        Simplify_import.SE.shareable_constants = shareable_constants0;
+        Simplify_import.SE.typing_env_before_switch = typing_env_before_switch0;
+        Simplify_import.SE.cse_before_switch = cse_before_switch0
       } =
     pat
   in
@@ -1395,7 +1390,9 @@ let simplify_arm arm pat pat0 =
   let use_kind =
     Simplify_common.apply_cont_use_kind Simplify_common.Switch_branch action
   in
-  let { S.simples = args0; S.simple_tys = arg_types } =
+  let { Simplify_import.S.simples = args0;
+        Simplify_import.S.simple_tys = arg_types
+      } =
     Simplify_simple.simplify_simples
       (Downwards_acc.with_denv dacc denv_at_use)
       args
@@ -1601,8 +1598,8 @@ let decide_continuation_specialization dacc switch scrutinee0 =
     ()
 
 (** val simplify_switch : Downwards_acc.t -> Flambda.Switch.t ->
-    Simplified_expr.t down_to_up -> (Simplified_expr.t * Downwards_acc.t) coq_M
-    **)
+    Simplified_expr.t Simplify_common.down_to_up -> (Simplified_expr.t *
+    Downwards_acc.t) coq_M **)
 
 let simplify_switch dacc switch down_to_up0 =
   let scrutinee0 = Flambda.Switch.scrutinee switch in

@@ -29,11 +29,10 @@ type simplify_result =
     unit : Flambda_unit.t
   }
 
-open Code_id
 open Port_monad
 
 (** val run : Flambda_cmx.loader -> Target_system.Machine_width.t -> int ->
-    Slot_offsets.t Map.t -> Flambda_unit.t -> simplify_result coq_M **)
+    Slot_offsets.t Code_id.Map.t -> Flambda_unit.t -> simplify_result coq_M **)
 
 let run cmx_loader machine_width round code_slot_offsets unit0 =
   let return_continuation = Flambda_unit.return_continuation unit0 in

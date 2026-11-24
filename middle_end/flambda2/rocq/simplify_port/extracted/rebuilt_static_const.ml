@@ -21,12 +21,7 @@
    middle_end/flambda2/rocq/simplify_port. *)
 
 open! Flambda
-open Are_rebuilding_terms
-open Code_id
-open Code_metadata
-open Cost_metrics
 open Port_monad
-open Static_const
 module ART = Are_rebuilding_terms
 module SC = Static_const
 
@@ -132,7 +127,7 @@ let create_normal_non_code cost_metrics0 const =
 
 (** val create_code : Are_rebuilding_terms.t ->
     Rebuilt_expr.Function_params_and_body.t -> Name_occurrences.t -> (t * Code.t
-    option) create_type **)
+    option) Code_metadata.create_type **)
 
 let create_code are_rebuilding params_and_body free_names_of_params_and_body
     code_id newer_version_of params_arity param_modes first_complex_local_param
@@ -191,14 +186,14 @@ let create_code' code =
     (const, free_names0, Cost_metrics.zero)
 
 (** val find_code_characteristics : (Code_id.t -> Code_metadata.t coq_M) ->
-    Code_id.t -> code_characteristics coq_M **)
+    Code_id.t -> Cost_metrics.code_characteristics coq_M **)
 
 let find_code_characteristics find_code_metadata code_id =
   let code_metadata = find_code_metadata code_id in
   let function_slot_size0 = Code_metadata.function_slot_size code_metadata in
   let cost_metrics0 = Code_metadata.cost_metrics code_metadata in
   { Cost_metrics.cost_metrics = cost_metrics0;
-    function_slot_size = function_slot_size0
+    Cost_metrics.function_slot_size = function_slot_size0
   }
 
 (** val create_set_of_closures : Are_rebuilding_terms.t -> (Code_id.t ->

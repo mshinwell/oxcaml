@@ -18,15 +18,7 @@
    edit this file: change the .v file and run make in
    middle_end/flambda2/rocq/simplify_port. *)
 
-open Code_id
-open Continuation
-open Continuation_callsite_map
-open Name
-open Named_rewrite_id
-open Numeric_types
 open Port_monad
-open Value_slot
-open Variable_
 
 module Cont_arg = struct
   type t =
@@ -156,12 +148,13 @@ module Continuation_info = struct
       parent_continuation : Continuation.t option;
       used_in_handler : Name_occurrences.t;
       bindings : Name_occurrences.t Name.Map.t;
-      direct_aliases : Simple.t Map.t;
+      direct_aliases : Simple.t Variable_.Map.t;
       mutable_let_prims_rev : Mutable_let_prim.List.t;
       defined : Variable.Set.t;
       code_ids : Name_occurrences.t Code_id.Map.t;
       value_slots : Name_occurrences.t Name.Map.t Value_slot.Map.t;
-      apply_cont_args : Cont_arg.t Int.Map.t Continuation_callsite_map.t
+      apply_cont_args :
+        Cont_arg.t Numeric_types.Int.Map.t Continuation_callsite_map.t
     }
 
   (** val continuation : t -> Continuation.t **)
@@ -192,7 +185,7 @@ module Continuation_info = struct
 
   let bindings t0 = t0.bindings
 
-  (** val direct_aliases : t -> Simple.t Map.t **)
+  (** val direct_aliases : t -> Simple.t Variable_.Map.t **)
 
   let direct_aliases t0 = t0.direct_aliases
 
@@ -212,7 +205,7 @@ module Continuation_info = struct
 
   let value_slots t0 = t0.value_slots
 
-  (** val apply_cont_args : t -> Cont_arg.t Int.Map.t
+  (** val apply_cont_args : t -> Cont_arg.t Numeric_types.Int.Map.t
       Continuation_callsite_map.t **)
 
   let apply_cont_args t0 = t0.apply_cont_args
@@ -441,11 +434,11 @@ end
 
 module Alias_result = struct
   type t =
-    { aliases_kind : Flambda_kind.t Map.t;
+    { aliases_kind : Flambda_kind.t Variable_.Map.t;
       continuation_parameters : Continuation_param_aliases.t Continuation.Map.t
     }
 
-  (** val aliases_kind : t -> Flambda_kind.t Map.t **)
+  (** val aliases_kind : t -> Flambda_kind.t Variable_.Map.t **)
 
   let aliases_kind t0 = t0.aliases_kind
 

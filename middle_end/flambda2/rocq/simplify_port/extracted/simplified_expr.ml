@@ -33,14 +33,7 @@
    middle_end/flambda2/rocq/simplify_port. *)
 
 open! Flambda.Import
-open Common_subexpression_elimination
-open Continuation_extra_params_and_args
-open Flambda
-open Flambda2_types
-open Lifted_constant_state
 open Port_monad
-open Tag
-open Target_ocaml_int
 module CSE = Common_subexpression_elimination
 module EPA = Continuation_extra_params_and_args
 module T = Flambda2_types
@@ -320,9 +313,10 @@ let simplified_apply_cont apply_cont args rewrite_id =
 
 (** val simplified_switch : (Apply_cont_expr.t, Branch_annotations.t,
     Apply_cont_rewrite_id.t, (_) Flambda_arity.t, Flambda2_types.Typing_env.t)
-    Port_monad.tuple5 Map.t -> Debuginfo.t -> Simple.t -> Flambda2_types.t ->
-    Symbol.t Import_.Static_const.Map.t -> Flambda2_types.Typing_env.t ->
-    Common_subexpression_elimination.t -> t coq_M **)
+    Port_monad.tuple5 Target_ocaml_int.Map.t -> Debuginfo.t -> Simple.t ->
+    Flambda2_types.t -> Symbol.t Flambda.Import_.Static_const.Map.t ->
+    Flambda2_types.Typing_env.t -> Common_subexpression_elimination.t -> t coq_M
+    **)
 
 let simplified_switch arms condition_dbg scrutinee scrutinee_ty
     shareable_constants typing_env_before_switch cse_before_switch =

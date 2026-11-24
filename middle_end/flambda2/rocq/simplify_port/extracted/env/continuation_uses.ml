@@ -23,7 +23,6 @@
 module DE = Downwards_env
 module T = Flambda2_types
 module U = One_continuation_use
-open Apply_cont_rewrite_id
 open Port_monad
 
 type t =
@@ -151,7 +150,7 @@ let arg_type a = a.arg_type
 
 let typing_env a = a.typing_env
 
-type arg_types_by_use_id = arg_at_use Map.t list
+type arg_types_by_use_id = arg_at_use Apply_cont_rewrite_id.Map.t list
 
 (** val print_arg_type_at_use : Format.formatter -> arg_at_use -> unit coq_M **)
 
@@ -159,8 +158,9 @@ let print_arg_type_at_use ppf a =
   let { arg_type = arg_type0; typing_env = _ } = a in
   Flambda2_types.print ppf arg_type0
 
-(** val add_value_to_arg_map : arg_at_use Map.t -> Flambda2_types.t ->
-    One_continuation_use.t -> arg_at_use Map.t coq_M **)
+(** val add_value_to_arg_map : arg_at_use Apply_cont_rewrite_id.Map.t ->
+    Flambda2_types.t -> One_continuation_use.t -> arg_at_use
+    Apply_cont_rewrite_id.Map.t coq_M **)
 
 let add_value_to_arg_map arg_map arg_type0 use =
   let env_at_use = One_continuation_use.env_at_use use in

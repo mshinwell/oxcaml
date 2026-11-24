@@ -18,17 +18,7 @@
    not edit this file: change the .v file and run make in
    middle_end/flambda2/rocq/simplify_port. *)
 
-open Code_id
-open Continuation
-open Continuation_callsite_map
-open Flow_types
-open Name
-open Named_rewrite_id
-open Numeric_types
 open Port_monad
-open Queue
-open Value_slot
-open Variable_
 module T = Flow_types
 
 type t =
@@ -609,7 +599,7 @@ let add_continuation_info map0 return_continuation exn_continuation
                 Continuation.print k)
             (fun elt0 ->
               Array.of_list
-                (Bound_parameters.vars elt0.Continuation_info.params))
+                (Bound_parameters.vars elt0.Flow_types.Continuation_info.params))
         in
         Apply_cont_rewrite_id.Map.fold
           (fun rewrite_id args t8 ->

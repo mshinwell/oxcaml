@@ -21,9 +21,7 @@
    middle_end/flambda2/rocq/simplify_port. *)
 
 open! Simplify_import
-open Apply_cont_rewrite_id
 open Port_monad
-open Unboxing_types
 module U = Unboxing_types
 
 (** val add_equation_on_var : Downwards_env.t -> Variable.t -> Flambda2_types.t
@@ -102,7 +100,7 @@ let rec denv_of_decision denv param_var = function
             f__1 x__1 x__2 x__3) field (fun epa _ _ ->
               Flambda2_types.alias_type_of
                 (Flambda_kind.Block_shape.element_kind shape index)
-                (Simple.var epa.Extra_param_and_args.param))
+                (Simple.var epa.Unboxing_types.Extra_param_and_args.param))
         in
         let field_types = List.mapi type_of_var fields in
         let shape0 =
@@ -120,12 +118,14 @@ let rec denv_of_decision denv param_var = function
                 x__0
               in
               f__1 x__1 x__2 x__3) field (fun epa decision0 _ ->
-                denv_of_decision denv2 epa.Extra_param_and_args.param decision0))
+                denv_of_decision denv2
+                  epa.Unboxing_types.Extra_param_and_args.param decision0))
           denv1 fields)
       (fun tag const_ctors fields_by_tag ->
         let tag_v =
-          Bound_var.create tag.Extra_param_and_args.param
-            tag.Extra_param_and_args.param_debug_uid Name_mode.normal
+          Bound_var.create tag.Unboxing_types.Extra_param_and_args.param
+            tag.Unboxing_types.Extra_param_and_args.param_debug_uid
+            Name_mode.normal
         in
         let denv0 =
           Downwards_env.define_extra_variable denv tag_v
@@ -134,7 +134,7 @@ let rec denv_of_decision denv param_var = function
         let denv1 =
           Downwards_env.map_typing_env denv0 (fun tenv ->
               Flambda2_types.Typing_env.add_get_tag_relation tenv
-                (Name.var tag.Extra_param_and_args.param)
+                (Name.var tag.Unboxing_types.Extra_param_and_args.param)
                 (Simple.var param_var))
         in
         let get_tag_prim =
@@ -142,7 +142,7 @@ let rec denv_of_decision denv param_var = function
         in
         let denv2 =
           Downwards_env.add_cse denv1 get_tag_prim
-            (Simple.var tag.Extra_param_and_args.param)
+            (Simple.var tag.Unboxing_types.Extra_param_and_args.param)
             Name_mode.normal
         in
         let denv3 =
@@ -154,8 +154,10 @@ let rec denv_of_decision denv param_var = function
             (fun _ -> denv2)
             (fun is_int _ ->
               let is_int_v =
-                Bound_var.create is_int.Extra_param_and_args.param
-                  is_int.Extra_param_and_args.param_debug_uid Name_mode.normal
+                Bound_var.create
+                  is_int.Unboxing_types.Extra_param_and_args.param
+                  is_int.Unboxing_types.Extra_param_and_args.param_debug_uid
+                  Name_mode.normal
               in
               let denv3 =
                 Downwards_env.define_extra_variable denv2 is_int_v
@@ -164,7 +166,7 @@ let rec denv_of_decision denv param_var = function
               let denv4 =
                 Downwards_env.map_typing_env denv3 (fun tenv ->
                     Flambda2_types.Typing_env.add_is_int_relation tenv
-                      (Name.var is_int.Extra_param_and_args.param)
+                      (Name.var is_int.Unboxing_types.Extra_param_and_args.param)
                       (Simple.var param_var))
               in
               let is_int_prim =
@@ -173,7 +175,7 @@ let rec denv_of_decision denv param_var = function
               in
               let denv5 =
                 Downwards_env.add_cse denv4 is_int_prim
-                  (Simple.var is_int.Extra_param_and_args.param)
+                  (Simple.var is_int.Unboxing_types.Extra_param_and_args.param)
                   Name_mode.normal
               in
               denv5)
@@ -218,8 +220,10 @@ let rec denv_of_decision denv param_var = function
                     match t0 with
                     | Flambda_kind.Naked_number_kind.Naked_immediate ->
                       let v =
-                        Bound_var.create ctor_epa.Extra_param_and_args.param
-                          ctor_epa.Extra_param_and_args.param_debug_uid
+                        Bound_var.create
+                          ctor_epa.Unboxing_types.Extra_param_and_args.param
+                          ctor_epa
+                            .Unboxing_types.Extra_param_and_args.param_debug_uid
                           Name_mode.normal
                       in
                       let denv4 =
@@ -229,7 +233,8 @@ let rec denv_of_decision denv param_var = function
                       let ty =
                         Flambda2_types.alias_type_of
                           Flambda_kind.naked_immediate
-                          (Simple.var ctor_epa.Extra_param_and_args.param)
+                          (Simple.var
+                             ctor_epa.Unboxing_types.Extra_param_and_args.param)
                       in
                       denv4, ty
                     | Flambda_kind.Naked_number_kind.Naked_float32 ->
@@ -330,7 +335,8 @@ let rec denv_of_decision denv param_var = function
                       f__1 x__1 x__2 x__3) field (fun epa _ _ ->
                         Flambda2_types.alias_type_of
                           (Flambda_kind.Block_shape.element_kind shape i)
-                          (Simple.var epa.Extra_param_and_args.param)))
+                          (Simple.var
+                             epa.Unboxing_types.Extra_param_and_args.param)))
                   block_fields ))
             fields_by_tag
         in
@@ -355,8 +361,8 @@ let rec denv_of_decision denv param_var = function
                       x__0
                     in
                     f__1 x__1 x__2 x__3) field (fun epa decision0 _ ->
-                      denv_of_decision denv8 epa.Extra_param_and_args.param
-                        decision0))
+                      denv_of_decision denv8
+                        epa.Unboxing_types.Extra_param_and_args.param decision0))
                 denv7 block_fields)
           fields_by_tag denv6)
       (fun function_slot vars_within_closure ->
@@ -414,7 +420,8 @@ let rec denv_of_decision denv param_var = function
                 x__0
               in
               f__1 x__1 x__2 x__3) field (fun epa decision0 _ ->
-                denv_of_decision denv2 epa.Extra_param_and_args.param decision0))
+                denv_of_decision denv2
+                  epa.Unboxing_types.Extra_param_and_args.param decision0))
           vars_within_closure denv1)
       (fun t0 t1 ->
         match t0 with

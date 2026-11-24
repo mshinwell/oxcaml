@@ -22,7 +22,6 @@
 
 open! Simplify_import
 open Port_monad
-open Simplified_named
 
 (** val create_static_const : Downwards_acc.t -> Debuginfo.t ->
     Flambda2_types.to_lift -> Rebuilt_static_const.t coq_M **)
@@ -182,7 +181,8 @@ let create_static_const dacc dbg to_lift =
     to_lift
 
 (** val lift : Downwards_acc.t -> Flambda2_types.t -> Variable.t ->
-    Rebuilt_static_const.t -> (t Or_invalid.t * Downwards_acc.t) coq_M **)
+    Rebuilt_static_const.t -> (Simplified_named.t Or_invalid.t *
+    Downwards_acc.t) coq_M **)
 
 let lift dacc ty bound_to static_const =
   let dacc0, symbol =
@@ -268,8 +268,9 @@ let lift dacc ty bound_to static_const =
   let machine_width = Downwards_env.machine_width (Downwards_acc.denv dacc1) in
   Or_invalid.Ok (Simplified_named.create machine_width term), dacc1
 
-(** val try_to_reify : Downwards_acc.t -> Debuginfo.t -> t -> Bound_var.t ->
-    Flambda_kind.t -> bool -> (t Or_invalid.t * Downwards_acc.t) coq_M **)
+(** val try_to_reify : Downwards_acc.t -> Debuginfo.t -> Simplified_named.t ->
+    Bound_var.t -> Flambda_kind.t -> bool -> (Simplified_named.t Or_invalid.t *
+    Downwards_acc.t) coq_M **)
 
 let try_to_reify dacc dbg term bound_to kind_of_bound_to allow_lifting =
   let occ_kind = Bound_var.name_mode bound_to in

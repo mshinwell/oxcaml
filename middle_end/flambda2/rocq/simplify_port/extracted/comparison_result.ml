@@ -18,9 +18,7 @@
    not edit this file: change the .v file and run make in
    middle_end/flambda2/rocq/simplify_port. *)
 
-open Flambda_primitive
 open Port_monad
-open Variable_
 module P = Flambda_primitive
 
 type tagged_or_untagged_ =
@@ -55,7 +53,7 @@ let signed t0 = t0.signed
 
 let tagged_or_untagged t0 = t0.tagged_or_untagged
 
-(** val create : Flambda_primitive.t -> t Map.t -> t option coq_M **)
+(** val create : Flambda_primitive.t -> t Variable_.Map.t -> t option coq_M **)
 
 let create prim comparison_results =
   match prim with

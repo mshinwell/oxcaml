@@ -42,16 +42,7 @@ let control_flow_graph_ppf =
 
 let dot_count = ref ~-1
 
-open Code_id
-open Continuation
-open Continuation_callsite_map
-open Flow_types
-open Name
-open Named_rewrite_id
-open Numeric_types
 open Port_monad
-open Value_slot
-open Variable_
 module T = Flow_types
 
 (** val print_graph : (int -> string -> Format.formatter -> 'a1 -> unit coq_M)
@@ -67,8 +58,8 @@ let print_graph print print_name lazy_ppf graph =
 
 (** val analyze : bool option -> string option -> Target_system.Machine_width.t
     -> Continuation.t -> Continuation.t -> Flambda2_types.Code_age_relation.t ->
-    Name_occurrences.t Or_unknown.t -> Code_id.Set.t -> Continuation.t t ->
-    T.Acc.t -> T.Flow_result.t coq_M **)
+    Name_occurrences.t Or_unknown.t -> Code_id.Set.t -> Continuation.t
+    Continuation_callsite_map.t -> T.Acc.t -> T.Flow_result.t coq_M **)
 
 let analyze speculative print_name machine_width return_continuation
     exn_continuation code_age_relation used_value_slots code_ids_to_never_delete
@@ -87,11 +78,11 @@ let analyze speculative print_name machine_width return_continuation
         else ()
       in
       let t1 = Flow_acc.normalize_acc specialization_map t0 in
-      let { Acc.stack = stack0;
-            Acc.map = map0;
-            Acc.extra = _;
-            Acc.lifted_constants = _;
-            Acc.dummy_toplevel_cont = dummy_toplevel_cont0
+      let { Flow_types.Acc.stack = stack0;
+            Flow_types.Acc.map = map0;
+            Flow_types.Acc.extra = _;
+            Flow_types.Acc.lifted_constants = _;
+            Flow_types.Acc.dummy_toplevel_cont = dummy_toplevel_cont0
           } =
         t1
       in
@@ -120,7 +111,7 @@ let analyze speculative print_name machine_width return_continuation
       let dead_variable_result = Data_flow_graph.required_names deps in
       let dom_graph =
         Dominator_graph.create
-          dead_variable_result.Data_flow_result.required_names
+          dead_variable_result.Flow_types.Data_flow_result.required_names
           return_continuation exn_continuation map0
       in
       let aliases = Dominator_graph.dominator_analysis dom_graph in
@@ -137,7 +128,7 @@ let analyze speculative print_name machine_width return_continuation
       let control = Control_flow_graph.create dummy_toplevel_cont0 t1 in
       let reference_analysis =
         Mutable_unboxing.create aliases dom_graph t1 control
-          dead_variable_result.Data_flow_result.required_names
+          dead_variable_result.Flow_types.Data_flow_result.required_names
           return_continuation exn_continuation machine_width
       in
       let pp_node = Mutable_unboxing.pp_node reference_analysis in
@@ -146,7 +137,8 @@ let analyze speculative print_name machine_width return_continuation
       in
       let continuation_parameters0 =
         Control_flow_graph.compute_continuation_extra_args_for_aliases
-          speculative0 dead_variable_result.Data_flow_result.required_names t1
+          speculative0
+          dead_variable_result.Flow_types.Data_flow_result.required_names t1
           unboxed_blocks aliases control
       in
       let () =
@@ -170,15 +162,16 @@ let analyze speculative print_name machine_width return_continuation
                 (Continuation_extra_params_and_args.extra_params epa)
             in
             Name.Set.union required_names0 (Name.set_of_var_set params0))
-          reference_result.Mutable_unboxing_result.additional_epa
-          dead_variable_result.Data_flow_result.required_names
+          reference_result.Flow_types.Mutable_unboxing_result.additional_epa
+          dead_variable_result.Flow_types.Data_flow_result.required_names
       in
       let result =
         { T.Flow_result.data_flow_result =
             { T.Data_flow_result.required_names =
                 required_names_after_ref_reference_analysis;
               T.Data_flow_result.reachable_code_ids =
-                dead_variable_result.Data_flow_result.reachable_code_ids
+                dead_variable_result
+                  .Flow_types.Data_flow_result.reachable_code_ids
             };
           T.Flow_result.aliases_result =
             { T.Alias_result.aliases_kind = aliases_kind0;
@@ -199,8 +192,8 @@ let analyze speculative print_name machine_width return_continuation
 (** val did_perform_mutable_unboxing : T.Flow_result.t -> bool coq_M **)
 
 let did_perform_mutable_unboxing result =
-  result.Flow_result.mutable_unboxing_result
-    .Mutable_unboxing_result.did_unbox_a_mutable_block
+  result.Flow_types.Flow_result.mutable_unboxing_result
+    .Flow_types.Mutable_unboxing_result.did_unbox_a_mutable_block
   || Named_rewrite_id.Map.exists
        (fun _ named_rewrite ->
          let (Named_rewrite.Prim_rewrite t0) = named_rewrite in
@@ -215,8 +208,8 @@ let did_perform_mutable_unboxing result =
            (fun _ -> true)
            (fun _ _ -> true)
            t0)
-       result.Flow_result.mutable_unboxing_result
-         .Mutable_unboxing_result.let_rewrites
+       result.Flow_types.Flow_result.mutable_unboxing_result
+         .Flow_types.Mutable_unboxing_result.let_rewrites
 
 (** val added_useful_alias_in_loop : Flambda2_types.Typing_env.t -> T.Acc.t ->
     T.Flow_result.t -> bool coq_M **)
@@ -234,7 +227,7 @@ let added_useful_alias_in_loop typing_env acc result =
              info and continuation params alias result"
         else ()
       in
-      continuation_info.Continuation_info.recursive
+      continuation_info.Flow_types.Continuation_info.recursive
       && Variable.Lmap.exists
            (fun _ bound_to ->
              Simple.pattern_match' bound_to
@@ -247,10 +240,11 @@ let added_useful_alias_in_loop typing_env acc result =
                  not (Flambda2_types.is_unknown typing_env ty))
                (fun _ -> true))
            continuation_param_aliases
-             .Continuation_param_aliases.lets_to_introduce)
-    (Continuation.Map.to_seq acc.Acc.map)
+             .Flow_types.Continuation_param_aliases.lets_to_introduce)
+    (Continuation.Map.to_seq acc.Flow_types.Acc.map)
     (Continuation.Map.to_seq
-       result.Flow_result.aliases_result.Alias_result.continuation_parameters)
+       result.Flow_types.Flow_result.aliases_result
+         .Flow_types.Alias_result.continuation_parameters)
 
 let analyze ?speculative ?print_name machine_width return_continuation
     exn_continuation code_age_relation used_value_slots code_ids_to_never_delete

@@ -19,16 +19,7 @@
    middle_end/flambda2/rocq/simplify_port. *)
 
 module G = Strongly_connected_components.Make (Continuation)
-open Code_id
-open Continuation
-open Continuation_callsite_map
-open Flow_types
-open Name
-open Named_rewrite_id
-open Numeric_types
 open Port_monad
-open Value_slot
-open Variable_
 module T = Flow_types
 
 type t =
@@ -76,7 +67,7 @@ let create dummy_toplevel_cont0 source_info =
   in
   let parents0 =
     Continuation.Map.filter_map
-      (fun _ elt -> elt.Continuation_info.parent_continuation)
+      (fun _ elt -> elt.Flow_types.Continuation_info.parent_continuation)
       map0
   in
   let children0 =
@@ -107,7 +98,7 @@ let create dummy_toplevel_cont0 source_info =
               match acc_opt with
               | Some set -> Some (Continuation.Set.add caller set)
               | None -> Some (Continuation.Set.singleton caller))
-            acc0 elt.Continuation_info.apply_cont_args
+            acc0 elt.Flow_types.Continuation_info.apply_cont_args
         in
         acc1)
       map0
@@ -151,9 +142,11 @@ let map_fold_on_children t0 f acc =
 let compute_available_variables source_info t0 =
   map_fold_on_children t0
     (fun k acc ->
-      let elt = Continuation.Map.find k source_info.Acc.map in
+      let elt = Continuation.Map.find k source_info.Flow_types.Acc.map in
       let extra_vars =
-        match Continuation.Map.find_or_null k source_info.Acc.extra with
+        match
+          Continuation.Map.find_or_null k source_info.Flow_types.Acc.extra
+        with
         | Or_null.Null -> Variable.Set.empty
         | Or_null.This epa ->
           Bound_parameters.var_set
@@ -162,7 +155,7 @@ let compute_available_variables source_info t0 =
       let acc0 =
         Variable.Set.union
           (Variable.Set.union acc
-             (Bound_parameters.var_set elt.Continuation_info.params))
+             (Bound_parameters.var_set elt.Flow_types.Continuation_info.params))
           extra_vars
       in
       acc0, acc0)
@@ -255,11 +248,11 @@ let extra_args_for_aliases_overapproximation required_names0 source_info
   let available_variables = compute_available_variables source_info t0 in
   let remove_vars_in_scope_of =
    fun k var_set ->
-    let elt = Continuation.Map.find k source_info.Acc.map in
+    let elt = Continuation.Map.find k source_info.Flow_types.Acc.map in
     let res =
       Variable.Set.diff var_set (Continuation.Map.find k available_variables)
     in
-    Variable.Set.diff res elt.Continuation_info.defined
+    Variable.Set.diff res elt.Flow_types.Continuation_info.defined
   in
   let init =
     Continuation.Map.mapi
@@ -285,11 +278,11 @@ let extra_args_for_aliases_overapproximation required_names0 source_info
                   (fun _ _ -> acc)
                   (fun _ -> acc))
             Variable.Set.empty
-            (Bound_parameters.vars elt.Continuation_info.params)
+            (Bound_parameters.vars elt.Flow_types.Continuation_info.params)
         in
         let s0 = remove_vars_in_scope_of k s in
         s0)
-      source_info.Acc.map
+      source_info.Flow_types.Acc.map
   in
   let added_extra_args =
     fixpoint t0 init Variable.Set.equal
@@ -300,18 +293,20 @@ let extra_args_for_aliases_overapproximation required_names0 source_info
   added_extra_args
 
 (** val minimize_extra_args_for_one_continuation : T.Acc.t -> Simple.Set.t ->
-    Variable.Set.t Continuation.Map.t -> Simple.t Map.t -> Continuation.t ->
-    Variable.Set.t -> T.Continuation_param_aliases.t coq_M **)
+    Variable.Set.t Continuation.Map.t -> Simple.t Variable_.Map.t ->
+    Continuation.t -> Variable.Set.t -> T.Continuation_param_aliases.t coq_M **)
 
 let minimize_extra_args_for_one_continuation source_info unboxed_blocks
     available_added_extra_args doms k aliases_needed =
   let available = Continuation.Map.find k available_added_extra_args in
   let extra_args_for_aliases0 = Variable.Set.diff aliases_needed available in
-  let elt = Continuation.Map.find k source_info.Acc.map in
+  let elt = Continuation.Map.find k source_info.Flow_types.Acc.map in
   let exception_handler_first_param =
-    if elt.Continuation_info.is_exn_handler
+    if elt.Flow_types.Continuation_info.is_exn_handler
     then
-      match Bound_parameters.to_list elt.Continuation_info.params with
+      match
+        Bound_parameters.to_list elt.Flow_types.Continuation_info.params
+      with
       | [] ->
         Misc.fatal_errorf
           "exception handler continuation %a must have at least one parameter"
@@ -393,11 +388,11 @@ let minimize_extra_args_for_one_continuation source_info unboxed_blocks
                 else default alias)
               exception_handler_first_param_aliased)
       (Variable.Set.empty, lets_to_introduce0)
-      (Bound_parameters.vars elt.Continuation_info.params)
+      (Bound_parameters.vars elt.Flow_types.Continuation_info.params)
   in
   let recursive_continuation_wrapper0 =
     if
-      elt.Continuation_info.recursive
+      elt.Flow_types.Continuation_info.recursive
       && not (Variable.Set.is_empty extra_args_for_aliases1)
     then Flow_types.Continuation_param_aliases.Wrapper_needed
     else Flow_types.Continuation_param_aliases.No_wrapper
@@ -415,7 +410,7 @@ let minimize_extra_args_for_one_continuation source_info unboxed_blocks
   res
 
 (** val minimize_extra_args_for_aliases : T.Acc.t -> Simple.Set.t -> Simple.t
-    Map.t -> Variable.Set.t Continuation.Map.t -> t ->
+    Variable_.Map.t -> Variable.Set.t Continuation.Map.t -> t ->
     T.Continuation_param_aliases.t Continuation.Map.t coq_M **)
 
 let minimize_extra_args_for_aliases source_info unboxed_blocks doms
@@ -429,7 +424,7 @@ let minimize_extra_args_for_aliases source_info unboxed_blocks doms
     added_extra_args
 
 (** val compute_continuation_extra_args_for_aliases : bool -> Name.Set.t ->
-    T.Acc.t -> Simple.Set.t -> Simple.t Map.t -> t ->
+    T.Acc.t -> Simple.Set.t -> Simple.t Variable_.Map.t -> t ->
     T.Continuation_param_aliases.t Continuation.Map.t coq_M **)
 
 let compute_continuation_extra_args_for_aliases speculative required_names0
@@ -478,7 +473,7 @@ module Dot = struct
     in
     let info0 = match info with Some info0 -> info0 | None -> "" in
     let params0, shape =
-      match Continuation.Map.find_or_null cont df.Acc.map with
+      match Continuation.Map.find_or_null cont df.Flow_types.Acc.map with
       | Or_null.Null -> "[ none ]", ""
       | Or_null.This elt ->
         let params0 =
@@ -487,10 +482,12 @@ module Dot = struct
                Format.pp_print_list ?pp_sep:x__1 x__2 x__3 x__4)
                (Some (fun ppf0 _ -> Format.fprintf ppf0 ", "))
                Variable.print)
-            (Bound_parameters.vars elt.Continuation_info.params)
+            (Bound_parameters.vars elt.Flow_types.Continuation_info.params)
         in
         let shape =
-          if elt.Continuation_info.recursive then "shape=record" else ""
+          if elt.Flow_types.Continuation_info.recursive
+          then "shape=record"
+          else ""
         in
         params0, shape
     in
@@ -517,7 +514,7 @@ module Dot = struct
           Option.map
             (fun continuation_parameters1 ->
               continuation_parameters1
-                .Continuation_param_aliases.extra_args_for_aliases)
+                .Flow_types.Continuation_param_aliases.extra_args_for_aliases)
             (Continuation.Map.find_opt cont continuation_parameters0)
         in
         let info =

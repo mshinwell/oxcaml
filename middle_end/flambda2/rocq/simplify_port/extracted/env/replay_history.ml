@@ -19,9 +19,7 @@
    not edit this file: change the .v file and run make in
    middle_end/flambda2/rocq/simplify_port. *)
 
-open Continuation
 open Port_monad
-open Variable_
 
 module Action = struct
   type t =
@@ -299,7 +297,8 @@ type 'a replay_result =
   | Still_recording
   | Replayed of 'a
 
-(** val replay_variable_mapping : t -> Variable.t Map.t replay_result coq_M **)
+(** val replay_variable_mapping : t -> Variable.t Variable_.Map.t replay_result
+    coq_M **)
 
 let replay_variable_mapping t0 =
   (fun f__1 f__2 x__0 ->

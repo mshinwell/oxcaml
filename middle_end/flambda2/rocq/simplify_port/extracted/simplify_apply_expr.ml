@@ -23,8 +23,6 @@
 open! Flambda.Import
 open! Simplify_import
 open Port_monad
-open Simplify_common
-open Simplify_import
 
 (** val fail_if_probe : Flambda.Apply.t -> unit coq_M **)
 
@@ -125,8 +123,8 @@ let loopify_decision_for_call dacc apply0 =
       (Downwards_env.closure_info denv)
 
 (** val simplify_self_tail_call : Downwards_acc.t -> Flambda.Apply.t ->
-    Continuation.t -> Simplified_expr.t down_to_up -> (Simplified_expr.t *
-    Downwards_acc.t) coq_M **)
+    Continuation.t -> Simplified_expr.t Simplify_common.down_to_up ->
+    (Simplified_expr.t * Downwards_acc.t) coq_M **)
 
 let simplify_self_tail_call dacc apply0 self_cont down_to_up0 =
   Simplify_apply_cont_expr.simplify_apply_cont dacc
@@ -137,10 +135,10 @@ let simplify_self_tail_call dacc apply0 self_cont down_to_up0 =
        (Flambda.Apply.dbg apply0))
     down_to_up0
 
-(** val simplify_direct_tuple_application : Flambda.Expr.t expr_simplifier ->
-    Downwards_acc.t -> Flambda.Apply.t -> Code_id.t -> Code_metadata.t ->
-    Simplified_expr.t down_to_up -> (Simplified_expr.t * Downwards_acc.t) coq_M
-    **)
+(** val simplify_direct_tuple_application : Flambda.Expr.t
+    Simplify_common.expr_simplifier -> Downwards_acc.t -> Flambda.Apply.t ->
+    Code_id.t -> Code_metadata.t -> Simplified_expr.t Simplify_common.down_to_up
+    -> (Simplified_expr.t * Downwards_acc.t) coq_M **)
 
 let simplify_direct_tuple_application simplify_expr dacc apply0 callee's_code_id
     callee's_code_metadata down_to_up0 =
@@ -223,15 +221,15 @@ let update_direct_call_benefit expr original_call callee's_code_metadata =
     Simplified_expr.notify_removed Removed_operations.direct_call_of_indirect
       expr
 
-(** val rebuild_apply : SE.simplified_apply_ -> Upwards_acc.t ->
+(** val rebuild_apply : Simplify_import.SE.simplified_apply_ -> Upwards_acc.t ->
     Simplify_common.after_rebuild -> (Rebuilt_expr.t * Upwards_acc.t) coq_M **)
 
 let rebuild_apply simplified_apply uacc after_rebuild =
-  let { SE.apply = apply0;
-        SE.use_id = use_id0;
-        SE.exn_cont_use_id = exn_cont_use_id0;
-        SE.result_arity = result_arity0;
-        SE.is_cold = is_cold0
+  let { Simplify_import.SE.apply = apply0;
+        Simplify_import.SE.use_id = use_id0;
+        Simplify_import.SE.exn_cont_use_id = exn_cont_use_id0;
+        Simplify_import.SE.result_arity = result_arity0;
+        Simplify_import.SE.is_cold = is_cold0
       } =
     simplified_apply
   in
@@ -254,11 +252,12 @@ type inlining_decision =
   | Do_not_inline of { erase_attribute : bool }
   | Inline of DA.t * Expr.t
 
-(** val simplify_direct_full_application : Flambda.Expr.t expr_simplifier ->
-    Simplified_expr.t rebuild -> Downwards_acc.t -> Flambda.Apply.t ->
-    Flambda2_types.Function_type.t option -> [ `Complex ] Flambda_arity.t ->
-    [ `Complex ] Flambda_arity.t -> Result_types.t Or_unknown_or_bottom.t ->
-    Simplified_expr.t down_to_up -> Call_kind.Function_call.t -> Code_metadata.t
+(** val simplify_direct_full_application : Flambda.Expr.t
+    Simplify_common.expr_simplifier -> Simplified_expr.t Simplify_common.rebuild
+    -> Downwards_acc.t -> Flambda.Apply.t -> Flambda2_types.Function_type.t
+    option -> [ `Complex ] Flambda_arity.t -> [ `Complex ] Flambda_arity.t ->
+    Result_types.t Or_unknown_or_bottom.t -> Simplified_expr.t
+    Simplify_common.down_to_up -> Call_kind.Function_call.t -> Code_metadata.t
     -> Inlined_debuginfo.t option -> (Simplified_expr.t * Downwards_acc.t) coq_M
     **)
 
@@ -541,11 +540,12 @@ type applied_value =
         value_slot : Value_slot.t
       }
 
-(** val simplify_direct_partial_application : Flambda.Expr.t expr_simplifier ->
-    Downwards_acc.t -> Flambda.Apply.t -> Code_id.t -> Code_metadata.t ->
-    Function_slot.t -> [ `Complex ] Flambda_arity.t -> Alloc_mode.For_types.t
-    list -> [ `Complex ] Flambda_arity.t -> [ `Complex ] Flambda_arity.t ->
-    Recursive.t -> Simplified_expr.t down_to_up -> Call_kind.Function_call.t ->
+(** val simplify_direct_partial_application : Flambda.Expr.t
+    Simplify_common.expr_simplifier -> Downwards_acc.t -> Flambda.Apply.t ->
+    Code_id.t -> Code_metadata.t -> Function_slot.t -> [ `Complex ]
+    Flambda_arity.t -> Alloc_mode.For_types.t list -> [ `Complex ]
+    Flambda_arity.t -> [ `Complex ] Flambda_arity.t -> Recursive.t ->
+    Simplified_expr.t Simplify_common.down_to_up -> Call_kind.Function_call.t ->
     Alloc_mode.For_types.t -> First_complex_local_param.t -> (Simplified_expr.t
     * Downwards_acc.t) coq_M **)
 
@@ -1145,10 +1145,11 @@ let simplify_direct_partial_application simplify_expr dacc apply0
   in
   simplify_expr dacc0 expr down_to_up1
 
-(** val simplify_direct_over_application : Flambda.Expr.t expr_simplifier ->
-    Downwards_acc.t -> Flambda.Apply.t -> Simplified_expr.t down_to_up ->
-    Call_kind.Function_call.t -> Code_id.t -> Code_metadata.t ->
-    (Simplified_expr.t * Downwards_acc.t) coq_M **)
+(** val simplify_direct_over_application : Flambda.Expr.t
+    Simplify_common.expr_simplifier -> Downwards_acc.t -> Flambda.Apply.t ->
+    Simplified_expr.t Simplify_common.down_to_up -> Call_kind.Function_call.t ->
+    Code_id.t -> Code_metadata.t -> (Simplified_expr.t * Downwards_acc.t) coq_M
+    **)
 
 let simplify_direct_over_application simplify_expr dacc apply0 down_to_up0
     original_call callee's_code_id callee's_code_metadata =
@@ -1174,8 +1175,8 @@ let simplify_direct_over_application simplify_expr dacc apply0 down_to_up0
   simplify_expr dacc expr down_to_up1
 
 (** val replace_apply_by_invalid : Downwards_acc.t -> Simplified_expr.t
-    down_to_up -> Flambda.Invalid.t -> (Simplified_expr.t * Downwards_acc.t)
-    coq_M **)
+    Simplify_common.down_to_up -> Flambda.Invalid.t -> (Simplified_expr.t *
+    Downwards_acc.t) coq_M **)
 
 let replace_apply_by_invalid dacc down_to_up0 reason =
   down_to_up0 dacc (Simplified_expr.simplified_invalid reason)
@@ -1210,7 +1211,7 @@ let arity_mismatch params_arity args_arity =
 
 (** val simplify_function_call_where_callee's_type_unavailable : Downwards_acc.t
     -> Flambda.Apply.t -> Call_kind.Function_call.t -> Simplified_expr.t
-    down_to_up -> (Simplified_expr.t * Downwards_acc.t) coq_M **)
+    Simplify_common.down_to_up -> (Simplified_expr.t * Downwards_acc.t) coq_M **)
 
 let simplify_function_call_where_callee's_type_unavailable dacc apply0 call
     down_to_up0 =
@@ -1298,14 +1299,15 @@ let simplify_function_call_where_callee's_type_unavailable dacc apply0 call
        Simplified_expr.simplified_apply ?result_arity:x__1 x__2 x__3 x__4 x__5)
        None apply2 use_id0 exn_cont_use_id0 false)
 
-(** val simplify_direct_function_call : Flambda.Expr.t expr_simplifier ->
-    Simplified_expr.t rebuild -> Downwards_acc.t -> Flambda.Apply.t -> Code_id.t
-    -> Code_metadata.t -> Code_id.Set.t Or_unknown.t -> Function_slot.t ->
-    Call_kind.Function_call.t -> [ `Complex ] Flambda_arity.t -> Result_types.t
-    Or_unknown_or_bottom.t -> Recursive.t -> bool -> Alloc_mode.For_types.t ->
-    Flambda2_types.Function_type.t -> Simplified_expr.t down_to_up ->
-    Call_kind.Function_call.t -> Inlined_debuginfo.t option ->
-    (Simplified_expr.t * Downwards_acc.t) coq_M **)
+(** val simplify_direct_function_call : Flambda.Expr.t
+    Simplify_common.expr_simplifier -> Simplified_expr.t Simplify_common.rebuild
+    -> Downwards_acc.t -> Flambda.Apply.t -> Code_id.t -> Code_metadata.t ->
+    Code_id.Set.t Or_unknown.t -> Function_slot.t -> Call_kind.Function_call.t
+    -> [ `Complex ] Flambda_arity.t -> Result_types.t Or_unknown_or_bottom.t ->
+    Recursive.t -> bool -> Alloc_mode.For_types.t ->
+    Flambda2_types.Function_type.t -> Simplified_expr.t
+    Simplify_common.down_to_up -> Call_kind.Function_call.t ->
+    Inlined_debuginfo.t option -> (Simplified_expr.t * Downwards_acc.t) coq_M **)
 
 let simplify_direct_function_call simplify_expr rebuild_expr dacc apply0
     callee's_code_id_from_type callee's_code_metadata_from_type
@@ -1486,11 +1488,11 @@ let simplify_direct_function_call simplify_expr rebuild_expr dacc apply0
     replace_apply_by_invalid dacc down_to_up0
       (Flambda.Invalid.Closure_type_was_invalid apply0)
 
-(** val simplify_function_call : Flambda.Expr.t expr_simplifier ->
-    Simplified_expr.t rebuild -> Downwards_acc.t -> Flambda.Apply.t ->
-    Flambda2_types.t option -> Call_kind.Function_call.t -> Simplified_expr.t
-    down_to_up -> Inlined_debuginfo.t option -> (Simplified_expr.t *
-    Downwards_acc.t) coq_M **)
+(** val simplify_function_call : Flambda.Expr.t Simplify_common.expr_simplifier
+    -> Simplified_expr.t Simplify_common.rebuild -> Downwards_acc.t ->
+    Flambda.Apply.t -> Flambda2_types.t option -> Call_kind.Function_call.t ->
+    Simplified_expr.t Simplify_common.down_to_up -> Inlined_debuginfo.t option
+    -> (Simplified_expr.t * Downwards_acc.t) coq_M **)
 
 let simplify_function_call simplify_expr rebuild_expr dacc apply0 callee_ty call
     down_to_up0 inlined_forwarded_from =
@@ -1641,7 +1643,9 @@ let simplify_apply_shared dacc apply0 =
       Some callee_ty, Some simplified_callee
     | None -> None, None
   in
-  let { S.simples = args; S.simple_tys = arg_types } =
+  let { Simplify_import.S.simples = args;
+        Simplify_import.S.simple_tys = arg_types
+      } =
     Simplify_simple.simplify_simples dacc (Flambda.Apply.args apply0)
   in
   let kind_mismatch = ref false in
@@ -1716,7 +1720,7 @@ let simplify_apply_shared dacc apply0 =
 
 (** val simplify_method_call : Downwards_acc.t -> Flambda.Apply.t ->
     Flambda2_types.t -> Call_kind.Method_kind.t -> Simple.t -> Simplified_expr.t
-    down_to_up -> (Simplified_expr.t * Downwards_acc.t) coq_M **)
+    Simplify_common.down_to_up -> (Simplified_expr.t * Downwards_acc.t) coq_M **)
 
 let simplify_method_call dacc apply0 callee_ty _ obj down_to_up0 =
   let () = fail_if_probe apply0 in
@@ -1774,10 +1778,10 @@ let simplify_method_call dacc apply0 callee_ty _ obj down_to_up0 =
        Simplified_expr.simplified_apply ?result_arity:x__1 x__2 x__3 x__4 x__5)
        None apply0 (Some use_id0) exn_cont_use_id0 false)
 
-(** val simplify_c_call : Flambda.Expr.t expr_simplifier -> Downwards_acc.t ->
-    Flambda.Apply.t -> Flambda2_types.t -> Flambda2_types.t list ->
-    Simplified_expr.t down_to_up -> (Simplified_expr.t * Downwards_acc.t) coq_M
-    **)
+(** val simplify_c_call : Flambda.Expr.t Simplify_common.expr_simplifier ->
+    Downwards_acc.t -> Flambda.Apply.t -> Flambda2_types.t -> Flambda2_types.t
+    list -> Simplified_expr.t Simplify_common.down_to_up -> (Simplified_expr.t *
+    Downwards_acc.t) coq_M **)
 
 let simplify_c_call simplify_expr dacc apply0 callee_ty arg_types down_to_up0 =
   let () = fail_if_probe apply0 in
@@ -1866,8 +1870,8 @@ let simplify_c_call simplify_expr dacc apply0 callee_ty arg_types down_to_up0 =
     simplified
 
 (** val simplify_effect_op : Downwards_acc.t -> Flambda.Apply.t ->
-    Call_kind.Effect.t -> Simplified_expr.t down_to_up -> (Simplified_expr.t *
-    Downwards_acc.t) coq_M **)
+    Call_kind.Effect.t -> Simplified_expr.t Simplify_common.down_to_up ->
+    (Simplified_expr.t * Downwards_acc.t) coq_M **)
 
 let simplify_effect_op dacc apply0 op down_to_up0 =
   let () = fail_if_probe apply0 in
@@ -1972,9 +1976,10 @@ let simplify_effect_op dacc apply0 op down_to_up0 =
        Simplified_expr.simplified_apply ?result_arity:x__1 x__2 x__3 x__4 x__5)
        None apply1 use_id0 exn_cont_use_id0 false)
 
-(** val simplify_apply : Flambda.Expr.t expr_simplifier -> Simplified_expr.t
-    rebuild -> Downwards_acc.t -> Flambda.Apply.t -> Simplified_expr.t
-    down_to_up -> (Simplified_expr.t * Downwards_acc.t) coq_M **)
+(** val simplify_apply : Flambda.Expr.t Simplify_common.expr_simplifier ->
+    Simplified_expr.t Simplify_common.rebuild -> Downwards_acc.t ->
+    Flambda.Apply.t -> Simplified_expr.t Simplify_common.down_to_up ->
+    (Simplified_expr.t * Downwards_acc.t) coq_M **)
 
 let simplify_apply simplify_expr rebuild_expr dacc apply0 down_to_up0 =
   match simplify_apply_shared dacc apply0 with

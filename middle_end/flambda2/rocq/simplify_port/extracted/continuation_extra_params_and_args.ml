@@ -57,7 +57,6 @@ type t =
         extra_args : Extra_arg.t list Or_invalid.t Apply_cont_rewrite_id.Map.t
       }
 
-open Apply_cont_rewrite_id
 open Port_monad
 
 (** val print : Format.formatter -> t -> unit coq_M **)
@@ -94,7 +93,7 @@ let is_empty t0 =
     t0
 
 (** val add : t -> Apply_cont_rewrite_id.Set.t -> Bound_parameter.t ->
-    Extra_arg.t Map.t -> t coq_M **)
+    Extra_arg.t Apply_cont_rewrite_id.Map.t -> t coq_M **)
 
 let add t0 invalids extra_param extra_args0 =
   (fun f__1 f__2 x__0 ->
@@ -186,8 +185,8 @@ let add t0 invalids extra_param extra_args0 =
         (extra_params1, extra_args1))
     t0
 
-(** val replace_extra_args : t -> Extra_arg.t list Or_invalid.t Map.t -> t coq_M
-    **)
+(** val replace_extra_args : t -> Extra_arg.t list Or_invalid.t
+    Apply_cont_rewrite_id.Map.t -> t coq_M **)
 
 let replace_extra_args t0 extra_args0 =
   (fun f__1 f__2 x__0 ->
@@ -267,7 +266,8 @@ let extra_params t0 =
     (fun extra_params0 _ -> extra_params0)
     t0
 
-(** val extra_args : t -> Extra_arg.t list Or_invalid.t Map.t coq_M **)
+(** val extra_args : t -> Extra_arg.t list Or_invalid.t
+    Apply_cont_rewrite_id.Map.t coq_M **)
 
 let extra_args t0 =
   (fun f__1 f__2 x__0 ->

@@ -21,14 +21,12 @@
    middle_end/flambda2/rocq/simplify_port. *)
 
 open! Simplify_import
-open Number_adjuncts
-open Numeric_types
 open Port_monad
 module A = Number_adjuncts
-module Float32 = Float32_by_bit_pattern
-module Float = Float_by_bit_pattern
-module Int32 = Int32
-module Int64 = Int64
+module Float32 = Numeric_types.Float32_by_bit_pattern
+module Float = Numeric_types.Float_by_bit_pattern
+module Int32 = Numeric_types.Int32
+module Int64 = Numeric_types.Int64
 
 (** val get_my_alloc_region : Downwards_acc.t -> Variable.t coq_M **)
 

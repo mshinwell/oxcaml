@@ -20,12 +20,7 @@
    middle_end/flambda2/rocq/simplify_port. *)
 
 open Simplify_import
-open Common_subexpression_elimination
-open Flambda2_types
-open One_continuation_use
 open Port_monad
-open Simplify_import
-open Tag
 module U = One_continuation_use
 
 type result =
@@ -260,7 +255,9 @@ let join cut_after denv params consts_lifted_after_fork use_envs_with_ids
     match cse_join_result with
     | Some cse_join_result0 ->
       Continuation_extra_params_and_args.concat
-        cse_join_result0.Join_result.extra_params previous_extra_params_and_args
+        cse_join_result0
+          .Common_subexpression_elimination.Join_result.extra_params
+        previous_extra_params_and_args
     | None -> previous_extra_params_and_args
   in
   let denv0, use_envs_with_ids' =
@@ -269,7 +266,9 @@ let join cut_after denv params consts_lifted_after_fork use_envs_with_ids
   in
   let extra_allowed_names0 =
     match cse_join_result with
-    | Some cse_join_result0 -> cse_join_result0.Join_result.extra_allowed_names
+    | Some cse_join_result0 ->
+      cse_join_result0
+        .Common_subexpression_elimination.Join_result.extra_allowed_names
     | None -> Name_occurrences.empty
   in
   let cut_after0 = Option.value cut_after definition_scope in
@@ -285,7 +284,8 @@ let join cut_after denv params consts_lifted_after_fork use_envs_with_ids
     match cse_join_result with
     | Some cse_join_result0 ->
       Flambda2_types.Typing_env.add_env_extension handler_env0
-        cse_join_result0.Join_result.env_extension
+        cse_join_result0
+          .Common_subexpression_elimination.Join_result.env_extension
     | None -> handler_env0
   in
   let denv1 =
@@ -293,7 +293,8 @@ let join cut_after denv params consts_lifted_after_fork use_envs_with_ids
     match cse_join_result with
     | Some cse_join_result0 ->
       Downwards_env.with_cse denv1
-        cse_join_result0.Join_result.cse_at_join_point
+        cse_join_result0
+          .Common_subexpression_elimination.Join_result.cse_at_join_point
     | None -> denv1
   in
   let denv2, extra_params_and_args1 =

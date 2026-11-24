@@ -34,10 +34,7 @@ type resolver =
 
 type get_imported_code = unit -> Exported_code.t
 
-open Code_id
-open Flambda2_types
 open Port_monad
-open Variable_
 
 module Disable_inlining_reason = struct
   type t =
@@ -82,7 +79,7 @@ type t =
     unit_toplevel_alloc_region : Variable.t;
     variables_defined_at_toplevel : Variable.Set.t;
     cse : Common_subexpression_elimination.t;
-    comparison_results : Comparison_result.t Map.t;
+    comparison_results : Comparison_result.t Variable_.Map.t;
     are_rebuilding_terms : Are_rebuilding_terms.t;
     closure_info : Closure_info.t;
     get_imported_code : unit -> Exported_code.t coq_M;
@@ -91,7 +88,8 @@ type t =
     loopify_state : Loopify_state.t;
     replay_history : Replay_history.t;
     specialization_cost : Specialization_cost.t;
-    join_analysis : Apply_cont_rewrite_id.t Join_analysis.t option;
+    join_analysis :
+      Apply_cont_rewrite_id.t Flambda2_types.Join_analysis.t option;
     defined_variables_by_scope : Lifted_cont_params.t list;
     lifted : Variable.Set.t;
     cost_of_lifting_continuations_out_of_current_one : int;
@@ -161,7 +159,7 @@ let variables_defined_at_toplevel t0 = t0.variables_defined_at_toplevel
 
 let cse t0 = t0.cse
 
-(** val comparison_results : t -> Comparison_result.t Map.t **)
+(** val comparison_results : t -> Comparison_result.t Variable_.Map.t **)
 
 let comparison_results t0 = t0.comparison_results
 
@@ -197,7 +195,8 @@ let replay_history t0 = t0.replay_history
 
 let specialization_cost t0 = t0.specialization_cost
 
-(** val join_analysis : t -> Apply_cont_rewrite_id.t Join_analysis.t option **)
+(** val join_analysis : t -> Apply_cont_rewrite_id.t
+    Flambda2_types.Join_analysis.t option **)
 
 let join_analysis t0 = t0.join_analysis
 
@@ -2108,8 +2107,8 @@ let with_code_age_relation code_age_relation t0 =
     is_cold = t0.is_cold
   }
 
-(** val with_join_analysis : Apply_cont_rewrite_id.t Join_analysis.t option -> t
-    -> t coq_M **)
+(** val with_join_analysis : Apply_cont_rewrite_id.t
+    Flambda2_types.Join_analysis.t option -> t -> t coq_M **)
 
 let with_join_analysis join_analysis0 t0 =
   { round = t0.round;

@@ -21,7 +21,6 @@
    middle_end/flambda2/rocq/simplify_port. *)
 
 open! Simplify_import
-open Apply_cont_rewrite_id
 open Port_monad
 
 type do_not_unbox_reason =
@@ -37,7 +36,9 @@ module Extra_param_and_args = struct
   type t =
     { param : Variable.t;
       param_debug_uid : Flambda_debug_uid.t;
-      args : Continuation_extra_params_and_args.Extra_arg.t Map.t
+      args :
+        Continuation_extra_params_and_args.Extra_arg.t
+        Apply_cont_rewrite_id.Map.t
     }
 
   (** val param : t -> Variable.t **)
@@ -48,7 +49,8 @@ module Extra_param_and_args = struct
 
   let param_debug_uid t0 = t0.param_debug_uid
 
-  (** val args : t -> Continuation_extra_params_and_args.Extra_arg.t Map.t **)
+  (** val args : t -> Continuation_extra_params_and_args.Extra_arg.t
+      Apply_cont_rewrite_id.Map.t **)
 
   let args t0 = t0.args
 

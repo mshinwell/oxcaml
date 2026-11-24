@@ -19,9 +19,6 @@
    not edit this file: change the .v file and run make in
    middle_end/flambda2/rocq/simplify_port. *)
 
-open Flambda2_types
-open Non_recursive_handler
-open One_recursive_handler
 open Port_monad
 
 type reason =
@@ -163,8 +160,9 @@ let add_continuations can_be_lifted0 handlers t0 =
 let rec repeat n acc f = if n <= 0 then acc else repeat (n - 1) (f acc) f
 
 (** val cost_metrics : Flambda2_types.Typing_env.t -> Switch_expr.t ->
-    Apply_cont_rewrite_id.t Join_analysis.t -> Apply_cont_rewrite_id.Set.t ->
-    Apply_cont_rewrite_id.Set.t -> cost -> Cost_metrics.t coq_M **)
+    Apply_cont_rewrite_id.t Flambda2_types.Join_analysis.t ->
+    Apply_cont_rewrite_id.Set.t -> Apply_cont_rewrite_id.Set.t -> cost ->
+    Cost_metrics.t coq_M **)
 
 let cost_metrics typing_env switch join_analysis specialized generic cost0 =
   let machine_width = Flambda2_types.Typing_env.machine_width typing_env in
@@ -242,16 +240,16 @@ let cost_metrics typing_env switch join_analysis specialized generic cost0 =
           (fun _ _ continuation_handlers _ ->
             Continuation.Lmap.fold
               (fun _ one_rec_handler metrics3 ->
-                let handler0 = one_rec_handler.handler in
+                let handler0 = one_rec_handler.One_recursive_handler.handler in
                 Cost_metrics.( + ) metrics3 (handler_metrics handler0))
               continuation_handlers metrics2)
           (fun t0 ->
-            let { cont = _;
+            let { Non_recursive_handler.cont = _;
                   Non_recursive_handler.params = _;
-                  lifted_params = _;
+                  Non_recursive_handler.lifted_params = _;
                   Non_recursive_handler.handler = handler0;
-                  is_exn_handler = _;
-                  can_be_lifted = _;
+                  Non_recursive_handler.is_exn_handler = _;
+                  Non_recursive_handler.can_be_lifted = _;
                   Non_recursive_handler.is_cold = _
                 } =
               t0

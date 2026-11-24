@@ -21,14 +21,7 @@
    middle_end/flambda2/rocq/simplify_port. *)
 
 open! Simplify_import
-open Code_id
-open Cost_metrics
-open Function_slot
-open Join_points
 open Port_monad
-open Simplify_set_of_closures_context
-open Value_slot
-open Variable_
 module C = Simplify_set_of_closures_context
 
 (** val dacc_inside_function : Simplify_set_of_closures_context.t ->
@@ -484,7 +477,7 @@ let compute_result_types is_a_functor is_opaque return_cont_uses0
       let params_and_results =
         Bound_parameters.var_set bound_params_and_results
       in
-      let typing_env = Downwards_env.typing_env join.handler_env in
+      let typing_env = Downwards_env.typing_env join.Join_points.handler_env in
       let typing_env0 =
         Flambda2_types.Typing_env.with_code_age_relation typing_env
           (Flambda2_types.Typing_env.code_age_relation
@@ -1013,10 +1006,10 @@ let simplify_set_of_closures0 outer_dacc0 context set_of_closures0 alloc_mode
   { set_of_closures = set_of_closures1; dacc = dacc3 }
 
 (** val simplify_and_lift_set_of_closures : Downwards_acc.t -> Function_slot.t
-    Map.t -> Bound_var.t Function_slot.Map.t -> Flambda.Set_of_closures.t ->
-    Alloc_mode.For_allocations.t -> Simple.t Value_slot.Map.t ->
-    Symbol_projection.t Map.t -> Simplify_common.simplify_function_body ->
-    Simplify_named_result.t coq_M **)
+    Variable_.Map.t -> Bound_var.t Function_slot.Map.t ->
+    Flambda.Set_of_closures.t -> Alloc_mode.For_allocations.t -> Simple.t
+    Value_slot.Map.t -> Symbol_projection.t Variable_.Map.t ->
+    Simplify_common.simplify_function_body -> Simplify_named_result.t coq_M **)
 
 let simplify_and_lift_set_of_closures dacc0 closure_bound_vars_inverse
     closure_bound_vars set_of_closures0 alloc_mode value_slots0
@@ -1271,7 +1264,9 @@ let simplify_non_lifted_set_of_closures0 dacc0 bound_vars closure_bound_vars
         Code_metadata.function_slot_size code_metadata
       in
       let cost_metrics0 = Code_metadata.cost_metrics code_metadata in
-      { cost_metrics = cost_metrics0; function_slot_size = function_slot_size0 }
+      { Cost_metrics.cost_metrics = cost_metrics0;
+        Cost_metrics.function_slot_size = function_slot_size0
+      }
     in
     let machine_width =
       Downwards_env.machine_width (Downwards_acc.denv dacc1)
@@ -1302,7 +1297,7 @@ type lifting_decision_result =
   { can_lift : bool;
     value_slots : Simple.t Value_slot.Map.t;
     value_slot_types : Flambda2_types.t Value_slot.Map.t;
-    symbol_projections : Symbol_projection.t Map.t
+    symbol_projections : Symbol_projection.t Variable_.Map.t
   }
 
 (** val can_lift : lifting_decision_result -> bool **)
@@ -1319,7 +1314,7 @@ let value_slots l = l.value_slots
 let value_slot_types l = l.value_slot_types
 
 (** val symbol_projections : lifting_decision_result -> Symbol_projection.t
-    Map.t **)
+    Variable_.Map.t **)
 
 let symbol_projections l = l.symbol_projections
 

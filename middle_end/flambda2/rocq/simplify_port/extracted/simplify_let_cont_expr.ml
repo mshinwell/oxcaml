@@ -22,17 +22,10 @@
 
 open! Simplify_import
 module SCC = Strongly_connected_components.Make (Continuation)
-open Continuation
-open Continuation_uses
-open Flow_types
-open Join_points
-open Non_recursive_handler
-open One_recursive_handler
 open Port_monad
-open Simplify_common
 
 type one_original_handler =
-  | Rec of t
+  | Rec of One_recursive_handler.t
   | Non_rec of Non_recursive_handler.t
 
 type simplify_let_cont_data =
@@ -179,7 +172,8 @@ let split_non_recursive_let_cont can_be_lifted0 handler0 =
       is_exn_handler0 can_be_lifted0 is_cold0 )
 
 (** val split_recursive_let_cont : Flambda.Recursive_let_cont_handlers.t ->
-    (Flambda.Expr.t, Bound_parameters.t, t Lmap.t) Port_monad.tuple3 coq_M **)
+    (Flambda.Expr.t, Bound_parameters.t, One_recursive_handler.t
+    Continuation.Lmap.t) Port_monad.tuple3 coq_M **)
 
 let split_recursive_let_cont handlers =
   let invariant_params, body, rec_handlers =
@@ -258,7 +252,9 @@ let arg_types_by_use_id_for_lifting callee_lifted_params uses =
                 (Flambda_kind.With_subkind.kind (Bound_parameter.kind param))
                 arg
             in
-            { arg_type = arg_type0; typing_env = typing_env0 })
+            { Continuation_uses.arg_type = arg_type0;
+              Continuation_uses.typing_env = typing_env0
+            })
           args bound_callee_params
       in
       List.map2
@@ -323,8 +319,9 @@ let decide_param_usage_recursive required_names invariant_set removed_aliased
     Continuation_extra_params_and_args.t coq_M **)
 
 let extra_params_for_continuation_param_aliases cont0 uacc rewrite_ids =
-  let { Alias_result.aliases_kind = aliases_kind0;
-        Alias_result.continuation_parameters = continuation_parameters0
+  let { Flow_types.Alias_result.aliases_kind = aliases_kind0;
+        Flow_types.Alias_result.continuation_parameters =
+          continuation_parameters0
       } =
     Upwards_acc.continuation_param_aliases uacc
   in
@@ -339,8 +336,8 @@ let extra_params_for_continuation_param_aliases cont0 uacc rewrite_ids =
         Int.compare stamp2 stamp1)
       (Variable.Set.fold
          (fun var acc -> (Variable.name_stamp var, var) :: acc)
-         required_extra_args.Continuation_param_aliases.extra_args_for_aliases
-         [])
+         required_extra_args
+           .Flow_types.Continuation_param_aliases.extra_args_for_aliases [])
   in
   List.fold_left
     (fun epa pat ->
@@ -367,9 +364,9 @@ let extra_params_for_continuation_param_aliases cont0 uacc rewrite_ids =
     Continuation_extra_params_and_args.t coq_M **)
 
 let add_extra_params_for_mutable_unboxing cont0 uacc extra_params_and_args0 =
-  let { Mutable_unboxing_result.did_unbox_a_mutable_block = _;
-        Mutable_unboxing_result.additional_epa = additional_epa0;
-        Mutable_unboxing_result.let_rewrites = _
+  let { Flow_types.Mutable_unboxing_result.did_unbox_a_mutable_block = _;
+        Flow_types.Mutable_unboxing_result.additional_epa = additional_epa0;
+        Flow_types.Mutable_unboxing_result.let_rewrites = _
       } =
     Upwards_acc.mutable_unboxing_result uacc
   in
@@ -391,9 +388,11 @@ let get_removed_aliased_params uacc cont0 =
   let param_aliases = Upwards_acc.continuation_param_aliases uacc in
   let cont_params =
     Continuation.Map.find cont0
-      param_aliases.Alias_result.continuation_parameters
+      param_aliases.Flow_types.Alias_result.continuation_parameters
   in
-  cont_params.Continuation_param_aliases.removed_aliased_params_and_extra_params
+  cont_params
+    .Flow_types.Continuation_param_aliases
+     .removed_aliased_params_and_extra_params
 
 (** val make_rewrite_for_recursive_continuation : Upwards_acc.t ->
     Continuation.t -> bool -> Bound_parameters.t ->
@@ -592,7 +591,7 @@ let rebuild_let_cont_ data after_rebuild body uacc =
        x__0.handlers_from_the_inside_to_the_outside)
        data)
 
-(** val prepare_to_rebuild_body : 'a1 rebuild -> 'a1
+(** val prepare_to_rebuild_body : 'a1 Simplify_common.rebuild -> 'a1
     prepare_to_rebuild_body_data -> Upwards_acc.t ->
     Simplify_common.after_rebuild -> (Rebuilt_expr.t * Upwards_acc.t) coq_M **)
 
@@ -632,8 +631,9 @@ let prepare_to_rebuild_body rebuild_body data uacc after_rebuild =
     Cost_metrics.t) Port_monad.tuple4 coq_M **)
 
 let add_lets_around_handler cont0 at_unit_toplevel uacc handler0 =
-  let { Alias_result.aliases_kind = _;
-        Alias_result.continuation_parameters = continuation_parameters0
+  let { Flow_types.Alias_result.aliases_kind = _;
+        Flow_types.Alias_result.continuation_parameters =
+          continuation_parameters0
       } =
     Upwards_acc.continuation_param_aliases uacc
   in
@@ -675,7 +675,8 @@ let add_lets_around_handler cont0 at_unit_toplevel uacc handler0 =
             handler2 Cost_metrics.zero
         in
         handler3, uacc2)
-      continuation_parameters1.Continuation_param_aliases.lets_to_introduce
+      continuation_parameters1
+        .Flow_types.Continuation_param_aliases.lets_to_introduce
       (handler1, uacc0)
   in
   let free_names = Upwards_acc.name_occurrences uacc1 in
@@ -726,11 +727,11 @@ let remove_params params0 free_names =
     free_names
     (Bound_parameters.to_list params0)
 
-(** val rebuild_single_non_recursive_handler : Simplified_expr.t rebuild -> bool
-    -> bool -> Bound_parameters.t -> Continuation.t ->
-    Simplified_expr.simplified_handler -> Upwards_acc.t -> (rebuilt_handler ->
-    Upwards_acc.t -> (Rebuilt_expr.t * Upwards_acc.t) coq_M) -> (Rebuilt_expr.t
-    * Upwards_acc.t) coq_M **)
+(** val rebuild_single_non_recursive_handler : Simplified_expr.t
+    Simplify_common.rebuild -> bool -> bool -> Bound_parameters.t ->
+    Continuation.t -> Simplified_expr.simplified_handler -> Upwards_acc.t ->
+    (rebuilt_handler -> Upwards_acc.t -> (Rebuilt_expr.t * Upwards_acc.t) coq_M)
+    -> (Rebuilt_expr.t * Upwards_acc.t) coq_M **)
 
 let rebuild_single_non_recursive_handler rebuild_expr at_unit_toplevel
     is_single_inlinable_use0 original_invariant_params cont0 handler_to_rebuild
@@ -894,10 +895,11 @@ let rebuild_single_non_recursive_handler rebuild_expr at_unit_toplevel
           in
           k rebuilt_handler0 uacc5))
 
-(** val rebuild_single_recursive_handler : Simplified_expr.t rebuild ->
-    Continuation.t -> Simplified_expr.simplified_handler -> Upwards_acc.t ->
-    (Bound_parameters.t -> rebuilt_handler -> Upwards_acc.t -> (Rebuilt_expr.t *
-    Upwards_acc.t) coq_M) -> (Rebuilt_expr.t * Upwards_acc.t) coq_M **)
+(** val rebuild_single_recursive_handler : Simplified_expr.t
+    Simplify_common.rebuild -> Continuation.t ->
+    Simplified_expr.simplified_handler -> Upwards_acc.t -> (Bound_parameters.t
+    -> rebuilt_handler -> Upwards_acc.t -> (Rebuilt_expr.t * Upwards_acc.t)
+    coq_M) -> (Rebuilt_expr.t * Upwards_acc.t) coq_M **)
 
 let rebuild_single_recursive_handler rebuild_expr cont0 handler_to_rebuild uacc
     k =
@@ -963,12 +965,12 @@ let rebuild_single_recursive_handler rebuild_expr cont0 handler_to_rebuild uacc
           in
           k invariant_params rebuilt_handler0 uacc3))
 
-(** val rebuild_continuation_handlers_loop : 'a1 rebuild -> Simplified_expr.t
-    rebuild -> 'a1 -> Name_occurrences.t -> Cost_metrics.t -> Upwards_env.t ->
-    bool -> Bound_parameters.t -> Bound_parameters.t -> Upwards_acc.t ->
-    Simplify_common.after_rebuild -> Simplified_expr.simplified_handlers_group
-    list -> rebuilt_handlers_group list -> (Rebuilt_expr.t * Upwards_acc.t)
-    coq_M **)
+(** val rebuild_continuation_handlers_loop : 'a1 Simplify_common.rebuild ->
+    Simplified_expr.t Simplify_common.rebuild -> 'a1 -> Name_occurrences.t ->
+    Cost_metrics.t -> Upwards_env.t -> bool -> Bound_parameters.t ->
+    Bound_parameters.t -> Upwards_acc.t -> Simplify_common.after_rebuild ->
+    Simplified_expr.simplified_handlers_group list -> rebuilt_handlers_group
+    list -> (Rebuilt_expr.t * Upwards_acc.t) coq_M **)
 
 let rec rebuild_continuation_handlers_loop rebuild_body rebuild_expr
     simplified_body name_occurrences_of_subsequent_exprs
@@ -1091,8 +1093,9 @@ let rec rebuild_continuation_handlers_loop rebuild_body rebuild_expr
               :: rebuilt_groups)))
       s
 
-(** val prepare_to_rebuild_handlers : 'a1 rebuild -> Simplified_expr.t rebuild
-    -> Simplified_expr.simplified_let_cont_handlers -> 'a1 -> Upwards_acc.t ->
+(** val prepare_to_rebuild_handlers : 'a1 Simplify_common.rebuild ->
+    Simplified_expr.t Simplify_common.rebuild ->
+    Simplified_expr.simplified_let_cont_handlers -> 'a1 -> Upwards_acc.t ->
     Simplify_common.after_rebuild -> (Rebuilt_expr.t * Upwards_acc.t) coq_M **)
 
 let prepare_to_rebuild_handlers rebuild_body rebuild_expr data simplified_body
@@ -1123,9 +1126,10 @@ let prepare_to_rebuild_handlers rebuild_body rebuild_expr data simplified_body
         at_unit_toplevel original_invariant_params invariant_extra_params uacc
         after_rebuild handlers_from_the_outside_to_the_inside [])
 
-(** val rebuild_let_cont : 'a1 rebuild -> Simplified_expr.t rebuild ->
-    (Simplified_expr.simplified_let_cont_handlers * 'a1) -> Upwards_acc.t ->
-    Simplify_common.after_rebuild -> (Rebuilt_expr.t * Upwards_acc.t) coq_M **)
+(** val rebuild_let_cont : 'a1 Simplify_common.rebuild -> Simplified_expr.t
+    Simplify_common.rebuild -> (Simplified_expr.simplified_let_cont_handlers *
+    'a1) -> Upwards_acc.t -> Simplify_common.after_rebuild -> (Rebuilt_expr.t *
+    Upwards_acc.t) coq_M **)
 
 let rebuild_let_cont rebuild_body rebuild_expr pat uacc after_rebuild =
   let simplified_let_cont, simplified_body = pat in
@@ -1241,7 +1245,7 @@ let create_handler_to_rebuild data cont0 handler0 =
     (Continuation_uses.get_use_ids uses)
 
 (** val sort_handlers : after_downwards_traversal_of_body_and_handlers_data ->
-    Simplified_expr.simplified_handler Map.t ->
+    Simplified_expr.simplified_handler Continuation.Map.t ->
     Simplified_expr.simplified_handlers_group list coq_M **)
 
 let sort_handlers data handlers =
@@ -1301,7 +1305,7 @@ let sort_handlers data handlers =
     [] sorted_handlers_from_the_inside_to_the_outside
 
 (** val compute_specialized_continuation : (Replay_history.t * bool) option ->
-    Flambda.Expr.t expr_simplifier -> Continuation.t ->
+    Flambda.Expr.t Simplify_common.expr_simplifier -> Continuation.t ->
     handler_after_downwards_traversal -> Downwards_acc.t ->
     after_downwards_traversal_of_body_and_handlers_data ->
     One_continuation_use.t -> (Downwards_acc.t ->
@@ -1319,7 +1323,7 @@ let rec compute_specialized_continuation replay simplify_expr original_cont
     let original1 = Non_recursive_handler.rename_params original0 in
     let is_recursive = false in
     let params0 = original1.Non_recursive_handler.params in
-    let lifted_params0 = original1.lifted_params in
+    let lifted_params0 = original1.Non_recursive_handler.lifted_params in
     let is_exn_handler0 = original1.Non_recursive_handler.is_exn_handler in
     let denv =
       (fun (x__0 : after_downwards_traversal_of_body_data) ->
@@ -1419,8 +1423,8 @@ let rec compute_specialized_continuation replay simplify_expr original_cont
         k dacc4 data0)
 
 (** val compute_specialized_continuation_handlers : (Replay_history.t * bool)
-    option -> Flambda.Expr.t expr_simplifier -> Continuation.t ->
-    handler_after_downwards_traversal -> Downwards_acc.t ->
+    option -> Flambda.Expr.t Simplify_common.expr_simplifier -> Continuation.t
+    -> handler_after_downwards_traversal -> Downwards_acc.t ->
     after_downwards_traversal_of_body_and_handlers_data ->
     One_continuation_use.t list -> (Downwards_acc.t ->
     after_downwards_traversal_of_body_and_handlers_data -> (Simplified_expr.t *
@@ -1436,11 +1440,11 @@ and compute_specialized_continuation_handlers replay simplify_expr original_cont
         compute_specialized_continuation_handlers replay simplify_expr
           original_cont handler0 dacc0 data0 other_uses k)
 
-(** val specialize_continuation_if_needed : Flambda.Expr.t expr_simplifier ->
-    Downwards_acc.t -> after_downwards_traversal_of_body_and_handlers_data ->
-    (Downwards_acc.t -> after_downwards_traversal_of_body_and_handlers_data ->
-    (Simplified_expr.t * Downwards_acc.t) coq_M) -> (Simplified_expr.t *
-    Downwards_acc.t) coq_M **)
+(** val specialize_continuation_if_needed : Flambda.Expr.t
+    Simplify_common.expr_simplifier -> Downwards_acc.t ->
+    after_downwards_traversal_of_body_and_handlers_data -> (Downwards_acc.t ->
+    after_downwards_traversal_of_body_and_handlers_data -> (Simplified_expr.t *
+    Downwards_acc.t) coq_M) -> (Simplified_expr.t * Downwards_acc.t) coq_M **)
 
 and specialize_continuation_if_needed simplify_expr dacc data k =
   match
@@ -1531,10 +1535,10 @@ and specialize_continuation_if_needed simplify_expr dacc data k =
   | None -> k dacc data
 
 (** val after_downwards_traversal_of_body_and_handlers : Flambda.Expr.t
-    expr_simplifier -> Downwards_env.t ->
+    Simplify_common.expr_simplifier -> Downwards_env.t ->
     after_downwards_traversal_of_body_and_handlers_data -> Simplified_expr.t
-    down_to_up -> Downwards_acc.t -> (Simplified_expr.t * Downwards_acc.t) coq_M
-    **)
+    Simplify_common.down_to_up -> Downwards_acc.t -> (Simplified_expr.t *
+    Downwards_acc.t) coq_M **)
 
 and after_downwards_traversal_of_body_and_handlers simplify_expr denv_for_join
     data down_to_up0 dacc =
@@ -1702,7 +1706,7 @@ and prepare_dacc_for_handlers dacc replay env_at_fork params0 is_recursive
   let handler_env0 =
     Downwards_env.bump_current_level_scope
       (Downwards_env.with_code_age_relation code_age_relation
-         join_result.handler_env)
+         join_result.Join_points.handler_env)
   in
   let do_not_unbox =
    fun _ ->
@@ -1712,7 +1716,7 @@ and prepare_dacc_for_handlers dacc replay env_at_fork params0 is_recursive
   let handler_env1, unbox_decisions0, is_exn_handler0, dacc0 =
     match continuation_sort with
     | Continuation.Sort.Normal_or_exn ->
-      if join_result.is_single_inlinable_use
+      if join_result.Join_points.is_single_inlinable_use
       then
         match is_exn_handler_cont with
         | Some cont0 ->
@@ -1730,7 +1734,7 @@ and prepare_dacc_for_handlers dacc replay env_at_fork params0 is_recursive
         let dacc0, is_exn_handler0 =
           match is_exn_handler_cont with
           | Some cont0 ->
-            if join_result.escapes
+            if join_result.Join_points.escapes
             then dacc, true
             else Downwards_acc.demote_exn_handler dacc cont0, false
           | None -> dacc, false
@@ -1766,7 +1770,7 @@ and prepare_dacc_for_handlers dacc replay env_at_fork params0 is_recursive
       let dacc0, is_exn_handler0 =
         match is_exn_handler_cont with
         | Some cont0 ->
-          if join_result.escapes
+          if join_result.Join_points.escapes
           then dacc, true
           else Downwards_acc.demote_exn_handler dacc cont0, false
         | None -> dacc, false
@@ -1804,11 +1808,11 @@ and prepare_dacc_for_handlers dacc replay env_at_fork params0 is_recursive
     is_exn_handler0,
     join_result.Join_points.extra_params_and_args )
 
-(** val simplify_handler : Flambda.Expr.t expr_simplifier -> bool -> bool ->
-    Bound_parameters.t -> Bound_parameters.t -> Continuation.t ->
-    Downwards_acc.t -> Flambda.Expr.t -> (Downwards_acc.t -> Simplified_expr.t
-    -> Continuation_uses_env.t -> (Simplified_expr.t * Downwards_acc.t) coq_M)
-    -> (Simplified_expr.t * Downwards_acc.t) coq_M **)
+(** val simplify_handler : Flambda.Expr.t Simplify_common.expr_simplifier ->
+    bool -> bool -> Bound_parameters.t -> Bound_parameters.t -> Continuation.t
+    -> Downwards_acc.t -> Flambda.Expr.t -> (Downwards_acc.t ->
+    Simplified_expr.t -> Continuation_uses_env.t -> (Simplified_expr.t *
+    Downwards_acc.t) coq_M) -> (Simplified_expr.t * Downwards_acc.t) coq_M **)
 
 and simplify_handler simplify_expr is_recursive is_exn_handler0 invariant_params
     params0 cont0 dacc handler0 k =
@@ -1841,12 +1845,14 @@ and simplify_handler simplify_expr is_recursive is_exn_handler0 invariant_params
       in
       k dacc3 simplified_handler0 cont_uses_env_in_handler0)
 
-(** val simplify_single_recursive_handler : Flambda.Expr.t expr_simplifier ->
-    Continuation_uses_env.t -> Bound_parameters.t -> Lifted_constant_state.t ->
-    Continuation.Set.t -> Downwards_env.t -> Downwards_acc.t -> Continuation.t
-    -> t -> (Downwards_acc.t -> handler_after_downwards_traversal ->
-    Continuation_uses_env.t -> (Simplified_expr.t * Downwards_acc.t) coq_M) ->
-    (Simplified_expr.t * Downwards_acc.t) coq_M **)
+(** val simplify_single_recursive_handler : Flambda.Expr.t
+    Simplify_common.expr_simplifier -> Continuation_uses_env.t ->
+    Bound_parameters.t -> Lifted_constant_state.t -> Continuation.Set.t ->
+    Downwards_env.t -> Downwards_acc.t -> Continuation.t ->
+    One_recursive_handler.t -> (Downwards_acc.t ->
+    handler_after_downwards_traversal -> Continuation_uses_env.t ->
+    (Simplified_expr.t * Downwards_acc.t) coq_M) -> (Simplified_expr.t *
+    Downwards_acc.t) coq_M **)
 
 and simplify_single_recursive_handler simplify_expr cont_uses_env_so_far
     invariant_params consts_lifted_after_fork all_handlers_set denv_to_reset
@@ -1915,15 +1921,17 @@ and simplify_single_recursive_handler simplify_expr cont_uses_env_so_far
         }
         cont_uses_env_so_far0)
 
-(** val simplify_recursive_handlers : Simplified_expr.t down_to_up ->
-    after_downwards_traversal_of_body_data -> Simplified_expr.t ->
-    Downwards_acc.t -> Downwards_env.t -> Are_lifting_conts.t ->
-    Continuation_uses_env.t -> Lifted_cont_params.t -> Bound_parameters.t ->
-    Continuation_extra_params_and_args.t -> t Lmap.t -> Flambda.Expr.t
-    expr_simplifier -> Lifted_constant_state.t -> Continuation.Set.t ->
-    Downwards_env.t -> (Continuation_uses_env.t -> Continuation.Set.t ->
-    Continuation.Set.t -> handler_after_downwards_traversal Map.t ->
-    Downwards_acc.t -> (Simplified_expr.t * Downwards_acc.t) coq_M) coq_M **)
+(** val simplify_recursive_handlers : Simplified_expr.t
+    Simplify_common.down_to_up -> after_downwards_traversal_of_body_data ->
+    Simplified_expr.t -> Downwards_acc.t -> Downwards_env.t ->
+    Are_lifting_conts.t -> Continuation_uses_env.t -> Lifted_cont_params.t ->
+    Bound_parameters.t -> Continuation_extra_params_and_args.t ->
+    One_recursive_handler.t Continuation.Lmap.t -> Flambda.Expr.t
+    Simplify_common.expr_simplifier -> Lifted_constant_state.t ->
+    Continuation.Set.t -> Downwards_env.t -> (Continuation_uses_env.t ->
+    Continuation.Set.t -> Continuation.Set.t ->
+    handler_after_downwards_traversal Continuation.Map.t -> Downwards_acc.t ->
+    (Simplified_expr.t * Downwards_acc.t) coq_M) coq_M **)
 
 and simplify_recursive_handlers down_to_up0 data simplified_body dacc_after_body
     denv_for_join previous_are_lifting_conts cont_uses_env_after_body
@@ -2012,10 +2020,10 @@ and simplify_recursive_handlers down_to_up0 data simplified_body dacc_after_body
   in
   loop consts_lifted_during_body
 
-(** val simplify_handlers : Flambda.Expr.t expr_simplifier -> Simplified_expr.t
-    down_to_up -> Downwards_env.t -> Simplified_expr.t ->
-    after_downwards_traversal_of_body_data -> Downwards_acc.t ->
-    (Simplified_expr.t * Downwards_acc.t) coq_M **)
+(** val simplify_handlers : Flambda.Expr.t Simplify_common.expr_simplifier ->
+    Simplified_expr.t Simplify_common.down_to_up -> Downwards_env.t ->
+    Simplified_expr.t -> after_downwards_traversal_of_body_data ->
+    Downwards_acc.t -> (Simplified_expr.t * Downwards_acc.t) coq_M **)
 
 and simplify_handlers simplify_expr down_to_up0 denv_for_join simplified_body
     data dacc =
@@ -2091,12 +2099,12 @@ and simplify_handlers simplify_expr down_to_up0 denv_for_join simplified_body
         used_handlers_in_body Continuation.Set.empty Continuation.Map.empty
         dacc2)
     (fun original0 ->
-      let { cont = cont0;
+      let { Non_recursive_handler.cont = cont0;
             Non_recursive_handler.params = params0;
-            lifted_params = lifted_params0;
+            Non_recursive_handler.lifted_params = lifted_params0;
             Non_recursive_handler.handler = handler0;
             Non_recursive_handler.is_exn_handler = is_exn_handler0;
-            can_be_lifted = _;
+            Non_recursive_handler.can_be_lifted = _;
             Non_recursive_handler.is_cold = is_cold0
           } =
         original0
@@ -2255,8 +2263,9 @@ and simplify_handlers simplify_expr down_to_up0 denv_for_join simplified_body
     ((fun (x__0 : after_downwards_traversal_of_body_data) -> x__0.handlers)
        data)
 
-(** val after_downwards_traversal_of_body : Flambda.Expr.t expr_simplifier ->
-    Simplified_expr.t down_to_up -> after_downwards_traversal_of_body_data ->
+(** val after_downwards_traversal_of_body : Flambda.Expr.t
+    Simplify_common.expr_simplifier -> Simplified_expr.t
+    Simplify_common.down_to_up -> after_downwards_traversal_of_body_data ->
     Downwards_acc.t -> Simplified_expr.t -> (Simplified_expr.t *
     Downwards_acc.t) coq_M **)
 
@@ -2317,9 +2326,10 @@ and after_downwards_traversal_of_body simplify_expr down_to_up0 data dacc
         down_to_up0 dacc1 simplified_body)
     (Downwards_acc.are_lifting_conts dacc)
 
-(** val down_to_up_for_lifted_continuations : Flambda.Expr.t expr_simplifier ->
-    Downwards_env.t -> (Downwards_env.t * Original_handlers.t) list ->
-    Simplified_expr.t down_to_up -> Simplified_expr.t down_to_up coq_M **)
+(** val down_to_up_for_lifted_continuations : Flambda.Expr.t
+    Simplify_common.expr_simplifier -> Downwards_env.t -> (Downwards_env.t *
+    Original_handlers.t) list -> Simplified_expr.t Simplify_common.down_to_up ->
+    Simplified_expr.t Simplify_common.down_to_up coq_M **)
 
 and down_to_up_for_lifted_continuations simplify_expr denv_for_join lifted_conts
     down_to_up0 =
@@ -2345,9 +2355,9 @@ and down_to_up_for_lifted_continuations simplify_expr denv_for_join lifted_conts
     down_to_up_for_lifted_continuations simplify_expr denv_for_join
       other_lifted_handlers down_to_up1
 
-(** val simplify_let_cont0 : Flambda.Expr.t expr_simplifier -> Downwards_acc.t
-    -> simplify_let_cont_data -> Simplified_expr.t down_to_up ->
-    (Simplified_expr.t * Downwards_acc.t) coq_M **)
+(** val simplify_let_cont0 : Flambda.Expr.t Simplify_common.expr_simplifier ->
+    Downwards_acc.t -> simplify_let_cont_data -> Simplified_expr.t
+    Simplify_common.down_to_up -> (Simplified_expr.t * Downwards_acc.t) coq_M **)
 
 let simplify_let_cont0 simplify_expr dacc data down_to_up0 =
   let dacc0, prior_lifted_constants =
@@ -2442,7 +2452,8 @@ let simplify_let_cont0 simplify_expr dacc data down_to_up0 =
           then (fun (x__0 : simplify_let_cont_data) -> x__0.handlers) data
           else
             let lifted_cont =
-              Continuation.Map.find non_rec_handler.cont continuation_mapping
+              Continuation.Map.find non_rec_handler.Non_recursive_handler.cont
+                continuation_mapping
             in
             let new_handler =
               let args =
@@ -2488,9 +2499,9 @@ let simplify_let_cont0 simplify_expr dacc data down_to_up0 =
   simplify_expr dacc3 body
     (after_downwards_traversal_of_body simplify_expr down_to_up0 data0)
 
-(** val simplify_let_cont : Flambda.Expr.t expr_simplifier -> Downwards_acc.t ->
-    Flambda.Let_cont.t -> Simplified_expr.t down_to_up -> (Simplified_expr.t *
-    Downwards_acc.t) coq_M **)
+(** val simplify_let_cont : Flambda.Expr.t Simplify_common.expr_simplifier ->
+    Downwards_acc.t -> Flambda.Let_cont.t -> Simplified_expr.t
+    Simplify_common.down_to_up -> (Simplified_expr.t * Downwards_acc.t) coq_M **)
 
 let simplify_let_cont simplify_expr dacc let_cont down_to_up0 =
   let body, handlers =
@@ -2530,10 +2541,10 @@ let simplify_let_cont simplify_expr dacc let_cont down_to_up0 =
        (body, handlers))
     down_to_up0
 
-(** val simplify_as_recursive_let_cont : Flambda.Expr.t expr_simplifier ->
-    Downwards_acc.t -> (Flambda.Expr.t * Flambda.Continuation_handler.t Lmap.t)
-    -> Simplified_expr.t down_to_up -> (Simplified_expr.t * Downwards_acc.t)
-    coq_M **)
+(** val simplify_as_recursive_let_cont : Flambda.Expr.t
+    Simplify_common.expr_simplifier -> Downwards_acc.t -> (Flambda.Expr.t *
+    Flambda.Continuation_handler.t Continuation.Lmap.t) -> Simplified_expr.t
+    Simplify_common.down_to_up -> (Simplified_expr.t * Downwards_acc.t) coq_M **)
 
 let simplify_as_recursive_let_cont simplify_expr dacc pat down_to_up0 =
   let body, handlers = pat in

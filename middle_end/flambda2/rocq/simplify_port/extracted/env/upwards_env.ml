@@ -20,21 +20,20 @@
    edit this file: change the .v file and run make in
    middle_end/flambda2/rocq/simplify_port. *)
 
-open Continuation
 open Port_monad
-open Rebuilt_expr
 
 type t =
-  { continuations : Continuation_in_env.t Map.t;
+  { continuations : Continuation_in_env.t Continuation.Map.t;
     cold_continuations : Continuation.Set.t;
-    continuation_shortcuts : Continuation_shortcut.t Map.t;
-    unique_handlers_map : Continuation.t Unique_continuation_handlers.t;
-    apply_cont_rewrites : Apply_cont_rewrite.t Map.t;
+    continuation_shortcuts : Continuation_shortcut.t Continuation.Map.t;
+    unique_handlers_map :
+      Continuation.t Rebuilt_expr.Unique_continuation_handlers.t;
+    apply_cont_rewrites : Apply_cont_rewrite.t Continuation.Map.t;
     are_rebuilding_terms : Are_rebuilding_terms.t;
     machine_width : Target_system.Machine_width.t
   }
 
-(** val continuations : t -> Continuation_in_env.t Map.t **)
+(** val continuations : t -> Continuation_in_env.t Continuation.Map.t **)
 
 let continuations t0 = t0.continuations
 
@@ -42,16 +41,17 @@ let continuations t0 = t0.continuations
 
 let cold_continuations t0 = t0.cold_continuations
 
-(** val continuation_shortcuts : t -> Continuation_shortcut.t Map.t **)
+(** val continuation_shortcuts : t -> Continuation_shortcut.t Continuation.Map.t
+    **)
 
 let continuation_shortcuts t0 = t0.continuation_shortcuts
 
-(** val unique_handlers_map : t -> Continuation.t Unique_continuation_handlers.t
-    **)
+(** val unique_handlers_map : t -> Continuation.t
+    Rebuilt_expr.Unique_continuation_handlers.t **)
 
 let unique_handlers_map t0 = t0.unique_handlers_map
 
-(** val apply_cont_rewrites : t -> Apply_cont_rewrite.t Map.t **)
+(** val apply_cont_rewrites : t -> Apply_cont_rewrite.t Continuation.Map.t **)
 
 let apply_cont_rewrites t0 = t0.apply_cont_rewrites
 

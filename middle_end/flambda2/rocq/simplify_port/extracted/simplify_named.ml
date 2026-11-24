@@ -22,8 +22,6 @@
 
 open! Simplify_import
 open Port_monad
-open Simplified_named
-open Simplify_primitive_result
 
 (** val create_lifted_constant : (Downwards_acc.t * Lifted_constant.t list) ->
     Bound_static.Pattern.t -> Rebuilt_static_const.t -> (Downwards_acc.t *
@@ -152,9 +150,9 @@ let simplify_named0 dacc0 bound_pattern named0 simplify_function_body =
       in
       match Simplify_primitive.simplify_primitive dacc1 prim dbg0 bound_var with
       | Simplified_named.Simplified t -> (
-        let { simplified_named = simplified_named0;
-              try_reify = try_reify0;
-              dacc = dacc2
+        let { Simplify_primitive_result.simplified_named = simplified_named0;
+              Simplify_primitive_result.try_reify = try_reify0;
+              Simplify_primitive_result.dacc = dacc2
             } =
           t
         in
@@ -318,7 +316,12 @@ let removed_operations min_name_mode original dacc0 result =
                   { original_defining_expr = x__1 } ->
                 f__2 x__1)
               (fun _ t0 _ ->
-                let { named = named0; cost_metrics = _; free_names = _ } = t0 in
+                let { Simplified_named.named = named0;
+                      Simplified_named.cost_metrics = _;
+                      Simplified_named.free_names = _
+                    } =
+                  t0
+                in
                 match named0 with
                 | Simplified_named.Simple _ -> false
                 | Simplified_named.Prim (rewritten_prim, _) ->

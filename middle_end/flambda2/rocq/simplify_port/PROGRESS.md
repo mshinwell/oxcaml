@@ -34,7 +34,7 @@ compiler's own definitions; alone: no interface).
 | `flow/flow_acc.ml` | 638 | 32 | 32 | loose:3 | yes | strict |
 | `flow/flow_analysis.ml` | 211 | 7 | 4 | verbatim:1 init:3 papp:2 | yes | strict |
 | `flow/flow_types.ml` | 363 | 0 | 0 | loose:8 type:2 decl:1 papp:7 | yes | strict |
-| `flow/mutable_unboxing.ml` | 716 | 21 | 0 | - | - | - |
+| `flow/mutable_unboxing.ml` | 716 | 21 | 21 | loose:1 decl:1 papp:1 record-order:2 | yes | strict |
 | `inlining/call_site_inlining_decision.ml` | 464 | 7 | 7 | loose:4 type:1 init:1 papp:1 | yes | strict |
 | `inlining/inlining_transforms.ml` | 181 | 3 | 3 | loose:3 | yes | strict |
 | `join_points.ml` | 442 | 7 | 7 | loose:4 verbatim:1 papp:1 | yes | strict |
@@ -87,17 +87,17 @@ compiler's own definitions; alone: no interface).
 | `unboxing/unboxers.ml` | 260 | 0 | 0 | loose:1 init:10 record-order:1 | yes | strict |
 | `unboxing/unboxing_epa.ml` | 553 | 15 | 0 | - | - | - |
 | `unboxing/unboxing_types.ml` | 185 | 9 | 7 | type:1 verbatim:2 papp:4 | yes | strict |
-| **total: 75 files of 78** | 26900 | 938 | 865 | 417 marks | 75 | 75 |
+| **total: 76 files of 78** | 26900 | 938 | 886 | 422 marks | 76 | 76 |
 
 Gaps by kind, all files:
 
 - unported: 0
 - partial: 0
-- loose: 171
+- loose: 172
 - type: 56
 - verbatim: 46
 - init: 21
 - order: 0
-- decl: 19
-- papp: 83
-- record-order: 21
+- decl: 20
+- papp: 84
+- record-order: 23

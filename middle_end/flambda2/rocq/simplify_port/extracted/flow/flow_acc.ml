@@ -18,19 +18,7 @@
    edit this file: change the .v file and run make in
    middle_end/flambda2/rocq/simplify_port. *)
 
-open Apply_cont_rewrite_id
-open Code_id
-open Continuation
-open Continuation_callsite_map
-open Continuation_extra_params_and_args
-open Flow_types
-open Name
-open Named_rewrite_id
-open Numeric_types
 open Port_monad
-open Simplified_named
-open Value_slot
-open Variable_
 module T = Flow_types
 module EPA = Continuation_extra_params_and_args
 
@@ -73,13 +61,13 @@ let add_extra_params_and_args cont extra0 t0 =
         match x with
         | Some _ -> Misc.fatal_errorf "Continuation extended a second time"
         | None -> Some extra0)
-      t0.Acc.extra
+      t0.Flow_types.Acc.extra
   in
-  { T.Acc.stack = t0.Acc.stack;
-    T.Acc.map = t0.Acc.map;
+  { T.Acc.stack = t0.Flow_types.Acc.stack;
+    T.Acc.map = t0.Flow_types.Acc.map;
     T.Acc.extra = extra1;
-    T.Acc.lifted_constants = t0.Acc.lifted_constants;
-    T.Acc.dummy_toplevel_cont = t0.Acc.dummy_toplevel_cont
+    T.Acc.lifted_constants = t0.Flow_types.Acc.lifted_constants;
+    T.Acc.dummy_toplevel_cont = t0.Flow_types.Acc.dummy_toplevel_cont
   }
 
 (** val enter_continuation : Continuation.t -> bool -> bool ->
@@ -87,9 +75,9 @@ let add_extra_params_and_args cont extra0 t0 =
 
 let enter_continuation continuation0 recursive0 is_exn_handler0 params0 t0 =
   let parent_continuation0 =
-    match t0.Acc.stack with
+    match t0.Flow_types.Acc.stack with
     | [] -> None
-    | parent :: _ -> Some parent.Continuation_info.continuation
+    | parent :: _ -> Some parent.Flow_types.Continuation_info.continuation
   in
   let used_in_handler0 =
     if not is_exn_handler0
@@ -116,11 +104,11 @@ let enter_continuation continuation0 recursive0 is_exn_handler0 params0 t0 =
       T.Continuation_info.apply_cont_args = Continuation.Map.empty
     }
   in
-  { T.Acc.stack = cont_info0 :: t0.Acc.stack;
-    T.Acc.map = t0.Acc.map;
-    T.Acc.extra = t0.Acc.extra;
-    T.Acc.lifted_constants = t0.Acc.lifted_constants;
-    T.Acc.dummy_toplevel_cont = t0.Acc.dummy_toplevel_cont
+  { T.Acc.stack = cont_info0 :: t0.Flow_types.Acc.stack;
+    T.Acc.map = t0.Flow_types.Acc.map;
+    T.Acc.extra = t0.Flow_types.Acc.extra;
+    T.Acc.lifted_constants = t0.Flow_types.Acc.lifted_constants;
+    T.Acc.dummy_toplevel_cont = t0.Flow_types.Acc.dummy_toplevel_cont
   }
 
 (** val init_toplevel : Continuation.t -> Bound_parameters.t -> t coq_M **)
@@ -128,81 +116,86 @@ let enter_continuation continuation0 recursive0 is_exn_handler0 params0 t0 =
 let init_toplevel dummy_toplevel_cont0 params0 =
   let empty_acc = empty () in
   enter_continuation dummy_toplevel_cont0 false false params0
-    { T.Acc.stack = empty_acc.Acc.stack;
-      T.Acc.map = empty_acc.Acc.map;
-      T.Acc.extra = empty_acc.Acc.extra;
-      T.Acc.lifted_constants = empty_acc.Acc.lifted_constants;
+    { T.Acc.stack = empty_acc.Flow_types.Acc.stack;
+      T.Acc.map = empty_acc.Flow_types.Acc.map;
+      T.Acc.extra = empty_acc.Flow_types.Acc.extra;
+      T.Acc.lifted_constants = empty_acc.Flow_types.Acc.lifted_constants;
       T.Acc.dummy_toplevel_cont = dummy_toplevel_cont0
     }
 
 (** val exit_continuation : Continuation.t -> t -> t coq_M **)
 
 let exit_continuation cont t0 =
-  match t0.Acc.stack with
+  match t0.Flow_types.Acc.stack with
   | [] -> Misc.fatal_errorf "Empty stack of variable uses"
   | elt :: stack0 ->
-    let { Continuation_info.continuation = continuation0;
-          Continuation_info.recursive = _;
-          Continuation_info.is_exn_handler = _;
-          Continuation_info.params = _;
-          Continuation_info.parent_continuation = _;
-          Continuation_info.used_in_handler = _;
-          Continuation_info.bindings = _;
-          Continuation_info.direct_aliases = _;
-          Continuation_info.mutable_let_prims_rev = _;
-          Continuation_info.defined = _;
-          Continuation_info.code_ids = _;
-          Continuation_info.value_slots = _;
-          Continuation_info.apply_cont_args = _
+    let { Flow_types.Continuation_info.continuation = continuation0;
+          Flow_types.Continuation_info.recursive = _;
+          Flow_types.Continuation_info.is_exn_handler = _;
+          Flow_types.Continuation_info.params = _;
+          Flow_types.Continuation_info.parent_continuation = _;
+          Flow_types.Continuation_info.used_in_handler = _;
+          Flow_types.Continuation_info.bindings = _;
+          Flow_types.Continuation_info.direct_aliases = _;
+          Flow_types.Continuation_info.mutable_let_prims_rev = _;
+          Flow_types.Continuation_info.defined = _;
+          Flow_types.Continuation_info.code_ids = _;
+          Flow_types.Continuation_info.value_slots = _;
+          Flow_types.Continuation_info.apply_cont_args = _
         } =
       elt
     in
     let () = assert (Continuation.equal cont continuation0) in
-    let map0 = Continuation.Map.add cont elt t0.Acc.map in
+    let map0 = Continuation.Map.add cont elt t0.Flow_types.Acc.map in
     { T.Acc.stack = stack0;
       T.Acc.map = map0;
-      T.Acc.extra = t0.Acc.extra;
-      T.Acc.lifted_constants = t0.Acc.lifted_constants;
-      T.Acc.dummy_toplevel_cont = t0.Acc.dummy_toplevel_cont
+      T.Acc.extra = t0.Flow_types.Acc.extra;
+      T.Acc.lifted_constants = t0.Flow_types.Acc.lifted_constants;
+      T.Acc.dummy_toplevel_cont = t0.Flow_types.Acc.dummy_toplevel_cont
     }
 
 (** val update_top_of_stack : t -> (cont_info -> cont_info coq_M) -> t coq_M **)
 
 let update_top_of_stack t0 f =
-  match t0.Acc.stack with
+  match t0.Flow_types.Acc.stack with
   | [] -> Misc.fatal_errorf "Empty stack of variable uses"
   | elt :: stack0 ->
     { T.Acc.stack = f elt :: stack0;
-      T.Acc.map = t0.Acc.map;
-      T.Acc.extra = t0.Acc.extra;
-      T.Acc.lifted_constants = t0.Acc.lifted_constants;
-      T.Acc.dummy_toplevel_cont = t0.Acc.dummy_toplevel_cont
+      T.Acc.map = t0.Flow_types.Acc.map;
+      T.Acc.extra = t0.Flow_types.Acc.extra;
+      T.Acc.lifted_constants = t0.Flow_types.Acc.lifted_constants;
+      T.Acc.dummy_toplevel_cont = t0.Flow_types.Acc.dummy_toplevel_cont
     }
 
 (** val record_defined_var : Variable.t -> t -> t coq_M **)
 
 let record_defined_var var t0 =
   update_top_of_stack t0 (fun elt ->
-      let defined0 = Variable.Set.add var elt.Continuation_info.defined in
-      { T.Continuation_info.continuation = elt.Continuation_info.continuation;
-        T.Continuation_info.recursive = elt.Continuation_info.recursive;
+      let defined0 =
+        Variable.Set.add var elt.Flow_types.Continuation_info.defined
+      in
+      { T.Continuation_info.continuation =
+          elt.Flow_types.Continuation_info.continuation;
+        T.Continuation_info.recursive =
+          elt.Flow_types.Continuation_info.recursive;
         T.Continuation_info.is_exn_handler =
-          elt.Continuation_info.is_exn_handler;
-        T.Continuation_info.params = elt.Continuation_info.params;
+          elt.Flow_types.Continuation_info.is_exn_handler;
+        T.Continuation_info.params = elt.Flow_types.Continuation_info.params;
         T.Continuation_info.parent_continuation =
-          elt.Continuation_info.parent_continuation;
+          elt.Flow_types.Continuation_info.parent_continuation;
         T.Continuation_info.used_in_handler =
-          elt.Continuation_info.used_in_handler;
-        T.Continuation_info.bindings = elt.Continuation_info.bindings;
+          elt.Flow_types.Continuation_info.used_in_handler;
+        T.Continuation_info.bindings = elt.Flow_types.Continuation_info.bindings;
         T.Continuation_info.direct_aliases =
-          elt.Continuation_info.direct_aliases;
+          elt.Flow_types.Continuation_info.direct_aliases;
         T.Continuation_info.mutable_let_prims_rev =
-          elt.Continuation_info.mutable_let_prims_rev;
+          elt.Flow_types.Continuation_info.mutable_let_prims_rev;
         T.Continuation_info.defined = defined0;
-        T.Continuation_info.code_ids = elt.Continuation_info.code_ids;
-        T.Continuation_info.value_slots = elt.Continuation_info.value_slots;
+        T.Continuation_info.code_ids = elt.Flow_types.Continuation_info.code_ids;
+        T.Continuation_info.value_slots =
+          elt.Flow_types.Continuation_info.value_slots;
         T.Continuation_info.apply_cont_args =
-          elt.Continuation_info.apply_cont_args
+          elt.Flow_types.Continuation_info.apply_cont_args
       })
 
 (** val record_var_binding : Variable.t -> Name_occurrences.t -> bool -> t -> t
@@ -219,34 +212,40 @@ let record_var_binding var name_occurrences generate_phantom_lets t0 =
                 "The following variable has been bound twice: %a" Variable.print
                 var
             | None -> Some name_occurrences)
-          elt.Continuation_info.bindings
+          elt.Flow_types.Continuation_info.bindings
       in
       let used_in_handler0 =
         if Variable.user_visible var && generate_phantom_lets
         then
-          Name_occurrences.add_variable elt.Continuation_info.used_in_handler
-            var Name_mode.phantom
-        else elt.Continuation_info.used_in_handler
+          Name_occurrences.add_variable
+            elt.Flow_types.Continuation_info.used_in_handler var
+            Name_mode.phantom
+        else elt.Flow_types.Continuation_info.used_in_handler
       in
-      let defined0 = Variable.Set.add var elt.Continuation_info.defined in
-      { T.Continuation_info.continuation = elt.Continuation_info.continuation;
-        T.Continuation_info.recursive = elt.Continuation_info.recursive;
+      let defined0 =
+        Variable.Set.add var elt.Flow_types.Continuation_info.defined
+      in
+      { T.Continuation_info.continuation =
+          elt.Flow_types.Continuation_info.continuation;
+        T.Continuation_info.recursive =
+          elt.Flow_types.Continuation_info.recursive;
         T.Continuation_info.is_exn_handler =
-          elt.Continuation_info.is_exn_handler;
-        T.Continuation_info.params = elt.Continuation_info.params;
+          elt.Flow_types.Continuation_info.is_exn_handler;
+        T.Continuation_info.params = elt.Flow_types.Continuation_info.params;
         T.Continuation_info.parent_continuation =
-          elt.Continuation_info.parent_continuation;
+          elt.Flow_types.Continuation_info.parent_continuation;
         T.Continuation_info.used_in_handler = used_in_handler0;
         T.Continuation_info.bindings = bindings0;
         T.Continuation_info.direct_aliases =
-          elt.Continuation_info.direct_aliases;
+          elt.Flow_types.Continuation_info.direct_aliases;
         T.Continuation_info.mutable_let_prims_rev =
-          elt.Continuation_info.mutable_let_prims_rev;
+          elt.Flow_types.Continuation_info.mutable_let_prims_rev;
         T.Continuation_info.defined = defined0;
-        T.Continuation_info.code_ids = elt.Continuation_info.code_ids;
-        T.Continuation_info.value_slots = elt.Continuation_info.value_slots;
+        T.Continuation_info.code_ids = elt.Flow_types.Continuation_info.code_ids;
+        T.Continuation_info.value_slots =
+          elt.Flow_types.Continuation_info.value_slots;
         T.Continuation_info.apply_cont_args =
-          elt.Continuation_info.apply_cont_args
+          elt.Flow_types.Continuation_info.apply_cont_args
       })
 
 (** val record_var_alias : Variable.t -> Simple.t -> t -> t coq_M **)
@@ -262,27 +261,32 @@ let record_var_alias var definition t0 =
                 "The following variable has been bound twice: %a" Variable.print
                 var
             | None -> Some definition)
-          elt.Continuation_info.direct_aliases
+          elt.Flow_types.Continuation_info.direct_aliases
       in
-      let defined0 = Variable.Set.add var elt.Continuation_info.defined in
-      { T.Continuation_info.continuation = elt.Continuation_info.continuation;
-        T.Continuation_info.recursive = elt.Continuation_info.recursive;
+      let defined0 =
+        Variable.Set.add var elt.Flow_types.Continuation_info.defined
+      in
+      { T.Continuation_info.continuation =
+          elt.Flow_types.Continuation_info.continuation;
+        T.Continuation_info.recursive =
+          elt.Flow_types.Continuation_info.recursive;
         T.Continuation_info.is_exn_handler =
-          elt.Continuation_info.is_exn_handler;
-        T.Continuation_info.params = elt.Continuation_info.params;
+          elt.Flow_types.Continuation_info.is_exn_handler;
+        T.Continuation_info.params = elt.Flow_types.Continuation_info.params;
         T.Continuation_info.parent_continuation =
-          elt.Continuation_info.parent_continuation;
+          elt.Flow_types.Continuation_info.parent_continuation;
         T.Continuation_info.used_in_handler =
-          elt.Continuation_info.used_in_handler;
-        T.Continuation_info.bindings = elt.Continuation_info.bindings;
+          elt.Flow_types.Continuation_info.used_in_handler;
+        T.Continuation_info.bindings = elt.Flow_types.Continuation_info.bindings;
         T.Continuation_info.direct_aliases = direct_aliases0;
         T.Continuation_info.mutable_let_prims_rev =
-          elt.Continuation_info.mutable_let_prims_rev;
+          elt.Flow_types.Continuation_info.mutable_let_prims_rev;
         T.Continuation_info.defined = defined0;
-        T.Continuation_info.code_ids = elt.Continuation_info.code_ids;
-        T.Continuation_info.value_slots = elt.Continuation_info.value_slots;
+        T.Continuation_info.code_ids = elt.Flow_types.Continuation_info.code_ids;
+        T.Continuation_info.value_slots =
+          elt.Flow_types.Continuation_info.value_slots;
         T.Continuation_info.apply_cont_args =
-          elt.Continuation_info.apply_cont_args
+          elt.Flow_types.Continuation_info.apply_cont_args
       })
 
 (** val record_ref_named : Named_rewrite_id.t -> Variable.t ->
@@ -298,28 +302,34 @@ let record_ref_named named_rewrite_id0 bound_to original_prim0 prim0 t0 =
         }
       in
       let mutable_let_prims_rev0 =
-        mutable_let_prim :: cont_info0.Continuation_info.mutable_let_prims_rev
+        mutable_let_prim
+        :: cont_info0.Flow_types.Continuation_info.mutable_let_prims_rev
       in
       { T.Continuation_info.continuation =
-          cont_info0.Continuation_info.continuation;
-        T.Continuation_info.recursive = cont_info0.Continuation_info.recursive;
+          cont_info0.Flow_types.Continuation_info.continuation;
+        T.Continuation_info.recursive =
+          cont_info0.Flow_types.Continuation_info.recursive;
         T.Continuation_info.is_exn_handler =
-          cont_info0.Continuation_info.is_exn_handler;
-        T.Continuation_info.params = cont_info0.Continuation_info.params;
+          cont_info0.Flow_types.Continuation_info.is_exn_handler;
+        T.Continuation_info.params =
+          cont_info0.Flow_types.Continuation_info.params;
         T.Continuation_info.parent_continuation =
-          cont_info0.Continuation_info.parent_continuation;
+          cont_info0.Flow_types.Continuation_info.parent_continuation;
         T.Continuation_info.used_in_handler =
-          cont_info0.Continuation_info.used_in_handler;
-        T.Continuation_info.bindings = cont_info0.Continuation_info.bindings;
+          cont_info0.Flow_types.Continuation_info.used_in_handler;
+        T.Continuation_info.bindings =
+          cont_info0.Flow_types.Continuation_info.bindings;
         T.Continuation_info.direct_aliases =
-          cont_info0.Continuation_info.direct_aliases;
+          cont_info0.Flow_types.Continuation_info.direct_aliases;
         T.Continuation_info.mutable_let_prims_rev = mutable_let_prims_rev0;
-        T.Continuation_info.defined = cont_info0.Continuation_info.defined;
-        T.Continuation_info.code_ids = cont_info0.Continuation_info.code_ids;
+        T.Continuation_info.defined =
+          cont_info0.Flow_types.Continuation_info.defined;
+        T.Continuation_info.code_ids =
+          cont_info0.Flow_types.Continuation_info.code_ids;
         T.Continuation_info.value_slots =
-          cont_info0.Continuation_info.value_slots;
+          cont_info0.Flow_types.Continuation_info.value_slots;
         T.Continuation_info.apply_cont_args =
-          cont_info0.Continuation_info.apply_cont_args
+          cont_info0.Flow_types.Continuation_info.apply_cont_args
       })
 
 (** val record_symbol_projection_aux : Variable.t -> Name_occurrences.t ->
@@ -340,23 +350,29 @@ let record_symbol_projection_aux var name_occurrences elt =
               Variable.print var Name_occurrences.print prior_occurences
               Name_occurrences.print name_occurrences
         | None -> Some name_occurrences)
-      elt.Continuation_info.bindings
+      elt.Flow_types.Continuation_info.bindings
   in
-  { T.Continuation_info.continuation = elt.Continuation_info.continuation;
-    T.Continuation_info.recursive = elt.Continuation_info.recursive;
-    T.Continuation_info.is_exn_handler = elt.Continuation_info.is_exn_handler;
-    T.Continuation_info.params = elt.Continuation_info.params;
+  { T.Continuation_info.continuation =
+      elt.Flow_types.Continuation_info.continuation;
+    T.Continuation_info.recursive = elt.Flow_types.Continuation_info.recursive;
+    T.Continuation_info.is_exn_handler =
+      elt.Flow_types.Continuation_info.is_exn_handler;
+    T.Continuation_info.params = elt.Flow_types.Continuation_info.params;
     T.Continuation_info.parent_continuation =
-      elt.Continuation_info.parent_continuation;
-    T.Continuation_info.used_in_handler = elt.Continuation_info.used_in_handler;
+      elt.Flow_types.Continuation_info.parent_continuation;
+    T.Continuation_info.used_in_handler =
+      elt.Flow_types.Continuation_info.used_in_handler;
     T.Continuation_info.bindings = bindings0;
-    T.Continuation_info.direct_aliases = elt.Continuation_info.direct_aliases;
+    T.Continuation_info.direct_aliases =
+      elt.Flow_types.Continuation_info.direct_aliases;
     T.Continuation_info.mutable_let_prims_rev =
-      elt.Continuation_info.mutable_let_prims_rev;
-    T.Continuation_info.defined = elt.Continuation_info.defined;
-    T.Continuation_info.code_ids = elt.Continuation_info.code_ids;
-    T.Continuation_info.value_slots = elt.Continuation_info.value_slots;
-    T.Continuation_info.apply_cont_args = elt.Continuation_info.apply_cont_args
+      elt.Flow_types.Continuation_info.mutable_let_prims_rev;
+    T.Continuation_info.defined = elt.Flow_types.Continuation_info.defined;
+    T.Continuation_info.code_ids = elt.Flow_types.Continuation_info.code_ids;
+    T.Continuation_info.value_slots =
+      elt.Flow_types.Continuation_info.value_slots;
+    T.Continuation_info.apply_cont_args =
+      elt.Flow_types.Continuation_info.apply_cont_args
   }
 
 (** val record_symbol_projection : Variable.t -> Name_occurrences.t -> t -> t
@@ -377,23 +393,29 @@ let record_symbol_binding_aux symbol name_occurrences elt =
           Misc.fatal_errorf "The following symbol has been bound twice: %a"
             Symbol.print symbol
         | None -> Some name_occurrences)
-      elt.Continuation_info.bindings
+      elt.Flow_types.Continuation_info.bindings
   in
-  { T.Continuation_info.continuation = elt.Continuation_info.continuation;
-    T.Continuation_info.recursive = elt.Continuation_info.recursive;
-    T.Continuation_info.is_exn_handler = elt.Continuation_info.is_exn_handler;
-    T.Continuation_info.params = elt.Continuation_info.params;
+  { T.Continuation_info.continuation =
+      elt.Flow_types.Continuation_info.continuation;
+    T.Continuation_info.recursive = elt.Flow_types.Continuation_info.recursive;
+    T.Continuation_info.is_exn_handler =
+      elt.Flow_types.Continuation_info.is_exn_handler;
+    T.Continuation_info.params = elt.Flow_types.Continuation_info.params;
     T.Continuation_info.parent_continuation =
-      elt.Continuation_info.parent_continuation;
-    T.Continuation_info.used_in_handler = elt.Continuation_info.used_in_handler;
+      elt.Flow_types.Continuation_info.parent_continuation;
+    T.Continuation_info.used_in_handler =
+      elt.Flow_types.Continuation_info.used_in_handler;
     T.Continuation_info.bindings = bindings0;
-    T.Continuation_info.direct_aliases = elt.Continuation_info.direct_aliases;
+    T.Continuation_info.direct_aliases =
+      elt.Flow_types.Continuation_info.direct_aliases;
     T.Continuation_info.mutable_let_prims_rev =
-      elt.Continuation_info.mutable_let_prims_rev;
-    T.Continuation_info.defined = elt.Continuation_info.defined;
-    T.Continuation_info.code_ids = elt.Continuation_info.code_ids;
-    T.Continuation_info.value_slots = elt.Continuation_info.value_slots;
-    T.Continuation_info.apply_cont_args = elt.Continuation_info.apply_cont_args
+      elt.Flow_types.Continuation_info.mutable_let_prims_rev;
+    T.Continuation_info.defined = elt.Flow_types.Continuation_info.defined;
+    T.Continuation_info.code_ids = elt.Flow_types.Continuation_info.code_ids;
+    T.Continuation_info.value_slots =
+      elt.Flow_types.Continuation_info.value_slots;
+    T.Continuation_info.apply_cont_args =
+      elt.Flow_types.Continuation_info.apply_cont_args
   }
 
 (** val record_symbol_binding : Symbol.t -> Name_occurrences.t -> t -> t coq_M **)
@@ -413,23 +435,29 @@ let record_code_id_binding_aux code_id name_occurrences elt =
           Misc.fatal_errorf "The following code_id has been bound twice: %a"
             Code_id.print code_id
         | None -> Some name_occurrences)
-      elt.Continuation_info.code_ids
+      elt.Flow_types.Continuation_info.code_ids
   in
-  { T.Continuation_info.continuation = elt.Continuation_info.continuation;
-    T.Continuation_info.recursive = elt.Continuation_info.recursive;
-    T.Continuation_info.is_exn_handler = elt.Continuation_info.is_exn_handler;
-    T.Continuation_info.params = elt.Continuation_info.params;
+  { T.Continuation_info.continuation =
+      elt.Flow_types.Continuation_info.continuation;
+    T.Continuation_info.recursive = elt.Flow_types.Continuation_info.recursive;
+    T.Continuation_info.is_exn_handler =
+      elt.Flow_types.Continuation_info.is_exn_handler;
+    T.Continuation_info.params = elt.Flow_types.Continuation_info.params;
     T.Continuation_info.parent_continuation =
-      elt.Continuation_info.parent_continuation;
-    T.Continuation_info.used_in_handler = elt.Continuation_info.used_in_handler;
-    T.Continuation_info.bindings = elt.Continuation_info.bindings;
-    T.Continuation_info.direct_aliases = elt.Continuation_info.direct_aliases;
+      elt.Flow_types.Continuation_info.parent_continuation;
+    T.Continuation_info.used_in_handler =
+      elt.Flow_types.Continuation_info.used_in_handler;
+    T.Continuation_info.bindings = elt.Flow_types.Continuation_info.bindings;
+    T.Continuation_info.direct_aliases =
+      elt.Flow_types.Continuation_info.direct_aliases;
     T.Continuation_info.mutable_let_prims_rev =
-      elt.Continuation_info.mutable_let_prims_rev;
-    T.Continuation_info.defined = elt.Continuation_info.defined;
+      elt.Flow_types.Continuation_info.mutable_let_prims_rev;
+    T.Continuation_info.defined = elt.Flow_types.Continuation_info.defined;
     T.Continuation_info.code_ids = code_ids0;
-    T.Continuation_info.value_slots = elt.Continuation_info.value_slots;
-    T.Continuation_info.apply_cont_args = elt.Continuation_info.apply_cont_args
+    T.Continuation_info.value_slots =
+      elt.Flow_types.Continuation_info.value_slots;
+    T.Continuation_info.apply_cont_args =
+      elt.Flow_types.Continuation_info.apply_cont_args
   }
 
 (** val record_code_id_binding : Code_id.t -> Name_occurrences.t -> t -> t coq_M
@@ -455,23 +483,28 @@ let record_value_slot_aux src value_slot dst elt =
                  | None -> Some dst)
                map0)
         | None -> Some (Name.Map.singleton src dst))
-      elt.Continuation_info.value_slots
+      elt.Flow_types.Continuation_info.value_slots
   in
-  { T.Continuation_info.continuation = elt.Continuation_info.continuation;
-    T.Continuation_info.recursive = elt.Continuation_info.recursive;
-    T.Continuation_info.is_exn_handler = elt.Continuation_info.is_exn_handler;
-    T.Continuation_info.params = elt.Continuation_info.params;
+  { T.Continuation_info.continuation =
+      elt.Flow_types.Continuation_info.continuation;
+    T.Continuation_info.recursive = elt.Flow_types.Continuation_info.recursive;
+    T.Continuation_info.is_exn_handler =
+      elt.Flow_types.Continuation_info.is_exn_handler;
+    T.Continuation_info.params = elt.Flow_types.Continuation_info.params;
     T.Continuation_info.parent_continuation =
-      elt.Continuation_info.parent_continuation;
-    T.Continuation_info.used_in_handler = elt.Continuation_info.used_in_handler;
-    T.Continuation_info.bindings = elt.Continuation_info.bindings;
-    T.Continuation_info.direct_aliases = elt.Continuation_info.direct_aliases;
+      elt.Flow_types.Continuation_info.parent_continuation;
+    T.Continuation_info.used_in_handler =
+      elt.Flow_types.Continuation_info.used_in_handler;
+    T.Continuation_info.bindings = elt.Flow_types.Continuation_info.bindings;
+    T.Continuation_info.direct_aliases =
+      elt.Flow_types.Continuation_info.direct_aliases;
     T.Continuation_info.mutable_let_prims_rev =
-      elt.Continuation_info.mutable_let_prims_rev;
-    T.Continuation_info.defined = elt.Continuation_info.defined;
-    T.Continuation_info.code_ids = elt.Continuation_info.code_ids;
+      elt.Flow_types.Continuation_info.mutable_let_prims_rev;
+    T.Continuation_info.defined = elt.Flow_types.Continuation_info.defined;
+    T.Continuation_info.code_ids = elt.Flow_types.Continuation_info.code_ids;
     T.Continuation_info.value_slots = value_slots0;
-    T.Continuation_info.apply_cont_args = elt.Continuation_info.apply_cont_args
+    T.Continuation_info.apply_cont_args =
+      elt.Flow_types.Continuation_info.apply_cont_args
   }
 
 (** val record_value_slot : Name.t -> Value_slot.t -> Name_occurrences.t -> t ->
@@ -485,27 +518,30 @@ let record_value_slot src value_slot dst t0 =
 let add_used_in_current_handler name_occurrences t0 =
   update_top_of_stack t0 (fun elt ->
       let used_in_handler0 =
-        Name_occurrences.union elt.Continuation_info.used_in_handler
+        Name_occurrences.union elt.Flow_types.Continuation_info.used_in_handler
           name_occurrences
       in
-      { T.Continuation_info.continuation = elt.Continuation_info.continuation;
-        T.Continuation_info.recursive = elt.Continuation_info.recursive;
+      { T.Continuation_info.continuation =
+          elt.Flow_types.Continuation_info.continuation;
+        T.Continuation_info.recursive =
+          elt.Flow_types.Continuation_info.recursive;
         T.Continuation_info.is_exn_handler =
-          elt.Continuation_info.is_exn_handler;
-        T.Continuation_info.params = elt.Continuation_info.params;
+          elt.Flow_types.Continuation_info.is_exn_handler;
+        T.Continuation_info.params = elt.Flow_types.Continuation_info.params;
         T.Continuation_info.parent_continuation =
-          elt.Continuation_info.parent_continuation;
+          elt.Flow_types.Continuation_info.parent_continuation;
         T.Continuation_info.used_in_handler = used_in_handler0;
-        T.Continuation_info.bindings = elt.Continuation_info.bindings;
+        T.Continuation_info.bindings = elt.Flow_types.Continuation_info.bindings;
         T.Continuation_info.direct_aliases =
-          elt.Continuation_info.direct_aliases;
+          elt.Flow_types.Continuation_info.direct_aliases;
         T.Continuation_info.mutable_let_prims_rev =
-          elt.Continuation_info.mutable_let_prims_rev;
-        T.Continuation_info.defined = elt.Continuation_info.defined;
-        T.Continuation_info.code_ids = elt.Continuation_info.code_ids;
-        T.Continuation_info.value_slots = elt.Continuation_info.value_slots;
+          elt.Flow_types.Continuation_info.mutable_let_prims_rev;
+        T.Continuation_info.defined = elt.Flow_types.Continuation_info.defined;
+        T.Continuation_info.code_ids = elt.Flow_types.Continuation_info.code_ids;
+        T.Continuation_info.value_slots =
+          elt.Flow_types.Continuation_info.value_slots;
         T.Continuation_info.apply_cont_args =
-          elt.Continuation_info.apply_cont_args
+          elt.Flow_types.Continuation_info.apply_cont_args
       })
 
 (** val add_apply_conts : (Apply_cont_rewrite_id.t * Continuation.t) option ->
@@ -558,7 +594,7 @@ let add_apply_conts result_cont exn_cont result_arity t0 =
           (Exn_continuation.exn_handler exn_cont0)
           rewrite_id 1
           (Exn_continuation.extra_args exn_cont0)
-          elt.Continuation_info.apply_cont_args
+          elt.Flow_types.Continuation_info.apply_cont_args
       in
       let apply_cont_args1 =
         match result_cont with
@@ -569,23 +605,26 @@ let add_apply_conts result_cont exn_cont result_arity t0 =
             [] apply_cont_args0
         | None -> apply_cont_args0
       in
-      { T.Continuation_info.continuation = elt.Continuation_info.continuation;
-        T.Continuation_info.recursive = elt.Continuation_info.recursive;
+      { T.Continuation_info.continuation =
+          elt.Flow_types.Continuation_info.continuation;
+        T.Continuation_info.recursive =
+          elt.Flow_types.Continuation_info.recursive;
         T.Continuation_info.is_exn_handler =
-          elt.Continuation_info.is_exn_handler;
-        T.Continuation_info.params = elt.Continuation_info.params;
+          elt.Flow_types.Continuation_info.is_exn_handler;
+        T.Continuation_info.params = elt.Flow_types.Continuation_info.params;
         T.Continuation_info.parent_continuation =
-          elt.Continuation_info.parent_continuation;
+          elt.Flow_types.Continuation_info.parent_continuation;
         T.Continuation_info.used_in_handler =
-          elt.Continuation_info.used_in_handler;
-        T.Continuation_info.bindings = elt.Continuation_info.bindings;
+          elt.Flow_types.Continuation_info.used_in_handler;
+        T.Continuation_info.bindings = elt.Flow_types.Continuation_info.bindings;
         T.Continuation_info.direct_aliases =
-          elt.Continuation_info.direct_aliases;
+          elt.Flow_types.Continuation_info.direct_aliases;
         T.Continuation_info.mutable_let_prims_rev =
-          elt.Continuation_info.mutable_let_prims_rev;
-        T.Continuation_info.defined = elt.Continuation_info.defined;
-        T.Continuation_info.code_ids = elt.Continuation_info.code_ids;
-        T.Continuation_info.value_slots = elt.Continuation_info.value_slots;
+          elt.Flow_types.Continuation_info.mutable_let_prims_rev;
+        T.Continuation_info.defined = elt.Flow_types.Continuation_info.defined;
+        T.Continuation_info.code_ids = elt.Flow_types.Continuation_info.code_ids;
+        T.Continuation_info.value_slots =
+          elt.Flow_types.Continuation_info.value_slots;
         T.Continuation_info.apply_cont_args = apply_cont_args1
       })
 
@@ -624,25 +663,28 @@ let add_apply_cont_args rewrite_id cont arg_name_simples t0 =
                 rewrite_map
             in
             Some rewrite_map0)
-          elt.Continuation_info.apply_cont_args
+          elt.Flow_types.Continuation_info.apply_cont_args
       in
-      { T.Continuation_info.continuation = elt.Continuation_info.continuation;
-        T.Continuation_info.recursive = elt.Continuation_info.recursive;
+      { T.Continuation_info.continuation =
+          elt.Flow_types.Continuation_info.continuation;
+        T.Continuation_info.recursive =
+          elt.Flow_types.Continuation_info.recursive;
         T.Continuation_info.is_exn_handler =
-          elt.Continuation_info.is_exn_handler;
-        T.Continuation_info.params = elt.Continuation_info.params;
+          elt.Flow_types.Continuation_info.is_exn_handler;
+        T.Continuation_info.params = elt.Flow_types.Continuation_info.params;
         T.Continuation_info.parent_continuation =
-          elt.Continuation_info.parent_continuation;
+          elt.Flow_types.Continuation_info.parent_continuation;
         T.Continuation_info.used_in_handler =
-          elt.Continuation_info.used_in_handler;
-        T.Continuation_info.bindings = elt.Continuation_info.bindings;
+          elt.Flow_types.Continuation_info.used_in_handler;
+        T.Continuation_info.bindings = elt.Flow_types.Continuation_info.bindings;
         T.Continuation_info.direct_aliases =
-          elt.Continuation_info.direct_aliases;
+          elt.Flow_types.Continuation_info.direct_aliases;
         T.Continuation_info.mutable_let_prims_rev =
-          elt.Continuation_info.mutable_let_prims_rev;
-        T.Continuation_info.defined = elt.Continuation_info.defined;
-        T.Continuation_info.code_ids = elt.Continuation_info.code_ids;
-        T.Continuation_info.value_slots = elt.Continuation_info.value_slots;
+          elt.Flow_types.Continuation_info.mutable_let_prims_rev;
+        T.Continuation_info.defined = elt.Flow_types.Continuation_info.defined;
+        T.Continuation_info.code_ids = elt.Flow_types.Continuation_info.code_ids;
+        T.Continuation_info.value_slots =
+          elt.Flow_types.Continuation_info.value_slots;
         T.Continuation_info.apply_cont_args = apply_cont_args0
       })
 
@@ -662,7 +704,10 @@ let get_block_and_constant_field block field =
 
 let record_let_binding rewrite_id generate_phantom_lets let_bound
     simplified_defining_expr t0 =
-  let { named = named0; cost_metrics = _; free_names = free_names0 } =
+  let { Simplified_named.named = named0;
+        Simplified_named.cost_metrics = _;
+        Simplified_named.free_names = free_names0
+      } =
     simplified_defining_expr
   in
   let record_var_bindings =
@@ -1281,18 +1326,19 @@ let normalize_lifted_constants_aux lifted_constants0 elt =
 (** val record_lifted_constants : Lifted_constant_state.t -> t -> t coq_M **)
 
 let record_lifted_constants lifted_constants0 t0 =
-  { T.Acc.stack = t0.Acc.stack;
-    T.Acc.map = t0.Acc.map;
-    T.Acc.extra = t0.Acc.extra;
+  { T.Acc.stack = t0.Flow_types.Acc.stack;
+    T.Acc.map = t0.Flow_types.Acc.map;
+    T.Acc.extra = t0.Flow_types.Acc.extra;
     T.Acc.lifted_constants =
-      Lifted_constant_state.union lifted_constants0 t0.Acc.lifted_constants;
-    T.Acc.dummy_toplevel_cont = t0.Acc.dummy_toplevel_cont
+      Lifted_constant_state.union lifted_constants0
+        t0.Flow_types.Acc.lifted_constants;
+    T.Acc.dummy_toplevel_cont = t0.Flow_types.Acc.dummy_toplevel_cont
   }
 
 (** val add_extra_args_to_call : Continuation_extra_params_and_args.Extra_arg.t
     list Or_invalid.t Apply_cont_rewrite_id.Map.t -> Apply_cont_rewrite_id.t ->
-    Flow_types.Cont_arg.t Int.Map.t -> Flow_types.Cont_arg.t Int.Map.t option
-    coq_M **)
+    Flow_types.Cont_arg.t Numeric_types.Int.Map.t -> Flow_types.Cont_arg.t
+    Numeric_types.Int.Map.t option coq_M **)
 
 let add_extra_args_to_call extra_args rewrite_id original_args =
   match Apply_cont_rewrite_id.Map.find_or_null rewrite_id extra_args with
@@ -1356,13 +1402,16 @@ let normalize_acc specialization_map t0 =
                     | Or_null.This specialized ->
                       Continuation_callsite_map.add specialized id args acc0)
                   rewrite_ids acc)
-            elt.Continuation_info.apply_cont_args Continuation.Map.empty
+            elt.Flow_types.Continuation_info.apply_cont_args
+            Continuation.Map.empty
         in
         let apply_cont_args1 =
           Continuation.Map.filter_map
             (fun cont rewrite_ids ->
               let rewrite_ids0 =
-                match Continuation.Map.find_or_null cont t0.Acc.extra with
+                match
+                  Continuation.Map.find_or_null cont t0.Flow_types.Acc.extra
+                with
                 | Or_null.Null -> rewrite_ids
                 | Or_null.This epa ->
                   let extra_args =
@@ -1377,26 +1426,31 @@ let normalize_acc specialization_map t0 =
               else Some rewrite_ids0)
             apply_cont_args0
         in
-        { T.Continuation_info.continuation = elt.Continuation_info.continuation;
-          T.Continuation_info.recursive = elt.Continuation_info.recursive;
+        { T.Continuation_info.continuation =
+            elt.Flow_types.Continuation_info.continuation;
+          T.Continuation_info.recursive =
+            elt.Flow_types.Continuation_info.recursive;
           T.Continuation_info.is_exn_handler =
-            elt.Continuation_info.is_exn_handler;
-          T.Continuation_info.params = elt.Continuation_info.params;
+            elt.Flow_types.Continuation_info.is_exn_handler;
+          T.Continuation_info.params = elt.Flow_types.Continuation_info.params;
           T.Continuation_info.parent_continuation =
-            elt.Continuation_info.parent_continuation;
+            elt.Flow_types.Continuation_info.parent_continuation;
           T.Continuation_info.used_in_handler =
-            elt.Continuation_info.used_in_handler;
-          T.Continuation_info.bindings = elt.Continuation_info.bindings;
+            elt.Flow_types.Continuation_info.used_in_handler;
+          T.Continuation_info.bindings =
+            elt.Flow_types.Continuation_info.bindings;
           T.Continuation_info.direct_aliases =
-            elt.Continuation_info.direct_aliases;
+            elt.Flow_types.Continuation_info.direct_aliases;
           T.Continuation_info.mutable_let_prims_rev =
-            elt.Continuation_info.mutable_let_prims_rev;
-          T.Continuation_info.defined = elt.Continuation_info.defined;
-          T.Continuation_info.code_ids = elt.Continuation_info.code_ids;
-          T.Continuation_info.value_slots = elt.Continuation_info.value_slots;
+            elt.Flow_types.Continuation_info.mutable_let_prims_rev;
+          T.Continuation_info.defined = elt.Flow_types.Continuation_info.defined;
+          T.Continuation_info.code_ids =
+            elt.Flow_types.Continuation_info.code_ids;
+          T.Continuation_info.value_slots =
+            elt.Flow_types.Continuation_info.value_slots;
           T.Continuation_info.apply_cont_args = apply_cont_args1
         })
-      t0.Acc.map
+      t0.Flow_types.Acc.map
   in
   let map1 =
     Continuation.Map.map
@@ -1404,7 +1458,10 @@ let normalize_acc specialization_map t0 =
         let defined0 =
           Continuation.Map.fold
             (fun callee_cont rewrite_ids defined0 ->
-              match Continuation.Map.find_or_null callee_cont t0.Acc.extra with
+              match
+                Continuation.Map.find_or_null callee_cont
+                  t0.Flow_types.Acc.extra
+              with
               | Or_null.Null -> defined0
               | Or_null.This epa ->
                 Apply_cont_rewrite_id.Map.fold
@@ -1438,27 +1495,33 @@ let normalize_acc specialization_map t0 =
                         defined2
                       | Or_invalid.Invalid -> defined1))
                   rewrite_ids defined0)
-            elt.Continuation_info.apply_cont_args elt.Continuation_info.defined
+            elt.Flow_types.Continuation_info.apply_cont_args
+            elt.Flow_types.Continuation_info.defined
         in
-        { T.Continuation_info.continuation = elt.Continuation_info.continuation;
-          T.Continuation_info.recursive = elt.Continuation_info.recursive;
+        { T.Continuation_info.continuation =
+            elt.Flow_types.Continuation_info.continuation;
+          T.Continuation_info.recursive =
+            elt.Flow_types.Continuation_info.recursive;
           T.Continuation_info.is_exn_handler =
-            elt.Continuation_info.is_exn_handler;
-          T.Continuation_info.params = elt.Continuation_info.params;
+            elt.Flow_types.Continuation_info.is_exn_handler;
+          T.Continuation_info.params = elt.Flow_types.Continuation_info.params;
           T.Continuation_info.parent_continuation =
-            elt.Continuation_info.parent_continuation;
+            elt.Flow_types.Continuation_info.parent_continuation;
           T.Continuation_info.used_in_handler =
-            elt.Continuation_info.used_in_handler;
-          T.Continuation_info.bindings = elt.Continuation_info.bindings;
+            elt.Flow_types.Continuation_info.used_in_handler;
+          T.Continuation_info.bindings =
+            elt.Flow_types.Continuation_info.bindings;
           T.Continuation_info.direct_aliases =
-            elt.Continuation_info.direct_aliases;
+            elt.Flow_types.Continuation_info.direct_aliases;
           T.Continuation_info.mutable_let_prims_rev =
-            elt.Continuation_info.mutable_let_prims_rev;
+            elt.Flow_types.Continuation_info.mutable_let_prims_rev;
           T.Continuation_info.defined = defined0;
-          T.Continuation_info.code_ids = elt.Continuation_info.code_ids;
-          T.Continuation_info.value_slots = elt.Continuation_info.value_slots;
+          T.Continuation_info.code_ids =
+            elt.Flow_types.Continuation_info.code_ids;
+          T.Continuation_info.value_slots =
+            elt.Flow_types.Continuation_info.value_slots;
           T.Continuation_info.apply_cont_args =
-            elt.Continuation_info.apply_cont_args
+            elt.Flow_types.Continuation_info.apply_cont_args
         })
       map0
   in
@@ -1468,48 +1531,55 @@ let normalize_acc specialization_map t0 =
         let elt = Continuation.Map.find cont map2 in
         let elt0 =
           let params0 =
-            Bound_parameters.append elt.Continuation_info.params
+            Bound_parameters.append elt.Flow_types.Continuation_info.params
               (Continuation_extra_params_and_args.extra_params epa)
           in
           { T.Continuation_info.continuation =
-              elt.Continuation_info.continuation;
-            T.Continuation_info.recursive = elt.Continuation_info.recursive;
+              elt.Flow_types.Continuation_info.continuation;
+            T.Continuation_info.recursive =
+              elt.Flow_types.Continuation_info.recursive;
             T.Continuation_info.is_exn_handler =
-              elt.Continuation_info.is_exn_handler;
+              elt.Flow_types.Continuation_info.is_exn_handler;
             T.Continuation_info.params = params0;
             T.Continuation_info.parent_continuation =
-              elt.Continuation_info.parent_continuation;
+              elt.Flow_types.Continuation_info.parent_continuation;
             T.Continuation_info.used_in_handler =
-              elt.Continuation_info.used_in_handler;
-            T.Continuation_info.bindings = elt.Continuation_info.bindings;
+              elt.Flow_types.Continuation_info.used_in_handler;
+            T.Continuation_info.bindings =
+              elt.Flow_types.Continuation_info.bindings;
             T.Continuation_info.direct_aliases =
-              elt.Continuation_info.direct_aliases;
+              elt.Flow_types.Continuation_info.direct_aliases;
             T.Continuation_info.mutable_let_prims_rev =
-              elt.Continuation_info.mutable_let_prims_rev;
-            T.Continuation_info.defined = elt.Continuation_info.defined;
-            T.Continuation_info.code_ids = elt.Continuation_info.code_ids;
-            T.Continuation_info.value_slots = elt.Continuation_info.value_slots;
+              elt.Flow_types.Continuation_info.mutable_let_prims_rev;
+            T.Continuation_info.defined =
+              elt.Flow_types.Continuation_info.defined;
+            T.Continuation_info.code_ids =
+              elt.Flow_types.Continuation_info.code_ids;
+            T.Continuation_info.value_slots =
+              elt.Flow_types.Continuation_info.value_slots;
             T.Continuation_info.apply_cont_args =
-              elt.Continuation_info.apply_cont_args
+              elt.Flow_types.Continuation_info.apply_cont_args
           }
         in
         Continuation.Map.add cont elt0 map2)
-      t0.Acc.extra map1
+      t0.Flow_types.Acc.extra map1
   in
   let map3 =
-    Continuation.Map.update t0.Acc.dummy_toplevel_cont
+    Continuation.Map.update t0.Flow_types.Acc.dummy_toplevel_cont
       (fun x ->
         match x with
         | Some elt ->
-          Some (normalize_lifted_constants_aux t0.Acc.lifted_constants elt)
+          Some
+            (normalize_lifted_constants_aux t0.Flow_types.Acc.lifted_constants
+               elt)
         | None ->
           Misc.fatal_errorf
             "Data_flow: missing continuation info for top-level expression")
       map2
   in
-  { T.Acc.stack = t0.Acc.stack;
+  { T.Acc.stack = t0.Flow_types.Acc.stack;
     T.Acc.map = map3;
     T.Acc.extra = Continuation.Map.empty;
-    T.Acc.lifted_constants = t0.Acc.lifted_constants;
-    T.Acc.dummy_toplevel_cont = t0.Acc.dummy_toplevel_cont
+    T.Acc.lifted_constants = t0.Flow_types.Acc.lifted_constants;
+    T.Acc.dummy_toplevel_cont = t0.Flow_types.Acc.dummy_toplevel_cont
   }

@@ -22,12 +22,7 @@
    in middle_end/flambda2/rocq/simplify_port. *)
 
 open! Simplify_import
-open Apply_cont_rewrite_id
-open Flambda2_types
 open Port_monad
-open Unboxers
-open Unboxing_types
-open Value_slot
 module U = Unboxing_types
 module Extra_param_and_args = U.Extra_param_and_args
 
@@ -75,28 +70,30 @@ let make_optimistic_const_ctor _ =
     (is_int, ctor)
 
 (** val make_optimistic_number_decision : Flambda2_types.Typing_env.t ->
-    Flambda2_types.t -> number_decider -> Unboxing_types.decision option coq_M **)
+    Flambda2_types.t -> Unboxers.number_decider -> Unboxing_types.decision
+    option coq_M **)
 
 let make_optimistic_number_decision tenv param_type decider =
-  match decider.prove_is_a_boxed_number tenv param_type with
+  match decider.Unboxers.prove_is_a_boxed_number tenv param_type with
   | Flambda2_types.Proved u ->
     let () = u in
     let naked_number =
-      Unboxing_types.Extra_param_and_args.create decider.param_name
+      Unboxing_types.Extra_param_and_args.create decider.Unboxers.param_name
         Flambda_debug_uid.none
-        (Flambda_kind.naked_number decider.kind)
+        (Flambda_kind.naked_number decider.Unboxers.kind)
     in
     Some
-      (Unboxing_types.Unbox (Unboxing_types.Number (decider.kind, naked_number)))
+      (Unboxing_types.Unbox
+         (Unboxing_types.Number (decider.Unboxers.kind, naked_number)))
   | Flambda2_types.Unknown -> None
 
 (** val decide : Flambda2_types.Typing_env.t -> Flambda2_types.t ->
-    number_decider list -> Unboxing_types.decision option coq_M **)
+    Unboxers.number_decider list -> Unboxing_types.decision option coq_M **)
 
 let decide tenv param_type deciders0 =
   List.find_map (make_optimistic_number_decision tenv param_type) deciders0
 
-(** val deciders : number_decider list **)
+(** val deciders : Unboxers.number_decider list **)
 
 let deciders =
   [ Unboxers.Immediate.decider;
@@ -160,8 +157,9 @@ let rec make_optimistic_decision depth recursive tenv param_type =
           else
             match Flambda2_types.prove_variant_like tenv param_type with
             | Flambda2_types.Proved v -> (
-              let { const_ctors = const_ctors0;
-                    non_const_ctors_with_sizes = non_const_ctors_with_sizes0
+              let { Flambda2_types.const_ctors = const_ctors0;
+                    Flambda2_types.non_const_ctors_with_sizes =
+                      non_const_ctors_with_sizes0
                   } =
                 v
               in
@@ -304,8 +302,9 @@ let rec make_optimistic_decision depth recursive tenv param_type =
         | Flambda2_types.Unknown -> (
           match Flambda2_types.prove_variant_like tenv param_type with
           | Flambda2_types.Proved v -> (
-            let { const_ctors = const_ctors0;
-                  non_const_ctors_with_sizes = non_const_ctors_with_sizes0
+            let { Flambda2_types.const_ctors = const_ctors0;
+                  Flambda2_types.non_const_ctors_with_sizes =
+                    non_const_ctors_with_sizes0
                 } =
               v
             in
@@ -532,7 +531,7 @@ and make_optimistic_fields add_tag_to_name depth recursive tenv param_type tag
 
 (** val make_optimistic_vars_within_closure : int -> bool ->
     Flambda2_types.Typing_env.t -> Flambda2_types.Closures_entry.t ->
-    Unboxing_types.field_decision Map.t coq_M **)
+    Unboxing_types.field_decision Value_slot.Map.t coq_M **)
 
 and make_optimistic_vars_within_closure depth recursive tenv closures_entry =
   let map = Flambda2_types.Closures_entry.value_slot_types closures_entry in

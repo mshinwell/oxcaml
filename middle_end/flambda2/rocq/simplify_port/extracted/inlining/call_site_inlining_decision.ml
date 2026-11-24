@@ -22,26 +22,19 @@
    middle_end/flambda2/rocq/simplify_port. *)
 
 open! Flambda.Import
-open Downwards_acc
-open Downwards_env
-open Flambda2_types
 open Port_monad
-open Simplify_common
-open Tag
-open Upwards_acc
-open Upwards_env
 module DE = Downwards_env
 module DA = Downwards_acc
 module T = Flambda2_types
 module TE = T.Typing_env
 module UA = Upwards_acc
 module UE = Upwards_env
-module FT = Function_type
+module FT = Flambda2_types.Function_type
 
 (** val speculative_inlining : Downwards_acc.t -> Flambda.Import.Apply.t ->
-    Flambda2_types.Function_type.t -> Flambda.Import.Expr.t expr_simplifier ->
-    Simplified_expr.t rebuild -> [ `Complex ] Flambda_arity.t -> Cost_metrics.t
-    coq_M **)
+    Flambda2_types.Function_type.t -> Flambda.Import.Expr.t
+    Simplify_common.expr_simplifier -> Simplified_expr.t Simplify_common.rebuild
+    -> [ `Complex ] Flambda_arity.t -> Cost_metrics.t coq_M **)
 
 let speculative_inlining dacc apply function_type simplify_expr rebuild_expr
     return_arity =
@@ -200,8 +193,9 @@ let inlining_does_decrease_code_size code_metadata cost_metrics =
 
 (** val might_inline : Downwards_acc.t -> Flambda.Import.Apply.t ->
     Code_metadata.t -> Flambda2_types.Function_type.t -> Flambda.Import.Expr.t
-    expr_simplifier -> Simplified_expr.t rebuild -> [ `Complex ] Flambda_arity.t
-    -> Call_site_inlining_decision_type.t coq_M **)
+    Simplify_common.expr_simplifier -> Simplified_expr.t Simplify_common.rebuild
+    -> [ `Complex ] Flambda_arity.t -> Call_site_inlining_decision_type.t coq_M
+    **)
 
 let might_inline dacc apply code_metadata function_type simplify_expr
     rebuild_expr return_arity =
@@ -529,8 +523,8 @@ let get_rec_info dacc function_type =
     (Flambda2_types.meet_rec_info (Downwards_acc.typing_env dacc) rec_info)
 
 (** val make_decision0 : Downwards_acc.t -> Flambda.Import.Expr.t
-    expr_simplifier -> Simplified_expr.t rebuild ->
-    Flambda2_types.Function_type.t -> Flambda.Import.Apply.t -> [ `Complex ]
+    Simplify_common.expr_simplifier -> Simplified_expr.t Simplify_common.rebuild
+    -> Flambda2_types.Function_type.t -> Flambda.Import.Apply.t -> [ `Complex ]
     Flambda_arity.t -> Call_site_inlining_decision_type.t coq_M **)
 
 let make_decision0 dacc simplify_expr rebuild_expr function_type apply
@@ -1026,10 +1020,10 @@ let make_decision0 dacc simplify_expr rebuild_expr function_type apply
               inline_if_code_present
                 Call_site_inlining_decision_type.Attribute_always))
 
-(** val make_decision : Downwards_acc.t -> Flambda.Import.Expr.t expr_simplifier
-    -> Simplified_expr.t rebuild -> Flambda2_types.Function_type.t ->
-    Flambda.Import.Apply.t -> [ `Complex ] Flambda_arity.t ->
-    Call_site_inlining_decision_type.t coq_M **)
+(** val make_decision : Downwards_acc.t -> Flambda.Import.Expr.t
+    Simplify_common.expr_simplifier -> Simplified_expr.t Simplify_common.rebuild
+    -> Flambda2_types.Function_type.t -> Flambda.Import.Apply.t -> [ `Complex ]
+    Flambda_arity.t -> Call_site_inlining_decision_type.t coq_M **)
 
 let make_decision dacc simplify_expr rebuild_expr function_type apply
     return_arity =

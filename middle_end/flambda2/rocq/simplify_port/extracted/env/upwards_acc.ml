@@ -26,12 +26,7 @@ module DE = Downwards_env
 module LCS = Lifted_constant_state
 module TE = Flambda2_types.Typing_env
 module UE = Upwards_env
-open Apply_cont_rewrite_id
-open Code_id
-open Continuation
-open Flow_types
 open Port_monad
-open Static_const
 
 type t =
   { uenv : Upwards_env.t;
@@ -41,7 +36,7 @@ type t =
     name_occurrences : Name_occurrences.t;
     cost_metrics : Cost_metrics.t;
     slot_offsets : Slot_offsets.t Or_unknown.t;
-    flow_result : Flow_result.t;
+    flow_result : Flow_types.Flow_result.t;
     resimplify : bool
   }
 
@@ -73,7 +68,7 @@ let cost_metrics t0 = t0.cost_metrics
 
 let slot_offsets t0 = t0.slot_offsets
 
-(** val flow_result : t -> Flow_result.t **)
+(** val flow_result : t -> Flow_types.Flow_result.t **)
 
 let flow_result t0 = t0.flow_result
 
@@ -109,8 +104,8 @@ let print ppf t0 =
      else fun _ _ -> ())
     ()
 
-(** val create : Flow_result.t -> bool -> Upwards_env.t -> Downwards_acc.t -> t
-    coq_M **)
+(** val create : Flow_types.Flow_result.t -> bool -> Upwards_env.t ->
+    Downwards_acc.t -> t coq_M **)
 
 let create flow_result0 compute_slot_offsets uenv0 dacc =
   let slot_offsets0 =
@@ -281,7 +276,7 @@ let add_free_names t0 free_names =
 
 let used_value_slots t0 = Downwards_acc.used_value_slots t0.creation_dacc
 
-(** val shareable_constants : t -> Symbol.t Map.t coq_M **)
+(** val shareable_constants : t -> Symbol.t Static_const.Map.t coq_M **)
 
 let shareable_constants t0 = Downwards_acc.shareable_constants t0.creation_dacc
 
@@ -415,22 +410,26 @@ let with_slot_offsets t0 slot_offsets0 =
 (** val required_names : t -> Name.Set.t coq_M **)
 
 let required_names t0 =
-  t0.flow_result.Flow_result.data_flow_result.Data_flow_result.required_names
+  t0.flow_result.Flow_types.Flow_result.data_flow_result
+    .Flow_types.Data_flow_result.required_names
 
-(** val reachable_code_ids : t -> Reachable_code_ids.t Or_unknown.t coq_M **)
+(** val reachable_code_ids : t -> Flow_types.Reachable_code_ids.t Or_unknown.t
+    coq_M **)
 
 let reachable_code_ids t0 =
-  t0.flow_result.Flow_result.data_flow_result
-    .Data_flow_result.reachable_code_ids
+  t0.flow_result.Flow_types.Flow_result.data_flow_result
+    .Flow_types.Data_flow_result.reachable_code_ids
 
-(** val continuation_param_aliases : t -> Alias_result.t coq_M **)
+(** val continuation_param_aliases : t -> Flow_types.Alias_result.t coq_M **)
 
-let continuation_param_aliases t0 = t0.flow_result.Flow_result.aliases_result
+let continuation_param_aliases t0 =
+  t0.flow_result.Flow_types.Flow_result.aliases_result
 
-(** val mutable_unboxing_result : t -> Mutable_unboxing_result.t coq_M **)
+(** val mutable_unboxing_result : t -> Flow_types.Mutable_unboxing_result.t
+    coq_M **)
 
 let mutable_unboxing_result t0 =
-  t0.flow_result.Flow_result.mutable_unboxing_result
+  t0.flow_result.Flow_types.Flow_result.mutable_unboxing_result
 
 (** val set_resimplify : t -> t coq_M **)
 

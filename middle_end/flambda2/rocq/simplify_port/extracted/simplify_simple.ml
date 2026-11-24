@@ -22,10 +22,7 @@
 
 exception Simple_not_in_scope
 
-open Downwards_acc
-open Flambda2_types
 open Port_monad
-open Tag
 module DA = Downwards_acc
 module T = Flambda2_types
 module TE = T.Typing_env

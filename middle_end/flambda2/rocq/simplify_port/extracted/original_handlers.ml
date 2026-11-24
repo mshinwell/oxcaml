@@ -28,9 +28,6 @@ type t =
       }
   | Non_recursive of Non_recursive_handler.t
 
-open Continuation
-open Non_recursive_handler
-open One_recursive_handler
 open Port_monad
 
 (** val print : Format.formatter -> t -> unit coq_M **)
@@ -60,7 +57,7 @@ let print ppf t0 =
     t0
 
 (** val create_recursive : Bound_parameters.t -> Lifted_cont_params.t ->
-    One_recursive_handler.t Lmap.t -> bool -> t coq_M **)
+    One_recursive_handler.t Continuation.Lmap.t -> bool -> t coq_M **)
 
 let create_recursive invariant_params lifted_params0 continuation_handlers
     can_be_lifted0 =
@@ -92,7 +89,7 @@ let bound_continuations t0 =
     | Non_recursive x__1 -> f__2 x__1)
     (fun _ _ continuation_handlers _ ->
       Continuation.Lmap.keys continuation_handlers)
-    (fun non_rec_handler -> non_rec_handler.cont :: [])
+    (fun non_rec_handler -> non_rec_handler.Non_recursive_handler.cont :: [])
     t0
 
 (** val can_be_lifted : t -> bool coq_M **)
@@ -109,7 +106,7 @@ let can_be_lifted t0 =
       f__1 x__1 x__2 x__3 x__4
     | Non_recursive x__1 -> f__2 x__1)
     (fun _ _ _ can_be_lifted0 -> can_be_lifted0)
-    (fun t1 -> t1.can_be_lifted)
+    (fun t1 -> t1.Non_recursive_handler.can_be_lifted)
     t0
 
 (** val add_params_to_lift : t -> Lifted_cont_params.t -> t coq_M **)
@@ -139,7 +136,10 @@ let add_params_to_lift t0 params_to_lift =
         let continuation_handlers0 =
           Continuation.Lmap.map
             (fun pat ->
-              let { params = params0; handler = handler0; is_cold = is_cold0 } =
+              let { One_recursive_handler.params = params0;
+                    One_recursive_handler.handler = handler0;
+                    One_recursive_handler.is_cold = is_cold0
+                  } =
                 pat
               in
               let handler1 = Flambda.Expr.apply_renaming handler0 renaming in
@@ -159,11 +159,11 @@ let add_params_to_lift t0 params_to_lift =
             can_be_lifted0 )
       else fail ())
     (fun t1 ->
-      let { cont = cont0;
+      let { Non_recursive_handler.cont = cont0;
             Non_recursive_handler.params = params0;
-            lifted_params = old_lifted;
+            Non_recursive_handler.lifted_params = old_lifted;
             Non_recursive_handler.handler = handler0;
-            is_exn_handler = is_exn_handler0;
+            Non_recursive_handler.is_exn_handler = is_exn_handler0;
             Non_recursive_handler.can_be_lifted = can_be_lifted0;
             Non_recursive_handler.is_cold = is_cold0
           } =

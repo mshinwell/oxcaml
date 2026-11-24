@@ -33,7 +33,6 @@ type t =
 
 module CIS = Code_id_or_symbol
 module SCC_lifted_constants = Strongly_connected_components.Make (CIS)
-open Code_id_or_symbol
 open Port_monad
 
 (** val print : Format.formatter -> t -> unit coq_M **)
@@ -192,8 +191,8 @@ let all_defined_symbols t0 =
   fold t0 Symbol.Set.empty (fun symbols const ->
       Symbol.Set.union symbols (Lifted_constant.all_defined_symbols const))
 
-(** val build_dep_graph : t -> (Code_id_or_symbol.Set.t Lmap.t *
-    Lifted_constant.t Map.t) coq_M **)
+(** val build_dep_graph : t -> (Code_id_or_symbol.Set.t Code_id_or_symbol.Lmap.t
+    * Lifted_constant.t Code_id_or_symbol.Map.t) coq_M **)
 
 let build_dep_graph t0 =
   fold t0 (Code_id_or_symbol.Lmap.empty, Code_id_or_symbol.Map.empty)
@@ -268,8 +267,9 @@ let build_dep_graph t0 =
           (dep_graph, code_id_or_symbol_to_const)
           (Lifted_constant.definitions lifted_constant))
 
-(** val remove_values_not_in_domain : Code_id_or_symbol.Set.t Lmap.t ->
-    Code_id_or_symbol.Set.t Lmap.t coq_M **)
+(** val remove_values_not_in_domain : Code_id_or_symbol.Set.t
+    Code_id_or_symbol.Lmap.t -> Code_id_or_symbol.Set.t Code_id_or_symbol.Lmap.t
+    coq_M **)
 
 let remove_values_not_in_domain m =
   let domain =

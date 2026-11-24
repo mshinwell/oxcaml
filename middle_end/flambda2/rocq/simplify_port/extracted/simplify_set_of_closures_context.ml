@@ -22,10 +22,7 @@
    middle_end/flambda2/rocq/simplify_port. *)
 
 open! Simplify_import
-open Code_id
-open Function_slot
 open Port_monad
-open Value_slot
 
 type t =
   { dacc_prior_to_sets : Downwards_acc.t;
@@ -124,9 +121,9 @@ let function_can_be_simplified denv code =
 
 (** val compute_closure_types_inside_functions : Downwards_env.t ->
     (Flambda.Set_of_closures.t * Alloc_mode.For_types.t) list -> Bound_name.t
-    Function_slot.Map.t list -> Flambda2_types.t Map.t list -> Code_id.t
-    Code_id.Map.t -> (Bound_name.t Function_slot.Map.t list * Flambda2_types.t
-    Function_slot.Map.t list) coq_M **)
+    Function_slot.Map.t list -> Flambda2_types.t Value_slot.Map.t list ->
+    Code_id.t Code_id.Map.t -> (Bound_name.t Function_slot.Map.t list *
+    Flambda2_types.t Function_slot.Map.t list) coq_M **)
 
 let compute_closure_types_inside_functions denv all_sets_of_closures
     closure_bound_names_all_sets value_slot_types_inside_functions_all_sets
@@ -330,8 +327,8 @@ let bind_existing_code_to_new_code_ids denv old_to_new_code_ids_all_sets0 =
     old_to_new_code_ids_all_sets0 denv
 
 (** val compute_and_erase_depth_variables : Flambda2_types.Typing_env.t ->
-    Downwards_env.t -> Flambda2_types.t Map.t list -> (Downwards_env.t *
-    Variable.Set.t) coq_M **)
+    Downwards_env.t -> Flambda2_types.t Value_slot.Map.t list ->
+    (Downwards_env.t * Variable.Set.t) coq_M **)
 
 let compute_and_erase_depth_variables typing_env denv_inside_functions
     value_slot_types_all_sets =
@@ -377,7 +374,8 @@ let compute_and_erase_depth_variables typing_env denv_inside_functions
 
 (** val create : Downwards_acc.t -> Simplify_common.simplify_function_body ->
     (Flambda.Set_of_closures.t * Alloc_mode.For_types.t) list -> Bound_name.t
-    Function_slot.Map.t list -> Flambda2_types.t Map.t list -> t coq_M **)
+    Function_slot.Map.t list -> Flambda2_types.t Value_slot.Map.t list -> t
+    coq_M **)
 
 let create dacc_prior_to_sets0 simplify_function_body0 all_sets_of_closures
     closure_bound_names_all_sets value_slot_types_all_sets =

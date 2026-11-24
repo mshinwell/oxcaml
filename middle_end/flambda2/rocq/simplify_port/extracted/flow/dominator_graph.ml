@@ -19,24 +19,14 @@
    middle_end/flambda2/rocq/simplify_port. *)
 
 module G = Strongly_connected_components.Make (Simple)
-open Code_id
-open Continuation
-open Continuation_callsite_map
-open Flow_types
-open Name
-open Named_rewrite_id
-open Numeric_types
 open Port_monad
-open Simple
-open Value_slot
-open Variable_
 module T = Flow_types
 
 module Stdlib_List = struct end
 
 type t =
   { required_names : Name.Set.t;
-    params_kind : Flambda_kind.With_subkind.t Map.t;
+    params_kind : Flambda_kind.With_subkind.t Variable_.Map.t;
     graph : G.directed_graph;
     dominator_roots : Simple.Set.t
   }
@@ -45,7 +35,7 @@ type t =
 
 let required_names t0 = t0.required_names
 
-(** val params_kind : t -> Flambda_kind.With_subkind.t Map.t **)
+(** val params_kind : t -> Flambda_kind.With_subkind.t Variable_.Map.t **)
 
 let params_kind t0 = t0.params_kind
 
@@ -57,7 +47,7 @@ let graph t0 = t0.graph
 
 let dominator_roots t0 = t0.dominator_roots
 
-type alias_map = Simple.t Map.t
+type alias_map = Simple.t Variable_.Map.t
 
 (** val empty : Name.Set.t -> t coq_M **)
 
@@ -145,9 +135,12 @@ let add_continuation_info map0 _ elt t0 return_continuation exn_continuation =
           dominator_roots = t2.dominator_roots
         })
       t0
-      (Bound_parameters.to_list elt.Continuation_info.params)
+      (Bound_parameters.to_list elt.Flow_types.Continuation_info.params)
   in
-  let t2 = Variable.Map.fold add_edge elt.Continuation_info.direct_aliases t1 in
+  let t2 =
+    Variable.Map.fold add_edge elt.Flow_types.Continuation_info.direct_aliases
+      t1
+  in
   Continuation.Map.fold
     (fun k rewrite_ids t3 ->
       if
@@ -164,7 +157,7 @@ let add_continuation_info map0 _ elt t0 return_continuation exn_continuation =
                 Continuation.print k)
             (fun elt0 ->
               Array.of_list
-                (Bound_parameters.vars elt0.Continuation_info.params))
+                (Bound_parameters.vars elt0.Flow_types.Continuation_info.params))
         in
         Apply_cont_rewrite_id.Map.fold
           (fun _ args t4 ->
@@ -179,7 +172,7 @@ let add_continuation_info map0 _ elt t0 return_continuation exn_continuation =
                   add_edge src (Simple.var var) t6)
               args t4)
           rewrite_ids t3)
-    elt.Continuation_info.apply_cont_args t2
+    elt.Flow_types.Continuation_info.apply_cont_args t2
 
 (** val create : Name.Set.t -> Continuation.t -> Continuation.t ->
     T.Continuation_info.t Continuation.Map.t -> t coq_M **)
@@ -383,7 +376,7 @@ let dominator_analysis t0 =
   in
   dominators
 
-(** val aliases_kind : t -> alias_map -> Flambda_kind.t Map.t coq_M **)
+(** val aliases_kind : t -> alias_map -> Flambda_kind.t Variable_.Map.t coq_M **)
 
 let aliases_kind t0 aliases =
   let { required_names = required_names0;
@@ -464,8 +457,8 @@ module Dot = struct
         Simple.Set.iter (fun dst -> edge ctx color ppf src dst) dst_set)
       edge_map
 
-  (** val edges' : int -> string -> Format.formatter -> Simple.t Map.t -> unit
-      coq_M **)
+  (** val edges' : int -> string -> Format.formatter -> Simple.t Variable_.Map.t
+      -> unit coq_M **)
 
   let edges' ctx color ppf edge_map =
     Variable.Map.iter

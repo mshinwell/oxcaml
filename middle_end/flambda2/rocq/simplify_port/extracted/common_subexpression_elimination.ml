@@ -67,18 +67,9 @@ end = struct
   end)
 end
 
-open Apply_cont_rewrite_id
-open Bound_parameter
-open Continuation_extra_params_and_args
-open Flambda2_types
-open Flambda_kind
-open Flambda_primitive
-open ListLabels
-open Name_mode
 open Port_monad
-open Tag
-module EA = Extra_arg
-module EP = Eligible_for_cse
+module EA = Continuation_extra_params_and_args.Extra_arg
+module EP = Flambda_primitive.Eligible_for_cse
 module EPA = Continuation_extra_params_and_args
 module K = Flambda_kind
 module BP = Bound_parameter
@@ -86,8 +77,8 @@ module NM = Name_mode
 module P = Flambda_primitive
 module RI = Apply_cont_rewrite_id
 module T = Flambda2_types
-module TE = Typing_env
-module TEE = Typing_env_extension
+module TE = Flambda2_types.Typing_env
+module TEE = Flambda2_types.Typing_env_extension
 module List = ListLabels
 
 type 'a scope_map = 'a Scope.Map.t

@@ -21,9 +21,7 @@
    in middle_end/flambda2/rocq/simplify_port. *)
 
 open! Simplify_import
-open Apply_cont_rewrite_id
 open Port_monad
-open Unboxing_types
 module U = Unboxing_types
 module Extra_param_and_args = U.Extra_param_and_args
 

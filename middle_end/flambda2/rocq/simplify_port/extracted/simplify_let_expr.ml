@@ -21,11 +21,7 @@
    middle_end/flambda2/rocq/simplify_port. *)
 
 open! Simplify_import
-open Flow_types
 open Port_monad
-open Simplified_named
-open Simplify_common
-open Simplify_import
 
 (** val keep_lifted_constant_only_if_used : Upwards_acc.t ->
     Lifted_constant_state.t -> Lifted_constant.t -> Lifted_constant_state.t
@@ -36,8 +32,8 @@ let keep_lifted_constant_only_if_used uacc acc lifted_constant =
   let code_ids_live =
     match Upwards_acc.reachable_code_ids uacc with
     | Or_unknown.Known t ->
-      let { Reachable_code_ids.live_code_ids = _;
-            Reachable_code_ids.ancestors_of_live_code_ids =
+      let { Flow_types.Reachable_code_ids.live_code_ids = _;
+            Flow_types.Reachable_code_ids.ancestors_of_live_code_ids =
               ancestors_of_live_code_ids0
           } =
         t
@@ -58,19 +54,19 @@ let keep_lifted_constant_only_if_used uacc acc lifted_constant =
   then Lifted_constant_state.add acc lifted_constant
   else acc
 
-(** val rebuild_let : (SE.simplified_defining_expr * Rebuilt_expr.t) ->
-    Upwards_acc.t -> Simplify_common.after_rebuild -> (Rebuilt_expr.t *
-    Upwards_acc.t) coq_M **)
+(** val rebuild_let : (Simplify_import.SE.simplified_defining_expr *
+    Rebuilt_expr.t) -> Upwards_acc.t -> Simplify_common.after_rebuild ->
+    (Rebuilt_expr.t * Upwards_acc.t) coq_M **)
 
 let rebuild_let arg uacc after_rebuild =
   let s, body = arg in
-  let { SE.bindings_to_place = bindings_to_place0;
-        SE.removed_operations = removed_operations0;
-        SE.lifted_constants_from_defining_expr =
+  let { Simplify_import.SE.bindings_to_place = bindings_to_place0;
+        Simplify_import.SE.removed_operations = removed_operations0;
+        Simplify_import.SE.lifted_constants_from_defining_expr =
           lifted_constants_from_defining_expr0;
-        SE.at_unit_toplevel = at_unit_toplevel0;
-        SE.closure_info = closure_info0;
-        SE.rewrite_id = rewrite_id0
+        Simplify_import.SE.at_unit_toplevel = at_unit_toplevel0;
+        Simplify_import.SE.closure_info = closure_info0;
+        Simplify_import.SE.rewrite_id = rewrite_id0
       } =
     s
   in
@@ -106,7 +102,7 @@ let rebuild_let arg uacc after_rebuild =
               ->
               f__2 x__1)
             (fun let_bound simplified_defining_expr0 original_defining_expr ->
-              match simplified_defining_expr0.named with
+              match simplified_defining_expr0.Simplified_named.named with
               | Simplified_named.Simple _ -> binding
               | Simplified_named.Prim (prim, _) -> (
                 match Bound_pattern.must_be_singleton_opt let_bound with
@@ -182,7 +178,8 @@ let rebuild_let arg uacc after_rebuild =
                 | None -> true
               in
               let defining_expr =
-                Simplified_named.to_named simplified_defining_expr0.named
+                Simplified_named.to_named
+                  simplified_defining_expr0.Simplified_named.named
               in
               let () =
                 if mismatched_modes
@@ -295,9 +292,9 @@ let rebuild_let arg uacc after_rebuild =
         bindings
     in
     let uacc2, bindings1 =
-      let { Mutable_unboxing_result.did_unbox_a_mutable_block = _;
-            Mutable_unboxing_result.additional_epa = _;
-            Mutable_unboxing_result.let_rewrites = let_rewrites0
+      let { Flow_types.Mutable_unboxing_result.did_unbox_a_mutable_block = _;
+            Flow_types.Mutable_unboxing_result.additional_epa = _;
+            Flow_types.Mutable_unboxing_result.let_rewrites = let_rewrites0
           } =
         Upwards_acc.mutable_unboxing_result uacc1
       in
@@ -513,10 +510,10 @@ let update_data_flow dacc closure_info0 lifted_constants_from_defining_expr0
     data_flow0
     (Simplify_named_result.bindings_to_place simplify_named_result)
 
-(** val simplify_let0 : Flambda.Expr.t expr_simplifier ->
+(** val simplify_let0 : Flambda.Expr.t Simplify_common.expr_simplifier ->
     Simplify_common.simplify_function_body -> Downwards_acc.t -> Flambda.Let.t
-    -> Simplified_expr.t down_to_up -> Bound_pattern.t -> Flambda.Expr.t ->
-    (Simplified_expr.t * Downwards_acc.t) coq_M **)
+    -> Simplified_expr.t Simplify_common.down_to_up -> Bound_pattern.t ->
+    Flambda.Expr.t -> (Simplified_expr.t * Downwards_acc.t) coq_M **)
 
 let simplify_let0 simplify_expr simplify_function_body dacc let_expr down_to_up0
     bound_pattern body =
@@ -573,10 +570,10 @@ let simplify_let0 simplify_expr simplify_function_body dacc let_expr down_to_up0
                  (bound_pattern, defining_expr)))))
   | Simplified_named.Rewritten f -> simplify_expr dacc0 (f body) down_to_up0
 
-(** val simplify_let : Flambda.Expr.t expr_simplifier ->
+(** val simplify_let : Flambda.Expr.t Simplify_common.expr_simplifier ->
     Simplify_common.simplify_function_body -> Downwards_acc.t -> Flambda.Let.t
-    -> Simplified_expr.t down_to_up -> (Simplified_expr.t * Downwards_acc.t)
-    coq_M **)
+    -> Simplified_expr.t Simplify_common.down_to_up -> (Simplified_expr.t *
+    Downwards_acc.t) coq_M **)
 
 let simplify_let simplify_expr simplify_function_body dacc let_expr down_to_up0
     =
