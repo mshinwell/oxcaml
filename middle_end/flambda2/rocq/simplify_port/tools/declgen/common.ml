@@ -134,9 +134,26 @@ let source_path env (p : Path.t) : Path.t =
 (* A global name as a list: the compilation unit, then the modules, then
    the name. [None] for what is local to a file or goes through the
    application of a functor. *)
+(* The modules (and, for an [include], the values and types) that the file
+   of Simplify that is being read makes for itself with a functor of
+   outside: each has a name under the file's own unit of declarations,
+   [FILE__local]. *)
+let local_idents : (Ident.t * string list) list ref = ref []
+
+let is_local_unit u =
+  let suffix = "__local" in
+  let n = String.length u and k = String.length suffix in
+  n > k && String.sub u (n - k) k = suffix
+
 let rec comps_of_path (p : Path.t) : string list option =
   match p with
-  | Pident id -> if Ident.persistent id then Some [Ident.name id] else None
+  | Pident id -> (
+    if Ident.persistent id
+    then Some [Ident.name id]
+    else
+      match List.find_opt (fun (i, _) -> Ident.same i id) !local_idents with
+      | Some (_, comps) -> Some comps
+      | None -> None)
   | Pdot (p, s) -> (
     match comps_of_path p with Some l -> Some (l @ [s]) | None -> None)
   | Papply _ | Pextra_ty _ -> None

@@ -82,11 +82,16 @@ let member_kind modc name =
     | exception Not_found -> Abstract
     | decl -> (
       match decl.type_manifest, decl.type_private, decl.type_kind with
-      | Some ty, Public, _ -> (
+      | Some ty, Public, kind -> (
         Tr.reset_vars ();
-        match Tr.tr ty with
+        match Tr.tr ty, kind with
         | _ -> Abbreviation
-        | exception Tr.Unsupported _ -> Abstract)
+        | exception Tr.Unsupported _ -> (
+          (* a variant given again from a type that has no name here (the
+             result of a functor): its own constructors are what there is *)
+          match kind with
+          | (Type_variant _ | Type_record _) when Emit_types.wanted comps -> Candidate
+          | _ -> Abstract))
       | _, _, (Type_variant _ | Type_record _) when Emit_types.wanted comps ->
         Candidate
       | _ -> Abstract)
@@ -145,7 +150,14 @@ let emit_type ?gap ~canon modc name =
           then raise (Tr.Unsupported "a type variable that is not a parameter");
           definition body
         with Tr.Unsupported why ->
-          abstract (Some ("abstract here; its definition has " ^ why)))
+          let n = String.length why and suffix = "is not a global name" in
+          let k = String.length suffix in
+          if n > k && String.sub why (n - k) k = suffix
+          then (
+            (* not a gap: the type is that of the result of a functor *)
+            line "(* abstract here: it is %s. *)" why;
+            abstract None)
+          else abstract (Some ("abstract here; its definition has " ^ why)))
       | None, _, _ -> abstract gap)
 
 (* ---- a recursive definition of types ---- *)
@@ -573,3 +585,97 @@ let emit_unit ~full u : (string * SS.t) option =
   else (
     emitted_now := SS.add u !emitted_now;
     Some (body, !Print.deps))
+
+(* ---- what a file of Simplify makes for itself with a functor of outside ---- *)
+
+let local_env_cache : (string, Env.t) Hashtbl.t = Hashtbl.create 17
+
+let env_of_root (r : Sigs.local_root) =
+  match Hashtbl.find_opt local_env_cache (key r.l_comps) with
+  | Some e -> e
+  | None ->
+    let e = try Envaux.env_of_only_summary r.l_env with _ -> r.l_env in
+    Hashtbl.replace local_env_cache (key r.l_comps) e;
+    e
+
+(* A module of the file that only holds such modules. *)
+let nested modc f =
+  let name = List.nth modc (List.length modc - 1) in
+  let outer_buf = !buf and outer_declared = !declared in
+  let outer_native = !native and outer_mod = !Print.cur_mod in
+  buf := Buffer.create 4096;
+  declared := SS.empty;
+  native := SS.empty;
+  Print.cur_mod := modc;
+  f ();
+  let body = Buffer.contents !buf in
+  buf := outer_buf;
+  declared := outer_declared;
+  native := outer_native;
+  Print.cur_mod := outer_mod;
+  if body <> ""
+  then (
+    line "Module %s." (Sigs.module_rocq name);
+    Buffer.add_string !buf body;
+    line "End %s." (Sigs.module_rocq name))
+
+(* The declarations of the unit [FILE__local]: for each module that the
+   file makes with a functor of outside (or that has such an [include]),
+   what the file uses of it. The realisations name the module as the file
+   does: the port keeps the module's definition as it is. *)
+let emit_local_unit u : (string * SS.t) option =
+  match Hashtbl.find_opt Sigs.locals u with
+  | None -> None
+  | Some (roots, _) ->
+    Print.cur_unit := u;
+    Print.cur_mod := [u];
+    Print.deps := SS.empty;
+    declared := SS.empty;
+    native := SS.empty;
+    buf := Buffer.create 65536;
+    local_idents := List.map (fun (r : Sigs.local_root) -> r.l_id, r.l_comps) roots;
+    Print.file_modules
+      := List.fold_left
+           (fun acc (r : Sigs.local_root) ->
+             List.fold_left
+               (fun acc m -> SS.add (Sigs.module_rocq m) acc)
+               acc (List.tl r.l_comps))
+           SS.empty roots;
+    let saved_env = !Sigs.base_env in
+    let emit_root (r : Sigs.local_root) =
+      Sigs.base_env := env_of_root r;
+      let modc, name = Print.split_last r.l_comps in
+      match r.l_kind with
+      | `Module ->
+        line "(* module %s, lines %d-%d of the file *)" name r.l_line r.l_last_line;
+        emit_module ~full:false ~canon:None r.l_comps
+      | `Value ->
+        if Hashtbl.mem Uses.values (key r.l_comps) then emit_value modc name
+      | `Type ->
+        if type_wanted r.l_comps then emit_group ~full:false ~canon:None modc [name]
+    in
+    let rec at prefix (rs : Sigs.local_root list) =
+      match rs with
+      | [] -> ()
+      | r :: rest ->
+        let depth = List.length prefix in
+        if List.length r.l_comps = depth + 1
+        then (
+          emit_root r;
+          at prefix rest)
+        else
+          let next = List.nth r.l_comps depth in
+          let inside, others =
+            List.partition
+              (fun (r' : Sigs.local_root) ->
+                List.length r'.l_comps > depth + 1 && List.nth r'.l_comps depth = next)
+              rs
+          in
+          nested (prefix @ [next]) (fun () -> at (prefix @ [next]) inside);
+          at prefix others
+    in
+    at [u] roots;
+    Sigs.base_env := saved_env;
+    local_idents := [];
+    let body = Buffer.contents !buf in
+    if body = "" then None else Some (body, !Print.deps)

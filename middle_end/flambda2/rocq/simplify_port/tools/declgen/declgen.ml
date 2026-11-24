@@ -56,7 +56,7 @@ let units () =
   let add comps =
     match comps with
     | "%predef" :: _ -> ()
-    | u :: _ -> s := SS.add u !s
+    | u :: _ -> if not (is_local_unit u) then s := SS.add u !s
     | [] -> ()
   in
   Hashtbl.iter (fun _ (c, _) -> add c) Uses.values;
@@ -83,6 +83,18 @@ let pass scanned =
         | Some (body, deps) -> Some (u, body, deps)
         | None -> None)
       all
+  in
+  let local_units =
+    List.sort compare (Hashtbl.fold (fun u _ acc -> u :: acc) Sigs.locals [])
+  in
+  let results =
+    results
+    @ List.filter_map
+        (fun u ->
+          match Walk.emit_local_unit u with
+          | Some (body, deps) -> Some (u, body, deps)
+          | None -> None)
+        local_units
   in
   let table t =
     List.sort compare
@@ -145,7 +157,11 @@ let () =
       (match Hashtbl.find_opt names rocq with
       | Some u' -> failwith (Printf.sprintf "two units for %s.v: %s and %s" rocq u u')
       | None -> Hashtbl.replace names rocq u);
-      let source = source_of_unit u in
+      let source =
+        match Hashtbl.find_opt Sigs.locals u with
+        | Some (_, file) -> Some file
+        | None -> source_of_unit u
+      in
       let header =
         match source with
         | Some rel -> (
@@ -154,6 +170,25 @@ let () =
       in
       let b = Buffer.create (String.length body + 4096) in
       List.iter (fun l -> Buffer.add_string b (l ^ "\n")) header;
+      if is_local_unit u
+      then
+        Buffer.add_string b
+          (Printf.sprintf
+             "\n\
+              (* GENERATED, not written by hand: the declarations of the modules \
+              that\n\
+             \   %s\n\
+             \   at commit %s makes for itself by applying a functor of another\n\
+             \   part of the compiler, and of what the file uses of them. The \
+              port keeps\n\
+             \   the definitions of these modules as they are in the file, and \
+              the\n\
+             \   realisations name them as the file does. Made by tools/declgen \
+              (see\n\
+             \   decl/README.md): a change is made there, not here. *)\n\n"
+             (Option.value ~default:"(source not found)" source)
+             commit)
+      else
       Buffer.add_string b
         (Printf.sprintf
            "\n\
@@ -193,7 +228,14 @@ let () =
        (fun (o, r, k, a, p) -> Printf.sprintf "%s\t%s\t%s\t%d\t%s" o r k a p)
        !Decl_out.index);
   tsv "NOT-DECLARED.tsv"
-    (List.map (fun (o, why) -> Printf.sprintf "%s\t%s" o why) !Decl_out.left);
+    (List.map (fun (o, why) -> Printf.sprintf "%s\t%s" o why) !Decl_out.left
+    @ List.map
+        (fun (place, what) ->
+          Printf.sprintf
+            "%s (%s)\tmade with a functor of outside inside a functor of the \
+             file: it depends on that functor's parameter"
+            what place)
+        !Uses.inside_functor);
   List.iter prerr_endline (List.sort_uniq compare !warnings);
   Printf.printf "%d files, %d declarations, %d not declared, %d passes\n"
     (List.length results) (List.length !Decl_out.index) (List.length !Decl_out.left) passes

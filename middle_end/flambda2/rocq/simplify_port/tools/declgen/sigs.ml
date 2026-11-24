@@ -35,14 +35,52 @@ module SS = Set.Make (String)
    libraries that the build opens for them). *)
 let base_env : Env.t ref = ref Env.empty
 
+(* A thing that a file of Simplify makes for itself with a functor of
+   outside: its name under [FILE__local], the identifier that the file
+   gives it, the environment in which it stands, and its line. *)
+type local_root =
+  { l_comps : string list;
+    l_id : Ident.t;
+    l_env : Env.t;
+    l_kind : [`Module | `Value | `Type];
+    l_line : int;
+    l_last_line : int
+  }
+
+(* For each unit [FILE__local]: its roots in the order of the file, and the
+   source file. *)
+let locals : (string, local_root list * string) Hashtbl.t = Hashtbl.create 17
+
+let rec is_prefix prefix l =
+  match prefix, l with
+  | [], _ -> true
+  | p :: prefix, x :: l -> p = x && is_prefix prefix l
+  | _ :: _, [] -> false
+
+let root_of comps =
+  match comps with
+  | u :: _ when is_local_unit u -> (
+    match Hashtbl.find_opt locals u with
+    | Some (roots, _) -> List.find_opt (fun r -> is_prefix r.l_comps comps) roots
+    | None -> None)
+  | _ -> None
+
 let path_of_comps comps : Path.t =
   match comps with
   | [] -> invalid_arg "path_of_comps"
-  | u :: rest ->
-    List.fold_left
-      (fun p s -> Path.Pdot (p, s))
-      (Path.Pident (Ident.create_persistent u))
-      rest
+  | u :: rest -> (
+    match root_of comps with
+    | Some r ->
+      let rec drop n l = if n = 0 then l else drop (n - 1) (List.tl l) in
+      List.fold_left
+        (fun p s -> Path.Pdot (p, s))
+        (Path.Pident r.l_id)
+        (drop (List.length r.l_comps) comps)
+    | None ->
+      List.fold_left
+        (fun p s -> Path.Pdot (p, s))
+        (Path.Pident (Ident.create_persistent u))
+        rest)
 
 type module_shape =
   | Signature of Types.signature

@@ -31,6 +31,14 @@ for l in ("algorithms bound_identifiers cmx identifiers kinds lattices numbers n
 renamed = {"Variable_": "Variable", "Stdlib_": "Stdlib", "Set_": "Set", "Import_": "Import",
            "Export_": "Export"}
 checks = []  # (where, line of OCaml)
+# For a unit FILE__local: the definition of each module is copied from the
+# file, and what is declared of it is checked beside it, inside one module
+# of the test. group[i]: the number of that module for the check i, or None.
+group = {}
+prelude = set()
+source_root = os.path.join("..", "..", "..", "..")
+ngroups = 0
+unchecked = 0
 
 
 def unq(s):
@@ -44,6 +52,12 @@ for f in sorted(os.listdir("decl")):
     mods = [renamed.get(unit, unit)]
     if mods == ["Stdlib"]:
         mods = []
+    local = unit.endswith("__local")
+    local_source = None
+    cur_group = None
+    depth = 0
+    if local:
+        mods = []
     last_is_type = False
     arity = {}
     lines = open(os.path.join("decl", f)).read().split("\n")
@@ -51,11 +65,36 @@ for f in sorted(os.listdir("decl")):
     while i < len(lines):
         l = lines[i].strip()
         where = "decl/%s:%d" % (f, i + 1)
+        before = len(checks)
+        group_before = cur_group if (cur_group is not None and cur_ok) else None
         m = re.match(r"Module (\w+)\.$", l)
-        if m:
+        if local and local_source is None and l.endswith(".ml"):
+            local_source = l.strip()
+        if local and l.startswith("(* module ") and "of the file" in l:
+            m2 = re.match(r"\(\* module (\w+), lines (\d+)-(\d+) of the file \*\)", l)
+            src = open(os.path.join(source_root, local_source)).read().split("\n")
+            ngroups += 1
+            cur_group = ngroups
+            # only a module at the top of the file can be read apart
+            cur_ok = len(mods) == 0
+            if cur_ok:
+                checks.append((where, "module Check_%d = struct" % cur_group))
+                prelude.add(len(checks) - 1); group[len(checks) - 1] = cur_group
+                for x in src[int(m2.group(2)) - 1:int(m2.group(3))]:
+                    checks.append((where, x))
+                    prelude.add(len(checks) - 1); group[len(checks) - 1] = cur_group
+            depth = 0
+        elif m:
             mods.append(renamed.get(m.group(1), m.group(1)))
+            depth += 1
         elif re.match(r"End (\w+)\.$", l):
             mods.pop()
+            depth -= 1
+            if local and cur_group is not None and depth == 0:
+                if cur_ok:
+                    checks.append((where, "end"))
+                    prelude.add(len(checks) - 1); group[len(checks) - 1] = cur_group
+                cur_group = None
         elif l.startswith("Parameter "):
             last_is_type = re.search(r": (Type -> )*Type\.$", l) is not None
         elif l.startswith("Definition "):
@@ -95,6 +134,15 @@ for f in sorted(os.listdir("decl")):
                     checks.append((where, "let _ = function %s _ -> () | _ -> ()" % c))
             if match:
                 checks.append((where, "let _ = %s" % match))
+        if local:
+            group_now = cur_group if (cur_group is not None and cur_ok) else group_before
+            if group_now is not None:
+                for n in range(before, len(checks)):
+                    group.setdefault(n, group_now)
+            elif len(checks) > before:
+                # nested in a module of the file, or an item of an include
+                unchecked += len(checks) - before
+                del checks[before:]
         i += 1
 
 out = os.path.join("_build", "declgen", "check")
@@ -103,6 +151,23 @@ src = os.path.join(out, "realisations.ml")
 text = [c for _, c in checks]
 refused = []
 private = 0
+# first each copied definition alone: one that does not stand apart from
+# its file is left out, with what is declared of it
+for g in sorted(set(group.values())):
+    members = sorted(k for k in group if group[k] == g)
+    own = [text[k] for k in members if k in prelude]
+    probe = os.path.join(out, "definition.ml")
+    open(probe, "w").write("\n".join(own) + "\n")
+    r = subprocess.run(["ocamlc.opt", "-c", "-nolabels", "-w", "-a"] + inc + opens + ["-o",
+                       os.path.join(out, "definition.cmo"), probe],
+                       stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+    if r.returncode != 0:
+        err = " ".join(x.strip() for x in r.stderr.strip().split("\n")[1:])[:200]
+        unchecked += sum(1 for k in members if k not in prelude)
+        print("%s: the definition of the module does not compile apart from its file; "
+              "what is declared of it is not checked (%s)" % (checks[members[0]][0], err))
+        for k in members:
+            text[k] = ""
 while True:
     open(src, "w").write("\n".join(text) + "\n")
     r = subprocess.run(["ocamlc.opt", "-c", "-nolabels", "-w", "-a"] + inc + opens + ["-o",
@@ -110,12 +175,22 @@ while True:
                        stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
     if r.returncode == 0:
         break
-    m = re.search(r"line (\d+)", r.stderr)
+    m = re.search(r'realisations\.ml", lines? (\d+)', r.stderr)
     if not m:
         print(r.stderr)
         sys.exit(2)
     n = int(m.group(1)) - 1
     err = " ".join(x.strip() for x in r.stderr.strip().split("\n")[1:])[:300]
+    if n in prelude:
+        # the module's own definition does not stand apart from its file
+        g = group[n]
+        members = [k for k in group if group[k] == g]
+        unchecked += sum(1 for k in members if k not in prelude and text[k] != "")
+        for k in members:
+            text[k] = ""
+        print("%s: the definition of the module does not compile apart from its file; "
+              "its declarations are not checked (%s)" % (checks[n][0], err[:160]))
+        continue
     if "(constructor)" in checks[n][0] and "private type" in r.stderr:
         private += 1
     else:
@@ -125,6 +200,7 @@ while True:
         break
 for where, line, err in refused:
     print("%s\n    %s\n    %s" % (where, line[:200], err))
-print("%d things checked, %d refused by OCaml (and %d makers of private types, which the port does not use)"
-      % (len(checks), len(refused), private))
+print("%d things checked, %d refused by OCaml (and %d makers of private types, which the port does not use; "
+      "%d things of modules local to a file not checked)"
+      % (len(checks) - len(prelude), len(refused), private, unchecked))
 sys.exit(1 if refused else 0)

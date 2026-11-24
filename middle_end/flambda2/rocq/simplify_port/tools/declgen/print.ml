@@ -107,6 +107,13 @@ let ocaml_name comps =
   match comps with
   | "%predef" :: rest -> String.concat "." rest
   | "Stdlib" :: rest -> String.concat "." rest
+  | u :: _ when is_local_unit u -> (
+    (* a module that a file makes for itself: its name there *)
+    match Sigs.root_of comps with
+    | Some r ->
+      let rec drop n l = if n = 0 then l else drop (n - 1) (List.tl l) in
+      String.concat "." (drop (List.length r.l_comps - 1) comps)
+    | None -> String.concat "." (List.tl comps))
   | u :: rest -> String.concat "." (short_unit u :: rest)
   | [] -> ""
 

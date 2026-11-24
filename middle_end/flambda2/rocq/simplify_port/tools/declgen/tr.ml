@@ -199,6 +199,13 @@ let rec tr (ty : Types.type_expr) : ty =
   | Ttuple l -> Tuple (List.map (fun (_, t) -> tr t) l)
   | Tconstr (p, args, _) -> (
     match resolve p with
+    | exception (Unsupported _ as e) -> (
+      (* a type of a file of Simplify itself: its definition, if it is an
+         abbreviation *)
+      match Ctype.expand_head !Sigs.base_env ty with
+      | ty' when not (Types.eq_type ty' ty) -> tr ty'
+      | _ -> raise e
+      | exception _ -> raise e)
     | Kit s -> Constr (Kit s, List.map tr args)
     | Global comps ->
       let k = key comps in
