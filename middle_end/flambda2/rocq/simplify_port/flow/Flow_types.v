@@ -29,16 +29,6 @@ From SimplifyPort.decl Require Alloc_mode Apply_cont_rewrite_id
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 
-(* PORT-GAP(decl): 152-185, [Format.fprintf] with 24 arguments after the
-   format: decl/Format.v has it for 0 to 16 arguments. The same form. *)
-Parameter fprintf24 :
-  forall {A1 A2 A3 A4 A5 A6 A7 A8 A9 A10 A11 A12 A13 A14 A15 A16 A17 A18 A19
-          A20 A21 A22 A23 A24 : Type},
-  Format.formatter -> string -> A1 -> A2 -> A3 -> A4 -> A5 -> A6 -> A7 -> A8
-  -> A9 -> A10 -> A11 -> A12 -> A13 -> A14 -> A15 -> A16 -> A17 -> A18 -> A19
-  -> A20 -> A21 -> A22 -> A23 -> A24 -> M unit.
-Extract Inlined Constant fprintf24 => "Format.fprintf".
-
 (* CR chambart/gbury: we might want to also track function_slots in addition to
    value_slots. *)
 
@@ -249,7 +239,7 @@ Module Continuation_info.
         (Some (fun ppf (_ : unit) => Format.fprintf0 ppf "root"))
         Continuation.print
     in
-    fprintf24 ppf
+    Format.fprintf24 ppf
       "@[<hov 1>(@[<hov 1>(continuation %a)@]@ %s%s@[<hov 1>(params %a)@]@ @[<hov 1>(parent_continuation %a)@]@ @[<hov 1>(used_in_handler %a)@]@ @[<hov 1>(bindings %a)@]@ @[<hov 1>(direct_aliases %a)@]@ @[<hov 1>(ref_prims %a)@]@ @[<hov 1>(defined %a)@]@ @[<hov 1>(code_ids %a)@]@ @[<hov 1>(value_slots %a)@]@ @[<hov 1>(apply_cont_args %a)@])@]"
       Continuation.print continuation
       (if recursive then "(recursive) " else "")
