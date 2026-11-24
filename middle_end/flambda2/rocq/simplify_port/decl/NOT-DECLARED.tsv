@@ -17,14 +17,11 @@
 ( |> )	an operator of Stdlib: the kit and Rocq have their own
 ( || )	an operator of Stdlib: the kit and Rocq have their own
 ( ~- )	an operator of Stdlib: the kit and Rocq have their own
-Continuation_uses_env_intf.S	a module type
-Number_adjuncts.Boxable	a module type
-Number_adjuncts.Boxable_int_number_kind	a module type
-Number_adjuncts.Boxable_number_kind	a module type
-Number_adjuncts.Int_number_kind	a module type
-Number_adjuncts.Num_common	a module type
-Number_adjuncts.Number_kind	a module type
-Number_adjuncts.Number_kind_common	a module type
-Unboxers.Number_S	a module type
+Continuation_uses_env_intf.S	a module type that no file of Simplify names from outside the file that defines it
+Number_adjuncts.Boxable	a module type that no file of Simplify names from outside the file that defines it
+Number_adjuncts.Boxable_int_number_kind	a module type that no file of Simplify names from outside the file that defines it
+Number_adjuncts.Boxable_number_kind	a module type that no file of Simplify names from outside the file that defines it
+Number_adjuncts.Number_kind_common	a module type that no file of Simplify names from outside the file that defines it
+Unboxers.Number_S	a module type that no file of Simplify names from outside the file that defines it
 module Pair (middle_end/flambda2/simplify/simplify_binary_primitive.ml:508)	made with a functor of outside inside a functor of the file: it depends on that functor's parameter
 module Set (middle_end/flambda2/simplify/simplify_binary_primitive.ml:99)	made with a functor of outside inside a functor of the file: it depends on that functor's parameter

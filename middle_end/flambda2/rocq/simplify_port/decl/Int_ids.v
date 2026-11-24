@@ -136,6 +136,14 @@ Module Name.
     (* int_ids.mli:178  include Container_types.S_plus_iterator with type t := t *)
     Definition key : Type := Int_ids.Name.t.
     Extract Inlined Constant key => "Int_ids.Name.Map.key".
+    Module Set_.
+      (* int_ids.mli:178  include Container_types.S_plus_iterator with type t := t *)
+      Definition elt : Type := Int_ids.Name.t.
+      Extract Inlined Constant elt => "Int_ids.Name.Map.Set.elt".
+      (* int_ids.mli:178  include Container_types.S_plus_iterator with type t := t *)
+      Definition t : Type := Int_ids.Name.Set_.t.
+      Extract Inlined Constant t => "Int_ids.Name.Map.Set.t".
+    End Set_.
     (* int_ids.mli:178  include Container_types.S_plus_iterator with type t := t *)
     Parameter t : Type -> Type.
     Extract Constant t "'a1" => "('a1) Int_ids.Name.Map.t".
@@ -223,6 +231,14 @@ Module Code_id.
     (* int_ids.mli:251  include Container_types.S with type t := t *)
     Definition key : Type := Int_ids.Code_id.t.
     Extract Inlined Constant key => "Int_ids.Code_id.Map.key".
+    Module Set_.
+      (* int_ids.mli:251  include Container_types.S with type t := t *)
+      Definition elt : Type := Int_ids.Code_id.t.
+      Extract Inlined Constant elt => "Int_ids.Code_id.Map.Set.elt".
+      (* int_ids.mli:251  include Container_types.S with type t := t *)
+      Definition t : Type := Int_ids.Code_id.Set_.t.
+      Extract Inlined Constant t => "Int_ids.Code_id.Map.Set.t".
+    End Set_.
     (* int_ids.mli:251  include Container_types.S with type t := t *)
     Parameter t : Type -> Type.
     Extract Constant t "'a1" => "('a1) Int_ids.Code_id.Map.t".

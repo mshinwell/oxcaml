@@ -43,7 +43,7 @@ Module Closure_field.
   Parameter unboxer : Function_slot.t -> Value_slot.t -> M Unboxers.unboxer.
   Extract Inlined Constant unboxer => "Unboxers.Closure_field.unboxer".
 End Closure_field.
-(* NOT DECLARED: Unboxers.Number_S: a module type. *)
+(* NOT DECLARED: Unboxers.Number_S: a module type that no file of Simplify names from outside the file that defines it. *)
 Module Immediate.
   (* unboxers.mli:57  val decider : number_decider *)
   Parameter decider : Unboxers.number_decider.

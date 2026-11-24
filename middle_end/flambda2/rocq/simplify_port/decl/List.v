@@ -21,6 +21,9 @@
 
 From SimplifyPort Require Import Port_monad.
 
+(* stdlib/list.mli  type t *)
+Definition t (A : Type) : Type := list A.
+Extract Constant t "'a1" => "('a1) List.t".
 (* stdlib/list.mli  val length : 'a list -> int *)
 Parameter length : forall {A : Type}, list A -> M int.
 Extract Inlined Constant length => "List.length".

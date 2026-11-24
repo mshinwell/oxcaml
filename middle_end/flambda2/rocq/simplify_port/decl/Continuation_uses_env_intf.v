@@ -22,7 +22,7 @@
 
 From SimplifyPort Require Import Port_monad.
 
-(* NOT DECLARED: Continuation_uses_env_intf.S: a module type. *)
+(* NOT DECLARED: Continuation_uses_env_intf.S: a module type that no file of Simplify names from outside the file that defines it. *)
 
 (* Not in the interface: an empty module with the name of this file. With
    it Rocq's extraction does not open this file's module in the files that

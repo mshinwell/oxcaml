@@ -23,13 +23,2115 @@
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Alloc_mode Flambda Flambda2_types Flambda_kind Format Numeric_types Or_null Reg_width_const Seq Target_ocaml_int Target_system Targetint_32_64.
 
-(* NOT DECLARED: Number_adjuncts.Num_common: a module type. *)
-(* NOT DECLARED: Number_adjuncts.Number_kind_common: a module type. *)
-(* NOT DECLARED: Number_adjuncts.Number_kind: a module type. *)
-(* NOT DECLARED: Number_adjuncts.Int_number_kind: a module type. *)
-(* NOT DECLARED: Number_adjuncts.Boxable: a module type. *)
-(* NOT DECLARED: Number_adjuncts.Boxable_number_kind: a module type. *)
-(* NOT DECLARED: Number_adjuncts.Boxable_int_number_kind: a module type. *)
+(* The module type Number_adjuncts.Num_common: all that it names. No directive: in a functor, Rocq prints what the parameter has by its name here. *)
+Module Type Num_common.
+  (* container_types_intf.ml:297  type t *)
+  Parameter t : Type.
+  Module T.
+    (* container_types_intf.ml:299  module T : Thing with type t = t *)
+    Definition t : Type := Number_adjuncts.Num_common.t.
+    (* container_types_intf.ml:28  include Hashtbl.HashedType with type t := t *)
+    Parameter equal : t -> t -> M bool.
+    (* container_types_intf.ml:28  include Hashtbl.HashedType with type t := t *)
+    Parameter hash : t -> M int.
+    (* container_types_intf.ml:30  include Map.OrderedType with type t := t *)
+    Parameter compare : t -> t -> M int.
+    (* container_types_intf.ml:32  val print : Format.formatter -> t -> unit *)
+    Parameter print : Format.formatter -> t -> M unit.
+  End T.
+  (* container_types_intf.ml:301  include Thing with type t := T.t *)
+  Parameter equal : Number_adjuncts.Num_common.T.t -> Number_adjuncts.Num_common.T.t -> M bool.
+  (* container_types_intf.ml:301  include Thing with type t := T.t *)
+  Parameter hash : Number_adjuncts.Num_common.T.t -> M int.
+  (* container_types_intf.ml:301  include Thing with type t := T.t *)
+  Parameter compare : Number_adjuncts.Num_common.T.t -> Number_adjuncts.Num_common.T.t -> M int.
+  (* container_types_intf.ml:301  include Thing with type t := T.t *)
+  Parameter print : Format.formatter -> Number_adjuncts.Num_common.T.t -> M unit.
+  Module Set_.
+    (* container_types_intf.ml:303  module Set : Set with type elt = t *)
+    Definition elt : Type := Number_adjuncts.Num_common.t.
+    (* container_types_intf.ml:38  type t *)
+    Parameter t : Type.
+    (* container_types_intf.ml:40  val empty : t *)
+    Parameter empty : t.
+    (* container_types_intf.ml:42  val is_empty : t -> bool *)
+    Parameter is_empty : t -> M bool.
+    (* container_types_intf.ml:44  val mem : elt -> t -> bool *)
+    Parameter mem : elt -> t -> M bool.
+    (* container_types_intf.ml:46  val add : elt -> t -> t *)
+    Parameter add : elt -> t -> M t.
+    (* container_types_intf.ml:48  val singleton : elt -> t *)
+    Parameter singleton : elt -> M t.
+    (* container_types_intf.ml:50  val remove : elt -> t -> t *)
+    Parameter remove : elt -> t -> M t.
+    (* container_types_intf.ml:52  val union : t -> t -> t *)
+    Parameter union : t -> t -> M t.
+    (* container_types_intf.ml:56  val union_sharing : t -> t -> t *)
+    Parameter union_sharing : t -> t -> M t.
+    (* container_types_intf.ml:60  val union_shared : t -> t -> t *)
+    Parameter union_shared : t -> t -> M t.
+    (* container_types_intf.ml:62  val inter : t -> t -> t *)
+    Parameter inter : t -> t -> M t.
+    (* container_types_intf.ml:64  val disjoint : t -> t -> bool *)
+    Parameter disjoint : t -> t -> M bool.
+    (* container_types_intf.ml:66  val diff : t -> t -> t *)
+    Parameter diff : t -> t -> M t.
+    (* container_types_intf.ml:70  val diff_sharing : t -> t -> t *)
+    Parameter diff_sharing : t -> t -> M t.
+    (* container_types_intf.ml:74  val diff_shared : t -> t -> t *)
+    Parameter diff_shared : t -> t -> M t.
+    (* container_types_intf.ml:76  val compare : t -> t -> int *)
+    Parameter compare : t -> t -> M int.
+    (* container_types_intf.ml:78  val equal : t -> t -> bool *)
+    Parameter equal : t -> t -> M bool.
+    (* container_types_intf.ml:80  val subset : t -> t -> bool *)
+    Parameter subset : t -> t -> M bool.
+    (* container_types_intf.ml:82  val iter : (elt -> unit) -> t -> unit *)
+    Parameter iter : (elt -> M unit) -> t -> M unit.
+    (* container_types_intf.ml:84  val map : (elt -> elt) -> t -> t *)
+    Parameter map : (elt -> M elt) -> t -> M t.
+    (* container_types_intf.ml:86  val fold : (elt -> 'a -> 'a) -> t -> 'a -> 'a *)
+    Parameter fold : forall {A : Type}, (elt -> A -> M A) -> t -> A -> M A.
+    (* container_types_intf.ml:88  val for_all : (elt -> bool) -> t -> bool *)
+    Parameter for_all : (elt -> M bool) -> t -> M bool.
+    (* container_types_intf.ml:90  val exists : (elt -> bool) -> t -> bool *)
+    Parameter exists_ : (elt -> M bool) -> t -> M bool.
+    (* container_types_intf.ml:92  val filter : (elt -> bool) -> t -> t *)
+    Parameter filter : (elt -> M bool) -> t -> M t.
+    (* container_types_intf.ml:94  val filter_map : (elt -> elt option) -> t -> t *)
+    Parameter filter_map : (elt -> M (option elt)) -> t -> M t.
+    (* container_types_intf.ml:96  val partition : (elt -> bool) -> t -> t * t *)
+    Parameter partition : (elt -> M bool) -> t -> M (t * t).
+    (* container_types_intf.ml:98  val cardinal : t -> int *)
+    Parameter cardinal : t -> M int.
+    (* container_types_intf.ml:100  val elements : t -> elt list *)
+    Parameter elements : t -> M (list elt).
+    (* container_types_intf.ml:102  val min_elt : t -> elt *)
+    Parameter min_elt : t -> M elt.
+    (* container_types_intf.ml:104  val min_elt_opt : t -> elt option *)
+    Parameter min_elt_opt : t -> M (option elt).
+    (* container_types_intf.ml:106  val max_elt : t -> elt *)
+    Parameter max_elt : t -> M elt.
+    (* container_types_intf.ml:108  val max_elt_opt : t -> elt option *)
+    Parameter max_elt_opt : t -> M (option elt).
+    (* container_types_intf.ml:110  val choose : t -> elt *)
+    Parameter choose : t -> M elt.
+    (* container_types_intf.ml:112  val choose_opt : t -> elt option *)
+    Parameter choose_opt : t -> M (option elt).
+    (* container_types_intf.ml:114  val split : elt -> t -> t * bool * t *)
+    Parameter split : elt -> t -> M (tuple3 t bool t).
+    (* container_types_intf.ml:116  val find : elt -> t -> elt *)
+    Parameter find : elt -> t -> M elt.
+    (* container_types_intf.ml:118  val of_list : elt list -> t *)
+    Parameter of_list : list elt -> M t.
+    (* container_types_intf.ml:120  val to_seq : t -> elt Seq.t *)
+    Parameter to_seq : t -> Seq.t elt.
+    (* container_types_intf.ml:122  val print : Format.formatter -> t -> unit *)
+    Parameter print : Format.formatter -> t -> M unit.
+    (* container_types_intf.ml:124  val to_string : t -> string *)
+    Parameter to_string : t -> M string.
+    (* container_types_intf.ml:126  val union_list : t list -> t *)
+    Parameter union_list : list t -> M t.
+    (* container_types_intf.ml:128  val get_singleton : t -> elt option *)
+    Parameter get_singleton : t -> M (option elt).
+  End Set_.
+  Module Map.
+    (* container_types_intf.ml:305  module Map : Map with type key = t and module Set = Set *)
+    Definition key : Type := Number_adjuncts.Num_common.t.
+    Module Set_.
+      (* container_types_intf.ml:303  module Set : Set with type elt = t *)
+      Definition elt : Type := Number_adjuncts.Num_common.t.
+      (* container_types_intf.ml:38  type t *)
+      Definition t : Type := Number_adjuncts.Num_common.Set_.t.
+      (* container_types_intf.ml:40  val empty : t *)
+      Parameter empty : t.
+      (* container_types_intf.ml:42  val is_empty : t -> bool *)
+      Parameter is_empty : t -> M bool.
+      (* container_types_intf.ml:44  val mem : elt -> t -> bool *)
+      Parameter mem : elt -> t -> M bool.
+      (* container_types_intf.ml:46  val add : elt -> t -> t *)
+      Parameter add : elt -> t -> M t.
+      (* container_types_intf.ml:48  val singleton : elt -> t *)
+      Parameter singleton : elt -> M t.
+      (* container_types_intf.ml:50  val remove : elt -> t -> t *)
+      Parameter remove : elt -> t -> M t.
+      (* container_types_intf.ml:52  val union : t -> t -> t *)
+      Parameter union : t -> t -> M t.
+      (* container_types_intf.ml:56  val union_sharing : t -> t -> t *)
+      Parameter union_sharing : t -> t -> M t.
+      (* container_types_intf.ml:60  val union_shared : t -> t -> t *)
+      Parameter union_shared : t -> t -> M t.
+      (* container_types_intf.ml:62  val inter : t -> t -> t *)
+      Parameter inter : t -> t -> M t.
+      (* container_types_intf.ml:64  val disjoint : t -> t -> bool *)
+      Parameter disjoint : t -> t -> M bool.
+      (* container_types_intf.ml:66  val diff : t -> t -> t *)
+      Parameter diff : t -> t -> M t.
+      (* container_types_intf.ml:70  val diff_sharing : t -> t -> t *)
+      Parameter diff_sharing : t -> t -> M t.
+      (* container_types_intf.ml:74  val diff_shared : t -> t -> t *)
+      Parameter diff_shared : t -> t -> M t.
+      (* container_types_intf.ml:76  val compare : t -> t -> int *)
+      Parameter compare : t -> t -> M int.
+      (* container_types_intf.ml:78  val equal : t -> t -> bool *)
+      Parameter equal : t -> t -> M bool.
+      (* container_types_intf.ml:80  val subset : t -> t -> bool *)
+      Parameter subset : t -> t -> M bool.
+      (* container_types_intf.ml:82  val iter : (elt -> unit) -> t -> unit *)
+      Parameter iter : (elt -> M unit) -> t -> M unit.
+      (* container_types_intf.ml:84  val map : (elt -> elt) -> t -> t *)
+      Parameter map : (elt -> M elt) -> t -> M t.
+      (* container_types_intf.ml:86  val fold : (elt -> 'a -> 'a) -> t -> 'a -> 'a *)
+      Parameter fold : forall {A : Type}, (elt -> A -> M A) -> t -> A -> M A.
+      (* container_types_intf.ml:88  val for_all : (elt -> bool) -> t -> bool *)
+      Parameter for_all : (elt -> M bool) -> t -> M bool.
+      (* container_types_intf.ml:90  val exists : (elt -> bool) -> t -> bool *)
+      Parameter exists_ : (elt -> M bool) -> t -> M bool.
+      (* container_types_intf.ml:92  val filter : (elt -> bool) -> t -> t *)
+      Parameter filter : (elt -> M bool) -> t -> M t.
+      (* container_types_intf.ml:94  val filter_map : (elt -> elt option) -> t -> t *)
+      Parameter filter_map : (elt -> M (option elt)) -> t -> M t.
+      (* container_types_intf.ml:96  val partition : (elt -> bool) -> t -> t * t *)
+      Parameter partition : (elt -> M bool) -> t -> M (t * t).
+      (* container_types_intf.ml:98  val cardinal : t -> int *)
+      Parameter cardinal : t -> M int.
+      (* container_types_intf.ml:100  val elements : t -> elt list *)
+      Parameter elements : t -> M (list elt).
+      (* container_types_intf.ml:102  val min_elt : t -> elt *)
+      Parameter min_elt : t -> M elt.
+      (* container_types_intf.ml:104  val min_elt_opt : t -> elt option *)
+      Parameter min_elt_opt : t -> M (option elt).
+      (* container_types_intf.ml:106  val max_elt : t -> elt *)
+      Parameter max_elt : t -> M elt.
+      (* container_types_intf.ml:108  val max_elt_opt : t -> elt option *)
+      Parameter max_elt_opt : t -> M (option elt).
+      (* container_types_intf.ml:110  val choose : t -> elt *)
+      Parameter choose : t -> M elt.
+      (* container_types_intf.ml:112  val choose_opt : t -> elt option *)
+      Parameter choose_opt : t -> M (option elt).
+      (* container_types_intf.ml:114  val split : elt -> t -> t * bool * t *)
+      Parameter split : elt -> t -> M (tuple3 t bool t).
+      (* container_types_intf.ml:116  val find : elt -> t -> elt *)
+      Parameter find : elt -> t -> M elt.
+      (* container_types_intf.ml:118  val of_list : elt list -> t *)
+      Parameter of_list : list elt -> M t.
+      (* container_types_intf.ml:120  val to_seq : t -> elt Seq.t *)
+      Parameter to_seq : t -> Seq.t elt.
+      (* container_types_intf.ml:122  val print : Format.formatter -> t -> unit *)
+      Parameter print : Format.formatter -> t -> M unit.
+      (* container_types_intf.ml:124  val to_string : t -> string *)
+      Parameter to_string : t -> M string.
+      (* container_types_intf.ml:126  val union_list : t list -> t *)
+      Parameter union_list : list t -> M t.
+      (* container_types_intf.ml:128  val get_singleton : t -> elt option *)
+      Parameter get_singleton : t -> M (option elt).
+    End Set_.
+    (* container_types_intf.ml:136  type +!'a t *)
+    Parameter t : Type -> Type.
+    (* container_types_intf.ml:138  val empty : 'a t *)
+    Parameter empty : forall {A : Type}, t A.
+    (* container_types_intf.ml:140  val is_empty : 'a t -> bool *)
+    Parameter is_empty : forall {A : Type}, t A -> M bool.
+    (* container_types_intf.ml:142  val mem : key -> 'a t -> bool *)
+    Parameter mem : forall {A : Type}, key -> t A -> M bool.
+    (* container_types_intf.ml:144  val add : key -> 'a -> 'a t -> 'a t *)
+    Parameter add : forall {A : Type}, key -> A -> t A -> M (t A).
+    (* container_types_intf.ml:146  val update : key -> ('a option -> 'a option) -> 'a t -> 'a t *)
+    Parameter update : forall {A : Type}, key -> (option A -> M (option A)) -> t A -> M (t A).
+    (* container_types_intf.ml:148  val singleton : key -> 'a -> 'a t *)
+    Parameter singleton : forall {A : Type}, key -> A -> M (t A).
+    (* container_types_intf.ml:150  val remove : key -> 'a t -> 'a t *)
+    Parameter remove : forall {A : Type}, key -> t A -> M (t A).
+    (* container_types_intf.ml:152  val merge : (key -> 'a option -> 'b option -> 'c option) -> 'a t -> 'b t -> 'c t *)
+    Parameter merge : forall {A B C : Type}, (key -> option A -> option B -> M (option C)) -> t A -> t B -> M (t C).
+    (* container_types_intf.ml:157  val union : (key -> 'a -> 'a -> 'a option) -> 'a t -> 'a t -> 'a t *)
+    Parameter union : forall {A : Type}, (key -> A -> A -> M (option A)) -> t A -> t A -> M (t A).
+    (* container_types_intf.ml:161  val union_sharing : (key -> 'a -> 'a -> 'a option) -> 'a t -> 'a t -> 'a t *)
+    Parameter union_sharing : forall {A : Type}, (key -> A -> A -> M (option A)) -> t A -> t A -> M (t A).
+    (* container_types_intf.ml:166  val union_shared : (key -> 'a -> 'a -> 'a option) -> 'a t -> 'a t -> 'a t *)
+    Parameter union_shared : forall {A : Type}, (key -> A -> A -> M (option A)) -> t A -> t A -> M (t A).
+    (* container_types_intf.ml:170  val union_total : (key -> 'a -> 'a -> 'a) -> 'a t -> 'a t -> 'a t *)
+    Parameter union_total : forall {A : Type}, (key -> A -> A -> M A) -> t A -> t A -> M (t A).
+    (* container_types_intf.ml:176  val union_total_shared : (key -> 'a -> 'a -> 'a) -> 'a t -> 'a t -> 'a t *)
+    Parameter union_total_shared : forall {A : Type}, (key -> A -> A -> M A) -> t A -> t A -> M (t A).
+    (* container_types_intf.ml:180  val union_left_biased : 'a t -> 'a t -> 'a t *)
+    Parameter union_left_biased : forall {A : Type}, t A -> t A -> M (t A).
+    (* container_types_intf.ml:184  val union_right_biased : 'a t -> 'a t -> 'a t *)
+    Parameter union_right_biased : forall {A : Type}, t A -> t A -> M (t A).
+    (* container_types_intf.ml:186  val update_many : (key -> 'a option -> 'b -> 'a option) -> 'a t -> 'b t -> 'a t *)
+    Parameter update_many : forall {A B : Type}, (key -> option A -> B -> M (option A)) -> t A -> t B -> M (t A).
+    (* container_types_intf.ml:189  val compare : ('a -> 'a -> int) -> 'a t -> 'a t -> int *)
+    Parameter compare : forall {A : Type}, (A -> A -> M int) -> t A -> t A -> M int.
+    (* container_types_intf.ml:191  val equal : ('a -> 'a -> bool) -> 'a t -> 'a t -> bool *)
+    Parameter equal : forall {A : Type}, (A -> A -> M bool) -> t A -> t A -> M bool.
+    (* container_types_intf.ml:193  val iter : (key -> 'a -> unit) -> 'a t -> unit *)
+    Parameter iter : forall {A : Type}, (key -> A -> M unit) -> t A -> M unit.
+    (* container_types_intf.ml:195  val fold : (key -> 'a -> 'b -> 'b) -> 'a t -> 'b -> 'b *)
+    Parameter fold : forall {A B : Type}, (key -> A -> B -> M B) -> t A -> B -> M B.
+    (* container_types_intf.ml:197  val for_all : (key -> 'a -> bool) -> 'a t -> bool *)
+    Parameter for_all : forall {A : Type}, (key -> A -> M bool) -> t A -> M bool.
+    (* container_types_intf.ml:199  val exists : (key -> 'a -> bool) -> 'a t -> bool *)
+    Parameter exists_ : forall {A : Type}, (key -> A -> M bool) -> t A -> M bool.
+    (* container_types_intf.ml:201  val filter : (key -> 'a -> bool) -> 'a t -> 'a t *)
+    Parameter filter : forall {A : Type}, (key -> A -> M bool) -> t A -> M (t A).
+    (* container_types_intf.ml:203  val filter_map : (key -> 'a -> 'b option) -> 'a t -> 'b t *)
+    Parameter filter_map : forall {A B : Type}, (key -> A -> M (option B)) -> t A -> M (t B).
+    (* container_types_intf.ml:205  val filter_map_sharing : (key -> 'a -> 'a option) -> 'a t -> 'a t *)
+    Parameter filter_map_sharing : forall {A : Type}, (key -> A -> M (option A)) -> t A -> M (t A).
+    (* container_types_intf.ml:207  val partition : (key -> 'a -> bool) -> 'a t -> 'a t * 'a t *)
+    Parameter partition : forall {A : Type}, (key -> A -> M bool) -> t A -> M (t A * t A).
+    (* container_types_intf.ml:209  val cardinal : 'a t -> int *)
+    Parameter cardinal : forall {A : Type}, t A -> M int.
+    (* container_types_intf.ml:211  val bindings : 'a t -> (key * 'a) list *)
+    Parameter bindings : forall {A : Type}, t A -> M (list (key * A)).
+    (* container_types_intf.ml:213  val min_binding : 'a t -> key * 'a *)
+    Parameter min_binding : forall {A : Type}, t A -> M (key * A).
+    (* container_types_intf.ml:215  val min_binding_opt : 'a t -> (key * 'a) option *)
+    Parameter min_binding_opt : forall {A : Type}, t A -> M (option (key * A)).
+    (* container_types_intf.ml:217  val max_binding : 'a t -> key * 'a *)
+    Parameter max_binding : forall {A : Type}, t A -> M (key * A).
+    (* container_types_intf.ml:219  val max_binding_opt : 'a t -> (key * 'a) option *)
+    Parameter max_binding_opt : forall {A : Type}, t A -> M (option (key * A)).
+    (* container_types_intf.ml:221  val choose : 'a t -> key * 'a *)
+    Parameter choose : forall {A : Type}, t A -> M (key * A).
+    (* container_types_intf.ml:223  val choose_opt : 'a t -> (key * 'a) option *)
+    Parameter choose_opt : forall {A : Type}, t A -> M (option (key * A)).
+    (* container_types_intf.ml:225  val split : key -> 'a t -> 'a t * 'a option * 'a t *)
+    Parameter split : forall {A : Type}, key -> t A -> M (tuple3 (t A) (option A) (t A)).
+    (* container_types_intf.ml:227  val find : key -> 'a t -> 'a *)
+    Parameter find : forall {A : Type}, key -> t A -> M A.
+    (* container_types_intf.ml:229  val find_opt : key -> 'a t -> 'a option *)
+    Parameter find_opt : forall {A : Type}, key -> t A -> M (option A).
+    (* container_types_intf.ml:231  val find_or_null : key -> 'a t -> 'a Or_null.t *)
+    Parameter find_or_null : forall {A : Type}, key -> t A -> M (Or_null.t A).
+    (* container_types_intf.ml:233  val map : ('a -> 'b) -> 'a t -> 'b t *)
+    Parameter map : forall {A B : Type}, (A -> M B) -> t A -> M (t B).
+    (* container_types_intf.ml:235  val mapi : (key -> 'a -> 'b) -> 'a t -> 'b t *)
+    Parameter mapi : forall {A B : Type}, (key -> A -> M B) -> t A -> M (t B).
+    (* container_types_intf.ml:237  val to_seq : 'a t -> (key * 'a) Seq.t *)
+    Parameter to_seq : forall {A : Type}, t A -> Seq.t (key * A).
+    (* container_types_intf.ml:239  val print_debug : (Format.formatter -> 'a -> unit) -> Format.formatter -> 'a t -> unit *)
+    Parameter print_debug : forall {A : Type}, (Format.formatter -> A -> M unit) -> Format.formatter -> t A -> M unit.
+    (* container_types_intf.ml:242  val of_list : (key * 'a) list -> 'a t *)
+    Parameter of_list : forall {A : Type}, list (key * A) -> M (t A).
+    (* container_types_intf.ml:244  val disjoint_union : ?eq:('a -> 'a -> bool) -> ?print:(Format.formatter -> 'a -> unit) -> 'a t -> 'a t -> 'a t *)
+    Parameter disjoint_union : forall {A : Type}, option (A -> A -> M bool) -> option (Format.formatter -> A -> M unit) -> t A -> t A -> M (t A).
+    (* container_types_intf.ml:251  val map_keys : (key -> key) -> 'a t -> 'a t *)
+    Parameter map_keys : forall {A : Type}, (key -> M key) -> t A -> M (t A).
+    (* container_types_intf.ml:253  val keys : 'a t -> Set.t *)
+    Parameter keys : forall {A : Type}, t A -> M Number_adjuncts.Num_common.Map.Set_.t.
+    (* container_types_intf.ml:255  val data : 'a t -> 'a list *)
+    Parameter data : forall {A : Type}, t A -> M (list A).
+    (* container_types_intf.ml:257  val of_set : (key -> 'a) -> Set.t -> 'a t *)
+    Parameter of_set : forall {A : Type}, (key -> M A) -> Number_adjuncts.Num_common.Map.Set_.t -> M (t A).
+    (* container_types_intf.ml:259  val print : (Format.formatter -> 'a -> unit) -> Format.formatter -> 'a t -> unit *)
+    Parameter print : forall {A : Type}, (Format.formatter -> A -> M unit) -> Format.formatter -> t A -> M unit.
+    (* container_types_intf.ml:262  val subset_domain : 'a t -> 'b t -> bool *)
+    Parameter subset_domain : forall {A B : Type}, t A -> t B -> M bool.
+    (* container_types_intf.ml:264  val diff_domains : 'a t -> 'b t -> 'a t *)
+    Parameter diff_domains : forall {A B : Type}, t A -> t B -> M (t A).
+    (* container_types_intf.ml:266  val inter : (key -> 'a -> 'b -> 'c) -> 'a t -> 'b t -> 'c t *)
+    Parameter inter : forall {A B C : Type}, (key -> A -> B -> M C) -> t A -> t B -> M (t C).
+    (* container_types_intf.ml:276  val diff : (key -> 'a -> 'b -> 'a option) -> 'a t -> 'b t -> 'a t *)
+    Parameter diff : forall {A B : Type}, (key -> A -> B -> M (option A)) -> t A -> t B -> M (t A).
+    (* container_types_intf.ml:280  val diff_sharing : (key -> 'a -> 'b -> 'a option) -> 'a t -> 'b t -> 'a t *)
+    Parameter diff_sharing : forall {A B : Type}, (key -> A -> B -> M (option A)) -> t A -> t B -> M (t A).
+    (* container_types_intf.ml:285  val diff_shared : (key -> 'a -> 'a -> 'a option) -> 'a t -> 'a t -> 'a t *)
+    Parameter diff_shared : forall {A : Type}, (key -> A -> A -> M (option A)) -> t A -> t A -> M (t A).
+    (* container_types_intf.ml:287  val inter_domain_is_non_empty : 'a t -> 'a t -> bool *)
+    Parameter inter_domain_is_non_empty : forall {A : Type}, t A -> t A -> M bool.
+    (* container_types_intf.ml:289  val get_singleton : 'a t -> (key * 'a) option *)
+    Parameter get_singleton : forall {A : Type}, t A -> M (option (key * A)).
+    (* container_types_intf.ml:291  val replace : key -> ('a -> 'a) -> 'a t -> 'a t *)
+    Parameter replace : forall {A : Type}, key -> (A -> M A) -> t A -> M (t A).
+    (* container_types_intf.ml:293  val map_sharing : ('a -> 'a) -> 'a t -> 'a t *)
+    Parameter map_sharing : forall {A : Type}, (A -> M A) -> t A -> M (t A).
+  End Map.
+  Module Pair.
+    (* number_adjuncts.mli:25  type nonrec t = t * t *)
+    Definition t : Type := (Number_adjuncts.Num_common.t * Number_adjuncts.Num_common.t).
+    Module T.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Definition t : Type := Number_adjuncts.Num_common.Pair.t.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter equal : t -> t -> M bool.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter hash : t -> M int.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter compare : t -> t -> M int.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter print : Format.formatter -> t -> M unit.
+    End T.
+    (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+    Parameter equal : Number_adjuncts.Num_common.Pair.T.t -> Number_adjuncts.Num_common.Pair.T.t -> M bool.
+    (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+    Parameter hash : Number_adjuncts.Num_common.Pair.T.t -> M int.
+    (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+    Parameter compare : Number_adjuncts.Num_common.Pair.T.t -> Number_adjuncts.Num_common.Pair.T.t -> M int.
+    (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+    Parameter print : Format.formatter -> Number_adjuncts.Num_common.Pair.T.t -> M unit.
+    Module Set_.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Definition elt : Type := Number_adjuncts.Num_common.Pair.t.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter t : Type.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter empty : t.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter is_empty : t -> M bool.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter mem : elt -> t -> M bool.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter add : elt -> t -> M t.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter singleton : elt -> M t.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter remove : elt -> t -> M t.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter union : t -> t -> M t.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter union_sharing : t -> t -> M t.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter union_shared : t -> t -> M t.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter inter : t -> t -> M t.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter disjoint : t -> t -> M bool.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter diff : t -> t -> M t.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter diff_sharing : t -> t -> M t.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter diff_shared : t -> t -> M t.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter compare : t -> t -> M int.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter equal : t -> t -> M bool.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter subset : t -> t -> M bool.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter iter : (elt -> M unit) -> t -> M unit.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter map : (elt -> M elt) -> t -> M t.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter fold : forall {A : Type}, (elt -> A -> M A) -> t -> A -> M A.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter for_all : (elt -> M bool) -> t -> M bool.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter exists_ : (elt -> M bool) -> t -> M bool.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter filter : (elt -> M bool) -> t -> M t.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter filter_map : (elt -> M (option elt)) -> t -> M t.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter partition : (elt -> M bool) -> t -> M (t * t).
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter cardinal : t -> M int.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter elements : t -> M (list elt).
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter min_elt : t -> M elt.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter min_elt_opt : t -> M (option elt).
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter max_elt : t -> M elt.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter max_elt_opt : t -> M (option elt).
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter choose : t -> M elt.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter choose_opt : t -> M (option elt).
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter split : elt -> t -> M (tuple3 t bool t).
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter find : elt -> t -> M elt.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter of_list : list elt -> M t.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter to_seq : t -> Seq.t elt.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter print : Format.formatter -> t -> M unit.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter to_string : t -> M string.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter union_list : list t -> M t.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter get_singleton : t -> M (option elt).
+    End Set_.
+    Module Map.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Definition key : Type := Number_adjuncts.Num_common.Pair.t.
+      Module Set_.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Definition elt : Type := Number_adjuncts.Num_common.Pair.t.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Definition t : Type := Number_adjuncts.Num_common.Pair.Set_.t.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter empty : t.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter is_empty : t -> M bool.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter mem : elt -> t -> M bool.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter add : elt -> t -> M t.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter singleton : elt -> M t.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter remove : elt -> t -> M t.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter union : t -> t -> M t.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter union_sharing : t -> t -> M t.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter union_shared : t -> t -> M t.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter inter : t -> t -> M t.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter disjoint : t -> t -> M bool.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter diff : t -> t -> M t.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter diff_sharing : t -> t -> M t.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter diff_shared : t -> t -> M t.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter compare : t -> t -> M int.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter equal : t -> t -> M bool.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter subset : t -> t -> M bool.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter iter : (elt -> M unit) -> t -> M unit.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter map : (elt -> M elt) -> t -> M t.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter fold : forall {A : Type}, (elt -> A -> M A) -> t -> A -> M A.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter for_all : (elt -> M bool) -> t -> M bool.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter exists_ : (elt -> M bool) -> t -> M bool.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter filter : (elt -> M bool) -> t -> M t.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter filter_map : (elt -> M (option elt)) -> t -> M t.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter partition : (elt -> M bool) -> t -> M (t * t).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter cardinal : t -> M int.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter elements : t -> M (list elt).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter min_elt : t -> M elt.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter min_elt_opt : t -> M (option elt).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter max_elt : t -> M elt.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter max_elt_opt : t -> M (option elt).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter choose : t -> M elt.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter choose_opt : t -> M (option elt).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter split : elt -> t -> M (tuple3 t bool t).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter find : elt -> t -> M elt.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter of_list : list elt -> M t.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter to_seq : t -> Seq.t elt.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter print : Format.formatter -> t -> M unit.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter to_string : t -> M string.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter union_list : list t -> M t.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter get_singleton : t -> M (option elt).
+      End Set_.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter t : Type -> Type.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter empty : forall {A : Type}, t A.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter is_empty : forall {A : Type}, t A -> M bool.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter mem : forall {A : Type}, key -> t A -> M bool.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter add : forall {A : Type}, key -> A -> t A -> M (t A).
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter update : forall {A : Type}, key -> (option A -> M (option A)) -> t A -> M (t A).
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter singleton : forall {A : Type}, key -> A -> M (t A).
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter remove : forall {A : Type}, key -> t A -> M (t A).
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter merge : forall {A B C : Type}, (key -> option A -> option B -> M (option C)) -> t A -> t B -> M (t C).
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter union : forall {A : Type}, (key -> A -> A -> M (option A)) -> t A -> t A -> M (t A).
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter union_sharing : forall {A : Type}, (key -> A -> A -> M (option A)) -> t A -> t A -> M (t A).
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter union_shared : forall {A : Type}, (key -> A -> A -> M (option A)) -> t A -> t A -> M (t A).
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter union_total : forall {A : Type}, (key -> A -> A -> M A) -> t A -> t A -> M (t A).
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter union_total_shared : forall {A : Type}, (key -> A -> A -> M A) -> t A -> t A -> M (t A).
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter union_left_biased : forall {A : Type}, t A -> t A -> M (t A).
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter union_right_biased : forall {A : Type}, t A -> t A -> M (t A).
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter update_many : forall {A B : Type}, (key -> option A -> B -> M (option A)) -> t A -> t B -> M (t A).
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter compare : forall {A : Type}, (A -> A -> M int) -> t A -> t A -> M int.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter equal : forall {A : Type}, (A -> A -> M bool) -> t A -> t A -> M bool.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter iter : forall {A : Type}, (key -> A -> M unit) -> t A -> M unit.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter fold : forall {A B : Type}, (key -> A -> B -> M B) -> t A -> B -> M B.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter for_all : forall {A : Type}, (key -> A -> M bool) -> t A -> M bool.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter exists_ : forall {A : Type}, (key -> A -> M bool) -> t A -> M bool.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter filter : forall {A : Type}, (key -> A -> M bool) -> t A -> M (t A).
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter filter_map : forall {A B : Type}, (key -> A -> M (option B)) -> t A -> M (t B).
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter filter_map_sharing : forall {A : Type}, (key -> A -> M (option A)) -> t A -> M (t A).
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter partition : forall {A : Type}, (key -> A -> M bool) -> t A -> M (t A * t A).
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter cardinal : forall {A : Type}, t A -> M int.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter bindings : forall {A : Type}, t A -> M (list (key * A)).
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter min_binding : forall {A : Type}, t A -> M (key * A).
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter min_binding_opt : forall {A : Type}, t A -> M (option (key * A)).
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter max_binding : forall {A : Type}, t A -> M (key * A).
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter max_binding_opt : forall {A : Type}, t A -> M (option (key * A)).
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter choose : forall {A : Type}, t A -> M (key * A).
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter choose_opt : forall {A : Type}, t A -> M (option (key * A)).
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter split : forall {A : Type}, key -> t A -> M (tuple3 (t A) (option A) (t A)).
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter find : forall {A : Type}, key -> t A -> M A.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter find_opt : forall {A : Type}, key -> t A -> M (option A).
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter find_or_null : forall {A : Type}, key -> t A -> M (Or_null.t A).
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter map : forall {A B : Type}, (A -> M B) -> t A -> M (t B).
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter mapi : forall {A B : Type}, (key -> A -> M B) -> t A -> M (t B).
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter to_seq : forall {A : Type}, t A -> Seq.t (key * A).
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter print_debug : forall {A : Type}, (Format.formatter -> A -> M unit) -> Format.formatter -> t A -> M unit.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter of_list : forall {A : Type}, list (key * A) -> M (t A).
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter disjoint_union : forall {A : Type}, option (A -> A -> M bool) -> option (Format.formatter -> A -> M unit) -> t A -> t A -> M (t A).
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter map_keys : forall {A : Type}, (key -> M key) -> t A -> M (t A).
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter keys : forall {A : Type}, t A -> M Number_adjuncts.Num_common.Pair.Map.Set_.t.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter data : forall {A : Type}, t A -> M (list A).
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter of_set : forall {A : Type}, (key -> M A) -> Number_adjuncts.Num_common.Pair.Map.Set_.t -> M (t A).
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter print : forall {A : Type}, (Format.formatter -> A -> M unit) -> Format.formatter -> t A -> M unit.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter subset_domain : forall {A B : Type}, t A -> t B -> M bool.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter diff_domains : forall {A B : Type}, t A -> t B -> M (t A).
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter inter : forall {A B C : Type}, (key -> A -> B -> M C) -> t A -> t B -> M (t C).
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter diff : forall {A B : Type}, (key -> A -> B -> M (option A)) -> t A -> t B -> M (t A).
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter diff_sharing : forall {A B : Type}, (key -> A -> B -> M (option A)) -> t A -> t B -> M (t A).
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter diff_shared : forall {A : Type}, (key -> A -> A -> M (option A)) -> t A -> t A -> M (t A).
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter inter_domain_is_non_empty : forall {A : Type}, t A -> t A -> M bool.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter get_singleton : forall {A : Type}, t A -> M (option (key * A)).
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter replace : forall {A : Type}, key -> (A -> M A) -> t A -> M (t A).
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter map_sharing : forall {A : Type}, (A -> M A) -> t A -> M (t A).
+    End Map.
+  End Pair.
+  (* number_adjuncts.mli:30  val cross_product : Set.t -> Set.t -> Pair.Set.t *)
+  Parameter cross_product : Number_adjuncts.Num_common.Set_.t -> Number_adjuncts.Num_common.Set_.t -> M Number_adjuncts.Num_common.Pair.Set_.t.
+  (* number_adjuncts.mli:32  val zero : Target_system.Machine_width.t -> t *)
+  Parameter zero : Target_system.Machine_width.t -> M t.
+  (* number_adjuncts.mli:34  val one : Target_system.Machine_width.t -> t *)
+  Parameter one : Target_system.Machine_width.t -> M t.
+  (* number_adjuncts.mli:36  val minus_one : Target_system.Machine_width.t -> t *)
+  Parameter minus_one : Target_system.Machine_width.t -> M t.
+  (* number_adjuncts.mli:38  val add : t -> t -> t *)
+  Parameter add : t -> t -> M t.
+  (* number_adjuncts.mli:40  val sub : t -> t -> t *)
+  Parameter sub : t -> t -> M t.
+  (* number_adjuncts.mli:42  val mul : t -> t -> t *)
+  Parameter mul : t -> t -> M t.
+  (* number_adjuncts.mli:44  val div : t -> t -> t option *)
+  Parameter div : t -> t -> M (option t).
+  (* number_adjuncts.mli:46  val mod_ : t -> t -> t option *)
+  Parameter mod_ : t -> t -> M (option t).
+  (* number_adjuncts.mli:48  val to_const : t -> Reg_width_const.t *)
+  Parameter to_const : t -> M Reg_width_const.t.
+  (* number_adjuncts.mli:50  val to_immediate : t -> Target_system.Machine_width.t -> Target_ocaml_int.t *)
+  Parameter to_immediate : t -> Target_system.Machine_width.t -> M Target_ocaml_int.t.
+  (* number_adjuncts.mli:52  val to_naked_float32 : t -> Numeric_types.Float32_by_bit_pattern.t *)
+  Parameter to_naked_float32 : t -> M Numeric_types.Float32_by_bit_pattern.t.
+  (* number_adjuncts.mli:54  val to_naked_float : t -> Numeric_types.Float_by_bit_pattern.t *)
+  Parameter to_naked_float : t -> M Numeric_types.Float_by_bit_pattern.t.
+  (* number_adjuncts.mli:56  val to_naked_int8 : t -> Numeric_types.Int8.t *)
+  Parameter to_naked_int8 : t -> M Numeric_types.Int8.t.
+  (* number_adjuncts.mli:58  val to_naked_int16 : t -> Numeric_types.Int16.t *)
+  Parameter to_naked_int16 : t -> M Numeric_types.Int16.t.
+  (* number_adjuncts.mli:60  val to_naked_int32 : t -> Numeric_types.Int32.t *)
+  Parameter to_naked_int32 : t -> M Numeric_types.Int32.t.
+  (* number_adjuncts.mli:62  val to_naked_int64 : t -> Numeric_types.Int64.t *)
+  Parameter to_naked_int64 : t -> M Numeric_types.Int64.t.
+  (* number_adjuncts.mli:64  val to_naked_nativeint : t -> Target_system.Machine_width.t -> Targetint_32_64.t *)
+  Parameter to_naked_nativeint : t -> Target_system.Machine_width.t -> M Targetint_32_64.t.
+End Num_common.
+(* NOT DECLARED: Number_adjuncts.Number_kind_common: a module type that no file of Simplify names from outside the file that defines it. *)
+(* The module type Number_adjuncts.Number_kind: all that it names. No directive: in a functor, Rocq prints what the parameter has by its name here. *)
+Module Type Number_kind.
+  Module Num.
+    (* container_types_intf.ml:297  type t *)
+    Parameter t : Type.
+    Module T.
+      (* container_types_intf.ml:299  module T : Thing with type t = t *)
+      Definition t : Type := Number_adjuncts.Number_kind.Num.t.
+      (* container_types_intf.ml:28  include Hashtbl.HashedType with type t := t *)
+      Parameter equal : t -> t -> M bool.
+      (* container_types_intf.ml:28  include Hashtbl.HashedType with type t := t *)
+      Parameter hash : t -> M int.
+      (* container_types_intf.ml:30  include Map.OrderedType with type t := t *)
+      Parameter compare : t -> t -> M int.
+      (* container_types_intf.ml:32  val print : Format.formatter -> t -> unit *)
+      Parameter print : Format.formatter -> t -> M unit.
+    End T.
+    (* container_types_intf.ml:301  include Thing with type t := T.t *)
+    Parameter equal : Number_adjuncts.Number_kind.Num.T.t -> Number_adjuncts.Number_kind.Num.T.t -> M bool.
+    (* container_types_intf.ml:301  include Thing with type t := T.t *)
+    Parameter hash : Number_adjuncts.Number_kind.Num.T.t -> M int.
+    (* container_types_intf.ml:301  include Thing with type t := T.t *)
+    Parameter compare : Number_adjuncts.Number_kind.Num.T.t -> Number_adjuncts.Number_kind.Num.T.t -> M int.
+    (* container_types_intf.ml:301  include Thing with type t := T.t *)
+    Parameter print : Format.formatter -> Number_adjuncts.Number_kind.Num.T.t -> M unit.
+    Module Set_.
+      (* container_types_intf.ml:303  module Set : Set with type elt = t *)
+      Definition elt : Type := Number_adjuncts.Number_kind.Num.t.
+      (* container_types_intf.ml:38  type t *)
+      Parameter t : Type.
+      (* container_types_intf.ml:40  val empty : t *)
+      Parameter empty : t.
+      (* container_types_intf.ml:42  val is_empty : t -> bool *)
+      Parameter is_empty : t -> M bool.
+      (* container_types_intf.ml:44  val mem : elt -> t -> bool *)
+      Parameter mem : elt -> t -> M bool.
+      (* container_types_intf.ml:46  val add : elt -> t -> t *)
+      Parameter add : elt -> t -> M t.
+      (* container_types_intf.ml:48  val singleton : elt -> t *)
+      Parameter singleton : elt -> M t.
+      (* container_types_intf.ml:50  val remove : elt -> t -> t *)
+      Parameter remove : elt -> t -> M t.
+      (* container_types_intf.ml:52  val union : t -> t -> t *)
+      Parameter union : t -> t -> M t.
+      (* container_types_intf.ml:56  val union_sharing : t -> t -> t *)
+      Parameter union_sharing : t -> t -> M t.
+      (* container_types_intf.ml:60  val union_shared : t -> t -> t *)
+      Parameter union_shared : t -> t -> M t.
+      (* container_types_intf.ml:62  val inter : t -> t -> t *)
+      Parameter inter : t -> t -> M t.
+      (* container_types_intf.ml:64  val disjoint : t -> t -> bool *)
+      Parameter disjoint : t -> t -> M bool.
+      (* container_types_intf.ml:66  val diff : t -> t -> t *)
+      Parameter diff : t -> t -> M t.
+      (* container_types_intf.ml:70  val diff_sharing : t -> t -> t *)
+      Parameter diff_sharing : t -> t -> M t.
+      (* container_types_intf.ml:74  val diff_shared : t -> t -> t *)
+      Parameter diff_shared : t -> t -> M t.
+      (* container_types_intf.ml:76  val compare : t -> t -> int *)
+      Parameter compare : t -> t -> M int.
+      (* container_types_intf.ml:78  val equal : t -> t -> bool *)
+      Parameter equal : t -> t -> M bool.
+      (* container_types_intf.ml:80  val subset : t -> t -> bool *)
+      Parameter subset : t -> t -> M bool.
+      (* container_types_intf.ml:82  val iter : (elt -> unit) -> t -> unit *)
+      Parameter iter : (elt -> M unit) -> t -> M unit.
+      (* container_types_intf.ml:84  val map : (elt -> elt) -> t -> t *)
+      Parameter map : (elt -> M elt) -> t -> M t.
+      (* container_types_intf.ml:86  val fold : (elt -> 'a -> 'a) -> t -> 'a -> 'a *)
+      Parameter fold : forall {A : Type}, (elt -> A -> M A) -> t -> A -> M A.
+      (* container_types_intf.ml:88  val for_all : (elt -> bool) -> t -> bool *)
+      Parameter for_all : (elt -> M bool) -> t -> M bool.
+      (* container_types_intf.ml:90  val exists : (elt -> bool) -> t -> bool *)
+      Parameter exists_ : (elt -> M bool) -> t -> M bool.
+      (* container_types_intf.ml:92  val filter : (elt -> bool) -> t -> t *)
+      Parameter filter : (elt -> M bool) -> t -> M t.
+      (* container_types_intf.ml:94  val filter_map : (elt -> elt option) -> t -> t *)
+      Parameter filter_map : (elt -> M (option elt)) -> t -> M t.
+      (* container_types_intf.ml:96  val partition : (elt -> bool) -> t -> t * t *)
+      Parameter partition : (elt -> M bool) -> t -> M (t * t).
+      (* container_types_intf.ml:98  val cardinal : t -> int *)
+      Parameter cardinal : t -> M int.
+      (* container_types_intf.ml:100  val elements : t -> elt list *)
+      Parameter elements : t -> M (list elt).
+      (* container_types_intf.ml:102  val min_elt : t -> elt *)
+      Parameter min_elt : t -> M elt.
+      (* container_types_intf.ml:104  val min_elt_opt : t -> elt option *)
+      Parameter min_elt_opt : t -> M (option elt).
+      (* container_types_intf.ml:106  val max_elt : t -> elt *)
+      Parameter max_elt : t -> M elt.
+      (* container_types_intf.ml:108  val max_elt_opt : t -> elt option *)
+      Parameter max_elt_opt : t -> M (option elt).
+      (* container_types_intf.ml:110  val choose : t -> elt *)
+      Parameter choose : t -> M elt.
+      (* container_types_intf.ml:112  val choose_opt : t -> elt option *)
+      Parameter choose_opt : t -> M (option elt).
+      (* container_types_intf.ml:114  val split : elt -> t -> t * bool * t *)
+      Parameter split : elt -> t -> M (tuple3 t bool t).
+      (* container_types_intf.ml:116  val find : elt -> t -> elt *)
+      Parameter find : elt -> t -> M elt.
+      (* container_types_intf.ml:118  val of_list : elt list -> t *)
+      Parameter of_list : list elt -> M t.
+      (* container_types_intf.ml:120  val to_seq : t -> elt Seq.t *)
+      Parameter to_seq : t -> Seq.t elt.
+      (* container_types_intf.ml:122  val print : Format.formatter -> t -> unit *)
+      Parameter print : Format.formatter -> t -> M unit.
+      (* container_types_intf.ml:124  val to_string : t -> string *)
+      Parameter to_string : t -> M string.
+      (* container_types_intf.ml:126  val union_list : t list -> t *)
+      Parameter union_list : list t -> M t.
+      (* container_types_intf.ml:128  val get_singleton : t -> elt option *)
+      Parameter get_singleton : t -> M (option elt).
+    End Set_.
+    Module Map.
+      (* container_types_intf.ml:305  module Map : Map with type key = t and module Set = Set *)
+      Definition key : Type := Number_adjuncts.Number_kind.Num.t.
+      Module Set_.
+        (* container_types_intf.ml:303  module Set : Set with type elt = t *)
+        Definition elt : Type := Number_adjuncts.Number_kind.Num.t.
+        (* container_types_intf.ml:38  type t *)
+        Definition t : Type := Number_adjuncts.Number_kind.Num.Set_.t.
+        (* container_types_intf.ml:40  val empty : t *)
+        Parameter empty : t.
+        (* container_types_intf.ml:42  val is_empty : t -> bool *)
+        Parameter is_empty : t -> M bool.
+        (* container_types_intf.ml:44  val mem : elt -> t -> bool *)
+        Parameter mem : elt -> t -> M bool.
+        (* container_types_intf.ml:46  val add : elt -> t -> t *)
+        Parameter add : elt -> t -> M t.
+        (* container_types_intf.ml:48  val singleton : elt -> t *)
+        Parameter singleton : elt -> M t.
+        (* container_types_intf.ml:50  val remove : elt -> t -> t *)
+        Parameter remove : elt -> t -> M t.
+        (* container_types_intf.ml:52  val union : t -> t -> t *)
+        Parameter union : t -> t -> M t.
+        (* container_types_intf.ml:56  val union_sharing : t -> t -> t *)
+        Parameter union_sharing : t -> t -> M t.
+        (* container_types_intf.ml:60  val union_shared : t -> t -> t *)
+        Parameter union_shared : t -> t -> M t.
+        (* container_types_intf.ml:62  val inter : t -> t -> t *)
+        Parameter inter : t -> t -> M t.
+        (* container_types_intf.ml:64  val disjoint : t -> t -> bool *)
+        Parameter disjoint : t -> t -> M bool.
+        (* container_types_intf.ml:66  val diff : t -> t -> t *)
+        Parameter diff : t -> t -> M t.
+        (* container_types_intf.ml:70  val diff_sharing : t -> t -> t *)
+        Parameter diff_sharing : t -> t -> M t.
+        (* container_types_intf.ml:74  val diff_shared : t -> t -> t *)
+        Parameter diff_shared : t -> t -> M t.
+        (* container_types_intf.ml:76  val compare : t -> t -> int *)
+        Parameter compare : t -> t -> M int.
+        (* container_types_intf.ml:78  val equal : t -> t -> bool *)
+        Parameter equal : t -> t -> M bool.
+        (* container_types_intf.ml:80  val subset : t -> t -> bool *)
+        Parameter subset : t -> t -> M bool.
+        (* container_types_intf.ml:82  val iter : (elt -> unit) -> t -> unit *)
+        Parameter iter : (elt -> M unit) -> t -> M unit.
+        (* container_types_intf.ml:84  val map : (elt -> elt) -> t -> t *)
+        Parameter map : (elt -> M elt) -> t -> M t.
+        (* container_types_intf.ml:86  val fold : (elt -> 'a -> 'a) -> t -> 'a -> 'a *)
+        Parameter fold : forall {A : Type}, (elt -> A -> M A) -> t -> A -> M A.
+        (* container_types_intf.ml:88  val for_all : (elt -> bool) -> t -> bool *)
+        Parameter for_all : (elt -> M bool) -> t -> M bool.
+        (* container_types_intf.ml:90  val exists : (elt -> bool) -> t -> bool *)
+        Parameter exists_ : (elt -> M bool) -> t -> M bool.
+        (* container_types_intf.ml:92  val filter : (elt -> bool) -> t -> t *)
+        Parameter filter : (elt -> M bool) -> t -> M t.
+        (* container_types_intf.ml:94  val filter_map : (elt -> elt option) -> t -> t *)
+        Parameter filter_map : (elt -> M (option elt)) -> t -> M t.
+        (* container_types_intf.ml:96  val partition : (elt -> bool) -> t -> t * t *)
+        Parameter partition : (elt -> M bool) -> t -> M (t * t).
+        (* container_types_intf.ml:98  val cardinal : t -> int *)
+        Parameter cardinal : t -> M int.
+        (* container_types_intf.ml:100  val elements : t -> elt list *)
+        Parameter elements : t -> M (list elt).
+        (* container_types_intf.ml:102  val min_elt : t -> elt *)
+        Parameter min_elt : t -> M elt.
+        (* container_types_intf.ml:104  val min_elt_opt : t -> elt option *)
+        Parameter min_elt_opt : t -> M (option elt).
+        (* container_types_intf.ml:106  val max_elt : t -> elt *)
+        Parameter max_elt : t -> M elt.
+        (* container_types_intf.ml:108  val max_elt_opt : t -> elt option *)
+        Parameter max_elt_opt : t -> M (option elt).
+        (* container_types_intf.ml:110  val choose : t -> elt *)
+        Parameter choose : t -> M elt.
+        (* container_types_intf.ml:112  val choose_opt : t -> elt option *)
+        Parameter choose_opt : t -> M (option elt).
+        (* container_types_intf.ml:114  val split : elt -> t -> t * bool * t *)
+        Parameter split : elt -> t -> M (tuple3 t bool t).
+        (* container_types_intf.ml:116  val find : elt -> t -> elt *)
+        Parameter find : elt -> t -> M elt.
+        (* container_types_intf.ml:118  val of_list : elt list -> t *)
+        Parameter of_list : list elt -> M t.
+        (* container_types_intf.ml:120  val to_seq : t -> elt Seq.t *)
+        Parameter to_seq : t -> Seq.t elt.
+        (* container_types_intf.ml:122  val print : Format.formatter -> t -> unit *)
+        Parameter print : Format.formatter -> t -> M unit.
+        (* container_types_intf.ml:124  val to_string : t -> string *)
+        Parameter to_string : t -> M string.
+        (* container_types_intf.ml:126  val union_list : t list -> t *)
+        Parameter union_list : list t -> M t.
+        (* container_types_intf.ml:128  val get_singleton : t -> elt option *)
+        Parameter get_singleton : t -> M (option elt).
+      End Set_.
+      (* container_types_intf.ml:136  type +!'a t *)
+      Parameter t : Type -> Type.
+      (* container_types_intf.ml:138  val empty : 'a t *)
+      Parameter empty : forall {A : Type}, t A.
+      (* container_types_intf.ml:140  val is_empty : 'a t -> bool *)
+      Parameter is_empty : forall {A : Type}, t A -> M bool.
+      (* container_types_intf.ml:142  val mem : key -> 'a t -> bool *)
+      Parameter mem : forall {A : Type}, key -> t A -> M bool.
+      (* container_types_intf.ml:144  val add : key -> 'a -> 'a t -> 'a t *)
+      Parameter add : forall {A : Type}, key -> A -> t A -> M (t A).
+      (* container_types_intf.ml:146  val update : key -> ('a option -> 'a option) -> 'a t -> 'a t *)
+      Parameter update : forall {A : Type}, key -> (option A -> M (option A)) -> t A -> M (t A).
+      (* container_types_intf.ml:148  val singleton : key -> 'a -> 'a t *)
+      Parameter singleton : forall {A : Type}, key -> A -> M (t A).
+      (* container_types_intf.ml:150  val remove : key -> 'a t -> 'a t *)
+      Parameter remove : forall {A : Type}, key -> t A -> M (t A).
+      (* container_types_intf.ml:152  val merge : (key -> 'a option -> 'b option -> 'c option) -> 'a t -> 'b t -> 'c t *)
+      Parameter merge : forall {A B C : Type}, (key -> option A -> option B -> M (option C)) -> t A -> t B -> M (t C).
+      (* container_types_intf.ml:157  val union : (key -> 'a -> 'a -> 'a option) -> 'a t -> 'a t -> 'a t *)
+      Parameter union : forall {A : Type}, (key -> A -> A -> M (option A)) -> t A -> t A -> M (t A).
+      (* container_types_intf.ml:161  val union_sharing : (key -> 'a -> 'a -> 'a option) -> 'a t -> 'a t -> 'a t *)
+      Parameter union_sharing : forall {A : Type}, (key -> A -> A -> M (option A)) -> t A -> t A -> M (t A).
+      (* container_types_intf.ml:166  val union_shared : (key -> 'a -> 'a -> 'a option) -> 'a t -> 'a t -> 'a t *)
+      Parameter union_shared : forall {A : Type}, (key -> A -> A -> M (option A)) -> t A -> t A -> M (t A).
+      (* container_types_intf.ml:170  val union_total : (key -> 'a -> 'a -> 'a) -> 'a t -> 'a t -> 'a t *)
+      Parameter union_total : forall {A : Type}, (key -> A -> A -> M A) -> t A -> t A -> M (t A).
+      (* container_types_intf.ml:176  val union_total_shared : (key -> 'a -> 'a -> 'a) -> 'a t -> 'a t -> 'a t *)
+      Parameter union_total_shared : forall {A : Type}, (key -> A -> A -> M A) -> t A -> t A -> M (t A).
+      (* container_types_intf.ml:180  val union_left_biased : 'a t -> 'a t -> 'a t *)
+      Parameter union_left_biased : forall {A : Type}, t A -> t A -> M (t A).
+      (* container_types_intf.ml:184  val union_right_biased : 'a t -> 'a t -> 'a t *)
+      Parameter union_right_biased : forall {A : Type}, t A -> t A -> M (t A).
+      (* container_types_intf.ml:186  val update_many : (key -> 'a option -> 'b -> 'a option) -> 'a t -> 'b t -> 'a t *)
+      Parameter update_many : forall {A B : Type}, (key -> option A -> B -> M (option A)) -> t A -> t B -> M (t A).
+      (* container_types_intf.ml:189  val compare : ('a -> 'a -> int) -> 'a t -> 'a t -> int *)
+      Parameter compare : forall {A : Type}, (A -> A -> M int) -> t A -> t A -> M int.
+      (* container_types_intf.ml:191  val equal : ('a -> 'a -> bool) -> 'a t -> 'a t -> bool *)
+      Parameter equal : forall {A : Type}, (A -> A -> M bool) -> t A -> t A -> M bool.
+      (* container_types_intf.ml:193  val iter : (key -> 'a -> unit) -> 'a t -> unit *)
+      Parameter iter : forall {A : Type}, (key -> A -> M unit) -> t A -> M unit.
+      (* container_types_intf.ml:195  val fold : (key -> 'a -> 'b -> 'b) -> 'a t -> 'b -> 'b *)
+      Parameter fold : forall {A B : Type}, (key -> A -> B -> M B) -> t A -> B -> M B.
+      (* container_types_intf.ml:197  val for_all : (key -> 'a -> bool) -> 'a t -> bool *)
+      Parameter for_all : forall {A : Type}, (key -> A -> M bool) -> t A -> M bool.
+      (* container_types_intf.ml:199  val exists : (key -> 'a -> bool) -> 'a t -> bool *)
+      Parameter exists_ : forall {A : Type}, (key -> A -> M bool) -> t A -> M bool.
+      (* container_types_intf.ml:201  val filter : (key -> 'a -> bool) -> 'a t -> 'a t *)
+      Parameter filter : forall {A : Type}, (key -> A -> M bool) -> t A -> M (t A).
+      (* container_types_intf.ml:203  val filter_map : (key -> 'a -> 'b option) -> 'a t -> 'b t *)
+      Parameter filter_map : forall {A B : Type}, (key -> A -> M (option B)) -> t A -> M (t B).
+      (* container_types_intf.ml:205  val filter_map_sharing : (key -> 'a -> 'a option) -> 'a t -> 'a t *)
+      Parameter filter_map_sharing : forall {A : Type}, (key -> A -> M (option A)) -> t A -> M (t A).
+      (* container_types_intf.ml:207  val partition : (key -> 'a -> bool) -> 'a t -> 'a t * 'a t *)
+      Parameter partition : forall {A : Type}, (key -> A -> M bool) -> t A -> M (t A * t A).
+      (* container_types_intf.ml:209  val cardinal : 'a t -> int *)
+      Parameter cardinal : forall {A : Type}, t A -> M int.
+      (* container_types_intf.ml:211  val bindings : 'a t -> (key * 'a) list *)
+      Parameter bindings : forall {A : Type}, t A -> M (list (key * A)).
+      (* container_types_intf.ml:213  val min_binding : 'a t -> key * 'a *)
+      Parameter min_binding : forall {A : Type}, t A -> M (key * A).
+      (* container_types_intf.ml:215  val min_binding_opt : 'a t -> (key * 'a) option *)
+      Parameter min_binding_opt : forall {A : Type}, t A -> M (option (key * A)).
+      (* container_types_intf.ml:217  val max_binding : 'a t -> key * 'a *)
+      Parameter max_binding : forall {A : Type}, t A -> M (key * A).
+      (* container_types_intf.ml:219  val max_binding_opt : 'a t -> (key * 'a) option *)
+      Parameter max_binding_opt : forall {A : Type}, t A -> M (option (key * A)).
+      (* container_types_intf.ml:221  val choose : 'a t -> key * 'a *)
+      Parameter choose : forall {A : Type}, t A -> M (key * A).
+      (* container_types_intf.ml:223  val choose_opt : 'a t -> (key * 'a) option *)
+      Parameter choose_opt : forall {A : Type}, t A -> M (option (key * A)).
+      (* container_types_intf.ml:225  val split : key -> 'a t -> 'a t * 'a option * 'a t *)
+      Parameter split : forall {A : Type}, key -> t A -> M (tuple3 (t A) (option A) (t A)).
+      (* container_types_intf.ml:227  val find : key -> 'a t -> 'a *)
+      Parameter find : forall {A : Type}, key -> t A -> M A.
+      (* container_types_intf.ml:229  val find_opt : key -> 'a t -> 'a option *)
+      Parameter find_opt : forall {A : Type}, key -> t A -> M (option A).
+      (* container_types_intf.ml:231  val find_or_null : key -> 'a t -> 'a Or_null.t *)
+      Parameter find_or_null : forall {A : Type}, key -> t A -> M (Or_null.t A).
+      (* container_types_intf.ml:233  val map : ('a -> 'b) -> 'a t -> 'b t *)
+      Parameter map : forall {A B : Type}, (A -> M B) -> t A -> M (t B).
+      (* container_types_intf.ml:235  val mapi : (key -> 'a -> 'b) -> 'a t -> 'b t *)
+      Parameter mapi : forall {A B : Type}, (key -> A -> M B) -> t A -> M (t B).
+      (* container_types_intf.ml:237  val to_seq : 'a t -> (key * 'a) Seq.t *)
+      Parameter to_seq : forall {A : Type}, t A -> Seq.t (key * A).
+      (* container_types_intf.ml:239  val print_debug : (Format.formatter -> 'a -> unit) -> Format.formatter -> 'a t -> unit *)
+      Parameter print_debug : forall {A : Type}, (Format.formatter -> A -> M unit) -> Format.formatter -> t A -> M unit.
+      (* container_types_intf.ml:242  val of_list : (key * 'a) list -> 'a t *)
+      Parameter of_list : forall {A : Type}, list (key * A) -> M (t A).
+      (* container_types_intf.ml:244  val disjoint_union : ?eq:('a -> 'a -> bool) -> ?print:(Format.formatter -> 'a -> unit) -> 'a t -> 'a t -> 'a t *)
+      Parameter disjoint_union : forall {A : Type}, option (A -> A -> M bool) -> option (Format.formatter -> A -> M unit) -> t A -> t A -> M (t A).
+      (* container_types_intf.ml:251  val map_keys : (key -> key) -> 'a t -> 'a t *)
+      Parameter map_keys : forall {A : Type}, (key -> M key) -> t A -> M (t A).
+      (* container_types_intf.ml:253  val keys : 'a t -> Set.t *)
+      Parameter keys : forall {A : Type}, t A -> M Number_adjuncts.Number_kind.Num.Map.Set_.t.
+      (* container_types_intf.ml:255  val data : 'a t -> 'a list *)
+      Parameter data : forall {A : Type}, t A -> M (list A).
+      (* container_types_intf.ml:257  val of_set : (key -> 'a) -> Set.t -> 'a t *)
+      Parameter of_set : forall {A : Type}, (key -> M A) -> Number_adjuncts.Number_kind.Num.Map.Set_.t -> M (t A).
+      (* container_types_intf.ml:259  val print : (Format.formatter -> 'a -> unit) -> Format.formatter -> 'a t -> unit *)
+      Parameter print : forall {A : Type}, (Format.formatter -> A -> M unit) -> Format.formatter -> t A -> M unit.
+      (* container_types_intf.ml:262  val subset_domain : 'a t -> 'b t -> bool *)
+      Parameter subset_domain : forall {A B : Type}, t A -> t B -> M bool.
+      (* container_types_intf.ml:264  val diff_domains : 'a t -> 'b t -> 'a t *)
+      Parameter diff_domains : forall {A B : Type}, t A -> t B -> M (t A).
+      (* container_types_intf.ml:266  val inter : (key -> 'a -> 'b -> 'c) -> 'a t -> 'b t -> 'c t *)
+      Parameter inter : forall {A B C : Type}, (key -> A -> B -> M C) -> t A -> t B -> M (t C).
+      (* container_types_intf.ml:276  val diff : (key -> 'a -> 'b -> 'a option) -> 'a t -> 'b t -> 'a t *)
+      Parameter diff : forall {A B : Type}, (key -> A -> B -> M (option A)) -> t A -> t B -> M (t A).
+      (* container_types_intf.ml:280  val diff_sharing : (key -> 'a -> 'b -> 'a option) -> 'a t -> 'b t -> 'a t *)
+      Parameter diff_sharing : forall {A B : Type}, (key -> A -> B -> M (option A)) -> t A -> t B -> M (t A).
+      (* container_types_intf.ml:285  val diff_shared : (key -> 'a -> 'a -> 'a option) -> 'a t -> 'a t -> 'a t *)
+      Parameter diff_shared : forall {A : Type}, (key -> A -> A -> M (option A)) -> t A -> t A -> M (t A).
+      (* container_types_intf.ml:287  val inter_domain_is_non_empty : 'a t -> 'a t -> bool *)
+      Parameter inter_domain_is_non_empty : forall {A : Type}, t A -> t A -> M bool.
+      (* container_types_intf.ml:289  val get_singleton : 'a t -> (key * 'a) option *)
+      Parameter get_singleton : forall {A : Type}, t A -> M (option (key * A)).
+      (* container_types_intf.ml:291  val replace : key -> ('a -> 'a) -> 'a t -> 'a t *)
+      Parameter replace : forall {A : Type}, key -> (A -> M A) -> t A -> M (t A).
+      (* container_types_intf.ml:293  val map_sharing : ('a -> 'a) -> 'a t -> 'a t *)
+      Parameter map_sharing : forall {A : Type}, (A -> M A) -> t A -> M (t A).
+    End Map.
+    Module Pair.
+      (* number_adjuncts.mli:25  type nonrec t = t * t *)
+      Definition t : Type := (Number_adjuncts.Number_kind.Num.t * Number_adjuncts.Number_kind.Num.t).
+      Module T.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Definition t : Type := Number_adjuncts.Number_kind.Num.Pair.t.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter equal : t -> t -> M bool.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter hash : t -> M int.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter compare : t -> t -> M int.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter print : Format.formatter -> t -> M unit.
+      End T.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter equal : Number_adjuncts.Number_kind.Num.Pair.T.t -> Number_adjuncts.Number_kind.Num.Pair.T.t -> M bool.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter hash : Number_adjuncts.Number_kind.Num.Pair.T.t -> M int.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter compare : Number_adjuncts.Number_kind.Num.Pair.T.t -> Number_adjuncts.Number_kind.Num.Pair.T.t -> M int.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter print : Format.formatter -> Number_adjuncts.Number_kind.Num.Pair.T.t -> M unit.
+      Module Set_.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Definition elt : Type := Number_adjuncts.Number_kind.Num.Pair.t.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter t : Type.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter empty : t.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter is_empty : t -> M bool.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter mem : elt -> t -> M bool.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter add : elt -> t -> M t.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter singleton : elt -> M t.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter remove : elt -> t -> M t.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter union : t -> t -> M t.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter union_sharing : t -> t -> M t.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter union_shared : t -> t -> M t.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter inter : t -> t -> M t.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter disjoint : t -> t -> M bool.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter diff : t -> t -> M t.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter diff_sharing : t -> t -> M t.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter diff_shared : t -> t -> M t.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter compare : t -> t -> M int.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter equal : t -> t -> M bool.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter subset : t -> t -> M bool.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter iter : (elt -> M unit) -> t -> M unit.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter map : (elt -> M elt) -> t -> M t.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter fold : forall {A : Type}, (elt -> A -> M A) -> t -> A -> M A.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter for_all : (elt -> M bool) -> t -> M bool.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter exists_ : (elt -> M bool) -> t -> M bool.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter filter : (elt -> M bool) -> t -> M t.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter filter_map : (elt -> M (option elt)) -> t -> M t.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter partition : (elt -> M bool) -> t -> M (t * t).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter cardinal : t -> M int.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter elements : t -> M (list elt).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter min_elt : t -> M elt.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter min_elt_opt : t -> M (option elt).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter max_elt : t -> M elt.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter max_elt_opt : t -> M (option elt).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter choose : t -> M elt.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter choose_opt : t -> M (option elt).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter split : elt -> t -> M (tuple3 t bool t).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter find : elt -> t -> M elt.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter of_list : list elt -> M t.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter to_seq : t -> Seq.t elt.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter print : Format.formatter -> t -> M unit.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter to_string : t -> M string.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter union_list : list t -> M t.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter get_singleton : t -> M (option elt).
+      End Set_.
+      Module Map.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Definition key : Type := Number_adjuncts.Number_kind.Num.Pair.t.
+        Module Set_.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Definition elt : Type := Number_adjuncts.Number_kind.Num.Pair.t.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Definition t : Type := Number_adjuncts.Number_kind.Num.Pair.Set_.t.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter empty : t.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter is_empty : t -> M bool.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter mem : elt -> t -> M bool.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter add : elt -> t -> M t.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter singleton : elt -> M t.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter remove : elt -> t -> M t.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter union : t -> t -> M t.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter union_sharing : t -> t -> M t.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter union_shared : t -> t -> M t.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter inter : t -> t -> M t.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter disjoint : t -> t -> M bool.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter diff : t -> t -> M t.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter diff_sharing : t -> t -> M t.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter diff_shared : t -> t -> M t.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter compare : t -> t -> M int.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter equal : t -> t -> M bool.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter subset : t -> t -> M bool.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter iter : (elt -> M unit) -> t -> M unit.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter map : (elt -> M elt) -> t -> M t.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter fold : forall {A : Type}, (elt -> A -> M A) -> t -> A -> M A.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter for_all : (elt -> M bool) -> t -> M bool.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter exists_ : (elt -> M bool) -> t -> M bool.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter filter : (elt -> M bool) -> t -> M t.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter filter_map : (elt -> M (option elt)) -> t -> M t.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter partition : (elt -> M bool) -> t -> M (t * t).
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter cardinal : t -> M int.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter elements : t -> M (list elt).
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter min_elt : t -> M elt.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter min_elt_opt : t -> M (option elt).
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter max_elt : t -> M elt.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter max_elt_opt : t -> M (option elt).
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter choose : t -> M elt.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter choose_opt : t -> M (option elt).
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter split : elt -> t -> M (tuple3 t bool t).
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter find : elt -> t -> M elt.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter of_list : list elt -> M t.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter to_seq : t -> Seq.t elt.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter print : Format.formatter -> t -> M unit.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter to_string : t -> M string.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter union_list : list t -> M t.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter get_singleton : t -> M (option elt).
+        End Set_.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter t : Type -> Type.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter empty : forall {A : Type}, t A.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter is_empty : forall {A : Type}, t A -> M bool.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter mem : forall {A : Type}, key -> t A -> M bool.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter add : forall {A : Type}, key -> A -> t A -> M (t A).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter update : forall {A : Type}, key -> (option A -> M (option A)) -> t A -> M (t A).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter singleton : forall {A : Type}, key -> A -> M (t A).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter remove : forall {A : Type}, key -> t A -> M (t A).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter merge : forall {A B C : Type}, (key -> option A -> option B -> M (option C)) -> t A -> t B -> M (t C).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter union : forall {A : Type}, (key -> A -> A -> M (option A)) -> t A -> t A -> M (t A).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter union_sharing : forall {A : Type}, (key -> A -> A -> M (option A)) -> t A -> t A -> M (t A).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter union_shared : forall {A : Type}, (key -> A -> A -> M (option A)) -> t A -> t A -> M (t A).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter union_total : forall {A : Type}, (key -> A -> A -> M A) -> t A -> t A -> M (t A).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter union_total_shared : forall {A : Type}, (key -> A -> A -> M A) -> t A -> t A -> M (t A).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter union_left_biased : forall {A : Type}, t A -> t A -> M (t A).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter union_right_biased : forall {A : Type}, t A -> t A -> M (t A).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter update_many : forall {A B : Type}, (key -> option A -> B -> M (option A)) -> t A -> t B -> M (t A).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter compare : forall {A : Type}, (A -> A -> M int) -> t A -> t A -> M int.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter equal : forall {A : Type}, (A -> A -> M bool) -> t A -> t A -> M bool.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter iter : forall {A : Type}, (key -> A -> M unit) -> t A -> M unit.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter fold : forall {A B : Type}, (key -> A -> B -> M B) -> t A -> B -> M B.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter for_all : forall {A : Type}, (key -> A -> M bool) -> t A -> M bool.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter exists_ : forall {A : Type}, (key -> A -> M bool) -> t A -> M bool.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter filter : forall {A : Type}, (key -> A -> M bool) -> t A -> M (t A).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter filter_map : forall {A B : Type}, (key -> A -> M (option B)) -> t A -> M (t B).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter filter_map_sharing : forall {A : Type}, (key -> A -> M (option A)) -> t A -> M (t A).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter partition : forall {A : Type}, (key -> A -> M bool) -> t A -> M (t A * t A).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter cardinal : forall {A : Type}, t A -> M int.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter bindings : forall {A : Type}, t A -> M (list (key * A)).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter min_binding : forall {A : Type}, t A -> M (key * A).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter min_binding_opt : forall {A : Type}, t A -> M (option (key * A)).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter max_binding : forall {A : Type}, t A -> M (key * A).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter max_binding_opt : forall {A : Type}, t A -> M (option (key * A)).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter choose : forall {A : Type}, t A -> M (key * A).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter choose_opt : forall {A : Type}, t A -> M (option (key * A)).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter split : forall {A : Type}, key -> t A -> M (tuple3 (t A) (option A) (t A)).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter find : forall {A : Type}, key -> t A -> M A.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter find_opt : forall {A : Type}, key -> t A -> M (option A).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter find_or_null : forall {A : Type}, key -> t A -> M (Or_null.t A).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter map : forall {A B : Type}, (A -> M B) -> t A -> M (t B).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter mapi : forall {A B : Type}, (key -> A -> M B) -> t A -> M (t B).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter to_seq : forall {A : Type}, t A -> Seq.t (key * A).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter print_debug : forall {A : Type}, (Format.formatter -> A -> M unit) -> Format.formatter -> t A -> M unit.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter of_list : forall {A : Type}, list (key * A) -> M (t A).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter disjoint_union : forall {A : Type}, option (A -> A -> M bool) -> option (Format.formatter -> A -> M unit) -> t A -> t A -> M (t A).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter map_keys : forall {A : Type}, (key -> M key) -> t A -> M (t A).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter keys : forall {A : Type}, t A -> M Number_adjuncts.Number_kind.Num.Pair.Map.Set_.t.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter data : forall {A : Type}, t A -> M (list A).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter of_set : forall {A : Type}, (key -> M A) -> Number_adjuncts.Number_kind.Num.Pair.Map.Set_.t -> M (t A).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter print : forall {A : Type}, (Format.formatter -> A -> M unit) -> Format.formatter -> t A -> M unit.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter subset_domain : forall {A B : Type}, t A -> t B -> M bool.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter diff_domains : forall {A B : Type}, t A -> t B -> M (t A).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter inter : forall {A B C : Type}, (key -> A -> B -> M C) -> t A -> t B -> M (t C).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter diff : forall {A B : Type}, (key -> A -> B -> M (option A)) -> t A -> t B -> M (t A).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter diff_sharing : forall {A B : Type}, (key -> A -> B -> M (option A)) -> t A -> t B -> M (t A).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter diff_shared : forall {A : Type}, (key -> A -> A -> M (option A)) -> t A -> t A -> M (t A).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter inter_domain_is_non_empty : forall {A : Type}, t A -> t A -> M bool.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter get_singleton : forall {A : Type}, t A -> M (option (key * A)).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter replace : forall {A : Type}, key -> (A -> M A) -> t A -> M (t A).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter map_sharing : forall {A : Type}, (A -> M A) -> t A -> M (t A).
+      End Map.
+    End Pair.
+    (* number_adjuncts.mli:30  val cross_product : Set.t -> Set.t -> Pair.Set.t *)
+    Parameter cross_product : Number_adjuncts.Number_kind.Num.Set_.t -> Number_adjuncts.Number_kind.Num.Set_.t -> M Number_adjuncts.Number_kind.Num.Pair.Set_.t.
+    (* number_adjuncts.mli:32  val zero : Target_system.Machine_width.t -> t *)
+    Parameter zero : Target_system.Machine_width.t -> M t.
+    (* number_adjuncts.mli:34  val one : Target_system.Machine_width.t -> t *)
+    Parameter one : Target_system.Machine_width.t -> M t.
+    (* number_adjuncts.mli:36  val minus_one : Target_system.Machine_width.t -> t *)
+    Parameter minus_one : Target_system.Machine_width.t -> M t.
+    (* number_adjuncts.mli:38  val add : t -> t -> t *)
+    Parameter add : t -> t -> M t.
+    (* number_adjuncts.mli:40  val sub : t -> t -> t *)
+    Parameter sub : t -> t -> M t.
+    (* number_adjuncts.mli:42  val mul : t -> t -> t *)
+    Parameter mul : t -> t -> M t.
+    (* number_adjuncts.mli:44  val div : t -> t -> t option *)
+    Parameter div : t -> t -> M (option t).
+    (* number_adjuncts.mli:46  val mod_ : t -> t -> t option *)
+    Parameter mod_ : t -> t -> M (option t).
+    (* number_adjuncts.mli:48  val to_const : t -> Reg_width_const.t *)
+    Parameter to_const : t -> M Reg_width_const.t.
+    (* number_adjuncts.mli:50  val to_immediate : t -> Target_system.Machine_width.t -> Target_ocaml_int.t *)
+    Parameter to_immediate : t -> Target_system.Machine_width.t -> M Target_ocaml_int.t.
+    (* number_adjuncts.mli:52  val to_naked_float32 : t -> Numeric_types.Float32_by_bit_pattern.t *)
+    Parameter to_naked_float32 : t -> M Numeric_types.Float32_by_bit_pattern.t.
+    (* number_adjuncts.mli:54  val to_naked_float : t -> Numeric_types.Float_by_bit_pattern.t *)
+    Parameter to_naked_float : t -> M Numeric_types.Float_by_bit_pattern.t.
+    (* number_adjuncts.mli:56  val to_naked_int8 : t -> Numeric_types.Int8.t *)
+    Parameter to_naked_int8 : t -> M Numeric_types.Int8.t.
+    (* number_adjuncts.mli:58  val to_naked_int16 : t -> Numeric_types.Int16.t *)
+    Parameter to_naked_int16 : t -> M Numeric_types.Int16.t.
+    (* number_adjuncts.mli:60  val to_naked_int32 : t -> Numeric_types.Int32.t *)
+    Parameter to_naked_int32 : t -> M Numeric_types.Int32.t.
+    (* number_adjuncts.mli:62  val to_naked_int64 : t -> Numeric_types.Int64.t *)
+    Parameter to_naked_int64 : t -> M Numeric_types.Int64.t.
+    (* number_adjuncts.mli:64  val to_naked_nativeint : t -> Target_system.Machine_width.t -> Targetint_32_64.t *)
+    Parameter to_naked_nativeint : t -> Target_system.Machine_width.t -> M Targetint_32_64.t.
+  End Num.
+  (* number_adjuncts.mli:88  include Number_kind_common with module Num := Num *)
+  Parameter standard_int_or_float_kind : Flambda_kind.Standard_int_or_float.t.
+  (* number_adjuncts.mli:88  include Number_kind_common with module Num := Num *)
+  Parameter unboxed_prover : Flambda2_types.Typing_env.t -> Flambda2_types.t -> M (Flambda2_types.meet_shortcut Number_adjuncts.Number_kind.Num.Set_.t).
+  (* number_adjuncts.mli:88  include Number_kind_common with module Num := Num *)
+  Parameter this_unboxed : Number_adjuncts.Number_kind.Num.t -> M Flambda2_types.t.
+  (* number_adjuncts.mli:88  include Number_kind_common with module Num := Num *)
+  Parameter these_unboxed : Number_adjuncts.Number_kind.Num.Set_.t -> M Flambda2_types.t.
+  (* number_adjuncts.mli:88  include Number_kind_common with module Num := Num *)
+  Parameter term_unboxed : Number_adjuncts.Number_kind.Num.t -> M Flambda.Named.t.
+End Number_kind.
+(* The module type Number_adjuncts.Int_number_kind: all that it names. No directive: in a functor, Rocq prints what the parameter has by its name here. *)
+Module Type Int_number_kind.
+  Module Num.
+    (* container_types_intf.ml:297  type t *)
+    Parameter t : Type.
+    Module T.
+      (* container_types_intf.ml:299  module T : Thing with type t = t *)
+      Definition t : Type := Number_adjuncts.Int_number_kind.Num.t.
+      (* container_types_intf.ml:28  include Hashtbl.HashedType with type t := t *)
+      Parameter equal : t -> t -> M bool.
+      (* container_types_intf.ml:28  include Hashtbl.HashedType with type t := t *)
+      Parameter hash : t -> M int.
+      (* container_types_intf.ml:30  include Map.OrderedType with type t := t *)
+      Parameter compare : t -> t -> M int.
+      (* container_types_intf.ml:32  val print : Format.formatter -> t -> unit *)
+      Parameter print : Format.formatter -> t -> M unit.
+    End T.
+    (* container_types_intf.ml:301  include Thing with type t := T.t *)
+    Parameter equal : Number_adjuncts.Int_number_kind.Num.T.t -> Number_adjuncts.Int_number_kind.Num.T.t -> M bool.
+    (* container_types_intf.ml:301  include Thing with type t := T.t *)
+    Parameter hash : Number_adjuncts.Int_number_kind.Num.T.t -> M int.
+    (* container_types_intf.ml:301  include Thing with type t := T.t *)
+    Parameter compare : Number_adjuncts.Int_number_kind.Num.T.t -> Number_adjuncts.Int_number_kind.Num.T.t -> M int.
+    (* container_types_intf.ml:301  include Thing with type t := T.t *)
+    Parameter print : Format.formatter -> Number_adjuncts.Int_number_kind.Num.T.t -> M unit.
+    Module Set_.
+      (* container_types_intf.ml:303  module Set : Set with type elt = t *)
+      Definition elt : Type := Number_adjuncts.Int_number_kind.Num.t.
+      (* container_types_intf.ml:38  type t *)
+      Parameter t : Type.
+      (* container_types_intf.ml:40  val empty : t *)
+      Parameter empty : t.
+      (* container_types_intf.ml:42  val is_empty : t -> bool *)
+      Parameter is_empty : t -> M bool.
+      (* container_types_intf.ml:44  val mem : elt -> t -> bool *)
+      Parameter mem : elt -> t -> M bool.
+      (* container_types_intf.ml:46  val add : elt -> t -> t *)
+      Parameter add : elt -> t -> M t.
+      (* container_types_intf.ml:48  val singleton : elt -> t *)
+      Parameter singleton : elt -> M t.
+      (* container_types_intf.ml:50  val remove : elt -> t -> t *)
+      Parameter remove : elt -> t -> M t.
+      (* container_types_intf.ml:52  val union : t -> t -> t *)
+      Parameter union : t -> t -> M t.
+      (* container_types_intf.ml:56  val union_sharing : t -> t -> t *)
+      Parameter union_sharing : t -> t -> M t.
+      (* container_types_intf.ml:60  val union_shared : t -> t -> t *)
+      Parameter union_shared : t -> t -> M t.
+      (* container_types_intf.ml:62  val inter : t -> t -> t *)
+      Parameter inter : t -> t -> M t.
+      (* container_types_intf.ml:64  val disjoint : t -> t -> bool *)
+      Parameter disjoint : t -> t -> M bool.
+      (* container_types_intf.ml:66  val diff : t -> t -> t *)
+      Parameter diff : t -> t -> M t.
+      (* container_types_intf.ml:70  val diff_sharing : t -> t -> t *)
+      Parameter diff_sharing : t -> t -> M t.
+      (* container_types_intf.ml:74  val diff_shared : t -> t -> t *)
+      Parameter diff_shared : t -> t -> M t.
+      (* container_types_intf.ml:76  val compare : t -> t -> int *)
+      Parameter compare : t -> t -> M int.
+      (* container_types_intf.ml:78  val equal : t -> t -> bool *)
+      Parameter equal : t -> t -> M bool.
+      (* container_types_intf.ml:80  val subset : t -> t -> bool *)
+      Parameter subset : t -> t -> M bool.
+      (* container_types_intf.ml:82  val iter : (elt -> unit) -> t -> unit *)
+      Parameter iter : (elt -> M unit) -> t -> M unit.
+      (* container_types_intf.ml:84  val map : (elt -> elt) -> t -> t *)
+      Parameter map : (elt -> M elt) -> t -> M t.
+      (* container_types_intf.ml:86  val fold : (elt -> 'a -> 'a) -> t -> 'a -> 'a *)
+      Parameter fold : forall {A : Type}, (elt -> A -> M A) -> t -> A -> M A.
+      (* container_types_intf.ml:88  val for_all : (elt -> bool) -> t -> bool *)
+      Parameter for_all : (elt -> M bool) -> t -> M bool.
+      (* container_types_intf.ml:90  val exists : (elt -> bool) -> t -> bool *)
+      Parameter exists_ : (elt -> M bool) -> t -> M bool.
+      (* container_types_intf.ml:92  val filter : (elt -> bool) -> t -> t *)
+      Parameter filter : (elt -> M bool) -> t -> M t.
+      (* container_types_intf.ml:94  val filter_map : (elt -> elt option) -> t -> t *)
+      Parameter filter_map : (elt -> M (option elt)) -> t -> M t.
+      (* container_types_intf.ml:96  val partition : (elt -> bool) -> t -> t * t *)
+      Parameter partition : (elt -> M bool) -> t -> M (t * t).
+      (* container_types_intf.ml:98  val cardinal : t -> int *)
+      Parameter cardinal : t -> M int.
+      (* container_types_intf.ml:100  val elements : t -> elt list *)
+      Parameter elements : t -> M (list elt).
+      (* container_types_intf.ml:102  val min_elt : t -> elt *)
+      Parameter min_elt : t -> M elt.
+      (* container_types_intf.ml:104  val min_elt_opt : t -> elt option *)
+      Parameter min_elt_opt : t -> M (option elt).
+      (* container_types_intf.ml:106  val max_elt : t -> elt *)
+      Parameter max_elt : t -> M elt.
+      (* container_types_intf.ml:108  val max_elt_opt : t -> elt option *)
+      Parameter max_elt_opt : t -> M (option elt).
+      (* container_types_intf.ml:110  val choose : t -> elt *)
+      Parameter choose : t -> M elt.
+      (* container_types_intf.ml:112  val choose_opt : t -> elt option *)
+      Parameter choose_opt : t -> M (option elt).
+      (* container_types_intf.ml:114  val split : elt -> t -> t * bool * t *)
+      Parameter split : elt -> t -> M (tuple3 t bool t).
+      (* container_types_intf.ml:116  val find : elt -> t -> elt *)
+      Parameter find : elt -> t -> M elt.
+      (* container_types_intf.ml:118  val of_list : elt list -> t *)
+      Parameter of_list : list elt -> M t.
+      (* container_types_intf.ml:120  val to_seq : t -> elt Seq.t *)
+      Parameter to_seq : t -> Seq.t elt.
+      (* container_types_intf.ml:122  val print : Format.formatter -> t -> unit *)
+      Parameter print : Format.formatter -> t -> M unit.
+      (* container_types_intf.ml:124  val to_string : t -> string *)
+      Parameter to_string : t -> M string.
+      (* container_types_intf.ml:126  val union_list : t list -> t *)
+      Parameter union_list : list t -> M t.
+      (* container_types_intf.ml:128  val get_singleton : t -> elt option *)
+      Parameter get_singleton : t -> M (option elt).
+    End Set_.
+    Module Map.
+      (* container_types_intf.ml:305  module Map : Map with type key = t and module Set = Set *)
+      Definition key : Type := Number_adjuncts.Int_number_kind.Num.t.
+      Module Set_.
+        (* container_types_intf.ml:303  module Set : Set with type elt = t *)
+        Definition elt : Type := Number_adjuncts.Int_number_kind.Num.t.
+        (* container_types_intf.ml:38  type t *)
+        Definition t : Type := Number_adjuncts.Int_number_kind.Num.Set_.t.
+        (* container_types_intf.ml:40  val empty : t *)
+        Parameter empty : t.
+        (* container_types_intf.ml:42  val is_empty : t -> bool *)
+        Parameter is_empty : t -> M bool.
+        (* container_types_intf.ml:44  val mem : elt -> t -> bool *)
+        Parameter mem : elt -> t -> M bool.
+        (* container_types_intf.ml:46  val add : elt -> t -> t *)
+        Parameter add : elt -> t -> M t.
+        (* container_types_intf.ml:48  val singleton : elt -> t *)
+        Parameter singleton : elt -> M t.
+        (* container_types_intf.ml:50  val remove : elt -> t -> t *)
+        Parameter remove : elt -> t -> M t.
+        (* container_types_intf.ml:52  val union : t -> t -> t *)
+        Parameter union : t -> t -> M t.
+        (* container_types_intf.ml:56  val union_sharing : t -> t -> t *)
+        Parameter union_sharing : t -> t -> M t.
+        (* container_types_intf.ml:60  val union_shared : t -> t -> t *)
+        Parameter union_shared : t -> t -> M t.
+        (* container_types_intf.ml:62  val inter : t -> t -> t *)
+        Parameter inter : t -> t -> M t.
+        (* container_types_intf.ml:64  val disjoint : t -> t -> bool *)
+        Parameter disjoint : t -> t -> M bool.
+        (* container_types_intf.ml:66  val diff : t -> t -> t *)
+        Parameter diff : t -> t -> M t.
+        (* container_types_intf.ml:70  val diff_sharing : t -> t -> t *)
+        Parameter diff_sharing : t -> t -> M t.
+        (* container_types_intf.ml:74  val diff_shared : t -> t -> t *)
+        Parameter diff_shared : t -> t -> M t.
+        (* container_types_intf.ml:76  val compare : t -> t -> int *)
+        Parameter compare : t -> t -> M int.
+        (* container_types_intf.ml:78  val equal : t -> t -> bool *)
+        Parameter equal : t -> t -> M bool.
+        (* container_types_intf.ml:80  val subset : t -> t -> bool *)
+        Parameter subset : t -> t -> M bool.
+        (* container_types_intf.ml:82  val iter : (elt -> unit) -> t -> unit *)
+        Parameter iter : (elt -> M unit) -> t -> M unit.
+        (* container_types_intf.ml:84  val map : (elt -> elt) -> t -> t *)
+        Parameter map : (elt -> M elt) -> t -> M t.
+        (* container_types_intf.ml:86  val fold : (elt -> 'a -> 'a) -> t -> 'a -> 'a *)
+        Parameter fold : forall {A : Type}, (elt -> A -> M A) -> t -> A -> M A.
+        (* container_types_intf.ml:88  val for_all : (elt -> bool) -> t -> bool *)
+        Parameter for_all : (elt -> M bool) -> t -> M bool.
+        (* container_types_intf.ml:90  val exists : (elt -> bool) -> t -> bool *)
+        Parameter exists_ : (elt -> M bool) -> t -> M bool.
+        (* container_types_intf.ml:92  val filter : (elt -> bool) -> t -> t *)
+        Parameter filter : (elt -> M bool) -> t -> M t.
+        (* container_types_intf.ml:94  val filter_map : (elt -> elt option) -> t -> t *)
+        Parameter filter_map : (elt -> M (option elt)) -> t -> M t.
+        (* container_types_intf.ml:96  val partition : (elt -> bool) -> t -> t * t *)
+        Parameter partition : (elt -> M bool) -> t -> M (t * t).
+        (* container_types_intf.ml:98  val cardinal : t -> int *)
+        Parameter cardinal : t -> M int.
+        (* container_types_intf.ml:100  val elements : t -> elt list *)
+        Parameter elements : t -> M (list elt).
+        (* container_types_intf.ml:102  val min_elt : t -> elt *)
+        Parameter min_elt : t -> M elt.
+        (* container_types_intf.ml:104  val min_elt_opt : t -> elt option *)
+        Parameter min_elt_opt : t -> M (option elt).
+        (* container_types_intf.ml:106  val max_elt : t -> elt *)
+        Parameter max_elt : t -> M elt.
+        (* container_types_intf.ml:108  val max_elt_opt : t -> elt option *)
+        Parameter max_elt_opt : t -> M (option elt).
+        (* container_types_intf.ml:110  val choose : t -> elt *)
+        Parameter choose : t -> M elt.
+        (* container_types_intf.ml:112  val choose_opt : t -> elt option *)
+        Parameter choose_opt : t -> M (option elt).
+        (* container_types_intf.ml:114  val split : elt -> t -> t * bool * t *)
+        Parameter split : elt -> t -> M (tuple3 t bool t).
+        (* container_types_intf.ml:116  val find : elt -> t -> elt *)
+        Parameter find : elt -> t -> M elt.
+        (* container_types_intf.ml:118  val of_list : elt list -> t *)
+        Parameter of_list : list elt -> M t.
+        (* container_types_intf.ml:120  val to_seq : t -> elt Seq.t *)
+        Parameter to_seq : t -> Seq.t elt.
+        (* container_types_intf.ml:122  val print : Format.formatter -> t -> unit *)
+        Parameter print : Format.formatter -> t -> M unit.
+        (* container_types_intf.ml:124  val to_string : t -> string *)
+        Parameter to_string : t -> M string.
+        (* container_types_intf.ml:126  val union_list : t list -> t *)
+        Parameter union_list : list t -> M t.
+        (* container_types_intf.ml:128  val get_singleton : t -> elt option *)
+        Parameter get_singleton : t -> M (option elt).
+      End Set_.
+      (* container_types_intf.ml:136  type +!'a t *)
+      Parameter t : Type -> Type.
+      (* container_types_intf.ml:138  val empty : 'a t *)
+      Parameter empty : forall {A : Type}, t A.
+      (* container_types_intf.ml:140  val is_empty : 'a t -> bool *)
+      Parameter is_empty : forall {A : Type}, t A -> M bool.
+      (* container_types_intf.ml:142  val mem : key -> 'a t -> bool *)
+      Parameter mem : forall {A : Type}, key -> t A -> M bool.
+      (* container_types_intf.ml:144  val add : key -> 'a -> 'a t -> 'a t *)
+      Parameter add : forall {A : Type}, key -> A -> t A -> M (t A).
+      (* container_types_intf.ml:146  val update : key -> ('a option -> 'a option) -> 'a t -> 'a t *)
+      Parameter update : forall {A : Type}, key -> (option A -> M (option A)) -> t A -> M (t A).
+      (* container_types_intf.ml:148  val singleton : key -> 'a -> 'a t *)
+      Parameter singleton : forall {A : Type}, key -> A -> M (t A).
+      (* container_types_intf.ml:150  val remove : key -> 'a t -> 'a t *)
+      Parameter remove : forall {A : Type}, key -> t A -> M (t A).
+      (* container_types_intf.ml:152  val merge : (key -> 'a option -> 'b option -> 'c option) -> 'a t -> 'b t -> 'c t *)
+      Parameter merge : forall {A B C : Type}, (key -> option A -> option B -> M (option C)) -> t A -> t B -> M (t C).
+      (* container_types_intf.ml:157  val union : (key -> 'a -> 'a -> 'a option) -> 'a t -> 'a t -> 'a t *)
+      Parameter union : forall {A : Type}, (key -> A -> A -> M (option A)) -> t A -> t A -> M (t A).
+      (* container_types_intf.ml:161  val union_sharing : (key -> 'a -> 'a -> 'a option) -> 'a t -> 'a t -> 'a t *)
+      Parameter union_sharing : forall {A : Type}, (key -> A -> A -> M (option A)) -> t A -> t A -> M (t A).
+      (* container_types_intf.ml:166  val union_shared : (key -> 'a -> 'a -> 'a option) -> 'a t -> 'a t -> 'a t *)
+      Parameter union_shared : forall {A : Type}, (key -> A -> A -> M (option A)) -> t A -> t A -> M (t A).
+      (* container_types_intf.ml:170  val union_total : (key -> 'a -> 'a -> 'a) -> 'a t -> 'a t -> 'a t *)
+      Parameter union_total : forall {A : Type}, (key -> A -> A -> M A) -> t A -> t A -> M (t A).
+      (* container_types_intf.ml:176  val union_total_shared : (key -> 'a -> 'a -> 'a) -> 'a t -> 'a t -> 'a t *)
+      Parameter union_total_shared : forall {A : Type}, (key -> A -> A -> M A) -> t A -> t A -> M (t A).
+      (* container_types_intf.ml:180  val union_left_biased : 'a t -> 'a t -> 'a t *)
+      Parameter union_left_biased : forall {A : Type}, t A -> t A -> M (t A).
+      (* container_types_intf.ml:184  val union_right_biased : 'a t -> 'a t -> 'a t *)
+      Parameter union_right_biased : forall {A : Type}, t A -> t A -> M (t A).
+      (* container_types_intf.ml:186  val update_many : (key -> 'a option -> 'b -> 'a option) -> 'a t -> 'b t -> 'a t *)
+      Parameter update_many : forall {A B : Type}, (key -> option A -> B -> M (option A)) -> t A -> t B -> M (t A).
+      (* container_types_intf.ml:189  val compare : ('a -> 'a -> int) -> 'a t -> 'a t -> int *)
+      Parameter compare : forall {A : Type}, (A -> A -> M int) -> t A -> t A -> M int.
+      (* container_types_intf.ml:191  val equal : ('a -> 'a -> bool) -> 'a t -> 'a t -> bool *)
+      Parameter equal : forall {A : Type}, (A -> A -> M bool) -> t A -> t A -> M bool.
+      (* container_types_intf.ml:193  val iter : (key -> 'a -> unit) -> 'a t -> unit *)
+      Parameter iter : forall {A : Type}, (key -> A -> M unit) -> t A -> M unit.
+      (* container_types_intf.ml:195  val fold : (key -> 'a -> 'b -> 'b) -> 'a t -> 'b -> 'b *)
+      Parameter fold : forall {A B : Type}, (key -> A -> B -> M B) -> t A -> B -> M B.
+      (* container_types_intf.ml:197  val for_all : (key -> 'a -> bool) -> 'a t -> bool *)
+      Parameter for_all : forall {A : Type}, (key -> A -> M bool) -> t A -> M bool.
+      (* container_types_intf.ml:199  val exists : (key -> 'a -> bool) -> 'a t -> bool *)
+      Parameter exists_ : forall {A : Type}, (key -> A -> M bool) -> t A -> M bool.
+      (* container_types_intf.ml:201  val filter : (key -> 'a -> bool) -> 'a t -> 'a t *)
+      Parameter filter : forall {A : Type}, (key -> A -> M bool) -> t A -> M (t A).
+      (* container_types_intf.ml:203  val filter_map : (key -> 'a -> 'b option) -> 'a t -> 'b t *)
+      Parameter filter_map : forall {A B : Type}, (key -> A -> M (option B)) -> t A -> M (t B).
+      (* container_types_intf.ml:205  val filter_map_sharing : (key -> 'a -> 'a option) -> 'a t -> 'a t *)
+      Parameter filter_map_sharing : forall {A : Type}, (key -> A -> M (option A)) -> t A -> M (t A).
+      (* container_types_intf.ml:207  val partition : (key -> 'a -> bool) -> 'a t -> 'a t * 'a t *)
+      Parameter partition : forall {A : Type}, (key -> A -> M bool) -> t A -> M (t A * t A).
+      (* container_types_intf.ml:209  val cardinal : 'a t -> int *)
+      Parameter cardinal : forall {A : Type}, t A -> M int.
+      (* container_types_intf.ml:211  val bindings : 'a t -> (key * 'a) list *)
+      Parameter bindings : forall {A : Type}, t A -> M (list (key * A)).
+      (* container_types_intf.ml:213  val min_binding : 'a t -> key * 'a *)
+      Parameter min_binding : forall {A : Type}, t A -> M (key * A).
+      (* container_types_intf.ml:215  val min_binding_opt : 'a t -> (key * 'a) option *)
+      Parameter min_binding_opt : forall {A : Type}, t A -> M (option (key * A)).
+      (* container_types_intf.ml:217  val max_binding : 'a t -> key * 'a *)
+      Parameter max_binding : forall {A : Type}, t A -> M (key * A).
+      (* container_types_intf.ml:219  val max_binding_opt : 'a t -> (key * 'a) option *)
+      Parameter max_binding_opt : forall {A : Type}, t A -> M (option (key * A)).
+      (* container_types_intf.ml:221  val choose : 'a t -> key * 'a *)
+      Parameter choose : forall {A : Type}, t A -> M (key * A).
+      (* container_types_intf.ml:223  val choose_opt : 'a t -> (key * 'a) option *)
+      Parameter choose_opt : forall {A : Type}, t A -> M (option (key * A)).
+      (* container_types_intf.ml:225  val split : key -> 'a t -> 'a t * 'a option * 'a t *)
+      Parameter split : forall {A : Type}, key -> t A -> M (tuple3 (t A) (option A) (t A)).
+      (* container_types_intf.ml:227  val find : key -> 'a t -> 'a *)
+      Parameter find : forall {A : Type}, key -> t A -> M A.
+      (* container_types_intf.ml:229  val find_opt : key -> 'a t -> 'a option *)
+      Parameter find_opt : forall {A : Type}, key -> t A -> M (option A).
+      (* container_types_intf.ml:231  val find_or_null : key -> 'a t -> 'a Or_null.t *)
+      Parameter find_or_null : forall {A : Type}, key -> t A -> M (Or_null.t A).
+      (* container_types_intf.ml:233  val map : ('a -> 'b) -> 'a t -> 'b t *)
+      Parameter map : forall {A B : Type}, (A -> M B) -> t A -> M (t B).
+      (* container_types_intf.ml:235  val mapi : (key -> 'a -> 'b) -> 'a t -> 'b t *)
+      Parameter mapi : forall {A B : Type}, (key -> A -> M B) -> t A -> M (t B).
+      (* container_types_intf.ml:237  val to_seq : 'a t -> (key * 'a) Seq.t *)
+      Parameter to_seq : forall {A : Type}, t A -> Seq.t (key * A).
+      (* container_types_intf.ml:239  val print_debug : (Format.formatter -> 'a -> unit) -> Format.formatter -> 'a t -> unit *)
+      Parameter print_debug : forall {A : Type}, (Format.formatter -> A -> M unit) -> Format.formatter -> t A -> M unit.
+      (* container_types_intf.ml:242  val of_list : (key * 'a) list -> 'a t *)
+      Parameter of_list : forall {A : Type}, list (key * A) -> M (t A).
+      (* container_types_intf.ml:244  val disjoint_union : ?eq:('a -> 'a -> bool) -> ?print:(Format.formatter -> 'a -> unit) -> 'a t -> 'a t -> 'a t *)
+      Parameter disjoint_union : forall {A : Type}, option (A -> A -> M bool) -> option (Format.formatter -> A -> M unit) -> t A -> t A -> M (t A).
+      (* container_types_intf.ml:251  val map_keys : (key -> key) -> 'a t -> 'a t *)
+      Parameter map_keys : forall {A : Type}, (key -> M key) -> t A -> M (t A).
+      (* container_types_intf.ml:253  val keys : 'a t -> Set.t *)
+      Parameter keys : forall {A : Type}, t A -> M Number_adjuncts.Int_number_kind.Num.Map.Set_.t.
+      (* container_types_intf.ml:255  val data : 'a t -> 'a list *)
+      Parameter data : forall {A : Type}, t A -> M (list A).
+      (* container_types_intf.ml:257  val of_set : (key -> 'a) -> Set.t -> 'a t *)
+      Parameter of_set : forall {A : Type}, (key -> M A) -> Number_adjuncts.Int_number_kind.Num.Map.Set_.t -> M (t A).
+      (* container_types_intf.ml:259  val print : (Format.formatter -> 'a -> unit) -> Format.formatter -> 'a t -> unit *)
+      Parameter print : forall {A : Type}, (Format.formatter -> A -> M unit) -> Format.formatter -> t A -> M unit.
+      (* container_types_intf.ml:262  val subset_domain : 'a t -> 'b t -> bool *)
+      Parameter subset_domain : forall {A B : Type}, t A -> t B -> M bool.
+      (* container_types_intf.ml:264  val diff_domains : 'a t -> 'b t -> 'a t *)
+      Parameter diff_domains : forall {A B : Type}, t A -> t B -> M (t A).
+      (* container_types_intf.ml:266  val inter : (key -> 'a -> 'b -> 'c) -> 'a t -> 'b t -> 'c t *)
+      Parameter inter : forall {A B C : Type}, (key -> A -> B -> M C) -> t A -> t B -> M (t C).
+      (* container_types_intf.ml:276  val diff : (key -> 'a -> 'b -> 'a option) -> 'a t -> 'b t -> 'a t *)
+      Parameter diff : forall {A B : Type}, (key -> A -> B -> M (option A)) -> t A -> t B -> M (t A).
+      (* container_types_intf.ml:280  val diff_sharing : (key -> 'a -> 'b -> 'a option) -> 'a t -> 'b t -> 'a t *)
+      Parameter diff_sharing : forall {A B : Type}, (key -> A -> B -> M (option A)) -> t A -> t B -> M (t A).
+      (* container_types_intf.ml:285  val diff_shared : (key -> 'a -> 'a -> 'a option) -> 'a t -> 'a t -> 'a t *)
+      Parameter diff_shared : forall {A : Type}, (key -> A -> A -> M (option A)) -> t A -> t A -> M (t A).
+      (* container_types_intf.ml:287  val inter_domain_is_non_empty : 'a t -> 'a t -> bool *)
+      Parameter inter_domain_is_non_empty : forall {A : Type}, t A -> t A -> M bool.
+      (* container_types_intf.ml:289  val get_singleton : 'a t -> (key * 'a) option *)
+      Parameter get_singleton : forall {A : Type}, t A -> M (option (key * A)).
+      (* container_types_intf.ml:291  val replace : key -> ('a -> 'a) -> 'a t -> 'a t *)
+      Parameter replace : forall {A : Type}, key -> (A -> M A) -> t A -> M (t A).
+      (* container_types_intf.ml:293  val map_sharing : ('a -> 'a) -> 'a t -> 'a t *)
+      Parameter map_sharing : forall {A : Type}, (A -> M A) -> t A -> M (t A).
+    End Map.
+    Module Pair.
+      (* number_adjuncts.mli:25  type nonrec t = t * t *)
+      Definition t : Type := (Number_adjuncts.Int_number_kind.Num.t * Number_adjuncts.Int_number_kind.Num.t).
+      Module T.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Definition t : Type := Number_adjuncts.Int_number_kind.Num.Pair.t.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter equal : t -> t -> M bool.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter hash : t -> M int.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter compare : t -> t -> M int.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter print : Format.formatter -> t -> M unit.
+      End T.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter equal : Number_adjuncts.Int_number_kind.Num.Pair.T.t -> Number_adjuncts.Int_number_kind.Num.Pair.T.t -> M bool.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter hash : Number_adjuncts.Int_number_kind.Num.Pair.T.t -> M int.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter compare : Number_adjuncts.Int_number_kind.Num.Pair.T.t -> Number_adjuncts.Int_number_kind.Num.Pair.T.t -> M int.
+      (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+      Parameter print : Format.formatter -> Number_adjuncts.Int_number_kind.Num.Pair.T.t -> M unit.
+      Module Set_.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Definition elt : Type := Number_adjuncts.Int_number_kind.Num.Pair.t.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter t : Type.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter empty : t.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter is_empty : t -> M bool.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter mem : elt -> t -> M bool.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter add : elt -> t -> M t.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter singleton : elt -> M t.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter remove : elt -> t -> M t.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter union : t -> t -> M t.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter union_sharing : t -> t -> M t.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter union_shared : t -> t -> M t.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter inter : t -> t -> M t.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter disjoint : t -> t -> M bool.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter diff : t -> t -> M t.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter diff_sharing : t -> t -> M t.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter diff_shared : t -> t -> M t.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter compare : t -> t -> M int.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter equal : t -> t -> M bool.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter subset : t -> t -> M bool.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter iter : (elt -> M unit) -> t -> M unit.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter map : (elt -> M elt) -> t -> M t.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter fold : forall {A : Type}, (elt -> A -> M A) -> t -> A -> M A.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter for_all : (elt -> M bool) -> t -> M bool.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter exists_ : (elt -> M bool) -> t -> M bool.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter filter : (elt -> M bool) -> t -> M t.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter filter_map : (elt -> M (option elt)) -> t -> M t.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter partition : (elt -> M bool) -> t -> M (t * t).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter cardinal : t -> M int.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter elements : t -> M (list elt).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter min_elt : t -> M elt.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter min_elt_opt : t -> M (option elt).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter max_elt : t -> M elt.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter max_elt_opt : t -> M (option elt).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter choose : t -> M elt.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter choose_opt : t -> M (option elt).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter split : elt -> t -> M (tuple3 t bool t).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter find : elt -> t -> M elt.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter of_list : list elt -> M t.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter to_seq : t -> Seq.t elt.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter print : Format.formatter -> t -> M unit.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter to_string : t -> M string.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter union_list : list t -> M t.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter get_singleton : t -> M (option elt).
+      End Set_.
+      Module Map.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Definition key : Type := Number_adjuncts.Int_number_kind.Num.Pair.t.
+        Module Set_.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Definition elt : Type := Number_adjuncts.Int_number_kind.Num.Pair.t.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Definition t : Type := Number_adjuncts.Int_number_kind.Num.Pair.Set_.t.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter empty : t.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter is_empty : t -> M bool.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter mem : elt -> t -> M bool.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter add : elt -> t -> M t.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter singleton : elt -> M t.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter remove : elt -> t -> M t.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter union : t -> t -> M t.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter union_sharing : t -> t -> M t.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter union_shared : t -> t -> M t.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter inter : t -> t -> M t.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter disjoint : t -> t -> M bool.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter diff : t -> t -> M t.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter diff_sharing : t -> t -> M t.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter diff_shared : t -> t -> M t.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter compare : t -> t -> M int.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter equal : t -> t -> M bool.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter subset : t -> t -> M bool.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter iter : (elt -> M unit) -> t -> M unit.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter map : (elt -> M elt) -> t -> M t.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter fold : forall {A : Type}, (elt -> A -> M A) -> t -> A -> M A.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter for_all : (elt -> M bool) -> t -> M bool.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter exists_ : (elt -> M bool) -> t -> M bool.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter filter : (elt -> M bool) -> t -> M t.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter filter_map : (elt -> M (option elt)) -> t -> M t.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter partition : (elt -> M bool) -> t -> M (t * t).
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter cardinal : t -> M int.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter elements : t -> M (list elt).
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter min_elt : t -> M elt.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter min_elt_opt : t -> M (option elt).
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter max_elt : t -> M elt.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter max_elt_opt : t -> M (option elt).
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter choose : t -> M elt.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter choose_opt : t -> M (option elt).
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter split : elt -> t -> M (tuple3 t bool t).
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter find : elt -> t -> M elt.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter of_list : list elt -> M t.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter to_seq : t -> Seq.t elt.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter print : Format.formatter -> t -> M unit.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter to_string : t -> M string.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter union_list : list t -> M t.
+          (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+          Parameter get_singleton : t -> M (option elt).
+        End Set_.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter t : Type -> Type.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter empty : forall {A : Type}, t A.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter is_empty : forall {A : Type}, t A -> M bool.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter mem : forall {A : Type}, key -> t A -> M bool.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter add : forall {A : Type}, key -> A -> t A -> M (t A).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter update : forall {A : Type}, key -> (option A -> M (option A)) -> t A -> M (t A).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter singleton : forall {A : Type}, key -> A -> M (t A).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter remove : forall {A : Type}, key -> t A -> M (t A).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter merge : forall {A B C : Type}, (key -> option A -> option B -> M (option C)) -> t A -> t B -> M (t C).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter union : forall {A : Type}, (key -> A -> A -> M (option A)) -> t A -> t A -> M (t A).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter union_sharing : forall {A : Type}, (key -> A -> A -> M (option A)) -> t A -> t A -> M (t A).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter union_shared : forall {A : Type}, (key -> A -> A -> M (option A)) -> t A -> t A -> M (t A).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter union_total : forall {A : Type}, (key -> A -> A -> M A) -> t A -> t A -> M (t A).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter union_total_shared : forall {A : Type}, (key -> A -> A -> M A) -> t A -> t A -> M (t A).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter union_left_biased : forall {A : Type}, t A -> t A -> M (t A).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter union_right_biased : forall {A : Type}, t A -> t A -> M (t A).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter update_many : forall {A B : Type}, (key -> option A -> B -> M (option A)) -> t A -> t B -> M (t A).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter compare : forall {A : Type}, (A -> A -> M int) -> t A -> t A -> M int.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter equal : forall {A : Type}, (A -> A -> M bool) -> t A -> t A -> M bool.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter iter : forall {A : Type}, (key -> A -> M unit) -> t A -> M unit.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter fold : forall {A B : Type}, (key -> A -> B -> M B) -> t A -> B -> M B.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter for_all : forall {A : Type}, (key -> A -> M bool) -> t A -> M bool.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter exists_ : forall {A : Type}, (key -> A -> M bool) -> t A -> M bool.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter filter : forall {A : Type}, (key -> A -> M bool) -> t A -> M (t A).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter filter_map : forall {A B : Type}, (key -> A -> M (option B)) -> t A -> M (t B).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter filter_map_sharing : forall {A : Type}, (key -> A -> M (option A)) -> t A -> M (t A).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter partition : forall {A : Type}, (key -> A -> M bool) -> t A -> M (t A * t A).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter cardinal : forall {A : Type}, t A -> M int.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter bindings : forall {A : Type}, t A -> M (list (key * A)).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter min_binding : forall {A : Type}, t A -> M (key * A).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter min_binding_opt : forall {A : Type}, t A -> M (option (key * A)).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter max_binding : forall {A : Type}, t A -> M (key * A).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter max_binding_opt : forall {A : Type}, t A -> M (option (key * A)).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter choose : forall {A : Type}, t A -> M (key * A).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter choose_opt : forall {A : Type}, t A -> M (option (key * A)).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter split : forall {A : Type}, key -> t A -> M (tuple3 (t A) (option A) (t A)).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter find : forall {A : Type}, key -> t A -> M A.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter find_opt : forall {A : Type}, key -> t A -> M (option A).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter find_or_null : forall {A : Type}, key -> t A -> M (Or_null.t A).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter map : forall {A B : Type}, (A -> M B) -> t A -> M (t B).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter mapi : forall {A B : Type}, (key -> A -> M B) -> t A -> M (t B).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter to_seq : forall {A : Type}, t A -> Seq.t (key * A).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter print_debug : forall {A : Type}, (Format.formatter -> A -> M unit) -> Format.formatter -> t A -> M unit.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter of_list : forall {A : Type}, list (key * A) -> M (t A).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter disjoint_union : forall {A : Type}, option (A -> A -> M bool) -> option (Format.formatter -> A -> M unit) -> t A -> t A -> M (t A).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter map_keys : forall {A : Type}, (key -> M key) -> t A -> M (t A).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter keys : forall {A : Type}, t A -> M Number_adjuncts.Int_number_kind.Num.Pair.Map.Set_.t.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter data : forall {A : Type}, t A -> M (list A).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter of_set : forall {A : Type}, (key -> M A) -> Number_adjuncts.Int_number_kind.Num.Pair.Map.Set_.t -> M (t A).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter print : forall {A : Type}, (Format.formatter -> A -> M unit) -> Format.formatter -> t A -> M unit.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter subset_domain : forall {A B : Type}, t A -> t B -> M bool.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter diff_domains : forall {A B : Type}, t A -> t B -> M (t A).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter inter : forall {A B C : Type}, (key -> A -> B -> M C) -> t A -> t B -> M (t C).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter diff : forall {A B : Type}, (key -> A -> B -> M (option A)) -> t A -> t B -> M (t A).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter diff_sharing : forall {A B : Type}, (key -> A -> B -> M (option A)) -> t A -> t B -> M (t A).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter diff_shared : forall {A : Type}, (key -> A -> A -> M (option A)) -> t A -> t A -> M (t A).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter inter_domain_is_non_empty : forall {A : Type}, t A -> t A -> M bool.
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter get_singleton : forall {A : Type}, t A -> M (option (key * A)).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter replace : forall {A : Type}, key -> (A -> M A) -> t A -> M (t A).
+        (* number_adjuncts.mli:27  include Container_types.S with type t := t *)
+        Parameter map_sharing : forall {A : Type}, (A -> M A) -> t A -> M (t A).
+      End Map.
+    End Pair.
+    (* number_adjuncts.mli:30  val cross_product : Set.t -> Set.t -> Pair.Set.t *)
+    Parameter cross_product : Number_adjuncts.Int_number_kind.Num.Set_.t -> Number_adjuncts.Int_number_kind.Num.Set_.t -> M Number_adjuncts.Int_number_kind.Num.Pair.Set_.t.
+    (* number_adjuncts.mli:32  val zero : Target_system.Machine_width.t -> t *)
+    Parameter zero : Target_system.Machine_width.t -> M t.
+    (* number_adjuncts.mli:34  val one : Target_system.Machine_width.t -> t *)
+    Parameter one : Target_system.Machine_width.t -> M t.
+    (* number_adjuncts.mli:36  val minus_one : Target_system.Machine_width.t -> t *)
+    Parameter minus_one : Target_system.Machine_width.t -> M t.
+    (* number_adjuncts.mli:38  val add : t -> t -> t *)
+    Parameter add : t -> t -> M t.
+    (* number_adjuncts.mli:40  val sub : t -> t -> t *)
+    Parameter sub : t -> t -> M t.
+    (* number_adjuncts.mli:42  val mul : t -> t -> t *)
+    Parameter mul : t -> t -> M t.
+    (* number_adjuncts.mli:44  val div : t -> t -> t option *)
+    Parameter div : t -> t -> M (option t).
+    (* number_adjuncts.mli:46  val mod_ : t -> t -> t option *)
+    Parameter mod_ : t -> t -> M (option t).
+    (* number_adjuncts.mli:48  val to_const : t -> Reg_width_const.t *)
+    Parameter to_const : t -> M Reg_width_const.t.
+    (* number_adjuncts.mli:50  val to_immediate : t -> Target_system.Machine_width.t -> Target_ocaml_int.t *)
+    Parameter to_immediate : t -> Target_system.Machine_width.t -> M Target_ocaml_int.t.
+    (* number_adjuncts.mli:52  val to_naked_float32 : t -> Numeric_types.Float32_by_bit_pattern.t *)
+    Parameter to_naked_float32 : t -> M Numeric_types.Float32_by_bit_pattern.t.
+    (* number_adjuncts.mli:54  val to_naked_float : t -> Numeric_types.Float_by_bit_pattern.t *)
+    Parameter to_naked_float : t -> M Numeric_types.Float_by_bit_pattern.t.
+    (* number_adjuncts.mli:56  val to_naked_int8 : t -> Numeric_types.Int8.t *)
+    Parameter to_naked_int8 : t -> M Numeric_types.Int8.t.
+    (* number_adjuncts.mli:58  val to_naked_int16 : t -> Numeric_types.Int16.t *)
+    Parameter to_naked_int16 : t -> M Numeric_types.Int16.t.
+    (* number_adjuncts.mli:60  val to_naked_int32 : t -> Numeric_types.Int32.t *)
+    Parameter to_naked_int32 : t -> M Numeric_types.Int32.t.
+    (* number_adjuncts.mli:62  val to_naked_int64 : t -> Numeric_types.Int64.t *)
+    Parameter to_naked_int64 : t -> M Numeric_types.Int64.t.
+    (* number_adjuncts.mli:64  val to_naked_nativeint : t -> Target_system.Machine_width.t -> Targetint_32_64.t *)
+    Parameter to_naked_nativeint : t -> Target_system.Machine_width.t -> M Targetint_32_64.t.
+    (* number_adjuncts.mli:95  val and_ : t -> t -> t *)
+    Parameter and_ : t -> t -> M t.
+    (* number_adjuncts.mli:97  val or_ : t -> t -> t *)
+    Parameter or_ : t -> t -> M t.
+    (* number_adjuncts.mli:99  val xor : t -> t -> t *)
+    Parameter xor : t -> t -> M t.
+    (* number_adjuncts.mli:101  val not_ : t -> t *)
+    Parameter not_ : t -> M t.
+    (* number_adjuncts.mli:103  val unsigned_div : t -> t -> t option *)
+    Parameter unsigned_div : t -> t -> M (option t).
+    (* number_adjuncts.mli:105  val unsigned_mod : t -> t -> t option *)
+    Parameter unsigned_mod : t -> t -> M (option t).
+    (* number_adjuncts.mli:107  val shift_left : t -> Target_ocaml_int.t -> t *)
+    Parameter shift_left : t -> Target_ocaml_int.t -> M t.
+    (* number_adjuncts.mli:111  val shift_right : t -> Target_ocaml_int.t -> t *)
+    Parameter shift_right : t -> Target_ocaml_int.t -> M t.
+    (* number_adjuncts.mli:113  val shift_right_logical : t -> Target_ocaml_int.t -> t *)
+    Parameter shift_right_logical : t -> Target_ocaml_int.t -> M t.
+    (* number_adjuncts.mli:115  val swap_byte_endianness : t -> t *)
+    Parameter swap_byte_endianness : t -> M t.
+    (* number_adjuncts.mli:117  val neg : t -> t *)
+    Parameter neg : t -> M t.
+    (* number_adjuncts.mli:119  val compare_unsigned : t -> t -> int *)
+    Parameter compare_unsigned : t -> t -> M int.
+  End Num.
+  (* number_adjuncts.mli:122  include Number_kind_common with module Num := Num *)
+  Parameter standard_int_or_float_kind : Flambda_kind.Standard_int_or_float.t.
+  (* number_adjuncts.mli:122  include Number_kind_common with module Num := Num *)
+  Parameter unboxed_prover : Flambda2_types.Typing_env.t -> Flambda2_types.t -> M (Flambda2_types.meet_shortcut Number_adjuncts.Int_number_kind.Num.Set_.t).
+  (* number_adjuncts.mli:122  include Number_kind_common with module Num := Num *)
+  Parameter this_unboxed : Number_adjuncts.Int_number_kind.Num.t -> M Flambda2_types.t.
+  (* number_adjuncts.mli:122  include Number_kind_common with module Num := Num *)
+  Parameter these_unboxed : Number_adjuncts.Int_number_kind.Num.Set_.t -> M Flambda2_types.t.
+  (* number_adjuncts.mli:122  include Number_kind_common with module Num := Num *)
+  Parameter term_unboxed : Number_adjuncts.Int_number_kind.Num.t -> M Flambda.Named.t.
+  (* number_adjuncts.mli:124  val standard_int_kind : Flambda_kind.Standard_int.t *)
+  Parameter standard_int_kind : Flambda_kind.Standard_int.t.
+End Int_number_kind.
+(* NOT DECLARED: Number_adjuncts.Boxable: a module type that no file of Simplify names from outside the file that defines it. *)
+(* NOT DECLARED: Number_adjuncts.Boxable_number_kind: a module type that no file of Simplify names from outside the file that defines it. *)
+(* NOT DECLARED: Number_adjuncts.Boxable_int_number_kind: a module type that no file of Simplify names from outside the file that defines it. *)
 Module For_tagged_immediates.
   Module Num.
     (* container_types_intf.ml:297  type t *)
