@@ -11,7 +11,7 @@ compiler's own definitions; alone: no interface).
 |---|---:|---:|---:|---|---|---|
 | `apply_cont_rewrite.ml` | 307 | 13 | 13 | loose:1 papp:2 | yes | strict |
 | `are_lifting_conts.ml` | 68 | 5 | 5 | loose:1 type:1 verbatim:1 | yes | strict |
-| `common_subexpression_elimination.ml` | 481 | 5 | 5 | loose:8 verbatim:1 decl:1 papp:3 | yes | strict |
+| `common_subexpression_elimination.ml` | 481 | 5 | 5 | loose:8 verbatim:1 papp:3 | yes | strict |
 | `comparison_result.ml` | 86 | 3 | 3 | loose:3 | yes | strict |
 | `continuation_extra_params_and_args.ml` | 198 | 10 | 10 | loose:2 type:2 verbatim:1 papp:3 | yes | strict |
 | `continuation_in_env.ml` | 79 | 2 | 2 | loose:1 type:1 verbatim:1 papp:2 | yes | strict |
@@ -56,7 +56,7 @@ compiler's own definitions; alone: no interface).
 | `simplify.ml` | 99 | 1 | 1 | type:1 verbatim:1 papp:1 | yes | strict |
 | `simplify_apply_cont_expr.ml` | 199 | 3 | 3 | papp:1 | yes | strict |
 | `simplify_apply_expr.ml` | 1539 | 21 | 21 | loose:5 type:2 decl:1 papp:2 | yes | strict |
-| `simplify_binary_primitive.ml` | 1270 | 12 | 12 | loose:4 verbatim:1 papp:1 | yes | strict |
+| `simplify_binary_primitive.ml` | 1270 | 12 | 12 | loose:19 verbatim:1 init:1 decl:2 | yes | strict |
 | `simplify_coercion.ml` | 25 | 1 | 1 | none | yes | strict |
 | `simplify_common.ml` | 479 | 10 | 10 | loose:2 type:6 | yes | strict |
 | `simplify_expr.ml` | 231 | 7 | 7 | loose:1 type:2 papp:2 | yes | strict |
@@ -87,17 +87,17 @@ compiler's own definitions; alone: no interface).
 | `unboxing/unboxers.ml` | 260 | 0 | 0 | loose:1 init:10 record-order:1 | yes | strict |
 | `unboxing/unboxing_epa.ml` | 553 | 15 | 15 | loose:1 type:2 verbatim:1 | yes | strict |
 | `unboxing/unboxing_types.ml` | 185 | 9 | 7 | type:1 verbatim:2 papp:4 | yes | strict |
-| **total: 78 files of 78** | 26900 | 938 | 926 | 438 marks | 78 | 78 |
+| **total: 78 files of 78** | 26900 | 938 | 926 | 454 marks | 78 | 78 |
 
 Gaps by kind, all files:
 
 - unported: 0
 - partial: 0
-- loose: 181
+- loose: 196
 - type: 62
 - verbatim: 47
-- init: 21
+- init: 22
 - order: 0
-- decl: 20
-- papp: 84
+- decl: 21
+- papp: 83
 - record-order: 23
