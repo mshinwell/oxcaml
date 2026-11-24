@@ -42,6 +42,17 @@ Definition simplify_atomic_compare_and_set_or_exchange_args
     (* No further specialization can be done *)
     ret P.Block_access_field_kind.Immediate
   | P.Block_access_field_kind.Any_value =>
+    (* Unlike (for example) a normal write to a block, these primitives can be
+       specialized based on the observed types of the arguments. (In the case of
+       compare-exchange information can also be propagated based on the result
+       type; see below.)
+
+       For example for [Atomic_compare_and_set], observe that if both the second
+       and third arguments (value with which to compare, and new value,
+       respectively) are immediate, then there is no need to generate a GC
+       barrier -- not only because the new value is immediate, but crucially
+       also because the old value cannot be a pointer if the operation is to
+       perform a write. *)
     (* 36-40 *)
     let& is_immediate :=
       fun (ty : T.t) =>
