@@ -78,8 +78,9 @@ Definition think_about_lifting_out_of (is_exn_handler : bool)
 Definition lift_continuations_out_of (continuation : Continuation.t) : M t :=
   ret (Lifting_out_of continuation).
 
-(* 39-49. PORT-GAP(loose): the attribute [@ocamlformat "disable"] is not
-   kept, here and at [print]. *)
+(* 39-49 *)
+(* PORT-GAP(loose): the attribute [@ocamlformat "disable"] is not kept, here
+   and at [print]. *)
 Definition print_reason (ppf : Format.formatter)
     (reason : Are_lifting_conts.reason) : M unit :=
   match reason with
