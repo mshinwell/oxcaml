@@ -40,14 +40,18 @@ Local Open Scope list_scope.
    verbatim block cannot stand inside a module). *)
 (*OCAML
 open! Flambda.Import
-
+OCAML*)
+Import Flambda.Import_.
+(* 16 *)
+From SimplifyPort.abbrev.rebuilt_expr Require Import Port_abbreviations.
+(*OCAML
+module ART = Are_rebuilding_terms
+OCAML*)
+(*OCAML
 exception Match_failure
 
 module HV = Hashtbl.Make (Variable)
 OCAML*)
-Import Flambda.Import_.
-(* 16 *)
-Module ART := Are_rebuilding_terms.
 
 (* 18-21. The type has the name of a field of [t]: it gets one [_]. *)
 Record contents_hash_ : Type :=

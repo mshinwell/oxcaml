@@ -45,15 +45,20 @@ Local Open Scope list_scope.
 
 (*OCAML
 open! Simplify_import
-
-exception Argument_cannot_be_used_in_lookup_table
 OCAML*)
 
 (* 18-21 *)
-Module TE := Flambda2_types.Typing_env.
-Module TI := Target_ocaml_int.
-Module Alias_set := TE.Alias_set.
-Module RWC := Reg_width_const.
+From SimplifyPort.abbrev.simplify_switch_expr Require Import Port_abbreviations.
+(*OCAML
+module TE = Flambda2_types.Typing_env
+module TI = Target_ocaml_int
+module Alias_set = TE.Alias_set
+module RWC = Reg_width_const
+OCAML*)
+
+(*OCAML
+exception Argument_cannot_be_used_in_lookup_table
+OCAML*)
 
 (* 23-25 *)
 Inductive alias_set : Type :=

@@ -33,7 +33,10 @@ open! Simplify_import
 OCAML*)
 
 (* 16 *)
-Module RO := Removed_operations.
+From SimplifyPort.abbrev.simplify_extcall Require Import Port_abbreviations.
+(*OCAML
+module RO = Removed_operations
+OCAML*)
 
 (* 18-21 *)
 (* PORT-GAP(type): the type has an inline record. In Rocq it is the

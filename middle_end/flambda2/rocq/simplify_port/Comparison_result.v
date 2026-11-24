@@ -27,7 +27,10 @@ Local Open Scope string_scope.
 Local Open Scope Z_scope.
 
 (* 15 *)
-Module P := Flambda_primitive.
+From SimplifyPort.abbrev.comparison_result Require Import Port_abbreviations.
+(*OCAML
+module P = Flambda_primitive
+OCAML*)
 
 (* 17-19. The type has the name of a field of [t]: it gets one [_]. *)
 Inductive tagged_or_untagged_ : Type :=

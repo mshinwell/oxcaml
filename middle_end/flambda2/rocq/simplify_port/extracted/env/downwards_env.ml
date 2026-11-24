@@ -21,13 +21,6 @@
    middle_end/flambda2/rocq/simplify_port. *)
 
 open! Flambda.Import
-
-type resolver =
-  Compilation_unit.t -> Flambda2_types.Typing_env.Serializable.t option
-
-type get_imported_code = unit -> Exported_code.t
-
-open Port_monad
 module CSE = Common_subexpression_elimination
 module K = Flambda_kind
 module BP = Bound_parameter
@@ -35,6 +28,14 @@ module T = Flambda2_types
 module TE = Flambda2_types.Typing_env
 module LCS = Lifted_constant_state
 module LC = Lifted_constant
+
+type resolver =
+  Compilation_unit.t -> Flambda2_types.Typing_env.Serializable.t option
+
+type get_imported_code = unit -> Exported_code.t
+
+open Port_abbreviations
+open Port_monad
 
 module Disable_inlining_reason = struct
   type t =
@@ -784,9 +785,9 @@ let mark_parameters_as_toplevel t0 params =
 (** val extend_typing_environment : t ->
     T.Typing_env_extension.With_extra_variables.t -> t coq_M **)
 
-let extend_typing_environment t0 env_extension0 =
+let extend_typing_environment t0 env_extension =
   let typing_env0 =
-    TE.add_env_extension_with_extra_variables t0.typing_env env_extension0
+    TE.add_env_extension_with_extra_variables t0.typing_env env_extension
   in
   (fun t typing_env -> { t with typing_env }) t0 typing_env0
 
@@ -1171,12 +1172,12 @@ let add_lifted_constant_state maybe_already_defined denv lifted0 =
             then typing_env2
             else
               let sym0 = Name.symbol sym in
-              let env_extension0 =
+              let env_extension =
                 T.make_suitable_for_environment typing_env_at_definition
                   (T.Everything_not_in typing_env2) ((sym0, typ) :: [])
               in
               TE.add_env_extension_with_extra_variables typing_env2
-                env_extension0)
+                env_extension)
           types_of_symbols typing_env1)
   in
   LCS.fold lifted0 (with_typing_env denv0 typing_env0)

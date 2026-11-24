@@ -21,8 +21,9 @@
    middle_end/flambda2/rocq/simplify_port. *)
 
 open! Simplify_import
-open Port_monad
 module U = Unboxing_types
+open Port_abbreviations
+open Port_monad
 
 (** val add_equation_on_var : DE.t -> Variable.t -> T.t -> DE.t coq_M **)
 
@@ -368,14 +369,14 @@ let rec denv_of_decision denv param_var = function
                 denv_of_decision denv2
                   epa.Unboxing_types.Extra_param_and_args.param decision0))
           vars_within_closure denv1)
-      (fun t0 t1 ->
-        match t0 with
+      (fun t t0 ->
+        match t with
         | K.Naked_number_kind.Naked_immediate ->
           let { U.Extra_param_and_args.param = naked_immediate;
                 U.Extra_param_and_args.param_debug_uid = param_debug_uid0;
                 U.Extra_param_and_args.args = _
               } =
-            t1
+            t0
           in
           let shape = T.tagged_immediate_alias_to naked_immediate in
           denv_of_number_decision K.naked_immediate shape param_var
@@ -385,7 +386,7 @@ let rec denv_of_decision denv param_var = function
                 U.Extra_param_and_args.param_debug_uid = param_debug_uid0;
                 U.Extra_param_and_args.args = _
               } =
-            t1
+            t0
           in
           let shape =
             T.boxed_float32_alias_to naked_float32
@@ -398,7 +399,7 @@ let rec denv_of_decision denv param_var = function
                 U.Extra_param_and_args.param_debug_uid = param_debug_uid0;
                 U.Extra_param_and_args.args = _
               } =
-            t1
+            t0
           in
           let shape =
             T.boxed_float_alias_to naked_float (Alloc_mode.For_types.unknown ())
@@ -410,7 +411,7 @@ let rec denv_of_decision denv param_var = function
                 U.Extra_param_and_args.param_debug_uid = param_debug_uid0;
                 U.Extra_param_and_args.args = _
               } =
-            t1
+            t0
           in
           let shape = T.any_naked_int8 in
           denv_of_number_decision K.naked_int8 shape param_var param_debug_uid0
@@ -420,7 +421,7 @@ let rec denv_of_decision denv param_var = function
                 U.Extra_param_and_args.param_debug_uid = param_debug_uid0;
                 U.Extra_param_and_args.args = _
               } =
-            t1
+            t0
           in
           let shape = T.any_naked_int16 in
           denv_of_number_decision K.naked_int16 shape param_var param_debug_uid0
@@ -430,7 +431,7 @@ let rec denv_of_decision denv param_var = function
                 U.Extra_param_and_args.param_debug_uid = param_debug_uid0;
                 U.Extra_param_and_args.args = _
               } =
-            t1
+            t0
           in
           let shape =
             T.boxed_int32_alias_to naked_int32 (Alloc_mode.For_types.unknown ())
@@ -442,7 +443,7 @@ let rec denv_of_decision denv param_var = function
                 U.Extra_param_and_args.param_debug_uid = param_debug_uid0;
                 U.Extra_param_and_args.args = _
               } =
-            t1
+            t0
           in
           let shape =
             T.boxed_int64_alias_to naked_int64 (Alloc_mode.For_types.unknown ())
@@ -454,7 +455,7 @@ let rec denv_of_decision denv param_var = function
                 U.Extra_param_and_args.param_debug_uid = param_debug_uid0;
                 U.Extra_param_and_args.args = _
               } =
-            t1
+            t0
           in
           let shape =
             T.boxed_nativeint_alias_to naked_nativeint
@@ -467,7 +468,7 @@ let rec denv_of_decision denv param_var = function
                 U.Extra_param_and_args.param_debug_uid = param_debug_uid0;
                 U.Extra_param_and_args.args = _
               } =
-            t1
+            t0
           in
           let shape =
             T.boxed_vec128_alias_to naked_vec128
@@ -480,7 +481,7 @@ let rec denv_of_decision denv param_var = function
                 U.Extra_param_and_args.param_debug_uid = param_debug_uid0;
                 U.Extra_param_and_args.args = _
               } =
-            t1
+            t0
           in
           let shape =
             T.boxed_vec256_alias_to naked_vec256
@@ -493,7 +494,7 @@ let rec denv_of_decision denv param_var = function
                 U.Extra_param_and_args.param_debug_uid = param_debug_uid0;
                 U.Extra_param_and_args.args = _
               } =
-            t1
+            t0
           in
           let shape =
             T.boxed_vec512_alias_to naked_vec512
@@ -506,7 +507,7 @@ let rec denv_of_decision denv param_var = function
                 U.Extra_param_and_args.param_debug_uid = param_debug_uid0;
                 U.Extra_param_and_args.args = _
               } =
-            t1
+            t0
           in
           let shape =
             T.boxed_mask_alias_to naked_mask (Alloc_mode.For_types.unknown ())

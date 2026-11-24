@@ -29,9 +29,12 @@ Local Open Scope string_scope.
 Local Open Scope Z_scope.
 
 (* 16-18 *)
-Module DA := Downwards_acc.
-Module T := Flambda2_types.
-Module TE := T.Typing_env.
+From SimplifyPort.abbrev.simplify_simple Require Import Port_abbreviations.
+(*OCAML
+module DA = Downwards_acc
+module T = Flambda2_types
+module TE = T.Typing_env
+OCAML*)
 
 (* PORT-GAP(verbatim): 20, the exception of the file. *)
 (*OCAML

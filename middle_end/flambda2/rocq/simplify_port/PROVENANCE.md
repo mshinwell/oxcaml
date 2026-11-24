@@ -12,7 +12,8 @@ comes from outside this repository.
 | file | donor or source | kind |
 |---|---|---|
 | `monad/real/Port_monad.v`, `monad/real/Kit_refuses.v`, `monad/id/Port_monad.v` | none | original |
-| `runtime/port_monad.ml` | none | original |
+| `runtime/port_monad.ml`, `runtime/port_abbreviations.ml` (empty) | none | original |
+| `abbrev/FILE/Port_abbreviations.v` | the lines `module A = P` of the compiler's file that the ported file FILE follows (its abbreviations of modules), as Rocq's `Module A := P.` | transcribed |
 | `Makefile`, `GUIDE.md`, `PROVENANCE.md`, `.gitignore` | none | original |
 | `tools/assemble.sh`, `tools/progress.sh`, `tools/lint.py`, `tools/comments.py`, `tools/linktest.sh`, `tools/aliases.py` | none | original |
 | `tools/check.sh` | none; its list of include directories and `-open` flags is after `middle_end/flambda2/simplify/dune` | original |

@@ -41,8 +41,11 @@ open! Flambda
 OCAML*)
 Import Flambda.
 (* 18-19 *)
-Module ART := Are_rebuilding_terms.
-Module SC := Static_const.
+From SimplifyPort.abbrev.rebuilt_static_const Require Import Port_abbreviations.
+(*OCAML
+module ART = Are_rebuilding_terms
+module SC = Static_const
+OCAML*)
 
 (* 21-23: The cost metrics for sets of closures include the code size of
    their code_ids, like for non-lifted sets of closures. To avoid double

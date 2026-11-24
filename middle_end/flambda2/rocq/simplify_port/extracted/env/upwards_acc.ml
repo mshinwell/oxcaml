@@ -20,13 +20,13 @@
    edit this file: change the .v file and run make in
    middle_end/flambda2/rocq/simplify_port. *)
 
-open Port_monad
 module ART = Are_rebuilding_terms
 module DA = Downwards_acc
 module DE = Downwards_env
 module LCS = Lifted_constant_state
 module TE = Flambda2_types.Typing_env
 module UE = Upwards_env
+open Port_monad
 
 type t =
   { uenv : UE.t;

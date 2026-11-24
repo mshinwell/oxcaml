@@ -252,8 +252,13 @@ module Number_adjuncts = struct
 end
 OCAML*)
 
-(* 18 *)
-Module A := Number_adjuncts.
+(* 18. This line stands after the OCaml text above, which gives
+   [Number_adjuncts] the names that Rocq prints. *)
+From SimplifyPort.abbrev.simplify_binary_primitive Require Import Port_abbreviations.
+(*OCAML
+module A = Number_adjuncts
+OCAML*)
+
 
 (* The integer -1 (GUIDE.md, section 2: a literal other than 0 and 1). *)
 Definition im1 : int := (-1)%Z.

@@ -35,19 +35,22 @@ Local Open Scope Z_scope.
 Local Open Scope list_scope.
 
 (* 17 *)
-(* PORT-GAP(verbatim): 21-23, the two exceptions of the file are the
-   compiler's lines; they stand at the head of the extracted file, before
-   the two module abbreviations of 18-19. *)
 (*OCAML
 open! Simplify_import
-
+OCAML*)
+(* 18-19 *)
+From SimplifyPort.abbrev.unboxing_epa Require Import Port_abbreviations.
+(*OCAML
+module U = Unboxing_types
+module Extra_param_and_args = U.Extra_param_and_args
+OCAML*)
+(* PORT-GAP(verbatim): 21-23, the two exceptions of the file are the
+   compiler's lines; they stand at the head of the extracted file. *)
+(*OCAML
 exception Invalid_apply_cont
 
 exception Prevent_current_unboxing
 OCAML*)
-(* 18-19 *)
-Module U := Unboxing_types.
-Module Extra_param_and_args := U.Extra_param_and_args.
 
 (* 21 *)
 Parameter Invalid_apply_cont : exception unit.

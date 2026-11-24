@@ -32,12 +32,15 @@ Local Open Scope Z_scope.
 Local Open Scope list_scope.
 
 (* 17-22 *)
-Module ART := Are_rebuilding_terms.
-Module DA := Downwards_acc.
-Module DE := Downwards_env.
-Module LCS := Lifted_constant_state.
-Module TE := Flambda2_types.Typing_env.
-Module UE := Upwards_env.
+From SimplifyPort.abbrev.upwards_acc Require Import Port_abbreviations.
+(*OCAML
+module ART = Are_rebuilding_terms
+module DA = Downwards_acc
+module DE = Downwards_env
+module LCS = Lifted_constant_state
+module TE = Flambda2_types.Typing_env
+module UE = Upwards_env
+OCAML*)
 
 (* 24-34 *)
 Record t : Type :=

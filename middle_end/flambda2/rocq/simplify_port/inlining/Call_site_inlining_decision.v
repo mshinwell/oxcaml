@@ -43,15 +43,18 @@ open! Flambda.Import
 OCAML*)
 
 (* 18-23 *)
-Module DE := Downwards_env.
-Module DA := Downwards_acc.
-Module T := Flambda2_types.
-Module TE := T.Typing_env.
-Module UA := Upwards_acc.
-Module UE := Upwards_env.
+From SimplifyPort.abbrev.call_site_inlining_decision Require Import Port_abbreviations.
+(*OCAML
+module DE = Downwards_env
+module DA = Downwards_acc
+module T = Flambda2_types
+module TE = T.Typing_env
+module UA = Upwards_acc
+module UE = Upwards_env
+module FT = Flambda2_types.Function_type
+OCAML*)
 
 (* 43 *)
-Module FT := Flambda2_types.Function_type.
 
 (* 45-158. In the compiler: [dacc ~apply ~function_type ~simplify_expr
    ~rebuild_expr ~return_arity]. *)

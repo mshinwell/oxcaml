@@ -22,6 +22,14 @@
    middle_end/flambda2/rocq/simplify_port. *)
 
 open! Flambda.Import
+module K = Flambda_kind
+module T = Flambda2_types
+module Float32_by_bit_pattern = Numeric_types.Float32_by_bit_pattern
+module Float_by_bit_pattern = Numeric_types.Float_by_bit_pattern
+module Int8 = Numeric_types.Int8
+module Int16 = Numeric_types.Int16
+module Int32 = Numeric_types.Int32
+module Int64 = Numeric_types.Int64
 
 module type Num_common = sig
   include Container_types.S
@@ -154,14 +162,6 @@ module type Boxable_int_number_kind = sig
 end
 
 open Port_monad
-module K = Flambda_kind
-module T = Flambda2_types
-module Float32_by_bit_pattern = Numeric_types.Float32_by_bit_pattern
-module Float_by_bit_pattern = Numeric_types.Float_by_bit_pattern
-module Int8 = Numeric_types.Int8
-module Int16 = Numeric_types.Int16
-module Int32 = Numeric_types.Int32
-module Int64 = Numeric_types.Int64
 
 (** val with_shift : Target_ocaml_int.t -> 'a1 -> (int -> 'a1 coq_M) -> int ->
     'a1 coq_M **)
@@ -209,14 +209,14 @@ module For_tagged_immediates = struct
 
     (** val not_ : Target_ocaml_int.t -> Target_ocaml_int.t coq_M **)
 
-    let not_ t0 =
-      Target_ocaml_int.xor t0 (minus_one (Target_ocaml_int.machine_width t0))
+    let not_ t =
+      Target_ocaml_int.xor t (minus_one (Target_ocaml_int.machine_width t))
 
     (** val strictly_negative : Target_ocaml_int.t -> bool coq_M **)
 
-    let strictly_negative t0 =
-      Target_ocaml_int.( < ) t0
-        (Target_ocaml_int.zero (Target_ocaml_int.machine_width t0))
+    let strictly_negative t =
+      Target_ocaml_int.( < ) t
+        (Target_ocaml_int.zero (Target_ocaml_int.machine_width t))
 
     (** val compare_unsigned : Target_ocaml_int.t -> Target_ocaml_int.t -> int
         coq_M **)
@@ -268,28 +268,28 @@ module For_tagged_immediates = struct
     (** val shift_left : Target_ocaml_int.t -> Target_ocaml_int.t ->
         Target_ocaml_int.t coq_M **)
 
-    let shift_left t0 shift =
+    let shift_left t shift =
       with_shift shift
-        (Target_ocaml_int.zero (Target_ocaml_int.machine_width t0))
-        (fun shift_int -> Target_ocaml_int.shift_left t0 shift_int)
+        (Target_ocaml_int.zero (Target_ocaml_int.machine_width t))
+        (fun shift_int -> Target_ocaml_int.shift_left t shift_int)
         integer_bit_width
 
     (** val shift_right : Target_ocaml_int.t -> Target_ocaml_int.t ->
         Target_ocaml_int.t coq_M **)
 
-    let shift_right t0 shift =
+    let shift_right t shift =
       with_shift shift
-        (Target_ocaml_int.zero (Target_ocaml_int.machine_width t0))
-        (fun shift_int -> Target_ocaml_int.shift_right t0 shift_int)
+        (Target_ocaml_int.zero (Target_ocaml_int.machine_width t))
+        (fun shift_int -> Target_ocaml_int.shift_right t shift_int)
         integer_bit_width
 
     (** val shift_right_logical : Target_ocaml_int.t -> Target_ocaml_int.t ->
         Target_ocaml_int.t coq_M **)
 
-    let shift_right_logical t0 shift =
+    let shift_right_logical t shift =
       with_shift shift
-        (Target_ocaml_int.zero (Target_ocaml_int.machine_width t0))
-        (fun shift_int -> Target_ocaml_int.shift_right_logical t0 shift_int)
+        (Target_ocaml_int.zero (Target_ocaml_int.machine_width t))
+        (fun shift_int -> Target_ocaml_int.shift_right_logical t shift_int)
         integer_bit_width
 
     (** val swap_byte_endianness : Target_ocaml_int.t -> Target_ocaml_int.t
@@ -305,27 +305,27 @@ module For_tagged_immediates = struct
     (** val to_immediate : Target_ocaml_int.t -> Target_system.Machine_width.t
         -> Target_ocaml_int.t coq_M **)
 
-    let to_immediate t0 _ = t0
+    let to_immediate t _ = t
 
     (** val to_naked_float32 : Target_ocaml_int.t -> Float32_by_bit_pattern.t
         coq_M **)
 
-    let to_naked_float32 t0 =
-      Float32_by_bit_pattern.of_int64 (Target_ocaml_int.to_int64 t0)
+    let to_naked_float32 t =
+      Float32_by_bit_pattern.of_int64 (Target_ocaml_int.to_int64 t)
 
     (** val to_naked_float : Target_ocaml_int.t -> Float_by_bit_pattern.t coq_M
         **)
 
-    let to_naked_float t0 =
-      Float_by_bit_pattern.create (Target_ocaml_int.to_float t0)
+    let to_naked_float t =
+      Float_by_bit_pattern.create (Target_ocaml_int.to_float t)
 
     (** val to_naked_int8 : Target_ocaml_int.t -> Int8.t coq_M **)
 
-    let to_naked_int8 t0 = Int8.of_int (Target_ocaml_int.to_int t0)
+    let to_naked_int8 t = Int8.of_int (Target_ocaml_int.to_int t)
 
     (** val to_naked_int16 : Target_ocaml_int.t -> Int16.t coq_M **)
 
-    let to_naked_int16 t0 = Int16.of_int (Target_ocaml_int.to_int t0)
+    let to_naked_int16 t = Int16.of_int (Target_ocaml_int.to_int t)
 
     (** val to_naked_int32 : Target_ocaml_int.t -> Int32.t coq_M **)
 
@@ -338,8 +338,8 @@ module For_tagged_immediates = struct
     (** val to_naked_nativeint : Target_ocaml_int.t ->
         Target_system.Machine_width.t -> Targetint_32_64.t coq_M **)
 
-    let to_naked_nativeint t0 machine_width =
-      Target_ocaml_int.to_targetint machine_width t0
+    let to_naked_nativeint t machine_width =
+      Target_ocaml_int.to_targetint machine_width t
   end
 
   (** val standard_int_or_float_kind : K.Standard_int_or_float.t **)
@@ -392,14 +392,14 @@ module For_naked_immediates = struct
 
     (** val not_ : Target_ocaml_int.t -> Target_ocaml_int.t coq_M **)
 
-    let not_ t0 =
-      Target_ocaml_int.xor t0 (minus_one (Target_ocaml_int.machine_width t0))
+    let not_ t =
+      Target_ocaml_int.xor t (minus_one (Target_ocaml_int.machine_width t))
 
     (** val strictly_negative : Target_ocaml_int.t -> bool coq_M **)
 
-    let strictly_negative t0 =
-      Target_ocaml_int.( < ) t0
-        (Target_ocaml_int.zero (Target_ocaml_int.machine_width t0))
+    let strictly_negative t =
+      Target_ocaml_int.( < ) t
+        (Target_ocaml_int.zero (Target_ocaml_int.machine_width t))
 
     (** val compare_unsigned : Target_ocaml_int.t -> Target_ocaml_int.t -> int
         coq_M **)
@@ -451,31 +451,31 @@ module For_naked_immediates = struct
     (** val shift_left : Target_ocaml_int.t -> Target_ocaml_int.t ->
         Target_ocaml_int.t coq_M **)
 
-    let shift_left t0 shift =
-      let machine_width = Target_ocaml_int.machine_width t0 in
+    let shift_left t shift =
+      let machine_width = Target_ocaml_int.machine_width t in
       with_shift shift
         (Target_ocaml_int.zero machine_width)
-        (fun shift0 -> Target_ocaml_int.shift_left t0 shift0)
+        (fun shift0 -> Target_ocaml_int.shift_left t shift0)
         integer_bit_width
 
     (** val shift_right : Target_ocaml_int.t -> Target_ocaml_int.t ->
         Target_ocaml_int.t coq_M **)
 
-    let shift_right t0 shift =
-      let machine_width = Target_ocaml_int.machine_width t0 in
+    let shift_right t shift =
+      let machine_width = Target_ocaml_int.machine_width t in
       with_shift shift
         (Target_ocaml_int.zero machine_width)
-        (fun shift0 -> Target_ocaml_int.shift_right t0 shift0)
+        (fun shift0 -> Target_ocaml_int.shift_right t shift0)
         integer_bit_width
 
     (** val shift_right_logical : Target_ocaml_int.t -> Target_ocaml_int.t ->
         Target_ocaml_int.t coq_M **)
 
-    let shift_right_logical t0 shift =
-      let machine_width = Target_ocaml_int.machine_width t0 in
+    let shift_right_logical t shift =
+      let machine_width = Target_ocaml_int.machine_width t in
       with_shift shift
         (Target_ocaml_int.zero machine_width)
-        (fun shift0 -> Target_ocaml_int.shift_right_logical t0 shift0)
+        (fun shift0 -> Target_ocaml_int.shift_right_logical t shift0)
         integer_bit_width
 
     (** val swap_byte_endianness : Target_ocaml_int.t -> Target_ocaml_int.t
@@ -491,27 +491,27 @@ module For_naked_immediates = struct
     (** val to_immediate : Target_ocaml_int.t -> Target_system.Machine_width.t
         -> Target_ocaml_int.t coq_M **)
 
-    let to_immediate t0 _ = t0
+    let to_immediate t _ = t
 
     (** val to_naked_float32 : Target_ocaml_int.t -> Float32_by_bit_pattern.t
         coq_M **)
 
-    let to_naked_float32 t0 =
-      Float32_by_bit_pattern.of_int64 (Target_ocaml_int.to_int64 t0)
+    let to_naked_float32 t =
+      Float32_by_bit_pattern.of_int64 (Target_ocaml_int.to_int64 t)
 
     (** val to_naked_float : Target_ocaml_int.t -> Float_by_bit_pattern.t coq_M
         **)
 
-    let to_naked_float t0 =
-      Float_by_bit_pattern.create (Target_ocaml_int.to_float t0)
+    let to_naked_float t =
+      Float_by_bit_pattern.create (Target_ocaml_int.to_float t)
 
     (** val to_naked_int8 : Target_ocaml_int.t -> Int8.t coq_M **)
 
-    let to_naked_int8 t0 = Int8.of_int (Target_ocaml_int.to_int t0)
+    let to_naked_int8 t = Int8.of_int (Target_ocaml_int.to_int t)
 
     (** val to_naked_int16 : Target_ocaml_int.t -> Int16.t coq_M **)
 
-    let to_naked_int16 t0 = Int16.of_int (Target_ocaml_int.to_int t0)
+    let to_naked_int16 t = Int16.of_int (Target_ocaml_int.to_int t)
 
     (** val to_naked_int32 : Target_ocaml_int.t -> int32 coq_M **)
 
@@ -524,8 +524,8 @@ module For_naked_immediates = struct
     (** val to_naked_nativeint : Target_ocaml_int.t ->
         Target_system.Machine_width.t -> Targetint_32_64.t coq_M **)
 
-    let to_naked_nativeint t0 machine_width =
-      Target_ocaml_int.to_targetint machine_width t0
+    let to_naked_nativeint t machine_width =
+      Target_ocaml_int.to_targetint machine_width t
   end
 
   (** val standard_int_or_float_kind : K.Standard_int_or_float.t **)
@@ -613,43 +613,42 @@ module For_float32s = struct
     (** val to_immediate : Float32_by_bit_pattern.t ->
         Target_system.Machine_width.t -> Target_ocaml_int.t coq_M **)
 
-    let to_immediate t0 machine_width =
+    let to_immediate t machine_width =
       Target_ocaml_int.of_float machine_width
-        (Float32_by_bit_pattern.to_float t0)
+        (Float32_by_bit_pattern.to_float t)
 
     (** val to_naked_float32 : Float32_by_bit_pattern.t ->
         Float32_by_bit_pattern.t coq_M **)
 
-    let to_naked_float32 t0 = t0
+    let to_naked_float32 t = t
 
     (** val to_naked_float : Float32_by_bit_pattern.t -> Float_by_bit_pattern.t
         coq_M **)
 
-    let to_naked_float t0 =
-      Float_by_bit_pattern.create (Float32_by_bit_pattern.to_float t0)
+    let to_naked_float t =
+      Float_by_bit_pattern.create (Float32_by_bit_pattern.to_float t)
 
     (** val to_naked_int8 : Float32_by_bit_pattern.t -> Int8.t coq_M **)
 
-    let to_naked_int8 t0 = Int8.of_float (Float32_by_bit_pattern.to_float t0)
+    let to_naked_int8 t = Int8.of_float (Float32_by_bit_pattern.to_float t)
 
     (** val to_naked_int16 : Float32_by_bit_pattern.t -> Int16.t coq_M **)
 
-    let to_naked_int16 t0 = Int16.of_float (Float32_by_bit_pattern.to_float t0)
+    let to_naked_int16 t = Int16.of_float (Float32_by_bit_pattern.to_float t)
 
     (** val to_naked_int32 : Float32_by_bit_pattern.t -> Int32.t coq_M **)
 
-    let to_naked_int32 t0 = Int32.of_float (Float32_by_bit_pattern.to_float t0)
+    let to_naked_int32 t = Int32.of_float (Float32_by_bit_pattern.to_float t)
 
     (** val to_naked_int64 : Float32_by_bit_pattern.t -> Int64.t coq_M **)
 
-    let to_naked_int64 t0 = Int64.of_float (Float32_by_bit_pattern.to_float t0)
+    let to_naked_int64 t = Int64.of_float (Float32_by_bit_pattern.to_float t)
 
     (** val to_naked_nativeint : Float32_by_bit_pattern.t ->
         Target_system.Machine_width.t -> Targetint_32_64.t coq_M **)
 
-    let to_naked_nativeint t0 machine_width =
-      Targetint_32_64.of_float machine_width
-        (Float32_by_bit_pattern.to_float t0)
+    let to_naked_nativeint t machine_width =
+      Targetint_32_64.of_float machine_width (Float32_by_bit_pattern.to_float t)
   end
 
   (** val standard_int_or_float_kind : K.Standard_int_or_float.t **)
@@ -752,41 +751,41 @@ module For_floats = struct
     (** val to_immediate : Float_by_bit_pattern.t ->
         Target_system.Machine_width.t -> Target_ocaml_int.t coq_M **)
 
-    let to_immediate t0 machine_width =
-      Target_ocaml_int.of_float machine_width (Float_by_bit_pattern.to_float t0)
+    let to_immediate t machine_width =
+      Target_ocaml_int.of_float machine_width (Float_by_bit_pattern.to_float t)
 
     (** val to_naked_float32 : Float_by_bit_pattern.t ->
         Float32_by_bit_pattern.t coq_M **)
 
-    let to_naked_float32 t0 =
-      Float32_by_bit_pattern.create (Float_by_bit_pattern.to_float t0)
+    let to_naked_float32 t =
+      Float32_by_bit_pattern.create (Float_by_bit_pattern.to_float t)
 
     (** val to_naked_float : Float_by_bit_pattern.t -> Float_by_bit_pattern.t
         coq_M **)
 
-    let to_naked_float t0 = t0
+    let to_naked_float t = t
 
     (** val to_naked_int8 : Float_by_bit_pattern.t -> Int8.t coq_M **)
 
-    let to_naked_int8 t0 = Int8.of_float (Float_by_bit_pattern.to_float t0)
+    let to_naked_int8 t = Int8.of_float (Float_by_bit_pattern.to_float t)
 
     (** val to_naked_int16 : Float_by_bit_pattern.t -> Int16.t coq_M **)
 
-    let to_naked_int16 t0 = Int16.of_float (Float_by_bit_pattern.to_float t0)
+    let to_naked_int16 t = Int16.of_float (Float_by_bit_pattern.to_float t)
 
     (** val to_naked_int32 : Float_by_bit_pattern.t -> Int32.t coq_M **)
 
-    let to_naked_int32 t0 = Int32.of_float (Float_by_bit_pattern.to_float t0)
+    let to_naked_int32 t = Int32.of_float (Float_by_bit_pattern.to_float t)
 
     (** val to_naked_int64 : Float_by_bit_pattern.t -> Int64.t coq_M **)
 
-    let to_naked_int64 t0 = Int64.of_float (Float_by_bit_pattern.to_float t0)
+    let to_naked_int64 t = Int64.of_float (Float_by_bit_pattern.to_float t)
 
     (** val to_naked_nativeint : Float_by_bit_pattern.t ->
         Target_system.Machine_width.t -> Targetint_32_64.t coq_M **)
 
-    let to_naked_nativeint t0 machine_width =
-      Targetint_32_64.of_float machine_width (Float_by_bit_pattern.to_float t0)
+    let to_naked_nativeint t machine_width =
+      Targetint_32_64.of_float machine_width (Float_by_bit_pattern.to_float t)
   end
 
   (** val standard_int_or_float_kind : K.Standard_int_or_float.t **)
@@ -841,7 +840,7 @@ module For_int8s = struct
 
     (** val strictly_negative : Int8.t -> bool coq_M **)
 
-    let strictly_negative t0 = Int8.compare t0 Int8.zero < 0
+    let strictly_negative t = Int8.compare t Int8.zero < 0
 
     (** val compare_unsigned : Int8.t -> Int8.t -> int coq_M **)
 
@@ -959,19 +958,19 @@ module For_int8s = struct
 
     (** val shift_left : Int8.t -> Target_ocaml_int.t -> Int8.t coq_M **)
 
-    let shift_left t0 shift =
-      with_shift shift (Int8.of_int 0) (fun shift0 -> shift_left_0 t0 shift0) 8
+    let shift_left t shift =
+      with_shift shift (Int8.of_int 0) (fun shift0 -> shift_left_0 t shift0) 8
 
     (** val shift_right : Int8.t -> Target_ocaml_int.t -> Int8.t coq_M **)
 
-    let shift_right t0 shift =
-      with_shift shift Int8.zero (fun shift0 -> shift_right_0 t0 shift0) 8
+    let shift_right t shift =
+      with_shift shift Int8.zero (fun shift0 -> shift_right_0 t shift0) 8
 
     (** val shift_right_logical : Int8.t -> Target_ocaml_int.t -> Int8.t coq_M **)
 
-    let shift_right_logical t0 shift =
+    let shift_right_logical t shift =
       with_shift shift Int8.zero
-        (fun shift0 -> shift_right_logical_0 t0 shift0)
+        (fun shift0 -> shift_right_logical_0 t shift0)
         8
 
     (** val to_const : Int8.t -> Reg_width_const.t coq_M **)
@@ -981,39 +980,39 @@ module For_int8s = struct
     (** val to_immediate : Int8.t -> Target_system.Machine_width.t ->
         Target_ocaml_int.t coq_M **)
 
-    let to_immediate t0 machine_width =
-      Target_ocaml_int.of_int machine_width (Int8.to_int t0)
+    let to_immediate t machine_width =
+      Target_ocaml_int.of_int machine_width (Int8.to_int t)
 
     (** val to_naked_float32 : Int8.t -> Float32_by_bit_pattern.t coq_M **)
 
-    let to_naked_float32 t0 =
-      Float32_by_bit_pattern.of_int64 (Int64.of_int (Int8.to_int t0))
+    let to_naked_float32 t =
+      Float32_by_bit_pattern.of_int64 (Int64.of_int (Int8.to_int t))
 
     (** val to_naked_float : Int8.t -> Float_by_bit_pattern.t coq_M **)
 
-    let to_naked_float t0 = Float_by_bit_pattern.create (Int8.to_float t0)
+    let to_naked_float t = Float_by_bit_pattern.create (Int8.to_float t)
 
     (** val to_naked_int8 : Int8.t -> Int8.t coq_M **)
 
-    let to_naked_int8 t0 = Int8.of_int (Int8.to_int t0)
+    let to_naked_int8 t = Int8.of_int (Int8.to_int t)
 
     (** val to_naked_int16 : Int8.t -> Int16.t coq_M **)
 
-    let to_naked_int16 t0 = Int16.of_int (Int8.to_int t0)
+    let to_naked_int16 t = Int16.of_int (Int8.to_int t)
 
     (** val to_naked_int32 : Int8.t -> Int32.t coq_M **)
 
-    let to_naked_int32 t0 = Int32.of_int (Int8.to_int t0)
+    let to_naked_int32 t = Int32.of_int (Int8.to_int t)
 
     (** val to_naked_int64 : Int8.t -> Int64.t coq_M **)
 
-    let to_naked_int64 t0 = Int64.of_int (Int8.to_int t0)
+    let to_naked_int64 t = Int64.of_int (Int8.to_int t)
 
     (** val to_naked_nativeint : Int8.t -> Target_system.Machine_width.t ->
         Targetint_32_64.t coq_M **)
 
-    let to_naked_nativeint t0 machine_width =
-      Targetint_32_64.of_int machine_width (Int8.to_int t0)
+    let to_naked_nativeint t machine_width =
+      Targetint_32_64.of_int machine_width (Int8.to_int t)
 
     (** val module_Pair : unit **)
 
@@ -1032,7 +1031,7 @@ module For_int8s = struct
 
     (** val swap_byte_endianness : Int8.t -> Int8.t coq_M **)
 
-    let swap_byte_endianness t0 = t0
+    let swap_byte_endianness t = t
   end
 
   (** val standard_int_or_float_kind : K.Standard_int_or_float.t **)
@@ -1072,7 +1071,7 @@ module For_int16s = struct
 
     (** val strictly_negative : Int16.t -> bool coq_M **)
 
-    let strictly_negative t0 = Int16.compare t0 Int16.zero < 0
+    let strictly_negative t = Int16.compare t Int16.zero < 0
 
     (** val compare_unsigned : Int16.t -> Int16.t -> int coq_M **)
 
@@ -1190,20 +1189,20 @@ module For_int16s = struct
 
     (** val shift_left : Int16.t -> Target_ocaml_int.t -> Int16.t coq_M **)
 
-    let shift_left t0 shift =
-      with_shift shift Int16.zero (fun shift0 -> shift_left_0 t0 shift0) 16
+    let shift_left t shift =
+      with_shift shift Int16.zero (fun shift0 -> shift_left_0 t shift0) 16
 
     (** val shift_right : Int16.t -> Target_ocaml_int.t -> Int16.t coq_M **)
 
-    let shift_right t0 shift =
-      with_shift shift Int16.zero (fun shift0 -> shift_right_0 t0 shift0) 16
+    let shift_right t shift =
+      with_shift shift Int16.zero (fun shift0 -> shift_right_0 t shift0) 16
 
     (** val shift_right_logical : Int16.t -> Target_ocaml_int.t -> Int16.t coq_M
         **)
 
-    let shift_right_logical t0 shift =
+    let shift_right_logical t shift =
       with_shift shift Int16.zero
-        (fun shift0 -> shift_right_logical_0 t0 shift0)
+        (fun shift0 -> shift_right_logical_0 t shift0)
         16
 
     (** val to_const : Int16.t -> Reg_width_const.t coq_M **)
@@ -1213,39 +1212,39 @@ module For_int16s = struct
     (** val to_immediate : Int16.t -> Target_system.Machine_width.t ->
         Target_ocaml_int.t coq_M **)
 
-    let to_immediate t0 machine_width =
-      Target_ocaml_int.of_int machine_width (Int16.to_int t0)
+    let to_immediate t machine_width =
+      Target_ocaml_int.of_int machine_width (Int16.to_int t)
 
     (** val to_naked_float32 : Int16.t -> Float32_by_bit_pattern.t coq_M **)
 
-    let to_naked_float32 t0 =
-      Float32_by_bit_pattern.of_int64 (Int64.of_int (Int16.to_int t0))
+    let to_naked_float32 t =
+      Float32_by_bit_pattern.of_int64 (Int64.of_int (Int16.to_int t))
 
     (** val to_naked_float : Int16.t -> Float_by_bit_pattern.t coq_M **)
 
-    let to_naked_float t0 = Float_by_bit_pattern.create (Int16.to_float t0)
+    let to_naked_float t = Float_by_bit_pattern.create (Int16.to_float t)
 
     (** val to_naked_int8 : Int16.t -> Int8.t coq_M **)
 
-    let to_naked_int8 t0 = Int8.of_int (Int16.to_int t0)
+    let to_naked_int8 t = Int8.of_int (Int16.to_int t)
 
     (** val to_naked_int16 : Int16.t -> Int16.t coq_M **)
 
-    let to_naked_int16 t0 = Int16.of_int (Int16.to_int t0)
+    let to_naked_int16 t = Int16.of_int (Int16.to_int t)
 
     (** val to_naked_int32 : Int16.t -> Int32.t coq_M **)
 
-    let to_naked_int32 t0 = Int32.of_int (Int16.to_int t0)
+    let to_naked_int32 t = Int32.of_int (Int16.to_int t)
 
     (** val to_naked_int64 : Int16.t -> Int64.t coq_M **)
 
-    let to_naked_int64 t0 = Int64.of_int (Int16.to_int t0)
+    let to_naked_int64 t = Int64.of_int (Int16.to_int t)
 
     (** val to_naked_nativeint : Int16.t -> Target_system.Machine_width.t ->
         Targetint_32_64.t coq_M **)
 
-    let to_naked_nativeint t0 machine_width =
-      Targetint_32_64.of_int machine_width (Int16.to_int t0)
+    let to_naked_nativeint t machine_width =
+      Targetint_32_64.of_int machine_width (Int16.to_int t)
 
     (** val module_Pair : unit **)
 
@@ -1264,8 +1263,8 @@ module For_int16s = struct
 
     (** val swap_byte_endianness : Int16.t -> Int16.t coq_M **)
 
-    let swap_byte_endianness t0 =
-      let i = Int16.to_int t0 in
+    let swap_byte_endianness t =
+      let i = Int16.to_int t in
       let lo = i land 0xff in
       let hi = (i lsr 8) land 0xff in
       Int16.of_int (hi lor (lo lsl 8))
@@ -1308,7 +1307,7 @@ module For_int32s = struct
 
     (** val strictly_negative : Int32.t -> bool coq_M **)
 
-    let strictly_negative t0 = Int32.compare t0 Int32.zero < 0
+    let strictly_negative t = Int32.compare t Int32.zero < 0
 
     (** val compare_unsigned : Int32.t -> Int32.t -> int coq_M **)
 
@@ -1367,24 +1366,24 @@ module For_int32s = struct
 
     (** val shift_left : Int32.t -> Target_ocaml_int.t -> Int32.t coq_M **)
 
-    let shift_left t0 shift =
+    let shift_left t shift =
       with_shift shift (Int32.of_int 0)
-        (fun shift0 -> Int32.shift_left t0 shift0)
+        (fun shift0 -> Int32.shift_left t shift0)
         32
 
     (** val shift_right : Int32.t -> Target_ocaml_int.t -> Int32.t coq_M **)
 
-    let shift_right t0 shift =
+    let shift_right t shift =
       with_shift shift (Int32.of_int 0)
-        (fun shift0 -> Int32.shift_right t0 shift0)
+        (fun shift0 -> Int32.shift_right t shift0)
         32
 
     (** val shift_right_logical : Int32.t -> Target_ocaml_int.t -> Int32.t coq_M
         **)
 
-    let shift_right_logical t0 shift =
+    let shift_right_logical t shift =
       with_shift shift (Int32.of_int 0)
-        (fun shift0 -> Int32.shift_right_logical t0 shift0)
+        (fun shift0 -> Int32.shift_right_logical t shift0)
         32
 
     (** val to_const : Int32.t -> Reg_width_const.t coq_M **)
@@ -1394,29 +1393,27 @@ module For_int32s = struct
     (** val to_immediate : Int32.t -> Target_system.Machine_width.t ->
         Target_ocaml_int.t coq_M **)
 
-    let to_immediate t0 machine_width =
-      Target_ocaml_int.of_int32 machine_width t0
+    let to_immediate t machine_width = Target_ocaml_int.of_int32 machine_width t
 
     (** val to_naked_float32 : Int32.t -> Float32_by_bit_pattern.t coq_M **)
 
-    let to_naked_float32 t0 =
-      Float32_by_bit_pattern.of_int64 (Int64.of_int32 t0)
+    let to_naked_float32 t = Float32_by_bit_pattern.of_int64 (Int64.of_int32 t)
 
     (** val to_naked_float : Int32.t -> Float_by_bit_pattern.t coq_M **)
 
-    let to_naked_float t0 = Float_by_bit_pattern.create (Int32.to_float t0)
+    let to_naked_float t = Float_by_bit_pattern.create (Int32.to_float t)
 
     (** val to_naked_int8 : Int32.t -> Int8.t coq_M **)
 
-    let to_naked_int8 t0 = Int8.of_int (Int32.to_int t0)
+    let to_naked_int8 t = Int8.of_int (Int32.to_int t)
 
     (** val to_naked_int16 : Int32.t -> Int16.t coq_M **)
 
-    let to_naked_int16 t0 = Int16.of_int (Int32.to_int t0)
+    let to_naked_int16 t = Int16.of_int (Int32.to_int t)
 
     (** val to_naked_int32 : Int32.t -> Int32.t coq_M **)
 
-    let to_naked_int32 t0 = t0
+    let to_naked_int32 t = t
 
     (** val to_naked_int64 : Int32.t -> Int64.t coq_M **)
 
@@ -1425,8 +1422,8 @@ module For_int32s = struct
     (** val to_naked_nativeint : Int32.t -> Target_system.Machine_width.t ->
         Targetint_32_64.t coq_M **)
 
-    let to_naked_nativeint t0 machine_width =
-      Targetint_32_64.of_int32 machine_width t0
+    let to_naked_nativeint t machine_width =
+      Targetint_32_64.of_int32 machine_width t
   end
 
   (** val standard_int_or_float_kind : K.Standard_int_or_float.t **)
@@ -1483,7 +1480,7 @@ module For_int64s = struct
 
     (** val strictly_negative : Int64.t -> bool coq_M **)
 
-    let strictly_negative t0 = Int64.compare t0 Int64.zero < 0
+    let strictly_negative t = Int64.compare t Int64.zero < 0
 
     (** val compare_unsigned : Int64.t -> Int64.t -> int coq_M **)
 
@@ -1542,20 +1539,20 @@ module For_int64s = struct
 
     (** val shift_left : Int64.t -> Target_ocaml_int.t -> Int64.t coq_M **)
 
-    let shift_left t0 shift =
-      with_shift shift Int64.zero (fun shift0 -> Int64.shift_left t0 shift0) 64
+    let shift_left t shift =
+      with_shift shift Int64.zero (fun shift0 -> Int64.shift_left t shift0) 64
 
     (** val shift_right : Int64.t -> Target_ocaml_int.t -> Int64.t coq_M **)
 
-    let shift_right t0 shift =
-      with_shift shift Int64.zero (fun shift0 -> Int64.shift_right t0 shift0) 64
+    let shift_right t shift =
+      with_shift shift Int64.zero (fun shift0 -> Int64.shift_right t shift0) 64
 
     (** val shift_right_logical : Int64.t -> Target_ocaml_int.t -> Int64.t coq_M
         **)
 
-    let shift_right_logical t0 shift =
+    let shift_right_logical t shift =
       with_shift shift Int64.zero
-        (fun shift0 -> Int64.shift_right_logical t0 shift0)
+        (fun shift0 -> Int64.shift_right_logical t shift0)
         64
 
     (** val to_const : Int64.t -> Reg_width_const.t coq_M **)
@@ -1565,8 +1562,7 @@ module For_int64s = struct
     (** val to_immediate : Int64.t -> Target_system.Machine_width.t ->
         Target_ocaml_int.t coq_M **)
 
-    let to_immediate t0 machine_width =
-      Target_ocaml_int.of_int64 machine_width t0
+    let to_immediate t machine_width = Target_ocaml_int.of_int64 machine_width t
 
     (** val to_naked_float32 : Int64.t -> Float32_by_bit_pattern.t coq_M **)
 
@@ -1574,15 +1570,15 @@ module For_int64s = struct
 
     (** val to_naked_float : Int64.t -> Float_by_bit_pattern.t coq_M **)
 
-    let to_naked_float t0 = Float_by_bit_pattern.create (Int64.to_float t0)
+    let to_naked_float t = Float_by_bit_pattern.create (Int64.to_float t)
 
     (** val to_naked_int8 : Int64.t -> Int8.t coq_M **)
 
-    let to_naked_int8 t0 = Int8.of_int (Int64.to_int t0)
+    let to_naked_int8 t = Int8.of_int (Int64.to_int t)
 
     (** val to_naked_int16 : Int64.t -> Int16.t coq_M **)
 
-    let to_naked_int16 t0 = Int16.of_int (Int64.to_int t0)
+    let to_naked_int16 t = Int16.of_int (Int64.to_int t)
 
     (** val to_naked_int32 : Int64.t -> Int32.t coq_M **)
 
@@ -1590,13 +1586,13 @@ module For_int64s = struct
 
     (** val to_naked_int64 : Int64.t -> Int64.t coq_M **)
 
-    let to_naked_int64 t0 = t0
+    let to_naked_int64 t = t
 
     (** val to_naked_nativeint : Int64.t -> Target_system.Machine_width.t ->
         Targetint_32_64.t coq_M **)
 
-    let to_naked_nativeint t0 machine_width =
-      Targetint_32_64.of_int64 machine_width t0
+    let to_naked_nativeint t machine_width =
+      Targetint_32_64.of_int64 machine_width t
   end
 
   (** val standard_int_or_float_kind : K.Standard_int_or_float.t **)
@@ -1653,9 +1649,9 @@ module For_nativeints = struct
 
     (** val strictly_negative : Targetint_32_64.t -> bool coq_M **)
 
-    let strictly_negative t0 =
-      let zero_val = Targetint_32_64.zero_like t0 in
-      Targetint_32_64.compare t0 zero_val < 0
+    let strictly_negative t =
+      let zero_val = Targetint_32_64.zero_like t in
+      Targetint_32_64.compare t zero_val < 0
 
     (** val compare_unsigned : Targetint_32_64.t -> Targetint_32_64.t -> int
         coq_M **)
@@ -1718,28 +1714,28 @@ module For_nativeints = struct
     (** val shift_left : Targetint_32_64.t -> Target_ocaml_int.t ->
         Targetint_32_64.t coq_M **)
 
-    let shift_left t0 shift =
+    let shift_left t shift =
       with_shift shift
-        (Targetint_32_64.zero_like t0)
-        (fun shift0 -> Targetint_32_64.shift_left t0 shift0)
+        (Targetint_32_64.zero_like t)
+        (fun shift0 -> Targetint_32_64.shift_left t shift0)
         integer_bit_width
 
     (** val shift_right : Targetint_32_64.t -> Target_ocaml_int.t ->
         Targetint_32_64.t coq_M **)
 
-    let shift_right t0 shift =
+    let shift_right t shift =
       with_shift shift
-        (Targetint_32_64.zero_like t0)
-        (fun shift0 -> Targetint_32_64.shift_right t0 shift0)
+        (Targetint_32_64.zero_like t)
+        (fun shift0 -> Targetint_32_64.shift_right t shift0)
         integer_bit_width
 
     (** val shift_right_logical : Targetint_32_64.t -> Target_ocaml_int.t ->
         Targetint_32_64.t coq_M **)
 
-    let shift_right_logical t0 shift =
+    let shift_right_logical t shift =
       with_shift shift
-        (Targetint_32_64.zero_like t0)
-        (fun shift0 -> Targetint_32_64.shift_right_logical t0 shift0)
+        (Targetint_32_64.zero_like t)
+        (fun shift0 -> Targetint_32_64.shift_right_logical t shift0)
         integer_bit_width
 
     (** val to_const : Targetint_32_64.t -> Reg_width_const.t coq_M **)
@@ -1749,27 +1745,27 @@ module For_nativeints = struct
     (** val to_immediate : Targetint_32_64.t -> Target_system.Machine_width.t ->
         Target_ocaml_int.t coq_M **)
 
-    let to_immediate t0 machine_width =
-      Target_ocaml_int.of_targetint machine_width t0
+    let to_immediate t machine_width =
+      Target_ocaml_int.of_targetint machine_width t
 
     (** val to_naked_float32 : Targetint_32_64.t -> Float32_by_bit_pattern.t
         coq_M **)
 
-    let to_naked_float32 t0 =
-      Float32_by_bit_pattern.of_int64 (Targetint_32_64.to_int64 t0)
+    let to_naked_float32 t =
+      Float32_by_bit_pattern.of_int64 (Targetint_32_64.to_int64 t)
 
     (** val to_naked_float : Targetint_32_64.t -> Float_by_bit_pattern.t coq_M **)
 
-    let to_naked_float t0 =
-      Float_by_bit_pattern.create (Targetint_32_64.to_float t0)
+    let to_naked_float t =
+      Float_by_bit_pattern.create (Targetint_32_64.to_float t)
 
     (** val to_naked_int8 : Targetint_32_64.t -> Int8.t coq_M **)
 
-    let to_naked_int8 t0 = Int8.of_int (Targetint_32_64.to_int t0)
+    let to_naked_int8 t = Int8.of_int (Targetint_32_64.to_int t)
 
     (** val to_naked_int16 : Targetint_32_64.t -> Int16.t coq_M **)
 
-    let to_naked_int16 t0 = Int16.of_int (Targetint_32_64.to_int t0)
+    let to_naked_int16 t = Int16.of_int (Targetint_32_64.to_int t)
 
     (** val to_naked_int32 : Targetint_32_64.t -> Int32.t coq_M **)
 
@@ -1782,7 +1778,7 @@ module For_nativeints = struct
     (** val to_naked_nativeint : Targetint_32_64.t ->
         Target_system.Machine_width.t -> Targetint_32_64.t coq_M **)
 
-    let to_naked_nativeint t0 _ = t0
+    let to_naked_nativeint t _ = t
   end
 
   (** val standard_int_or_float_kind : K.Standard_int_or_float.t **)

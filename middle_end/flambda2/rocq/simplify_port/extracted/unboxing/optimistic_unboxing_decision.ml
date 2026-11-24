@@ -22,9 +22,10 @@
    in middle_end/flambda2/rocq/simplify_port. *)
 
 open! Simplify_import
-open Port_monad
 module U = Unboxing_types
 module Extra_param_and_args = U.Extra_param_and_args
+open Port_abbreviations
+open Port_monad
 
 (** val pp_tag : bool -> Format.formatter -> Tag.t -> unit coq_M **)
 

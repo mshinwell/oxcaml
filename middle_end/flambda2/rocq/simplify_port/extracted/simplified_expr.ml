@@ -33,12 +33,12 @@
    middle_end/flambda2/rocq/simplify_port. *)
 
 open! Flambda.Import
-open Port_monad
 module CSE = Common_subexpression_elimination
 module EPA = Continuation_extra_params_and_args
 module T = Flambda2_types
 module TE = T.Typing_env
 module LCS = Lifted_constant_state
+open Port_monad
 
 type t =
   { simplified_lets_and_let_conts : simplified_lets_and_let_conts;

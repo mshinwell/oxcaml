@@ -35,7 +35,10 @@ open! Simplify_import
 OCAML*)
 
 (* 18 *)
-Module U := Unboxing_types.
+From SimplifyPort.abbrev.build_unboxing_denv Require Import Port_abbreviations.
+(*OCAML
+module U = Unboxing_types
+OCAML*)
 
 (* 20-26 *)
 Definition add_equation_on_var (denv : DE.t) (var : Variable_.t)

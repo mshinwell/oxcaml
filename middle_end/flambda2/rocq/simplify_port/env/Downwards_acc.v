@@ -34,10 +34,13 @@ Local Open Scope Z_scope.
 Local Open Scope list_scope.
 
 (* 17-20 *)
-Module CUE := Continuation_uses_env.
-Module DE := Downwards_env.
-Module LCS := Lifted_constant_state.
-Module TE := Flambda2_types.Typing_env.
+From SimplifyPort.abbrev.downwards_acc Require Import Port_abbreviations.
+(*OCAML
+module CUE = Continuation_uses_env
+module DE = Downwards_env
+module LCS = Lifted_constant_state
+module TE = Flambda2_types.Typing_env
+OCAML*)
 
 (* 22-43 *)
 Record t : Type :=

@@ -18,6 +18,8 @@
    not edit this file: change the .v file and run make in
    middle_end/flambda2/rocq/simplify_port. *)
 
+module T = Flow_types
+
 let dominator_graph_ppf =
   lazy
     (let filename = "dom.dot" in
@@ -42,8 +44,8 @@ let control_flow_graph_ppf =
 
 let dot_count = ref ~-1
 
+open Port_abbreviations
 open Port_monad
-module T = Flow_types
 
 (** val print_graph : (int -> string -> Format.formatter -> 'a1 -> unit coq_M)
     -> string option -> Format.formatter lazy_t -> 'a1 -> unit coq_M **)
@@ -157,11 +159,11 @@ let analyze speculative print_name machine_width return_continuation
       let required_names_after_ref_reference_analysis =
         Continuation.Map.fold
           (fun _ epa required_names0 ->
-            let params0 =
+            let params =
               Bound_parameters.var_set
                 (Continuation_extra_params_and_args.extra_params epa)
             in
-            Name.Set.union required_names0 (Name.set_of_var_set params0))
+            Name.Set.union required_names0 (Name.set_of_var_set params))
           reference_result.Flow_types.Mutable_unboxing_result.additional_epa
           dead_variable_result.Flow_types.Data_flow_result.required_names
       in

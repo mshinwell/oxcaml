@@ -225,8 +225,9 @@ module Number_adjuncts = struct
   end
 end
 
-open Port_monad
 module A = Number_adjuncts
+open Port_abbreviations
+open Port_monad
 
 type 'a binary_arith_outcome_for_one_side_only =
   | Exactly of 'a

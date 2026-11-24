@@ -27,7 +27,10 @@ Local Open Scope string_scope.
 Local Open Scope Z_scope.
 
 (* 16 *)
-Module BP := Bound_parameter.
+From SimplifyPort.abbrev.lifted_cont_params Require Import Port_abbreviations.
+(*OCAML
+module BP = Bound_parameter
+OCAML*)
 
 (* 18-21 *)
 Record t : Type :=

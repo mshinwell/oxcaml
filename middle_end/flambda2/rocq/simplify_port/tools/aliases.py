@@ -26,8 +26,8 @@
 #* DEALINGS IN THE SOFTWARE.                                                  *
 #******************************************************************************
 
-"""aliases.py DIR/FILE.v DECL_DIR : prints directives for the extraction of
-FILE.v, one a line:
+"""aliases.py DIR/FILE.v DECL_DIR [ABBREV_DIR] : prints directives for the
+extraction of FILE.v, one a line:
 
     Extract Inlined Constant REF => "TEXT".
     Extract Inductive REF => "TEXT" [ "TEXT" ... ].
@@ -51,9 +51,18 @@ WHICH ABBREVIATIONS.
   [open! Simplify_import]: the extracted file then has the same
   abbreviations, from the extracted Simplify_import. One of them is left
   out if that OCaml text binds a module of its name.
+- Those of a library ABBREV_DIR/NAME/Port_abbreviations.v ([Module A :=
+  P.]) that FILE.v takes by [From SimplifyPort.abbrev.NAME Require Import
+  Port_abbreviations.]: the abbreviations that the compiler's file makes
+  itself. Rocq prints no line [module A = P] for them, so the OCaml head of
+  FILE.v must have, for each, the line [module A = P'] at its left margin,
+  and P' must be the same module as P: the tool stops with an error if it
+  is not so. (An abbreviation that FILE.v makes itself, next kind, has a
+  cost: for it Rocq writes down the names of the whole module, and then
+  gives a number to each variable of the file that has one of those names.)
 - Those that FILE.v itself makes at its left margin, outside any module
   ([Module A := P.]): Rocq prints [module A = P] at that place.
-In both cases P must name, perhaps through earlier abbreviations, a module
+In all cases P must name, perhaps through earlier abbreviations, a module
 that DECL_DIR declares outside module types and functors.
 
 WHERE ROCQ CHOOSES THE NAME (the type of a matched value, as decl/ wrote it:
@@ -61,9 +70,9 @@ whole). The whole name of a declared constant or inductive type gets the
 abbreviation too, when (1) FILE.v writes that constant, or that type or a
 constructor of it, with exactly one abbreviation, (2) FILE.v never writes it
 whole, and (3) the abbreviation holds in the whole extracted file: it is
-one of Simplify_import and FILE.v binds no module or functor parameter of
-that name; or FILE.v makes it before its first definition and binds the
-name once. A module that FILE.v opens ([Import P.] before its first
+one of Simplify_import or of the library of ABBREV_DIR and FILE.v binds no
+module or functor parameter of that name; or FILE.v makes it before its
+first definition and binds the name once. A module that FILE.v opens ([Import P.] before its first
 definition, with [open P] or [open! P] in its OCaml head) counts here as
 an abbreviation that is empty: a name of a module inside P is then written
 without P, if the file binds no module of that first name.
@@ -234,10 +243,11 @@ def resolve(target, env, decl):
 
 
 def main():
-    if len(sys.argv) != 3:
+    if len(sys.argv) not in (3, 4):
         sys.stderr.write(__doc__)
         sys.exit(2)
     v_path, decl_dir = sys.argv[1], sys.argv[2]
+    abbrev_dir = sys.argv[3] if len(sys.argv) == 4 else None
     v_text = open(v_path).read()
     rocq = strip_rocq(v_text)
     head = head_block(v_text)
@@ -269,9 +279,57 @@ def main():
     else:
         import_env = {}
 
+    # the library of the file's own abbreviations
+    own_env = {}
+    m = re.search(r"^From\s+SimplifyPort\.abbrev\.(%s)\s+Require\s+Import\s+Port_abbreviations\.\s*$" % NAME, rocq, re.M)
+    if m and abbrev_dir is not None:
+        lib = m.group(1) + ".Port_abbreviations"
+        a_text = strip_rocq(open(os.path.join(abbrev_dir, m.group(1), "Port_abbreviations.v")).read())
+        env = {}
+        if re.search(r"Require\s+Import\s+[^.]*(?<![A-Za-z0-9_'.])Simplify_import(?![A-Za-z0-9_'])", a_text):
+            for a, target in decl.aliases["Simplify_import"]:
+                env[a] = resolve(target, env, decl)
+        # what the OCaml head binds, with the paths written out
+        ml = collections.OrderedDict()
+        if opened:
+            text = open(os.path.join(decl_dir, "Simplify_import.v")).read()
+            for mm in re.finditer(r"\(\* module (%s) = (%s) \*\)" % (OPATH, OPATH), text):
+                parts = mm.group(2).split(".")
+                ml[mm.group(1)] = ".".join(ml.get(parts[0], parts[0]).split(".") + parts[1:])
+        for l in head:
+            mm = re.match(r"module\s+(%s)\s*=\s*(%s)\s*$" % (NAME, OPATH), l)
+            if mm:
+                parts = mm.group(2).split(".")
+                ml[mm.group(1)] = ".".join(ml.get(parts[0], parts[0]).split(".") + parts[1:])
+        bad = 0
+        for mm in re.finditer(r"^Module\s+(%s)\s*:=\s*([A-Za-z0-9_'.]+)\.\s*$" % NAME, a_text, re.M):
+            a = mm.group(1)
+            mod = resolve(mm.group(2), env, decl)
+            env[a] = mod
+            if mod is None:
+                continue
+            want = decl.ocaml_path(mod)
+            if want is None:
+                want = ".".join(c[:-1] if c.endswith("_") else c for c in mod)
+            if ml.get(a) != want or not any(
+                re.match(r"module\s+%s\s*=" % re.escape(a), l) for l in head
+            ):
+                sys.stderr.write(
+                    "%s: the abbreviation %s of %s is the module %s, but the OCaml "
+                    "head of the file has %s\n"
+                    % (v_path, a, lib, want, "module %s = %s" % (a, ml[a]) if a in ml else "no line for it")
+                )
+                bad += 1
+                continue
+            found.append(("SimplifyPort.abbrev.%s.%s" % (lib, a), a, mod, None))
+        if bad:
+            sys.exit(1)
+        own_env = env
+
     # the file's own abbreviations, at its left margin and outside any module
     depth = 0
     env = dict(import_env) if imports else {}
+    env.update(own_env)
     bound = collections.Counter()  # every module name that the file binds
     first_def = None  # the line of the first definition or module of the file
     lines = rocq.split("\n")

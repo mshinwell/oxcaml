@@ -36,7 +36,10 @@ Local Open Scope Z_scope.
 Local Open Scope list_scope.
 
 (* 17 *)
-Module T := Flambda2_types.
+From SimplifyPort.abbrev.lifted_constant Require Import Port_abbreviations.
+(*OCAML
+module T = Flambda2_types
+OCAML*)
 
 (* 19-137 *)
 Module Definition_.

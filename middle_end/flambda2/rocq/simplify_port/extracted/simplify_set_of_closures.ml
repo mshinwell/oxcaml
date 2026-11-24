@@ -21,8 +21,8 @@
    middle_end/flambda2/rocq/simplify_port. *)
 
 open! Simplify_import
-open Port_monad
 module C = Simplify_set_of_closures_context
+open Port_monad
 
 (** val dacc_inside_function : C.t -> DA.t -> Bound_parameters.t -> Variable.t
     -> Alloc_mode.For_applications.t -> Variable.t -> Function_slot.t option ->

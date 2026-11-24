@@ -31,11 +31,14 @@ Local Open Scope string_scope.
 Local Open Scope Z_scope.
 
 (* 17-21 *)
-Module DA := Downwards_acc.
-Module DE := Downwards_env.
-Module K := Flambda_kind.
-Module T := Flambda2_types.
-Module TE := T.Typing_env.
+From SimplifyPort.abbrev.simplify_rec_info_expr Require Import Port_abbreviations.
+(*OCAML
+module DA = Downwards_acc
+module DE = Downwards_env
+module K = Flambda_kind
+module T = Flambda2_types
+module TE = T.Typing_env
+OCAML*)
 
 (* 23-38 *)
 Definition compute_succ (depth : Or_infinity.t int)

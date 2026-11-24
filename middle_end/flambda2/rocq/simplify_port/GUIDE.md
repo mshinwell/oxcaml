@@ -24,10 +24,14 @@ files beside the donors first. Points marked HUMAN are the human's to judge.
 - NAMES OF OTHER MODULES: write each as the compiler's file writes it at
   that place, with the short module name (`DA.denv`, `T.meet`, `AC.args`)
   or whole (`Downwards_acc.denv`). The extracted file prints it as you
-  wrote it (section 7, ABBREVIATIONS). A short name that the compiler's
-  file makes itself (`module U = Unboxing_types`) is Rocq's `Module U :=
-  Unboxing_types.` at the left margin, outside any module and before its
-  first use: Rocq prints the OCaml line there.
+  wrote it (section 7, ABBREVIATIONS). The short names that the compiler's
+  file makes itself (`module U = Unboxing_types`) are a Rocq library of
+  the file's own, `abbrev/FILE/Port_abbreviations.v` (FILE in small
+  letters; it holds `Module U := Unboxing_types.` and the `Require`s that
+  it needs), which the file takes by `From SimplifyPort.abbrev.FILE Require
+  Import Port_abbreviations.`; and the compiler's own lines stand in the
+  OCaml head of the file, in the compiler's order (`make` stops if a line
+  of the head and a line of the library do not name the same module).
 - The compiler's definitions in the compiler's ORDER, each under its NAME,
   with its arguments' names; before each, a comment with the donor's lines
   (`(* 19-29 *)`). The donor's COMMENTS stay at their places, in the
@@ -279,8 +283,9 @@ compiler's, the cause is in section 7.
 THE LINK TEST (`tools/linktest.sh`; not part of `make`): in a SCRATCH work
 tree of the compiler, `tools/linktest.sh swap TREE` puts the extracted
 files in the place of `middle_end/flambda2/simplify/*.ml`, adds
-`runtime/port_monad.ml` and gives the library `-nolabels -w -a` in its
-dune file: the one change that linking needs outside the extracted files.
+`runtime/port_monad.ml` and the empty `runtime/port_abbreviations.ml`, and
+gives the library `-nolabels -w -a` in its dune file: the one change that
+linking needs outside the extracted files and those two.
 Build the compiler there before and after the swap (`make boot-compiler`,
 `make compiler`) and compare `tools/linktest.sh sums TREE main`: after
 the swap the compiler of stage 1 holds the extracted Simplify and compiles
@@ -305,10 +310,12 @@ function for each field (`let name i = i.name`);
 `try`, `match .. with exception`, `while` are calls of `Port_monad`
 (`runtime/port_monad.ml`), `lazy e` is `Lazy.from_fun`; a local function is
 `let f = fun x -> ...`; each definition has a comment `(** val f : ... **)`
-with its Rocq type. The only `open` that Rocq writes is `open Port_monad`:
-each file of `decl/` ends with an empty module of its own name, and Rocq
-then opens no declared unit and prints each declared name in full (so no
-name of the file or of OCaml's library can be hidden by such a line).
+with its Rocq type. The only `open` lines that Rocq writes are `open
+Port_monad` and, in some files, `open Port_abbreviations` (an empty module:
+see ABBREVIATIONS below): each file of `decl/` ends with an empty module of
+its own name, and Rocq then opens no declared unit and prints each declared
+name in full (so no name of the file or of OCaml's library can be hidden by
+such a line).
 
 ABBREVIATIONS OF MODULES (`tools/aliases.py`, run by `make` for the
 extraction of each file; facts found by trying). Rocq keeps the OCaml text
@@ -320,12 +327,24 @@ one does not change the other. The tool gives, for the extraction of one
 file, the directive `Extract Inlined Constant ...Simplify_import.UA.uenv =>
 "UA.uenv".` (and `Extract Inductive` likewise) for each name of each
 module that has an abbreviation: the text of `decl/` with the module's
-path replaced by the abbreviation. It knows two kinds of abbreviation: those
-of `Simplify_import`, when the file says `Require Import Simplify_import`
-and its OCaml head says `open! Simplify_import` (one of them is left out
-if the OCaml head binds a module of that name); and those that the file
-makes at its left margin, outside any module. In both, the module must be
-one that `decl/` declares outside functors and module types.
+path replaced by the abbreviation. It knows three kinds of abbreviation.
+(1) Those of `Simplify_import`, when the file says `Require Import
+Simplify_import` and its OCaml head says `open! Simplify_import` (one of
+them is left out if the OCaml head binds a module of that name). (2) Those
+of the file's own library `abbrev/FILE/Port_abbreviations.v` (section 1).
+What Rocq prints by its own name through such a library (a declared type
+that takes a parameter, a field of a declared record, a module type), it
+prints as the compiler does (`T.Join_analysis.t`), after a line `open
+Port_abbreviations` that it writes at the head of the extracted file;
+`runtime/port_abbreviations.ml` is that module, and it is empty. (3) Those
+that the file makes itself at its left margin, outside any module (`Module
+A := P.`): Rocq prints `module A = P` at that place. THIS KIND HAS A COST:
+for it Rocq writes down the names of the whole module `P` (its types `t`,
+the fields of its records), and then gives a number to each variable of
+the file that has one of those names (`t0`, `env_extension0`). Use it
+only for a file whose abbreviations are what the file gives to others
+(`flow/Flow.v`, `Simplify_import.v`). In all three, the module must be one
+that `decl/` declares outside functors and module types.
 WHERE ROCQ CHOOSES THE NAME ITSELF (the type of a matched value, which it
 takes as `decl/` wrote it: whole), the whole name gets the abbreviation
 too, if the file writes that type and its constructors with ONE
@@ -347,9 +366,9 @@ through an abbreviation (`sorted.(LCS.innermost_first)`) is printed as a
 call, `LCS.innermost_first sorted`, which OCaml refuses: write the field
 whole (`sorted.(Lifted_constant_state.innermost_first)`).
 What the tool cannot reach: an abbreviation that is only OCaml text in the
-head of the file (Rocq does not know it: the names stay whole; make it
-Rocq's `Module A := P.`); one made inside a module of the file; a name
-inside a Rocq functor; a name that a text of `decl/` holds besides its own.
+head of the file (Rocq does not know it: the names stay whole; put it in
+the file's library); one made inside a module of the file; a name inside a
+Rocq functor; a name that a text of `decl/` holds besides its own.
 
 KNOWN PROBLEMS OF THE EXTRACTION (the human has put them off; none is
 checked by a tool, but the first in part). In the identity build `M A` is

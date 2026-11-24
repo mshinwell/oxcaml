@@ -18,12 +18,12 @@
    middle_end/flambda2/rocq/simplify_port. *)
 
 open! Flambda.Import
+module ART = Are_rebuilding_terms
 
 exception Match_failure
 
 module HV = Hashtbl.Make (Variable)
 open Port_monad
-module ART = Are_rebuilding_terms
 
 type contents_hash_ =
   { depth : int;

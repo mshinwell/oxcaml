@@ -20,8 +20,8 @@
    middle_end/flambda2/rocq/simplify_port. *)
 
 open! Simplify_import
-open Port_monad
 module RO = Removed_operations
+open Port_monad
 
 type t =
   | Unchanged of { return_types : Flambda2_types.t list Or_unknown.t }

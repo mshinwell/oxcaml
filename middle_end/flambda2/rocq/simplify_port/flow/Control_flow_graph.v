@@ -29,7 +29,10 @@ Local Open Scope string_scope.
 Local Open Scope Z_scope.
 
 (* 15 *)
-Module T := Flow_types.
+From SimplifyPort.abbrev.control_flow_graph Require Import Port_abbreviations.
+(*OCAML
+module T = Flow_types
+OCAML*)
 
 (* PORT-GAP(verbatim): 16, the module that the file makes with a functor;
    decl/Control_flow_graph__local.v declares what the file uses of it. *)

@@ -22,9 +22,10 @@
    middle_end/flambda2/rocq/simplify_port. *)
 
 open! Simplify_import
-open Port_monad
 module U = Unboxing_types
 module Decisions = U.Decisions
+open Port_abbreviations
+open Port_monad
 
 (** val refine_decision_based_on_arg_types_at_uses : U.pass ->
     Apply_cont_rewrite_id.Set.t -> Apply_cont_rewrite_id.Set.t ->
@@ -32,7 +33,7 @@ module Decisions = U.Decisions
     Apply_cont_rewrite_id.Map.t -> U.decision -> (U.decision *
     Apply_cont_rewrite_id.Set.t) coq_M **)
 
-let refine_decision_based_on_arg_types_at_uses pass0 rewrite_ids_seen0
+let refine_decision_based_on_arg_types_at_uses pass rewrite_ids_seen0
     rewrites_ids_known_as_invalid0 machine_width nth_arg arg_type_by_use_id
     decision =
   match decision with
@@ -67,7 +68,7 @@ let refine_decision_based_on_arg_types_at_uses pass0 rewrite_ids_seen0
           Port_monad.try_with
             (fun _ ->
               let decision1 =
-                Unboxing_epa.compute_extra_args_for_one_decision_and_use pass0
+                Unboxing_epa.compute_extra_args_for_one_decision_and_use pass
                   rewrite_id typing_env_at_use machine_width unboxed_arg
                   decision0
               in
@@ -105,7 +106,7 @@ end
 let make_do_not_unbox_decisions params =
   let decisions0 =
     List.map
-      (fun param0 -> param0, U.Do_not_unbox U.Unboxing_not_requested)
+      (fun param -> param, U.Do_not_unbox U.Unboxing_not_requested)
       (Bound_parameters.to_list params)
   in
   { Decisions.decisions = decisions0;
@@ -133,7 +134,7 @@ let make_decisions_ continuation_arg_types0 denv params params_types =
     List_.fold_left3
       (fun pat ->
         let nth, denv0, rev_decisions, seen, invalids = pat in
-        fun param0 param_type arg_type_by_use_id ->
+        fun param param_type arg_type_by_use_id ->
           let decision =
             Optimistic_unboxing_decision.make_optimistic_decision 0
               continuation_is_recursive (DE.typing_env denv0) param_type
@@ -153,7 +154,7 @@ let make_decisions_ continuation_arg_types0 denv params params_types =
               decision1, invalids0
           in
           let denv1 =
-            Build_unboxing_denv.denv_of_decision denv0 (BP.var param0) decision0
+            Build_unboxing_denv.denv_of_decision denv0 (BP.var param) decision0
           in
           let seen0 =
             match seen with

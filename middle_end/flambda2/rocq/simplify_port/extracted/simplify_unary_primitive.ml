@@ -21,12 +21,12 @@
    middle_end/flambda2/rocq/simplify_port. *)
 
 open! Simplify_import
-open Port_monad
 module A = Number_adjuncts
 module Float32 = Numeric_types.Float32_by_bit_pattern
 module Float = Numeric_types.Float_by_bit_pattern
 module Int32 = Numeric_types.Int32
 module Int64 = Numeric_types.Int64
+open Port_monad
 
 (** val get_my_alloc_region : DA.t -> Variable.t coq_M **)
 
@@ -170,8 +170,8 @@ let simplify_unbox_number boxable_number_kind dacc original_term arg
   in
   SPR.map_dacc result (fun dacc0 ->
       match alloc_mode with
-      | T.Proved t0 -> (
-        match t0 with
+      | T.Proved t -> (
+        match t with
         | Alloc_mode.For_types.Heap ->
           let alloc_region = get_my_alloc_region dacc0 in
           DA.map_denv dacc0 (fun denv ->
@@ -508,12 +508,12 @@ module Make_simplify_int_conv = struct
           | K.Standard_int_or_float.Tagged_immediate ->
             for_kind n_Num_Set_fold_to_immediates Target_ocaml_int.Set.add
               Target_ocaml_int.Set.empty
-              (fun t0 -> n_Num_to_immediate t0 machine_width)
+              (fun t -> n_Num_to_immediate t machine_width)
               T.these_tagged_immediates dacc original_term result_var is_
           | K.Standard_int_or_float.Naked_immediate ->
             for_kind n_Num_Set_fold_to_immediates Target_ocaml_int.Set.add
               Target_ocaml_int.Set.empty
-              (fun t0 -> n_Num_to_immediate t0 machine_width)
+              (fun t -> n_Num_to_immediate t machine_width)
               T.these_naked_immediates dacc original_term result_var is_
           | K.Standard_int_or_float.Naked_float32 ->
             for_kind n_Num_Set_fold_to_float32s Float32.Set.add
@@ -1035,8 +1035,8 @@ let simplify_duplicate_array _ source_mutability destination_mutability _ dacc
         | T.Known_result x__1 -> f__1 x__1
         | T.Need_meet -> f__2 ()
         | T.Invalid -> f__3 ())
-        (fun t0 ->
-          let element_kind, fields, alloc_mode = t0 in
+        (fun t ->
+          let element_kind, fields, alloc_mode = t in
           let length =
             T.this_tagged_immediate
               (Target_ocaml_int.of_int machine_width (Array.length fields))
@@ -1093,8 +1093,8 @@ let simplify_obj_dup alloc_region dbg dacc original_term arg arg_ty result_var =
   match T.prove_is_a_boxed_or_tagged_number typing_env arg_ty with
   | T.Proved b -> (
     match b with
-    | T.Boxed (t0, boxable_number, contents_ty) -> (
-      match t0 with
+    | T.Boxed (t, boxable_number, contents_ty) -> (
+      match t with
       | Alloc_mode.For_types.Heap -> elide_primitive ()
       | Alloc_mode.For_types.Local ->
         Port_monad.match_exn
@@ -1313,8 +1313,8 @@ let simplify_immutable_block_load0 access_kind field min_name_mode dacc
               T.prove_unique_fully_constructed_immutable_heap_block
                 (DA.typing_env dacc0) block_ty
             with
-            | T.Proved t0 -> (
-              let tag0, shape_from_type, _, field_simples = t0 in
+            | T.Proved t -> (
+              let tag0, shape_from_type, _, field_simples = t in
               match Tag.Scannable.of_tag tag0 with
               | Some tag1 -> (
                 let block_kind =
@@ -1343,8 +1343,8 @@ let simplify_immutable_block_load0 access_kind field min_name_mode dacc
                     (fun _ _ _ shape0 ->
                       let () =
                         match shape_from_type with
-                        | K.Block_shape.Scannable t1 -> (
-                          match t1 with
+                        | K.Block_shape.Scannable t0 -> (
+                          match t0 with
                           | K.Scannable_block_shape.Value_only ->
                             Misc.fatal_error
                               "Block access kind disagrees with block shape \
@@ -1538,8 +1538,8 @@ let simplify_unary_primitive dacc original_prim prim arg arg_ty dbg result_var =
       | P.Get_header -> f__29 ()
       | P.Peek x__1 -> f__30 x__1
       | P.Make_lazy { lazy_tag = x__1; alloc_region = x__2 } -> f__31 x__1 x__2)
-      (fun kind t0 field ->
-        match t0 with
+      (fun kind t field ->
+        match t with
         | Mutability.Mutable ->
           fun dacc0 original_term0 ->
             simplify_mutable_block_load kind field original_prim dacc0

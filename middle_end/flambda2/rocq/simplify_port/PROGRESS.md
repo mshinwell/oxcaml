@@ -17,14 +17,14 @@ compiler's own definitions; alone: no interface).
 | `continuation_in_env.ml` | 79 | 2 | 2 | loose:1 type:1 verbatim:1 papp:2 | yes | strict |
 | `continuation_shortcut.ml` | 63 | 5 | 5 | loose:2 papp:1 | yes | strict |
 | `env/closure_info.ml` | 76 | 5 | 5 | loose:1 type:2 verbatim:1 | yes | strict |
-| `env/continuation_uses.ml` | 158 | 17 | 17 | loose:3 verbatim:1 papp:2 update:1 | yes | strict |
-| `env/continuation_uses_env.ml` | 167 | 16 | 16 | loose:2 verbatim:1 papp:2 record-order:1 update:2 | yes | strict |
+| `env/continuation_uses.ml` | 158 | 17 | 17 | loose:3 papp:2 update:1 | yes | strict |
+| `env/continuation_uses_env.ml` | 167 | 16 | 16 | loose:2 papp:2 record-order:1 update:2 | yes | strict |
 | `env/continuation_uses_env_intf.ml` | 39 | 0 | 0 | loose:1 | yes | alone |
-| `env/downwards_acc.ml` | 342 | 63 | 63 | loose:4 verbatim:2 papp:1 record-order:1 update:18 | yes | strict |
+| `env/downwards_acc.ml` | 342 | 63 | 63 | loose:4 verbatim:1 papp:1 record-order:1 update:18 | yes | strict |
 | `env/downwards_env.ml` | 945 | 102 | 102 | loose:9 type:1 verbatim:4 papp:6 record-order:2 update:25 | yes | strict |
 | `env/one_continuation_use.ml` | 49 | 7 | 7 | loose:3 papp:1 update:1 | yes | strict |
 | `env/replay_history.ml` | 230 | 14 | 14 | loose:1 type:1 papp:1 | yes | strict |
-| `env/upwards_acc.ml` | 183 | 40 | 40 | loose:2 verbatim:1 papp:1 update:8 | yes | strict |
+| `env/upwards_acc.ml` | 183 | 40 | 40 | loose:2 papp:1 update:8 | yes | strict |
 | `env/upwards_env.ml` | 211 | 21 | 21 | loose:2 type:1 papp:1 update:5 | yes | strict |
 | `expr_builder.ml` | 800 | 25 | 25 | loose:8 type:4 | yes | strict |
 | `flow/control_flow_graph.ml` | 476 | 9 | 9 | type:1 verbatim:3 decl:1 papp:1 | yes | strict |
@@ -87,7 +87,7 @@ compiler's own definitions; alone: no interface).
 | `unboxing/unboxers.ml` | 260 | 0 | 0 | loose:1 init:10 record-order:1 | yes | strict |
 | `unboxing/unboxing_epa.ml` | 553 | 15 | 15 | loose:1 type:2 verbatim:1 | yes | strict |
 | `unboxing/unboxing_types.ml` | 185 | 6 | 6 | type:1 verbatim:2 papp:4 update:1 | yes | strict |
-| **total: 78 files of 78** | 26900 | 930 | 926 | 534 marks | 78 | 78 |
+| **total: 78 files of 78** | 26900 | 930 | 926 | 530 marks | 78 | 78 |
 
 Gaps by kind, all files:
 
@@ -95,7 +95,7 @@ Gaps by kind, all files:
 - partial: 0
 - loose: 196
 - type: 62
-- verbatim: 47
+- verbatim: 43
 - init: 22
 - order: 0
 - decl: 5

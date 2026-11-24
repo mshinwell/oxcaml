@@ -20,11 +20,11 @@
    not edit this file: change the .v file and run make in
    middle_end/flambda2/rocq/simplify_port. *)
 
-open Port_monad
 module CUE = Continuation_uses_env
 module DE = Downwards_env
 module LCS = Lifted_constant_state
 module TE = Flambda2_types.Typing_env
+open Port_monad
 
 type t =
   { denv : DE.t;

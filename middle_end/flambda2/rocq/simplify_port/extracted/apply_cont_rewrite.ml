@@ -20,10 +20,11 @@
    not edit this file: change the .v file and run make in
    middle_end/flambda2/rocq/simplify_port. *)
 
-open Port_monad
 module EPA = Continuation_extra_params_and_args
 module EA = EPA.Extra_arg
 module Id = Apply_cont_rewrite_id
+open Port_abbreviations
+open Port_monad
 
 type used =
   | Unused

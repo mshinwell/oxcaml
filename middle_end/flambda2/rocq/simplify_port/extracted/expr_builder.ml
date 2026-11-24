@@ -20,7 +20,6 @@
    middle_end/flambda2/rocq/simplify_port. *)
 
 open! Flambda.Import
-open Port_monad
 module BP = Bound_parameter
 module LC = Lifted_constant
 module LCS = Lifted_constant_state
@@ -30,6 +29,7 @@ module UA = Upwards_acc
 module UE = Upwards_env
 module DA = Downwards_acc
 module VB = Bound_var
+open Port_monad
 
 (** val add_set_of_closures_offsets : bool -> Named.t -> UA.t -> UA.t coq_M **)
 

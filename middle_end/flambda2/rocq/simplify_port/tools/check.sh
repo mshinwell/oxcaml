@@ -29,8 +29,8 @@
 # check.sh extracted/DIR/foo.ml SIMPLIFY_DIR STATUS_FILE : the types of one
 # extracted file, against the compiler's compiled interfaces under CMI_ROOT
 # (the _build/default of a dune build). It follows no file of the compiler.
-# check.sh --runtime runtime/port_monad.ml : compiles the runtime of the port
-# into the directory RUNTIME.
+# check.sh --runtime runtime/FILE.ml : compiles one file of the runtime of the
+# port (port_monad.ml, port_abbreviations.ml) into the directory RUNTIME.
 #
 # The file is compiled as the module Foo__port with the -open flags of
 # middle_end/flambda2/simplify/dune, so every name in it is the compiler's
@@ -57,12 +57,13 @@ done
 have_cmi() { [ -d "$S/simplify/.flambda2_simplify.objs/byte" ]; }
 if [ "$1" = --runtime ]; then
   mkdir -p "$RUNTIME"
+  r=$(basename "$2" .ml)
   if ! have_cmi; then
     echo "check: no compiled interfaces under CMI_ROOT=$CMI_ROOT: the runtime is not compiled"
-    : > "$RUNTIME/port_monad.cmi"; exit 0
+    : > "$RUNTIME/$r.cmi"; exit 0
   fi
-  cp "$2" "$RUNTIME/port_monad.ml"
-  $OCAMLC -c -w -a $INC "$RUNTIME/port_monad.ml" || exit 1
+  cp "$2" "$RUNTIME/$r.ml"
+  $OCAMLC -c -w -a $INC "$RUNTIME/$r.ml" || exit 1
   echo "check: $2: compiled"; exit 0
 fi
 f=$1; simplify=$2; status=$3

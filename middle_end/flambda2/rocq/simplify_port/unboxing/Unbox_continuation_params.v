@@ -36,8 +36,11 @@ open! Simplify_import
 OCAML*)
 
 (* 18-19 *)
-Module U := Unboxing_types.
-Module Decisions := U.Decisions.
+From SimplifyPort.abbrev.unbox_continuation_params Require Import Port_abbreviations.
+(*OCAML
+module U = Unboxing_types
+module Decisions = U.Decisions
+OCAML*)
 
 (* 21-57. The labelled arguments are in the order of the definition. *)
 Definition refine_decision_based_on_arg_types_at_uses (pass : U.pass)

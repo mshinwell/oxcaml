@@ -21,14 +21,15 @@
    middle_end/flambda2/rocq/simplify_port. *)
 
 open! Simplify_import
+module U = Unboxing_types
+module Extra_param_and_args = U.Extra_param_and_args
 
 exception Invalid_apply_cont
 
 exception Prevent_current_unboxing
 
+open Port_abbreviations
 open Port_monad
-module U = Unboxing_types
-module Extra_param_and_args = U.Extra_param_and_args
 
 (** val prevent_current_unboxing : unit -> 'a1 coq_M **)
 
@@ -193,7 +194,7 @@ let extra_arg_for_ctor typing_env_at_use variant_arg =
     Apply_cont_rewrite_id.t -> variant_argument -> U.const_ctors_decision coq_M
     **)
 
-let extra_args_for_const_ctor_of_variant const_ctors_decision0 typing_env_at_use
+let extra_args_for_const_ctor_of_variant const_ctors_decision typing_env_at_use
     rewrite_id variant_arg =
   let machine_width = TE.machine_width typing_env_at_use in
   (fun f__1 f__2 x__0 ->
@@ -207,7 +208,7 @@ let extra_args_for_const_ctor_of_variant const_ctors_decision0 typing_env_at_use
         | Maybe_constant_constructor { is_int = x__1; arg_being_unboxed = x__2 }
           ->
           f__2 x__1 x__2)
-        (fun _ -> const_ctors_decision0)
+        (fun _ -> const_ctors_decision)
         (fun _ _ ->
           Port_monad.raise_
             ( (fun () -> Invalid_apply_cont),
@@ -307,7 +308,7 @@ let extra_args_for_const_ctor_of_variant const_ctors_decision0 typing_env_at_use
           (U.At_least_one { is_int = x__1; ctor = x__2 }
             : U.const_ctors_decision))
           (is_int0, U.Do_not_unbox reason))
-    const_ctors_decision0
+    const_ctors_decision
 
 (** val compute_extra_arg_for_number : K.Naked_number_kind.t -> Unboxers.unboxer
     -> Extra_param_and_args.t -> Apply_cont_rewrite_id.t -> TE.t -> unboxed_arg
@@ -378,16 +379,16 @@ let access_kind_and_poison_const machine_width tag shape fields index =
     Apply_cont_rewrite_id.t -> TE.t -> Target_system.Machine_width.t ->
     unboxed_arg -> U.decision -> U.decision coq_M **)
 
-let rec compute_extra_args_for_one_decision_and_use pass0 rewrite_id
+let rec compute_extra_args_for_one_decision_and_use pass rewrite_id
     typing_env_at_use machine_width arg_being_unboxed decision =
   Port_monad.try_with
     (fun _ ->
-      compute_extra_args_for_one_decision_and_use_aux pass0 rewrite_id
+      compute_extra_args_for_one_decision_and_use_aux pass rewrite_id
         typing_env_at_use machine_width arg_being_unboxed decision)
     ( (fun () -> Prevent_current_unboxing),
       function Prevent_current_unboxing -> Some () | _ -> None )
     (fun _ ->
-      match pass0 with
+      match pass with
       | U.Filter -> U.Do_not_unbox U.Not_enough_information_at_use
       | U.Compute_all_extra_args ->
         Misc.fatal_errorf "This case should have been filtered out before.")
@@ -396,7 +397,7 @@ let rec compute_extra_args_for_one_decision_and_use pass0 rewrite_id
     Apply_cont_rewrite_id.t -> TE.t -> Target_system.Machine_width.t ->
     unboxed_arg -> U.decision -> U.decision coq_M **)
 
-and compute_extra_args_for_one_decision_and_use_aux pass0 rewrite_id
+and compute_extra_args_for_one_decision_and_use_aux pass rewrite_id
     typing_env_at_use machine_width arg_being_unboxed decision =
   match decision with
   | U.Unbox u ->
@@ -411,7 +412,7 @@ and compute_extra_args_for_one_decision_and_use_aux pass0 rewrite_id
         f__3 x__1 x__2
       | U.Number (x__1, x__2) -> f__4 x__1 x__2)
       (fun tag shape fields ->
-        compute_extra_args_for_block pass0 rewrite_id typing_env_at_use
+        compute_extra_args_for_block pass rewrite_id typing_env_at_use
           machine_width arg_being_unboxed tag shape fields)
       (fun tag const_ctors_from_decision fields_by_tag ->
         match type_of_arg_being_unboxed arg_being_unboxed with
@@ -428,7 +429,7 @@ and compute_extra_args_for_one_decision_and_use_aux pass0 rewrite_id
                   } =
                 v
               in
-              compute_extra_args_for_variant pass0 rewrite_id typing_env_at_use
+              compute_extra_args_for_variant pass rewrite_id typing_env_at_use
                 machine_width arg_being_unboxed tag const_ctors_from_decision
                 fields_by_tag const_ctors0 non_const_ctors_with_sizes0)
             (fun _ -> prevent_current_unboxing ())
@@ -439,12 +440,12 @@ and compute_extra_args_for_one_decision_and_use_aux pass0 rewrite_id
                 ())
             (Flambda2_types.meet_variant_like typing_env_at_use arg_type)
         | None ->
-          compute_extra_args_for_variant pass0 rewrite_id typing_env_at_use
+          compute_extra_args_for_variant pass rewrite_id typing_env_at_use
             machine_width arg_being_unboxed tag const_ctors_from_decision
             fields_by_tag (Or_unknown.Known Target_ocaml_int.Set.empty)
             Tag.Scannable.Map.empty)
       (fun function_slot vars_within_closure ->
-        compute_extra_args_for_closure pass0 rewrite_id typing_env_at_use
+        compute_extra_args_for_closure pass rewrite_id typing_env_at_use
           machine_width arg_being_unboxed function_slot vars_within_closure)
       (fun t0 epa ->
         match t0 with
@@ -497,8 +498,8 @@ and compute_extra_args_for_one_decision_and_use_aux pass0 rewrite_id
     -> Target_system.Machine_width.t -> unboxed_arg -> Tag.t -> K.Block_shape.t
     -> U.field_decision list -> U.decision coq_M **)
 
-and compute_extra_args_for_block pass0 rewrite_id typing_env_at_use
-    machine_width arg_being_unboxed tag shape fields =
+and compute_extra_args_for_block pass rewrite_id typing_env_at_use machine_width
+    arg_being_unboxed tag shape fields =
   let _, fields0 =
     List.fold_left_map
       (fun field_nth field_decision ->
@@ -518,7 +519,7 @@ and compute_extra_args_for_block pass0 rewrite_id typing_env_at_use
                 new_extra_arg
             in
             let decision0 =
-              compute_extra_args_for_one_decision_and_use pass0 rewrite_id
+              compute_extra_args_for_one_decision_and_use pass rewrite_id
                 typing_env_at_use machine_width new_arg_being_unboxed decision
             in
             ( Target_ocaml_int.add (Target_ocaml_int.one machine_width) field_nth,
@@ -538,7 +539,7 @@ and compute_extra_args_for_block pass0 rewrite_id typing_env_at_use
     TE.t -> Target_system.Machine_width.t -> unboxed_arg -> Function_slot.t ->
     U.field_decision Value_slot.Map.t -> U.decision coq_M **)
 
-and compute_extra_args_for_closure pass0 rewrite_id typing_env_at_use
+and compute_extra_args_for_closure pass rewrite_id typing_env_at_use
     machine_width arg_being_unboxed function_slot vars_within_closure =
   let vars_within_closure0 =
     Value_slot.Map.mapi
@@ -555,7 +556,7 @@ and compute_extra_args_for_closure pass0 rewrite_id typing_env_at_use
                 new_extra_arg
             in
             let decision0 =
-              compute_extra_args_for_one_decision_and_use pass0 rewrite_id
+              compute_extra_args_for_one_decision_and_use pass rewrite_id
                 typing_env_at_use machine_width new_arg_being_unboxed decision
             in
             (fun x__1 x__2 x__3 ->
@@ -577,7 +578,7 @@ and compute_extra_args_for_closure pass0 rewrite_id typing_env_at_use
     Or_unknown.t -> (Target_ocaml_int.t * K.Block_shape.t) Tag.Scannable.Map.t
     -> U.decision coq_M **)
 
-and compute_extra_args_for_variant pass0 rewrite_id typing_env_at_use
+and compute_extra_args_for_variant pass rewrite_id typing_env_at_use
     machine_width arg_being_unboxed tag_from_decision const_ctors_from_decision
     fields_by_tag_from_decision const_ctors_at_use
     non_const_ctors_with_sizes_at_use =
@@ -664,7 +665,7 @@ and compute_extra_args_for_variant pass0 rewrite_id typing_env_at_use
                       new_extra_arg
                   in
                   let decision0 =
-                    compute_extra_args_for_one_decision_and_use pass0 rewrite_id
+                    compute_extra_args_for_one_decision_and_use pass rewrite_id
                       typing_env_at_use machine_width new_arg_being_unboxed
                       decision
                   in

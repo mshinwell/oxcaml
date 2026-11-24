@@ -21,11 +21,11 @@
    middle_end/flambda2/rocq/simplify_port. *)
 
 open! Simplify_import
-open Port_monad
 module DA = Downwards_acc
 module DE = Downwards_env
 module FT = Flambda2_types.Function_type
 module VB = Bound_var
+open Port_monad
 
 (** val make_inlined_body : Simple.t option -> Code_id.t -> int option ->
     Bound_parameter.t list -> Simple.List.t -> Variable.t ->

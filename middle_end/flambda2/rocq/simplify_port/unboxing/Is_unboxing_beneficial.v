@@ -34,8 +34,11 @@ open! Simplify_import
 OCAML*)
 
 (* 18-19 *)
-Module U := Unboxing_types.
-Module Extra_param_and_args := U.Extra_param_and_args.
+From SimplifyPort.abbrev.is_unboxing_beneficial Require Import Port_abbreviations.
+(*OCAML
+module U = Unboxing_types
+module Extra_param_and_args = U.Extra_param_and_args
+OCAML*)
 
 (* 21-34 *)
 Definition is_unboxing_beneficial_for_epa (epa : Extra_param_and_args.t)

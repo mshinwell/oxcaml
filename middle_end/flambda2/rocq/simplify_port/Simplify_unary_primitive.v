@@ -44,11 +44,14 @@ open! Simplify_import
 OCAML*)
 
 (* 18-22 *)
-Module A := Number_adjuncts.
-Module Float32 := Numeric_types.Float32_by_bit_pattern.
-Module Float := Numeric_types.Float_by_bit_pattern.
-Module Int32 := Numeric_types.Int32.
-Module Int64 := Numeric_types.Int64.
+From SimplifyPort.abbrev.simplify_unary_primitive Require Import Port_abbreviations.
+(*OCAML
+module A = Number_adjuncts
+module Float32 = Numeric_types.Float32_by_bit_pattern
+module Float = Numeric_types.Float_by_bit_pattern
+module Int32 = Numeric_types.Int32
+module Int64 = Numeric_types.Int64
+OCAML*)
 
 (* The literals [2L] and [1L] of line 583. *)
 Parameter int64_2L : Stdlib_.int64.

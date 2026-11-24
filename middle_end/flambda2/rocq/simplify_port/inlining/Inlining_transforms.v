@@ -37,10 +37,13 @@ open! Simplify_import
 OCAML*)
 
 (* 18-21 *)
-Module DA := Downwards_acc.
-Module DE := Downwards_env.
-Module FT := Flambda2_types.Function_type.
-Module VB := Bound_var.
+From SimplifyPort.abbrev.inlining_transforms Require Import Port_abbreviations.
+(*OCAML
+module DA = Downwards_acc
+module DE = Downwards_env
+module FT = Flambda2_types.Function_type
+module VB = Bound_var
+OCAML*)
 
 (* 23-83 *)
 (* PORT-GAP(loose): 80-83, the compiler does not give

@@ -51,11 +51,14 @@ open! Flambda.Import
 OCAML*)
 Import Flambda.Import_.
 (* 30-34 *)
-Module CSE := Common_subexpression_elimination.
-Module EPA := Continuation_extra_params_and_args.
-Module T := Flambda2_types.
-Module TE := T.Typing_env.
-Module LCS := Lifted_constant_state.
+From SimplifyPort.abbrev.simplified_expr Require Import Port_abbreviations.
+(*OCAML
+module CSE = Common_subexpression_elimination
+module EPA = Continuation_extra_params_and_args
+module T = Flambda2_types
+module TE = T.Typing_env
+module LCS = Lifted_constant_state
+OCAML*)
 
 (* 36-121 *)
 (* PORT-GAP(type): the ten types are defined together in the compiler, with

@@ -20,12 +20,13 @@
    edit this file: change the .v file and run make in
    middle_end/flambda2/rocq/simplify_port. *)
 
-exception Simple_not_in_scope
-
-open Port_monad
 module DA = Downwards_acc
 module T = Flambda2_types
 module TE = T.Typing_env
+
+exception Simple_not_in_scope
+
+open Port_monad
 
 (** val simplify_simple0 : DA.t -> Simple.t -> Name_mode.t -> (T.t * Simple.t)
     coq_M **)

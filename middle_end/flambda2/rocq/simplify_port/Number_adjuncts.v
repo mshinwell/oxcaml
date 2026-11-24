@@ -24,10 +24,11 @@
    - Each module of the compiler's file is a Rocq [Module] of the same name,
      with the compiler's definitions in the compiler's order.
    - The modules are not sealed by their module types (the mark is below).
-   - The abbreviations of modules (18-25) are Rocq's ([Module K :=
-     Flambda_kind.]), and a name is written through one where the compiler's
-     file writes it so. The module types (50-176) are OCaml text, verbatim
-     (the mark is below).
+   - The abbreviations of modules (18-25) are a Rocq library of the file's
+     own (abbrev/number_adjuncts), and a name is written through one where
+     the compiler's file writes it so; the compiler's own lines are in the
+     OCaml head. The module types (50-176) are OCaml text, verbatim (the
+     mark is below).
    - An [include] of a module of the compiler, and a module made with a
      functor inside a module, cannot be said in Rocq, and the kit copies
      verbatim text to the head or the end of the file only. Here such a line
@@ -61,14 +62,17 @@ OCAML*)
 Import Flambda.Import_.
 
 (* 18-25 *)
-Module K := Flambda_kind.
-Module T := Flambda2_types.
-Module Float32_by_bit_pattern := Numeric_types.Float32_by_bit_pattern.
-Module Float_by_bit_pattern := Numeric_types.Float_by_bit_pattern.
-Module Int8 := Numeric_types.Int8.
-Module Int16 := Numeric_types.Int16.
-Module Int32 := Numeric_types.Int32.
-Module Int64 := Numeric_types.Int64.
+From SimplifyPort.abbrev.number_adjuncts Require Import Port_abbreviations.
+(*OCAML
+module K = Flambda_kind
+module T = Flambda2_types
+module Float32_by_bit_pattern = Numeric_types.Float32_by_bit_pattern
+module Float_by_bit_pattern = Numeric_types.Float_by_bit_pattern
+module Int8 = Numeric_types.Int8
+module Int16 = Numeric_types.Int16
+module Int32 = Numeric_types.Int32
+module Int64 = Numeric_types.Int64
+OCAML*)
 
 (* 38-44 *)
 (* Regarding int <-> float conversions, xclerc and mshinwell established with

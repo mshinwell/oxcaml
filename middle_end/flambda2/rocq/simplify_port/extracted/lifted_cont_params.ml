@@ -19,8 +19,9 @@
    not edit this file: change the .v file and run make in
    middle_end/flambda2/rocq/simplify_port. *)
 
-open Port_monad
 module BP = Bound_parameter
+open Port_abbreviations
+open Port_monad
 
 type t =
   { len : int;

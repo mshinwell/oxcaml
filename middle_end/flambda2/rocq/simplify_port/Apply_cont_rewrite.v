@@ -34,9 +34,12 @@ Local Open Scope Z_scope.
 Local Open Scope list_scope.
 
 (* 17-19 *)
-Module EPA := Continuation_extra_params_and_args.
-Module EA := EPA.Extra_arg.
-Module Id := Apply_cont_rewrite_id.
+From SimplifyPort.abbrev.apply_cont_rewrite Require Import Port_abbreviations.
+(*OCAML
+module EPA = Continuation_extra_params_and_args
+module EA = EPA.Extra_arg
+module Id = Apply_cont_rewrite_id
+OCAML*)
 
 (* 21-24 *)
 Inductive used : Type :=

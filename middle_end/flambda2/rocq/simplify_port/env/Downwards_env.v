@@ -47,13 +47,16 @@ open! Flambda.Import
 OCAML*)
 
 (* 18-24 *)
-Module CSE := Common_subexpression_elimination.
-Module K := Flambda_kind.
-Module BP := Bound_parameter.
-Module T := Flambda2_types.
-Module TE := Flambda2_types.Typing_env.
-Module LCS := Lifted_constant_state.
-Module LC := Lifted_constant.
+From SimplifyPort.abbrev.downwards_env Require Import Port_abbreviations.
+(*OCAML
+module CSE = Common_subexpression_elimination
+module K = Flambda_kind
+module BP = Bound_parameter
+module T = Flambda2_types
+module TE = Flambda2_types.Typing_env
+module LCS = Lifted_constant_state
+module LC = Lifted_constant
+OCAML*)
 
 (* PORT-GAP(verbatim): 26-29, the two types have the names of a function and
    of a field of the file: they are the compiler's text, and in Rocq they are

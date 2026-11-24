@@ -20,8 +20,8 @@
    middle_end/flambda2/rocq/simplify_port. *)
 
 open Simplify_import
-open Port_monad
 module U = One_continuation_use
+open Port_monad
 
 type result =
   { handler_env : DE.t;
@@ -158,10 +158,10 @@ let add_extra_params_from_join_analysis denv analysis use_envs_with_ids' =
           (fun _ ->
             let extra_args =
               T.Join_analysis.Simples_at_join.fold_definitions_at_uses
-                (fun use_id definition_at_use0 extra_args ->
+                (fun use_id definition_at_use extra_args ->
                   let (T.Join_analysis.Simples_at_join.At_normal_mode
                          simple_at_use) =
-                    definition_at_use0
+                    definition_at_use
                   in
                   Apply_cont_rewrite_id.Map.add use_id
                     (EPA.Extra_arg.Already_in_scope simple_at_use) extra_args)

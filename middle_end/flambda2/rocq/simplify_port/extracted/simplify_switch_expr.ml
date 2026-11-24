@@ -21,14 +21,15 @@
    middle_end/flambda2/rocq/simplify_port. *)
 
 open! Simplify_import
-
-exception Argument_cannot_be_used_in_lookup_table
-
-open Port_monad
 module TE = Flambda2_types.Typing_env
 module TI = Target_ocaml_int
 module Alias_set = TE.Alias_set
 module RWC = Reg_width_const
+
+exception Argument_cannot_be_used_in_lookup_table
+
+open Port_abbreviations
+open Port_monad
 
 type alias_set =
   | Aliases of Alias_set.t

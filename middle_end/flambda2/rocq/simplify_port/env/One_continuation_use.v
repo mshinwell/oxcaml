@@ -28,8 +28,11 @@ Local Open Scope string_scope.
 Local Open Scope Z_scope.
 
 (* 17-18 *)
-Module DE := Downwards_env.
-Module T := Flambda2_types.
+From SimplifyPort.abbrev.one_continuation_use Require Import Port_abbreviations.
+(*OCAML
+module DE = Downwards_env
+module T = Flambda2_types
+OCAML*)
 
 (* 20-25 *)
 Record t : Type :=

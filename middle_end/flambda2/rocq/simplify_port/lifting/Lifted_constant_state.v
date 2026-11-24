@@ -33,19 +33,21 @@ From SimplifyPort.decl Require Import Lifted_constant_state__local.
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 
-(* PORT-GAP(verbatim): 82, the application of the functor is OCaml text. It
-   stands at the head of the extracted file, before the [module CIS =
-   Code_id_or_symbol] of line 81, which Rocq prints at its place: so it
-   names the module in full where the compiler's line says [CIS].
-   decl/Lifted_constant_state__local.v declares what the file uses of
-   [SCC_lifted_constants]. *)
+(* 17 *)
+From SimplifyPort.abbrev.lifted_constant_state Require Import Port_abbreviations.
 (*OCAML
-module SCC_lifted_constants =
-  Strongly_connected_components.Make (Code_id_or_symbol)
+module LC = Lifted_constant
 OCAML*)
 
-(* 17 *)
-Module LC := Lifted_constant.
+(* PORT-GAP(verbatim): 81-82, the abbreviation [CIS] and the application of
+   the functor are the compiler's two lines. They stand at the head of the
+   extracted file, not at their place (OCaml text can stand at the head or
+   the end only). decl/Lifted_constant_state__local.v declares what the file
+   uses of [SCC_lifted_constants]. *)
+(*OCAML
+module CIS = Code_id_or_symbol
+module SCC_lifted_constants = Strongly_connected_components.Make (CIS)
+OCAML*)
 
 (* 19-26 *)
 (* PORT-GAP(type): the constructors [Leaf_array] and [Union] have inline
@@ -164,11 +166,8 @@ Definition all_defined_symbols (t : Lifted_constant_state.t)
       let! tmp1 := LC.all_defined_symbols const in
       Symbol.Set_.union symbols tmp1).
 
-(* 81 *)
-Module CIS := Code_id_or_symbol.
-
-(* 82: [module SCC_lifted_constants] is at the head of the extracted
-   file. *)
+(* 81-82: [module CIS] and [module SCC_lifted_constants] are at the head of
+   the extracted file. *)
 
 (* 84-129 *)
 Definition build_dep_graph (t : Lifted_constant_state.t)

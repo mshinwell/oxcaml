@@ -18,8 +18,9 @@
    not edit this file: change the .v file and run make in
    middle_end/flambda2/rocq/simplify_port. *)
 
-open Port_monad
 module T = Flow_types
+open Port_abbreviations
+open Port_monad
 
 type t =
   { code_age_relation : Flambda2_types.Code_age_relation.t;
@@ -419,7 +420,7 @@ let add_name_occurrences name_occurrences t0 =
     Continuation.t -> Continuation.t -> Name_occurrences.t Or_unknown.t ->
     Continuation.t -> T.Continuation_info.t -> t -> t coq_M **)
 
-let add_continuation_info map0 return_continuation exn_continuation
+let add_continuation_info map return_continuation exn_continuation
     used_value_slots _ elt t0 =
   let { T.Continuation_info.continuation = _;
         T.Continuation_info.recursive = _;
@@ -446,7 +447,7 @@ let add_continuation_info map0 return_continuation exn_continuation
   in
   let t2 =
     Value_slot.Map.fold
-      (fun value_slot map1 t2 ->
+      (fun value_slot map0 t2 ->
         if not (is_value_slot_used value_slot)
         then t2
         else
@@ -455,7 +456,7 @@ let add_continuation_info map0 return_continuation exn_continuation
               Name_occurrences.fold_names values_in_env t3
                 (fun t4 value_in_env ->
                   add_dependency closure_name value_in_env t4))
-            map1 t2)
+            map0 t2)
       value_slots0 t1
   in
   let t3 =
@@ -555,7 +556,7 @@ let add_continuation_info map0 return_continuation exn_continuation
       else
         let params0 =
           Port_monad.match_exn
-            (fun _ -> Continuation.Map.find k map0)
+            (fun _ -> Continuation.Map.find k map)
             Port_monad.not_found
             (fun _ ->
               Misc.fatal_errorf "Continuation not found during Data_flow: %a@."
@@ -605,7 +606,7 @@ let add_continuation_info map0 return_continuation exn_continuation
     Code_id.Set.t -> T.Continuation_info.t Continuation.Map.t -> t coq_M **)
 
 let create return_continuation exn_continuation code_age_relation0
-    used_value_slots code_ids_to_never_delete map0 =
+    used_value_slots code_ids_to_never_delete map =
   let is_toplevel0 =
     match used_value_slots with
     | Or_unknown.Known _ -> true
@@ -614,9 +615,9 @@ let create return_continuation exn_continuation code_age_relation0
   let t0 =
     Continuation.Map.fold
       (fun k elt t0 ->
-        add_continuation_info map0 return_continuation exn_continuation
+        add_continuation_info map return_continuation exn_continuation
           used_value_slots k elt t0)
-      map0
+      map
       (empty code_age_relation0 is_toplevel0 code_ids_to_never_delete)
   in
   t0

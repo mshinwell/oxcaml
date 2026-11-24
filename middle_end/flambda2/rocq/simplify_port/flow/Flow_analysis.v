@@ -29,7 +29,10 @@ Local Open Scope string_scope.
 Local Open Scope Z_scope.
 
 (* 15 *)
-Module T := Flow_types.
+From SimplifyPort.abbrev.flow_analysis Require Import Port_abbreviations.
+(*OCAML
+module T = Flow_types
+OCAML*)
 
 (* debugging code *)
 

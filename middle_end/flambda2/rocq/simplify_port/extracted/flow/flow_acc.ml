@@ -18,9 +18,10 @@
    edit this file: change the .v file and run make in
    middle_end/flambda2/rocq/simplify_port. *)
 
-open Port_monad
 module T = Flow_types
 module EPA = Continuation_extra_params_and_args
+open Port_abbreviations
+open Port_monad
 
 type t = T.Acc.t
 

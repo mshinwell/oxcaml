@@ -21,9 +21,9 @@
    middle_end/flambda2/rocq/simplify_port. *)
 
 open! Flambda
-open Port_monad
 module ART = Are_rebuilding_terms
 module SC = Static_const
+open Port_monad
 
 type t =
   | Normal of

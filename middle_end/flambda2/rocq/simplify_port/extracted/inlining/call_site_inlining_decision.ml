@@ -22,7 +22,6 @@
    middle_end/flambda2/rocq/simplify_port. *)
 
 open! Flambda.Import
-open Port_monad
 module DE = Downwards_env
 module DA = Downwards_acc
 module T = Flambda2_types
@@ -30,6 +29,7 @@ module TE = T.Typing_env
 module UA = Upwards_acc
 module UE = Upwards_env
 module FT = Flambda2_types.Function_type
+open Port_monad
 
 (** val speculative_inlining : DA.t -> Apply.t -> FT.t -> Expr.t
     Simplify_common.expr_simplifier -> Simplified_expr.t Simplify_common.rebuild
@@ -201,8 +201,8 @@ let might_inline dacc apply code_metadata function_type simplify_expr
   let is_a_functor = Code_metadata.is_a_functor code_metadata in
   let in_a_stub, doing_speculative_inlining =
     match disable_inlining with
-    | DE.Disable_inlining.Disable_inlining t0 -> (
-      match t0 with
+    | DE.Disable_inlining.Disable_inlining t -> (
+      match t with
       | DE.Disable_inlining_reason.Stub -> true, false
       | DE.Disable_inlining_reason.Speculative_inlining -> false, true)
     | DE.Disable_inlining.Do_not_disable_inlining -> false, false

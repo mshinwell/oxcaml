@@ -45,7 +45,10 @@ open! Simplify_import
 OCAML*)
 
 (* 27 *)
-Module C := Simplify_set_of_closures_context.
+From SimplifyPort.abbrev.simplify_set_of_closures Require Import Port_abbreviations.
+(*OCAML
+module C = Simplify_set_of_closures_context
+OCAML*)
 
 (* 29-137. In the compiler: [context ~outer_dacc ~params ~my_closure
    ~my_alloc_mode ~my_depth function_slot_opt

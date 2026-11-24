@@ -46,15 +46,18 @@ open! Flambda.Import
 OCAML*)
 
 (* 18-26 *)
-Module BP := Bound_parameter.
-Module LC := Lifted_constant.
-Module LCS := Lifted_constant_state.
-Module P := Flambda_primitive.
-Module RE := Rebuilt_expr.
-Module UA := Upwards_acc.
-Module UE := Upwards_env.
-Module DA := Downwards_acc.
-Module VB := Bound_var.
+From SimplifyPort.abbrev.expr_builder Require Import Port_abbreviations.
+(*OCAML
+module BP = Bound_parameter
+module LC = Lifted_constant
+module LCS = Lifted_constant_state
+module P = Flambda_primitive
+module RE = Rebuilt_expr
+module UA = Upwards_acc
+module UE = Upwards_env
+module DA = Downwards_acc
+module VB = Bound_var
+OCAML*)
 
 (* 28-58 *)
 Definition add_set_of_closures_offsets (is_phantom : bool) (named : Named.t)

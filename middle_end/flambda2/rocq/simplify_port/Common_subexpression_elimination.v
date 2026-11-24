@@ -36,18 +36,21 @@ Local Open Scope Z_scope.
 
 (* 17: [Simplify_import] cannot be used owing to a circular dependency. *)
 (* 18-29 *)
-Module EA := Continuation_extra_params_and_args.Extra_arg.
-Module EP := Flambda_primitive.Eligible_for_cse.
-Module EPA := Continuation_extra_params_and_args.
-Module K := Flambda_kind.
-Module BP := Bound_parameter.
-Module NM := Name_mode.
-Module P := Flambda_primitive.
-Module RI := Apply_cont_rewrite_id.
-Module T := Flambda2_types.
-Module TE := Flambda2_types.Typing_env.
-Module TEE := Flambda2_types.Typing_env_extension.
-Module List := ListLabels.
+From SimplifyPort.abbrev.common_subexpression_elimination Require Import Port_abbreviations.
+(*OCAML
+module EA = Continuation_extra_params_and_args.Extra_arg
+module EP = Flambda_primitive.Eligible_for_cse
+module EPA = Continuation_extra_params_and_args
+module K = Flambda_kind
+module BP = Bound_parameter
+module NM = Name_mode
+module P = Flambda_primitive
+module RI = Apply_cont_rewrite_id
+module T = Flambda2_types
+module TE = Flambda2_types.Typing_env
+module TEE = Flambda2_types.Typing_env_extension
+module List = ListLabels
+OCAML*)
 
 (* 31-74 *)
 (* PORT-GAP(loose): 31-44, the signature of [T0], in which the type is

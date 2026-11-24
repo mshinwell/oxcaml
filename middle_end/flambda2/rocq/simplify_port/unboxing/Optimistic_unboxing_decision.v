@@ -36,8 +36,11 @@ open! Simplify_import
 OCAML*)
 
 (* 18-19 *)
-Module U := Unboxing_types.
-Module Extra_param_and_args := U.Extra_param_and_args.
+From SimplifyPort.abbrev.optimistic_unboxing_decision Require Import Port_abbreviations.
+(*OCAML
+module U = Unboxing_types
+module Extra_param_and_args = U.Extra_param_and_args
+OCAML*)
 
 (* 21-22 *)
 Definition pp_tag (print_tag : bool) (ppf : Format.formatter) (tag : Tag.t)

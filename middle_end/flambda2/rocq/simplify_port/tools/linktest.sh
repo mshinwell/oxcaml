@@ -36,7 +36,8 @@
 #
 #   swap TREE      in TREE/middle_end/flambda2/simplify: each DIR/foo.ml is
 #                  replaced by extracted/DIR/foo.ml of this folder (the .mli
-#                  files stay); runtime/port_monad.ml is added; in the dune
+#                  files stay); runtime/port_monad.ml and the empty
+#                  runtime/port_abbreviations.ml are added; in the dune
 #                  file the library gets -nolabels (the extracted text has
 #                  no labels) and -w -a (no warning is an error).
 #   sums TREE CTX  the MD5 of every object file under TREE/_build/CTX that
@@ -61,10 +62,11 @@ swap)
     cp "$here/extracted/$f" "$s/$f"; n=$((n+1))
   done
   cp "$here/runtime/port_monad.ml" "$s/port_monad.ml"
+  cp "$here/runtime/port_abbreviations.ml" "$s/port_abbreviations.ml"
   grep -q -- '-nolabels' "$s/dune" || \
     sed -i '0,/^  (:standard$/s//  (:standard\n   -nolabels\n   -w\n   -a/' "$s/dune"
   grep -q -- '-nolabels' "$s/dune" || { echo "the dune file was not changed"; exit 1; }
-  echo "swapped $n files in $s; port_monad.ml added; dune file: -nolabels -w -a"
+  echo "swapped $n files in $s; port_monad.ml and port_abbreviations.ml added; dune file: -nolabels -w -a"
   ;;
 sums)
   tree=$2; ctx=$3

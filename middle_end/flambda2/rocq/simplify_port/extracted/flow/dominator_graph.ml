@@ -18,9 +18,10 @@
    not edit this file: change the .v file and run make in
    middle_end/flambda2/rocq/simplify_port. *)
 
-module G = Strongly_connected_components.Make (Simple)
-open Port_monad
 module T = Flow_types
+module G = Strongly_connected_components.Make (Simple)
+open Port_abbreviations
+open Port_monad
 
 type t =
   { required_names : Name.Set.t;
@@ -108,7 +109,7 @@ let add_edge src dst t0 =
     Continuation.t -> T.Continuation_info.t -> t -> Continuation.t ->
     Continuation.t -> t coq_M **)
 
-let add_continuation_info map0 _ elt t0 return_continuation exn_continuation =
+let add_continuation_info map _ elt t0 return_continuation exn_continuation =
   let t1 =
     List.fold_left
       (fun t1 bp ->
@@ -134,7 +135,7 @@ let add_continuation_info map0 _ elt t0 return_continuation exn_continuation =
       else
         let params0 =
           Port_monad.match_exn
-            (fun _ -> Continuation.Map.find k map0)
+            (fun _ -> Continuation.Map.find k map)
             Port_monad.not_found
             (fun _ ->
               Misc.fatal_errorf "Continuation not found during Data_flow: %a@."
@@ -161,13 +162,13 @@ let add_continuation_info map0 _ elt t0 return_continuation exn_continuation =
 (** val create : Name.Set.t -> Continuation.t -> Continuation.t ->
     T.Continuation_info.t Continuation.Map.t -> t coq_M **)
 
-let create required_names0 return_continuation exn_continuation map0 =
+let create required_names0 return_continuation exn_continuation map =
   let t0 = empty required_names0 in
   let t1 =
     Continuation.Map.fold
       (fun k elt t1 ->
-        add_continuation_info map0 k elt t1 return_continuation exn_continuation)
-      map0 t0
+        add_continuation_info map k elt t1 return_continuation exn_continuation)
+      map t0
   in
   let all_simples =
     Simple.Map.fold
@@ -409,7 +410,7 @@ module Dot = struct
   (** val nodes : int -> Simple.Set.t -> Format.formatter -> 'a1 Simple.Map.t ->
       unit coq_M **)
 
-  let nodes ctx roots ppf map0 =
+  let nodes ctx roots ppf map =
     Simple.Map.iter
       (fun simple _ ->
         let root =
@@ -419,7 +420,7 @@ module Dot = struct
             (fun _ -> true)
         in
         node ctx root ppf simple)
-      map0
+      map
 
   (** val edge : int -> string -> Format.formatter -> Simple.t -> Simple.t ->
       unit coq_M **)

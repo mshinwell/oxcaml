@@ -36,7 +36,10 @@ open Simplify_import
 OCAML*)
 
 (* 18 *)
-Module U := One_continuation_use.
+From SimplifyPort.abbrev.join_points Require Import Port_abbreviations.
+(*OCAML
+module U = One_continuation_use
+OCAML*)
 
 (* 20-25 *)
 Record result : Type := {

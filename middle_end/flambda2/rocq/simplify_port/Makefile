@@ -63,6 +63,11 @@ B := _build
 # (decl/README.md).
 DECL := $(patsubst %.v,%,$(sort $(wildcard decl/*.v)))
 
+# The abbreviations of modules that a file of the compiler makes itself
+# ([module DE = Downwards_env]), as a library that the ported file imports
+# (GUIDE.md, section 7).
+ABBREV := $(patsubst %.v,%,$(sort $(wildcard abbrev/*/*.v)))
+
 # THE TRANSCRIBED FILES. DIR/Foo_bar.v follows
 # middle_end/flambda2/simplify/DIR/foo_bar.ml; [make list] prints the pairs.
 SUBDIRS := env flow unboxing inlining lifting
@@ -75,7 +80,7 @@ donor = $(SIMPLIFY)/$(call reldir,$(1))$(call lc,$(notdir $(1))).ml
 extracted = extracted/$(call reldir,$(1))$(call lc,$(notdir $(1))).ml
 checked = $(B)/check/$(call reldir,$(1))$(call lc,$(notdir $(1))).status
 
-SRC := $(addsuffix .v,$(DECL) $(PORTED))
+SRC := $(addsuffix .v,$(DECL) $(ABBREV) $(PORTED))
 REAL_V := $(B)/real/Port_monad.v $(B)/real/Kit_refuses.v $(addprefix $(B)/real/,$(SRC))
 ID_V := $(B)/id/Port_monad.v $(addprefix $(B)/id/,$(SRC))
 EXTRACTED := $(foreach p,$(PORTED),$(call extracted,$(p)))
@@ -146,7 +151,7 @@ $(B)/id/out/%.ml: $(B)/id/%.vo Makefile tools/aliases.py
 	@printf '%s\n' \
 	  'From SimplifyPort Require Import Port_monad.' \
 	  'Require SimplifyPort.$(subst /,.,$*).' > $(B)/id/extract/$*_extract.v
-	@$(PYTHON) tools/aliases.py $*.v decl >> $(B)/id/extract/$*_extract.v
+	@$(PYTHON) tools/aliases.py $*.v decl abbrev >> $(B)/id/extract/$*_extract.v
 	@printf '%s\n' \
 	  'Set Extraction Output Directory "out/$(patsubst %/,%,$(call reldir,$*))".' \
 	  'Set Extraction Flag 513.' \
@@ -169,16 +174,17 @@ $(call extracted,$(1)): $(B)/id/out/$(1).ml $(1).v $(call donor,$(1)) tools/asse
 	tools/assemble.sh $(1).v $(call donor,$(1)) $(B)/id/out/$(1).ml > $$@
 	$(OCAMLFORMAT) --inplace $$@
 
-$(call checked,$(1)): $(call extracted,$(1)) $(B)/check/port_monad.cmi tools/check.sh
+$(call checked,$(1)): $(call extracted,$(1)) $(B)/check/port_monad.cmi $(B)/check/port_abbreviations.cmi tools/check.sh
 	@mkdir -p $$(dir $$@)
 	@CMI_ROOT='$(CMI_ROOT)' OCAMLC='$(OCAMLC)' RUNTIME='$(B)/check' tools/check.sh $(call extracted,$(1)) $(SIMPLIFY) $$@
 endef
 $(foreach p,$(PORTED),$(eval $(call PORT_RULES,$(p))))
 
-# The OCaml that the extracted files call (runtime/port_monad.ml).
-$(B)/check/port_monad.cmi: runtime/port_monad.ml tools/check.sh
+# The OCaml that the extracted files call (runtime/port_monad.ml), and the
+# empty module that some of them open (runtime/port_abbreviations.ml).
+$(B)/check/port_%.cmi: runtime/port_%.ml tools/check.sh
 	@mkdir -p $(B)/check
-	@CMI_ROOT='$(CMI_ROOT)' OCAMLC='$(OCAMLC)' RUNTIME='$(B)/check' tools/check.sh --runtime runtime/port_monad.ml
+	@CMI_ROOT='$(CMI_ROOT)' OCAMLC='$(OCAMLC)' RUNTIME='$(B)/check' tools/check.sh --runtime $<
 
 # ---- the table --------------------------------------------------------
 
