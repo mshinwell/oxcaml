@@ -41,7 +41,8 @@
 #                  no labels) and -w -a (no warning is an error).
 #   sums TREE CTX  the MD5 of every object file under TREE/_build/CTX that
 #                  is not of the library flambda2_simplify, sorted by path.
-#   differ A B     the paths whose sums differ between two such lists.
+#   differ A B     the paths whose sums differ between two such lists, and
+#                  the paths that only one of the lists has.
 #
 # The test: build the compiler in TREE (make boot-compiler; make compiler),
 # keep `sums TREE main`; then swap, build again, and take the sums again.
@@ -71,7 +72,11 @@ sums)
   find . -name '*.o' ! -path '*flambda2_simplify*' ! -path './.sandbox/*' | LC_ALL=C sort | xargs md5sum
   ;;
 differ)
-  join -j 2 <(sort -k2 "$2") <(sort -k2 "$3") | awk '$2!=$3{print $1}'
+  # every path of either list: its two sums, "-" where a list has no such path
+  join -j 2 -a 1 -a 2 -e - -o 0,1.1,2.1 <(sort -k2 "$2") <(sort -k2 "$3") \
+    | awk '$2!=$3{ if ($2=="-") print $1 " (only in the second list)";
+                   else if ($3=="-") print $1 " (only in the first list)";
+                   else print $1 }'
   ;;
 *) echo "usage: linktest.sh swap TREE | sums TREE CONTEXT | differ SUMS1 SUMS2"; exit 2;;
 esac
