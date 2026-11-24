@@ -244,6 +244,8 @@ Extract Inlined Constant Z.leb => "(<=)".
 Extract Inlined Constant Z.gtb => "(>)".
 Extract Inlined Constant Z.geb => "(>=)".
 Extract Inlined Constant negb => "not".
+Extract Inlined Constant fst => "fst".
+Extract Inlined Constant snd => "snd".
 Extract Inlined Constant String.eqb => "String.equal".
 Extract Inlined Constant String.append => "(^)".
 Extract Inlined Constant List.app => "(@)".
