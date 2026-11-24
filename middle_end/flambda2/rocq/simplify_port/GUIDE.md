@@ -336,6 +336,13 @@ write a type's constructors in one way in a file. A module that the file
 opens (`Import Flambda.Import_.` before the first definition, `open!
 Flambda.Import` in the OCaml head) counts as an abbreviation that is empty:
 `Named.create_simple` is printed so.
+THE FIELDS OF A RECORD of `decl/` have no text: Rocq prints them with the
+module name by which the record's TYPE was reached, and through an
+abbreviation of `Simplify_import` that is `Simplify_import.S.simples`
+(OCaml takes it, but it is not the compiler's text). Where the fields of a
+result are read, write the function that gives it whole
+(`Simplify_simple.simplify_simples`, as `Simplify_apply_cont_expr.v` does):
+the fields are then `Simplify_simple.simples`.
 What the tool cannot reach: an abbreviation that is only OCaml text in the
 head of the file (Rocq does not know it: the names stay whole; make it
 Rocq's `Module A := P.`); one made inside a module of the file; a name
