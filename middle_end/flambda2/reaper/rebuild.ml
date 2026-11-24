@@ -59,7 +59,8 @@ type 'f env =
     should_keep_param :
       Continuation.t -> Variable.t -> KS.t -> Unboxing_analysis.param_decision;
     should_preserve_direct_calls : should_preserve_direct_calls;
-    inside_code_definition : bool
+    inside_code_definition : bool;
+    escape : Escape_rebuild.t
   }
 
 type rebuild_result =
@@ -158,6 +159,13 @@ let get_parameters params_decisions =
           fields acc) (* CR sspies: Missing debug uid. *)
     [] params_decisions
   |> List.rev
+
+(* Fresh parameters for a continuation forwarding its arguments to [cont] (see
+   [Escape_rebuild]). *)
+let fresh_params_of_continuation env cont =
+  get_parameters
+    (List.map freshen_decisions
+       (Continuation.Map.find cont env.cont_params_to_keep))
 
 let is_dead_var env v =
   match Variable.kind v with
@@ -1990,6 +1998,9 @@ and rebuild_holed env res (rev_expr : Rev_expr.rev_expr_holed) (hole : RE.t) :
   match rev_expr with
   | Hole -> hole, res
   | Let { bound_pattern; defining_expr; parent } ->
+    let defining_expr =
+      Escape_rebuild.localize env.escape bound_pattern defining_expr
+    in
     rebuild_let_expr_holed env res ~bound_pattern ~defining_expr ~parent ~hole
   | Let_cont { cont; parent; handler } ->
     if not (Name_occurrences.mem_continuation hole.free_names cont)
@@ -2054,7 +2065,11 @@ and rebuild_holed env res (rev_expr : Rev_expr.rev_expr_holed) (hole : RE.t) :
             handler
           in
           let bound_parameters = filter_params cont bound_parameters in
-          let handler, res = rebuild_expr env res expr in
+          let handler, res =
+            Escape_rebuild.rebuild_recursive_handler env.escape cont
+              ~rebuild_body:(fun escape ->
+                rebuild_expr { env with escape } res expr)
+          in
           let cont_handler =
             RE.create_continuation_handler bound_parameters ~handler
               ~is_exn_handler ~is_cold
@@ -2092,7 +2107,9 @@ and rebuild_expr env (res : rebuild_result) (rev_expr : Rev_expr.rev_expr) :
       | Some ac ->
         let expr = Expr.create_apply_cont ac in
         let free_names = Apply_cont_expr.free_names ac in
-        RE.from_expr ~expr ~free_names ~code_size:(Code_size.apply_cont ac))
+        Escape_rebuild.end_regions_before_jump env.escape
+          (Apply_cont_expr.continuation ac)
+          (RE.from_expr ~expr ~free_names ~code_size:(Code_size.apply_cont ac)))
     | Switch switch ->
       let arms =
         Target_ocaml_int.Map.filter_map
@@ -2105,6 +2122,11 @@ and rebuild_expr env (res : rebuild_result) (rev_expr : Rev_expr.rev_expr) :
                    ~annotations:(Switch_arm.annotations arm)
                    action))
           (Switch_expr.arms switch)
+      in
+      let arms =
+        Escape_rebuild.redirect_switch_arms env.escape
+          ~params_of_continuation:(fresh_params_of_continuation env)
+          arms
       in
       if Target_ocaml_int.Map.is_empty arms
       then
@@ -2123,7 +2145,10 @@ and rebuild_expr env (res : rebuild_result) (rev_expr : Rev_expr.rev_expr) :
         let expr = Expr.create_switch switch in
         let free_names = Switch_expr.free_names switch in
         RE.from_expr ~expr ~free_names ~code_size:(Code_size.switch switch)
-    | Apply apply -> rebuild_apply env apply
+    | Apply apply ->
+      Escape_rebuild.rebuild_apply env.escape
+        ~params_of_continuation:(fresh_params_of_continuation env)
+        apply ~rebuild:(rebuild_apply env)
   in
   rebuild_holed env res holed_expr expr
 
@@ -2152,6 +2177,11 @@ and rebuild_function_params_and_body env res code_metadata
     params_and_body
   in
   let code_id = Code_metadata.code_id code_metadata in
+  let my_alloc_mode, escape =
+    Escape_rebuild.enter_function env.escape ~code_id ~return_continuation
+      ~my_alloc_mode
+  in
+  let env = { env with escape } in
   let updating_calling_convention =
     Analysis.get_calling_convention_change env.solution code_id
   in
@@ -2164,7 +2194,9 @@ and rebuild_function_params_and_body env res code_metadata
     in
     let all_vars = region_vars @ (my_closure :: Bound_parameters.vars params) in
     match List.filter (is_dead_var env) all_vars with
-    | [] -> rebuild_expr env res body
+    | [] ->
+      Escape_rebuild.rebuild_function_body env.escape ~code_id
+        ~rebuild_body:(fun escape -> rebuild_expr { env with escape } res body)
     | _ :: _ as dead_vars ->
       let msg =
         Format.asprintf
@@ -2300,6 +2332,9 @@ and rebuild_code env res code_id
       Misc.fatal_errorf "[rebuild_code]: could not find code_metadata for %a"
         Code_id.print code_id
   in
+  let code_metadata =
+    Escape_rebuild.adjust_code_metadata env.escape code_id code_metadata
+  in
   let params_and_body, code_metadata, res =
     rebuild_function_params_and_body env res code_metadata params_and_body
   in
@@ -2368,7 +2403,7 @@ type 'f result =
     final_typing_env : ('f, typing_env) Traverse.With_types.t
   }
 
-let rebuild (type f) ~machine_width ~cmx_loader ~all_code ~skeleton
+let rebuild (type f) ~escape ~machine_width ~cmx_loader ~all_code ~skeleton
     ~(solution : f Analysis.Solution.t) =
   let { Traverse.Skeleton.toplevel_expr;
         code;
@@ -2434,7 +2469,18 @@ let rebuild (type f) ~machine_width ~cmx_loader ~all_code ~skeleton
       cont_params_to_keep;
       should_keep_param;
       should_preserve_direct_calls;
-      inside_code_definition = false
+      inside_code_definition = false;
+      escape =
+        Escape_rebuild.create escape
+          ~is_unboxed:(fun alloc ->
+            Option.is_some (Analysis.get_unboxed_fields solution alloc))
+          ~allocation_is_kept:(fun var ->
+            raw_is_var_used solution var (Variable.kind var)
+            && Option.is_none
+                 (Analysis.get_unboxed_fields solution (Code_id_or_name.var var)))
+          ~code_ids_directly_called:
+            (Analysis.code_id_actually_directly_called solution)
+          ~get_code_metadata ~continuation_info ~machine_width
     }
   in
   let res =
@@ -2451,6 +2497,7 @@ let rebuild (type f) ~machine_width ~cmx_loader ~all_code ~skeleton
         in
         rebuild_expr env res toplevel_expr)
   in
+  Escape_rebuild.report_stats env.escape;
   let exported_code =
     Exported_code.add_code
       ~keep_code:(fun code_id -> Code_id.Set.mem code_id code_ids_to_remember)
