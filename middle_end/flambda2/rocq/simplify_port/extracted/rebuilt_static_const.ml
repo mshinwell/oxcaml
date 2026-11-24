@@ -123,12 +123,12 @@ let cost_metrics t0 =
 (** val create_normal_non_code : Cost_metrics.t -> Static_const.t -> t coq_M **)
 
 let create_normal_non_code cost_metrics0 const =
+  let free_names0 = Static_const.free_names const in
+  let const0 = Flambda.Static_const_or_code.create_static_const const in
   (fun (x__1, x__2, x__3) ->
     (Normal { const = x__1; free_names = x__2; cost_metrics = x__3 }
       : rebuilt_static_const))
-    ( Flambda.Static_const_or_code.create_static_const const,
-      Static_const.free_names const,
-      cost_metrics0 )
+    (const0, free_names0, cost_metrics0)
 
 (** val create_code : Are_rebuilding_terms.t ->
     Rebuilt_expr.Function_params_and_body.t -> Name_occurrences.t -> (t * Code.t
@@ -166,12 +166,12 @@ let create_code are_rebuilding params_and_body free_names_of_params_and_body
           Code.create_with_metadata params_and_body0
             free_names_of_params_and_body code_metadata
         in
+        let free_names0 = Code.free_names code in
+        let const = Flambda.Static_const_or_code.create_code code in
         ( (fun (x__1, x__2, x__3) ->
             (Normal { const = x__1; free_names = x__2; cost_metrics = x__3 }
               : rebuilt_static_const))
-            ( Flambda.Static_const_or_code.create_code code,
-              Code.free_names code,
-              Cost_metrics.zero ),
+            (const, free_names0, Cost_metrics.zero),
           Some code ))
       code_id newer_version_of params_arity param_modes
       first_complex_local_param result_arity result_types result_mode stub
@@ -183,20 +183,22 @@ let create_code are_rebuilding params_and_body free_names_of_params_and_body
 (** val create_code' : Code.t -> t coq_M **)
 
 let create_code' code =
+  let free_names0 = Code.free_names code in
+  let const = Flambda.Static_const_or_code.create_code code in
   (fun (x__1, x__2, x__3) ->
     (Normal { const = x__1; free_names = x__2; cost_metrics = x__3 }
       : rebuilt_static_const))
-    ( Flambda.Static_const_or_code.create_code code,
-      Code.free_names code,
-      Cost_metrics.zero )
+    (const, free_names0, Cost_metrics.zero)
 
 (** val find_code_characteristics : (Code_id.t -> Code_metadata.t coq_M) ->
     Code_id.t -> code_characteristics coq_M **)
 
 let find_code_characteristics find_code_metadata code_id =
   let code_metadata = find_code_metadata code_id in
-  { Cost_metrics.cost_metrics = Code_metadata.cost_metrics code_metadata;
-    function_slot_size = Code_metadata.function_slot_size code_metadata
+  let function_slot_size0 = Code_metadata.function_slot_size code_metadata in
+  let cost_metrics0 = Code_metadata.cost_metrics code_metadata in
+  { Cost_metrics.cost_metrics = cost_metrics0;
+    function_slot_size = function_slot_size0
   }
 
 (** val create_set_of_closures : Are_rebuilding_terms.t -> (Code_id.t ->
@@ -602,13 +604,17 @@ let map_set_of_closures t0 find_code_metadata f =
               (find_code_characteristics find_code_metadata)
               set_of_closures0
           in
+          let free_names0 =
+            Flambda.Set_of_closures.free_names set_of_closures0
+          in
+          let const1 =
+            Flambda.Static_const_or_code.create_static_const
+              (Static_const.set_of_closures set_of_closures0)
+          in
           (fun (x__1, x__2, x__3) ->
             (Normal { const = x__1; free_names = x__2; cost_metrics = x__3 }
               : rebuilt_static_const))
-            ( Flambda.Static_const_or_code.create_static_const
-                (Static_const.set_of_closures set_of_closures0),
-              Flambda.Set_of_closures.free_names set_of_closures0,
-              cost_metrics0 )
+            (const1, free_names0, cost_metrics0)
         | Static_const.Block (_, _, _, _) -> t0
         | Static_const.Boxed_float32 _ -> t0
         | Static_const.Boxed_float _ -> t0
@@ -942,7 +948,8 @@ module Group = struct
 
   let concat t1 t2 =
     let free_names0 =
-      let fn1, fn2 = get_free_names t1, get_free_names t2 in
+      let fn2 = get_free_names t2 in
+      let fn1 = get_free_names t1 in
       match fn1 with
       | Or_unknown.Known free_names1 -> (
         match fn2 with

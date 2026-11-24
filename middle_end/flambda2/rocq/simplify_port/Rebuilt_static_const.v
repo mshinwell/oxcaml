@@ -123,10 +123,11 @@ Definition cost_metrics (t : Rebuilt_static_const.t) : M Cost_metrics.t :=
 Definition create_normal_non_code (cost_metrics : Cost_metrics.t)
     (const : Static_const.t) : M t :=
   (* PORT-GAP(record-order): 70-71, calls in the fields [const] and
-     [free_names]: the last field first. *)
-  let! tmp1 := Static_const.free_names const in
-  let! tmp2 := Static_const_or_code.create_static_const const in
-  ret (Normal tmp2 tmp1 cost_metrics).
+     [free_names]: the last field first, each bound under the name of its
+     field. *)
+  let* free_names := Static_const.free_names const in
+  let* const := Static_const_or_code.create_static_const const in
+  ret (Normal const free_names cost_metrics).
 
 (* 75-98 *)
 (* PORT-GAP(loose): the compiler's function has three parameters and gives
@@ -173,10 +174,11 @@ Definition create_code (are_rebuilding : ART.t)
             free_names_of_params_and_body code_metadata
         in
         (* PORT-GAP(record-order): 94-95, calls in the fields [const] and
-           [free_names]: the last field first. *)
-        let! tmp2 := Code.free_names code in
-        let! tmp3 := Static_const_or_code.create_code code in
-        ret (Normal tmp3 tmp2 Cost_metrics.zero, Some code))
+           [free_names]: the last field first, each bound under the name of
+           its field. *)
+        let* free_names := Code.free_names code in
+        let* const := Static_const_or_code.create_code code in
+        ret (Normal const free_names Cost_metrics.zero, Some code))
       code_id newer_version_of params_arity param_modes
       first_complex_local_param result_arity result_types result_mode stub
       inline zero_alloc_attribute poll_attribute regalloc_attribute
@@ -187,10 +189,11 @@ Definition create_code (are_rebuilding : ART.t)
 (* 100-105 *)
 Definition create_code' (code : Code.t) : M t :=
   (* PORT-GAP(record-order): 102-103, calls in the fields [const] and
-     [free_names]: the last field first. *)
-  let! tmp1 := Code.free_names code in
-  let! tmp2 := Static_const_or_code.create_code code in
-  ret (Normal tmp2 tmp1 Cost_metrics.zero).
+     [free_names]: the last field first, each bound under the name of its
+     field. *)
+  let* free_names := Code.free_names code in
+  let* const := Static_const_or_code.create_code code in
+  ret (Normal const free_names Cost_metrics.zero).
 
 (* 107-112 *)
 Definition find_code_characteristics
@@ -198,12 +201,12 @@ Definition find_code_characteristics
     (code_id : Code_id.t) : M Cost_metrics.code_characteristics :=
   let* code_metadata := find_code_metadata code_id in
   (* PORT-GAP(record-order): 110-111, calls in the two fields: the last
-     field first. *)
-  let! tmp1 := Code_metadata.function_slot_size code_metadata in
-  let! tmp2 := Code_metadata.cost_metrics code_metadata in
+     field first, each bound under the name of its field. *)
+  let* function_slot_size := Code_metadata.function_slot_size code_metadata in
+  let* cost_metrics := Code_metadata.cost_metrics code_metadata in
   ret
-    {| Cost_metrics.cost_metrics := tmp2;
-       Cost_metrics.function_slot_size := tmp1
+    {| Cost_metrics.cost_metrics := cost_metrics;
+       Cost_metrics.function_slot_size := function_slot_size
     |}.
 
 (* 114-129 *)
@@ -608,11 +611,14 @@ Definition map_set_of_closures (t : Rebuilt_static_const.t)
             set_of_closures
         in
         (* PORT-GAP(record-order): 341-344, calls in the fields [const] and
-           [free_names]: the last field first. *)
-        let! tmp1 := Set_of_closures.free_names set_of_closures in
-        let! tmp2 := SC.set_of_closures set_of_closures in
-        let! tmp3 := Static_const_or_code.create_static_const tmp2 in
-        ret (Normal tmp3 tmp1 cost_metrics)
+           [free_names]: the last field first, each bound under the name of
+           its field. *)
+        let* free_names := Set_of_closures.free_names set_of_closures in
+        let* const :=
+          let! tmp1 := SC.set_of_closures set_of_closures in
+          Static_const_or_code.create_static_const tmp1
+        in
+        ret (Normal const free_names cost_metrics)
       | SC.Block _ _ _ _ | SC.Boxed_float _ | SC.Boxed_float32 _
       | SC.Boxed_int32 _ | SC.Boxed_int64 _ | SC.Boxed_vec128 _
       | SC.Boxed_vec256 _ | SC.Boxed_vec512 _ | SC.Boxed_mask _
@@ -896,12 +902,11 @@ Module Group.
   Definition concat (t1 t2 : t) : M t :=
     let* free_names :=
       (* PORT-GAP(loose): 514, [match t1.free_names, t2.free_names with]:
-         the pair is named ([fn1], [fn2], names that the compiler does not
-         have) before the match, so that each field is read once and the
-         second one first. *)
-      let! tmp1 := get_free_names t2 in
-      let! tmp2 := get_free_names t1 in
-      let* '(fn1, fn2) := ret (tmp2, tmp1) in
+         the two reads are bound ([fn2], then [fn1]: names that the
+         compiler does not have) before the match, so that each field is
+         read once and the second one first. *)
+      let* fn2 := get_free_names t2 in
+      let* fn1 := get_free_names t1 in
       match fn1, fn2 with
       | Or_unknown.Known free_names1, Or_unknown.Known free_names2 =>
         let! tmp1 := Name_occurrences.union free_names1 free_names2 in
