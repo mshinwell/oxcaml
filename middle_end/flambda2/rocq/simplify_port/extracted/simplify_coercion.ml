@@ -22,8 +22,7 @@
 
 open Port_monad
 
-(** val simplify_coercion : Downwards_acc.t -> Int_ids.Coercion.t ->
-    Int_ids.Coercion.t coq_M **)
+(** val simplify_coercion : Downwards_acc.t -> Coercion.t -> Coercion.t coq_M **)
 
 let simplify_coercion dacc coercion =
   (fun f__1 f__2 x__0 ->
