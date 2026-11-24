@@ -21,7 +21,7 @@
    temporaries [tmpN] and their order, the fuel of the recursive functions)
    is that of GUIDE.md; the Rocq names of the fields whose names are taken
    (one or two [_] after), and of the first of the two functions
-   [rebuild_let_cont] ([rebuild_let_cont_]); the three functions [with_...]
+   [rebuild_let_cont] ([rebuild_let_cont_]); the three setters [update_...]
    that stand for the compiler's [{ data with ... }]. No proof. *)
 
 From SimplifyPort Require Import Port_monad.
@@ -86,32 +86,33 @@ Inductive one_original_handler : Type :=
 
 (* 51-54 *)
 (* PORT-GAP(type): two later records of the file have a field [handlers]
-   too, so OCaml needs to be told which record is meant where a field is
-   read: the Rocq record has the compiler's fields, and Rocq prints the
-   compiler's definition and reads each field with the type written. *)
+   too. Rocq has one name space, and the plain name is that of the field of
+   the last of the three (the record that the file updates): this Rocq
+   record has [handlers_], and Rocq prints the compiler's definition and
+   reads each field with the type written. *)
 Record simplify_let_cont_data_ : Type := {
   body : Expr.t;
-  handlers : Original_handlers.t
+  handlers_ : Original_handlers.t
 }.
 Extract Inductive simplify_let_cont_data_ => "simplify_let_cont_data"
   [ "(fun (x__1, x__2) -> ({ body = x__1; handlers = x__2 } : simplify_let_cont_data))" ]
   "(fun f__1 x__0 -> let ({ body = x__1; handlers = x__2 } : simplify_let_cont_data) = x__0 in f__1 x__1 x__2)".
 Extract Inlined Constant body =>
   "(fun (x__0 : simplify_let_cont_data) -> x__0.body)".
-Extract Inlined Constant handlers =>
+Extract Inlined Constant handlers_ =>
   "(fun (x__0 : simplify_let_cont_data) -> x__0.handlers)".
 Definition simplify_let_cont_data : Type := simplify_let_cont_data_.
 Extract Constant simplify_let_cont_data =>
   "{ body : Expr.t; handlers : Original_handlers.t }".
 
 (* 56-60 *)
-(* PORT-GAP(type): the name of the field [handlers] is taken in Rocq (by the
-   field of [simplify_let_cont_data]): the Rocq record has [handlers_], and
-   Rocq prints the compiler's definition and the compiler's fields. *)
+(* PORT-GAP(type): the name of the field [handlers] is taken in Rocq (see
+   [simplify_let_cont_data]): the Rocq record has [handlers__], and Rocq
+   prints the compiler's definition and the compiler's fields. *)
 Record after_downwards_traversal_of_body_data_ : Type := {
   denv_for_join : DE.t;
   prior_lifted_constants : LCS.t;
-  handlers_ : Original_handlers.t
+  handlers__ : Original_handlers.t
 }.
 Extract Inductive after_downwards_traversal_of_body_data_ => "after_downwards_traversal_of_body_data"
   [ "(fun (x__1, x__2, x__3) -> ({ denv_for_join = x__1; prior_lifted_constants = x__2; handlers = x__3 } : after_downwards_traversal_of_body_data))" ]
@@ -120,7 +121,7 @@ Extract Inlined Constant denv_for_join =>
   "(fun (x__0 : after_downwards_traversal_of_body_data) -> x__0.denv_for_join)".
 Extract Inlined Constant prior_lifted_constants =>
   "(fun (x__0 : after_downwards_traversal_of_body_data) -> x__0.prior_lifted_constants)".
-Extract Inlined Constant handlers_ =>
+Extract Inlined Constant handlers__ =>
   "(fun (x__0 : after_downwards_traversal_of_body_data) -> x__0.handlers)".
 Definition after_downwards_traversal_of_body_data : Type := after_downwards_traversal_of_body_data_.
 Extract Constant after_downwards_traversal_of_body_data =>
@@ -143,11 +144,12 @@ Record handler_after_downwards_traversal : Type := {
 }.
 
 (* 77-100 *)
-(* PORT-GAP(type): two names of fields are taken in Rocq:
-   [after_downwards_traversal_of_body] (a function of the file) and
-   [handlers]: the Rocq record has [after_downwards_traversal_of_body_] and
-   [handlers__], and Rocq prints the compiler's definition (without its
-   comments, which are here) and the compiler's fields. *)
+(* PORT-GAP(type): the name of the field
+   [after_downwards_traversal_of_body] is taken in Rocq (a function of the
+   file): the Rocq record has [after_downwards_traversal_of_body_]; its
+   field [handlers] has the plain name (see [simplify_let_cont_data]). Rocq
+   prints the compiler's definition (without its comments, which are here)
+   and the compiler's fields. *)
 Record after_downwards_traversal_of_body_and_handlers_data_ : Type := {
   after_downwards_traversal_of_body_ : after_downwards_traversal_of_body_data;
   cont_uses_env_after_body : CUE.t;
@@ -170,7 +172,7 @@ Record after_downwards_traversal_of_body_and_handlers_data_ : Type := {
   lifted_params : Lifted_cont_params.t;
   invariant_params : Bound_parameters.t;
   invariant_extra_params_and_args : EPA.t;
-  handlers__ : Continuation.Map.t handler_after_downwards_traversal
+  handlers : Continuation.Map.t handler_after_downwards_traversal
 }.
 Extract Inductive after_downwards_traversal_of_body_and_handlers_data_ => "after_downwards_traversal_of_body_and_handlers_data"
   [ "(fun (x__1, x__2, x__3, x__4, x__5, x__6, x__7, x__8, x__9, x__10, x__11, x__12) -> ({ after_downwards_traversal_of_body = x__1; cont_uses_env_after_body = x__2; dacc_after_body = x__3; simplified_body = x__4; cont_uses_env = x__5; at_unit_toplevel = x__6; consts_lifted_during_body = x__7; consts_lifted_after_fork = x__8; lifted_params = x__9; invariant_params = x__10; invariant_extra_params_and_args = x__11; handlers = x__12 } : after_downwards_traversal_of_body_and_handlers_data))" ]
@@ -197,7 +199,7 @@ Extract Inlined Constant invariant_params =>
   "(fun (x__0 : after_downwards_traversal_of_body_and_handlers_data) -> x__0.invariant_params)".
 Extract Inlined Constant invariant_extra_params_and_args =>
   "(fun (x__0 : after_downwards_traversal_of_body_and_handlers_data) -> x__0.invariant_extra_params_and_args)".
-Extract Inlined Constant handlers__ =>
+Extract Inlined Constant handlers =>
   "(fun (x__0 : after_downwards_traversal_of_body_and_handlers_data) -> x__0.handlers)".
 Definition after_downwards_traversal_of_body_and_handlers_data : Type := after_downwards_traversal_of_body_and_handlers_data_.
 Extract Constant after_downwards_traversal_of_body_and_handlers_data =>
@@ -1459,7 +1461,7 @@ Definition sort_handlers
   let* handlers_graph :=
     Continuation.Map.map
       (fun handler => ret handler.(continuations_used))
-      data.(handlers__)
+      data.(Simplify_let_cont_expr.handlers)
   in
   let* sorted_handlers_from_the_inside_to_the_outside :=
     SCC.connected_components_sorted_from_roots_to_leaf handlers_graph
@@ -1500,73 +1502,75 @@ Definition sort_handlers
     ([] : list Simplified_expr.simplified_handlers_group)
     sorted_handlers_from_the_inside_to_the_outside.
 
-(* PORT-GAP(loose): the three functions below stand for the compiler's
-   [{ data with ... }] (1166-1175, 1238-1243, 1268) on the record
-   [after_downwards_traversal_of_body_and_handlers_data]: Rocq has no such
-   form and would print the twelve fields; each function is printed as the
-   compiler's text. Their parameters are in the order of the type. *)
-Definition with_cont_uses_env_consts_lifted_after_fork_handlers
-    (data : after_downwards_traversal_of_body_and_handlers_data)
-    (cont_uses_env : CUE.t) (consts_lifted_after_fork : LCS.t)
-    (handlers : Continuation.Map.t handler_after_downwards_traversal)
-    : after_downwards_traversal_of_body_and_handlers_data :=
-  {| after_downwards_traversal_of_body_ :=
-       data.(after_downwards_traversal_of_body_);
-     cont_uses_env_after_body := data.(cont_uses_env_after_body);
-     dacc_after_body := data.(dacc_after_body);
-     simplified_body := data.(simplified_body);
-     cont_uses_env := cont_uses_env;
-     at_unit_toplevel := data.(at_unit_toplevel);
-     consts_lifted_during_body := data.(consts_lifted_during_body);
-     consts_lifted_after_fork := consts_lifted_after_fork;
-     lifted_params := data.(lifted_params);
-     invariant_params := data.(invariant_params);
-     invariant_extra_params_and_args := data.(invariant_extra_params_and_args);
-     handlers__ := handlers |}.
-Extract Inlined Constant with_cont_uses_env_consts_lifted_after_fork_handlers =>
-  "(fun (x__0 : after_downwards_traversal_of_body_and_handlers_data) x__1 x__2 x__3 -> { x__0 with cont_uses_env = x__1; consts_lifted_after_fork = x__2; handlers = x__3 })".
-
-Definition with_cont_uses_envs_consts_lifted_after_fork_handlers
-    (data : after_downwards_traversal_of_body_and_handlers_data)
-    (cont_uses_env_after_body cont_uses_env : CUE.t)
+(* PORT-GAP(update): 1166-1175, [{ data with consts_lifted_after_fork;
+   handlers; cont_uses_env }]. *)
+Definition update_consts_lifted_after_fork_handlers_cont_uses_env
+    (t : after_downwards_traversal_of_body_and_handlers_data)
     (consts_lifted_after_fork : LCS.t)
     (handlers : Continuation.Map.t handler_after_downwards_traversal)
+    (cont_uses_env : CUE.t)
     : after_downwards_traversal_of_body_and_handlers_data :=
   {| after_downwards_traversal_of_body_ :=
-       data.(after_downwards_traversal_of_body_);
-     cont_uses_env_after_body := cont_uses_env_after_body;
-     dacc_after_body := data.(dacc_after_body);
-     simplified_body := data.(simplified_body);
+       t.(after_downwards_traversal_of_body_);
+     cont_uses_env_after_body := t.(cont_uses_env_after_body);
+     dacc_after_body := t.(dacc_after_body);
+     simplified_body := t.(simplified_body);
      cont_uses_env := cont_uses_env;
-     at_unit_toplevel := data.(at_unit_toplevel);
-     consts_lifted_during_body := data.(consts_lifted_during_body);
+     at_unit_toplevel := t.(at_unit_toplevel);
+     consts_lifted_during_body := t.(consts_lifted_during_body);
      consts_lifted_after_fork := consts_lifted_after_fork;
-     lifted_params := data.(lifted_params);
-     invariant_params := data.(invariant_params);
-     invariant_extra_params_and_args := data.(invariant_extra_params_and_args);
-     handlers__ := handlers |}.
-Extract Inlined Constant with_cont_uses_envs_consts_lifted_after_fork_handlers =>
-  "(fun (x__0 : after_downwards_traversal_of_body_and_handlers_data) x__1 x__2 x__3 x__4 -> { x__0 with cont_uses_env_after_body = x__1; cont_uses_env = x__2; consts_lifted_after_fork = x__3; handlers = x__4 })".
+     lifted_params := t.(lifted_params);
+     invariant_params := t.(invariant_params);
+     invariant_extra_params_and_args := t.(invariant_extra_params_and_args);
+     handlers := handlers |}.
+Extract Inlined Constant update_consts_lifted_after_fork_handlers_cont_uses_env =>
+  "(fun t x__1 x__2 x__3 -> { t with consts_lifted_after_fork = x__1; handlers = x__2; cont_uses_env = x__3 })".
 
-Definition with_cont_uses_env_after_body
-    (data : after_downwards_traversal_of_body_and_handlers_data)
+(* PORT-GAP(update): 1238-1243, [{ data with handlers; cont_uses_env;
+   cont_uses_env_after_body; consts_lifted_after_fork }]. *)
+Definition update_handlers_cont_uses_env_cont_uses_env_after_body_consts_lifted_after_fork
+    (t : after_downwards_traversal_of_body_and_handlers_data)
+    (handlers : Continuation.Map.t handler_after_downwards_traversal)
+    (cont_uses_env : CUE.t)
+    (cont_uses_env_after_body : CUE.t)
+    (consts_lifted_after_fork : LCS.t)
+    : after_downwards_traversal_of_body_and_handlers_data :=
+  {| after_downwards_traversal_of_body_ :=
+       t.(after_downwards_traversal_of_body_);
+     cont_uses_env_after_body := cont_uses_env_after_body;
+     dacc_after_body := t.(dacc_after_body);
+     simplified_body := t.(simplified_body);
+     cont_uses_env := cont_uses_env;
+     at_unit_toplevel := t.(at_unit_toplevel);
+     consts_lifted_during_body := t.(consts_lifted_during_body);
+     consts_lifted_after_fork := consts_lifted_after_fork;
+     lifted_params := t.(lifted_params);
+     invariant_params := t.(invariant_params);
+     invariant_extra_params_and_args := t.(invariant_extra_params_and_args);
+     handlers := handlers |}.
+Extract Inlined Constant update_handlers_cont_uses_env_cont_uses_env_after_body_consts_lifted_after_fork =>
+  "(fun t x__1 x__2 x__3 x__4 -> { t with handlers = x__1; cont_uses_env = x__2; cont_uses_env_after_body = x__3; consts_lifted_after_fork = x__4 })".
+
+(* PORT-GAP(update): 1268, [{ data with cont_uses_env_after_body }]. *)
+Definition update_cont_uses_env_after_body
+    (t : after_downwards_traversal_of_body_and_handlers_data)
     (cont_uses_env_after_body : CUE.t)
     : after_downwards_traversal_of_body_and_handlers_data :=
   {| after_downwards_traversal_of_body_ :=
-       data.(after_downwards_traversal_of_body_);
+       t.(after_downwards_traversal_of_body_);
      cont_uses_env_after_body := cont_uses_env_after_body;
-     dacc_after_body := data.(dacc_after_body);
-     simplified_body := data.(simplified_body);
-     cont_uses_env := data.(cont_uses_env);
-     at_unit_toplevel := data.(at_unit_toplevel);
-     consts_lifted_during_body := data.(consts_lifted_during_body);
-     consts_lifted_after_fork := data.(consts_lifted_after_fork);
-     lifted_params := data.(lifted_params);
-     invariant_params := data.(invariant_params);
-     invariant_extra_params_and_args := data.(invariant_extra_params_and_args);
-     handlers__ := data.(handlers__) |}.
-Extract Inlined Constant with_cont_uses_env_after_body =>
-  "(fun (x__0 : after_downwards_traversal_of_body_and_handlers_data) x__1 -> { x__0 with cont_uses_env_after_body = x__1 })".
+     dacc_after_body := t.(dacc_after_body);
+     simplified_body := t.(simplified_body);
+     cont_uses_env := t.(cont_uses_env);
+     at_unit_toplevel := t.(at_unit_toplevel);
+     consts_lifted_during_body := t.(consts_lifted_during_body);
+     consts_lifted_after_fork := t.(consts_lifted_after_fork);
+     lifted_params := t.(lifted_params);
+     invariant_params := t.(invariant_params);
+     invariant_extra_params_and_args := t.(invariant_extra_params_and_args);
+     handlers := t.(handlers) |}.
+Extract Inlined Constant update_cont_uses_env_after_body =>
+  "(fun t x__1 -> { t with cont_uses_env_after_body = x__1 })".
 
 (* 1092-1177 *)
 Fixpoint compute_specialized_continuation (fuel : fuel)
@@ -1664,7 +1668,7 @@ Fixpoint compute_specialized_continuation (fuel : fuel)
            which the compiler writes [handlers] first; here in the order of
            the type, the last field ([handlers]) first. *)
         let* data :=
-          let* handlers := Continuation.Map.add cont rebuild data.(handlers__) in
+          let* handlers := Continuation.Map.add cont rebuild data.(handlers) in
           let* cont_uses_env :=
             let! tmp1 := One_continuation_use.arg_types use in
             let! tmp2 := One_continuation_use.env_at_use use in
@@ -1673,8 +1677,8 @@ Fixpoint compute_specialized_continuation (fuel : fuel)
             CUE.add_continuation_use cont_uses_env cont tmp4 tmp3 tmp2 tmp1
           in
           ret
-            (with_cont_uses_env_consts_lifted_after_fork_handlers data
-               cont_uses_env consts_lifted_after_fork handlers)
+            (update_consts_lifted_after_fork_handlers_cont_uses_env data
+               consts_lifted_after_fork handlers cont_uses_env)
         in
         k dacc data)
   end
@@ -1711,7 +1715,7 @@ with specialize_continuation_if_needed (fuel : fuel)
       M (SE.t * DA.t))
     {struct fuel} : M (SE.t * DA.t) :=
   recursive! fuel in
-  let! tmp1 := Continuation.Map.get_singleton data.(handlers__) in
+  let! tmp1 := Continuation.Map.get_singleton data.(handlers) in
   match tmp1 with
   | Some (cont, handler) =>
     (* 1193: the guard. *)
@@ -1769,9 +1773,9 @@ with specialize_continuation_if_needed (fuel : fuel)
              traversal of the handler. *)
           let& consts_lifted_after_fork := data.(consts_lifted_during_body) in
           let& data :=
-            with_cont_uses_envs_consts_lifted_after_fork_handlers data
-              cont_uses_env cont_uses_env consts_lifted_after_fork
-              Continuation.Map.empty
+            update_handlers_cont_uses_env_cont_uses_env_after_body_consts_lifted_after_fork
+              data Continuation.Map.empty cont_uses_env cont_uses_env
+              consts_lifted_after_fork
           in
           compute_specialized_continuation_handlers fuel replay simplify_expr
             cont handler dacc data uses k
@@ -1805,7 +1809,7 @@ with after_downwards_traversal_of_body_and_handlers (fuel : fuel)
             CUE.record_continuation_arity cont_uses_env_after_body lifted_cont)
           data.(cont_uses_env_after_body) lifted_conts
       in
-      ret (with_cont_uses_env_after_body data cont_uses_env_after_body)
+      ret (update_cont_uses_env_after_body data cont_uses_env_after_body)
     end
   in
   let* down_to_up :=
@@ -1849,12 +1853,12 @@ with after_downwards_traversal_of_body_and_handlers (fuel : fuel)
       let* cont_uses_env :=
         Continuation.Map.fold
           (fun cont _ cont_uses_env => CUE.remove cont_uses_env cont)
-          data.(handlers__) data.(cont_uses_env)
+          data.(handlers) data.(cont_uses_env)
       in
       let* dacc := DA.with_continuation_uses_env dacc cont_uses_env in
       (* 1313-1315: a function of this file, given its first argument. *)
       let* handlers :=
-        Continuation.Map.mapi (create_handler_to_rebuild data) data.(handlers__)
+        Continuation.Map.mapi (create_handler_to_rebuild data) data.(handlers)
       in
       let* dacc :=
         DA.map_flow_acc dacc
@@ -2190,7 +2194,7 @@ with simplify_recursive_handlers (fuel : fuel)
               lifted_params := lifted_params;
               invariant_params := invariant_params;
               invariant_extra_params_and_args := invariant_epa;
-              handlers__ := simplified_handlers |}
+              handlers := simplified_handlers |}
             : after_downwards_traversal_of_body_and_handlers_data)
         in
         let* dacc := DA.with_are_lifting_conts dacc previous_are_lifting_conts in
@@ -2249,7 +2253,7 @@ with simplify_handlers (fuel : fuel)
   let* body_continuation_uses_env := DA.continuation_uses_env dacc in
   let& denv := data.(Simplify_let_cont_expr.denv_for_join) in
   let* previous_are_lifting_conts := DA.are_lifting_conts dacc in
-  match data.(handlers_) with
+  match data.(handlers__) with
   | Original_handlers.Non_recursive original =>
     (* 1604-1612: the record pattern [({ cont; params; lifted_params;
        handler; is_exn_handler; is_cold; can_be_lifted = _ } as
@@ -2283,7 +2287,7 @@ with simplify_handlers (fuel : fuel)
             lifted_params := Lifted_cont_params.empty;
             invariant_params := Bound_parameters.empty;
             invariant_extra_params_and_args := EPA.empty;
-            handlers__ := Continuation.Map.empty |}
+            handlers := Continuation.Map.empty |}
           : after_downwards_traversal_of_body_and_handlers_data)
       in
       after_downwards_traversal_of_body_and_handlers fuel simplify_expr
@@ -2369,7 +2373,7 @@ with simplify_handlers (fuel : fuel)
                   lifted_params := lifted_params;
                   invariant_params := Bound_parameters.empty;
                   invariant_extra_params_and_args := EPA.empty;
-                  handlers__ := tmp1 |}
+                  handlers := tmp1 |}
                 : after_downwards_traversal_of_body_and_handlers_data)
           in
           after_downwards_traversal_of_body_and_handlers fuel simplify_expr
@@ -2449,7 +2453,7 @@ with after_downwards_traversal_of_body (fuel : fuel)
   let! tmp1 := DA.are_lifting_conts dacc in
   match tmp1 with
   | Are_lifting_conts.Lifting_out_of _ =>
-    let! tmp1 := Original_handlers.can_be_lifted data.(handlers_) in
+    let! tmp1 := Original_handlers.can_be_lifted data.(handlers__) in
     if negb tmp1
     then
       (* wrapper continuations are not lifted, and will be duplicated and
@@ -2465,7 +2469,7 @@ with after_downwards_traversal_of_body (fuel : fuel)
         DE.variables_defined_in_current_continuation denv_for_join
       in
       let* handlers :=
-        Original_handlers.add_params_to_lift data.(handlers_) params_to_lift
+        Original_handlers.add_params_to_lift data.(handlers__) params_to_lift
       in
       let* dacc :=
         DA.add_lifted_continuation
@@ -2506,7 +2510,7 @@ with down_to_up_for_lifted_continuations (fuel : fuel)
     let& data :=
       ({| denv_for_join := actual_denv;
           prior_lifted_constants := LCS.empty;
-          handlers_ := handlers |}
+          handlers__ := handlers |}
         : after_downwards_traversal_of_body_data)
     in
     (* 1834-1836: a function of this file, given its first arguments. *)
@@ -2533,7 +2537,7 @@ Definition simplify_let_cont0
   in
   let* denv_before_body := DA.denv dacc in
   let* can_be_lifted :=
-    let! tmp1 := Original_handlers.can_be_lifted data.(handlers) in
+    let! tmp1 := Original_handlers.can_be_lifted data.(handlers_) in
     and_then tmp1
       (let! tmp2 :=
          DE.has_seen_a_non_liftable_continuation denv_before_body
@@ -2560,18 +2564,18 @@ Definition simplify_let_cont0
       Lifted_cont_params.length tmp1
     in
     let* bound_continuations :=
-      Original_handlers.bound_continuations data.(handlers)
+      Original_handlers.bound_continuations data.(handlers_)
     in
     (* 1876-1882 *)
     let! tmp1 :=
       DE.define_continuations can_be_lifted denv_for_body bound_continuations
     in
     let! tmp2 := DE.add_lifting_cost lifting_cost tmp1 in
-    let! tmp3 := Original_handlers.can_be_lifted data.(handlers) in
+    let! tmp3 := Original_handlers.can_be_lifted data.(handlers_) in
     (* PORT-GAP(papp): 1878-1879, [Specialization_cost.add_continuations] is
        given its first two arguments only. *)
     let! tmp4 :=
-      papp2 Specialization_cost.add_continuations tmp3 data.(handlers)
+      papp2 Specialization_cost.add_continuations tmp3 data.(handlers_)
     in
     DE.map_specialization_cost tmp4 tmp2
   in
@@ -2588,9 +2592,9 @@ Definition simplify_let_cont0
     let! tmp1 := DE.replay_history denv_for_body in
     let! tmp2 := Replay_history.replay_continuation_mapping tmp1 in
     match tmp2 with
-    | Replay_history.Still_recording => ret data.(handlers)
+    | Replay_history.Still_recording => ret data.(handlers_)
     | Replay_history.Replayed continuation_mapping =>
-      match data.(handlers) with
+      match data.(handlers_) with
       | Original_handlers.Non_recursive non_rec_handler =>
         if negb can_be_lifted
         then
@@ -2603,7 +2607,7 @@ Definition simplify_let_cont0
              The "correct" way to solve this is to either better handle symbols
              introduced while simplifying downwards, or partially rebuild the
              generic handler to use as base for the specialized handlers. *)
-          ret data.(handlers)
+          ret data.(handlers_)
         else
           let* lifted_cont :=
             Continuation.Map.find
@@ -2635,7 +2639,7 @@ Definition simplify_let_cont0
         (let! tmp1 := Lifted_cont_params.is_empty lifted_params in
          assert_ tmp1) ;;
         if negb can_be_lifted
-        then ret data.(handlers)
+        then ret data.(handlers_)
         else
           let* continuation_handlers :=
             Continuation.Lmap.mapi
@@ -2690,7 +2694,7 @@ Definition simplify_let_cont0
   let& data :=
     ({| denv_for_join := denv_for_join;
         prior_lifted_constants := prior_lifted_constants;
-        handlers_ := handlers |}
+        handlers__ := handlers |}
       : after_downwards_traversal_of_body_data)
   in
   (* 1985-1987: a function of this file, given its first arguments. *)
@@ -2729,7 +2733,7 @@ Definition simplify_let_cont
     end
   in
   simplify_let_cont0 simplify_expr dacc
-    {| body := body; handlers := handlers |}
+    {| body := body; handlers_ := handlers |}
     down_to_up.
 
 (* 2016-2039: the third parameter is the pattern [(body, handlers)]. *)
@@ -2756,6 +2760,6 @@ Definition simplify_as_recursive_let_cont
       Original_handlers.create_recursive Bound_parameters.empty
         Lifted_cont_params.empty continuation_handlers true
     in
-    ret ({| body := body; handlers := tmp1 |} : simplify_let_cont_data)
+    ret ({| body := body; handlers_ := tmp1 |} : simplify_let_cont_data)
   in
   simplify_let_cont0 simplify_expr dacc data down_to_up.

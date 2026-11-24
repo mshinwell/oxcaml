@@ -1408,17 +1408,13 @@ let rec compute_specialized_continuation replay simplify_expr original_cont
               (One_continuation_use.env_at_use use)
               (One_continuation_use.arg_types use)
           in
-          (fun (x__0 : after_downwards_traversal_of_body_and_handlers_data)
-            x__1
-            x__2
-            x__3
-          ->
-            { x__0 with
-              cont_uses_env = x__1;
-              consts_lifted_after_fork = x__2;
-              handlers = x__3
+          (fun t x__1 x__2 x__3 ->
+            { t with
+              consts_lifted_after_fork = x__1;
+              handlers = x__2;
+              cont_uses_env = x__3
             })
-            data cont_uses_env1 consts_lifted_after_fork handlers
+            data consts_lifted_after_fork handlers cont_uses_env1
         in
         k dacc4 data0)
 
@@ -1511,20 +1507,15 @@ and specialize_continuation_if_needed simplify_expr dacc data k =
                 data
             in
             let data0 =
-              (fun (x__0 : after_downwards_traversal_of_body_and_handlers_data)
-                x__1
-                x__2
-                x__3
-                x__4
-              ->
-                { x__0 with
-                  cont_uses_env_after_body = x__1;
+              (fun t x__1 x__2 x__3 x__4 ->
+                { t with
+                  handlers = x__1;
                   cont_uses_env = x__2;
-                  consts_lifted_after_fork = x__3;
-                  handlers = x__4
+                  cont_uses_env_after_body = x__3;
+                  consts_lifted_after_fork = x__4
                 })
-                data cont_uses_env cont_uses_env consts_lifted_after_fork
-                Continuation.Map.empty
+                data Continuation.Map.empty cont_uses_env cont_uses_env
+                consts_lifted_after_fork
             in
             compute_specialized_continuation_handlers replay simplify_expr cont0
               handler0 dacc2 data0 uses0 k))
@@ -1560,8 +1551,7 @@ and after_downwards_traversal_of_body_and_handlers simplify_expr denv_for_join
              data)
           lifted_conts
       in
-      (fun (x__0 : after_downwards_traversal_of_body_and_handlers_data) x__1 ->
-        { x__0 with cont_uses_env_after_body = x__1 })
+      (fun t x__1 -> { t with cont_uses_env_after_body = x__1 })
         data cont_uses_env_after_body
   in
   let down_to_up1 =
