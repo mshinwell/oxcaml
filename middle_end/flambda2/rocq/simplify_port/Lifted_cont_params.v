@@ -82,6 +82,15 @@ Definition new_param (t : Lifted_cont_params.t)
   in
   ret {| len := t.(len) + 1; new_params_indexed := new_params_indexed |}.
 
+(* PORT-GAP(update): 57, [{ t with new_params_indexed }]. *)
+Definition update_new_params_indexed (t : Lifted_cont_params.t)
+    (new_params_indexed : BP.Map.t BP.t) : Lifted_cont_params.t :=
+  {| len := t.(len);
+     new_params_indexed := new_params_indexed
+  |}.
+Extract Inlined Constant update_new_params_indexed =>
+  "(fun t x__1 -> { t with new_params_indexed = x__1 })".
+
 (* 45-57 *)
 Definition rename (t : Lifted_cont_params.t)
     : M (Lifted_cont_params.t * Renaming.t) :=
@@ -95,7 +104,7 @@ Definition rename (t : Lifted_cont_params.t)
     let! tmp2 := List.combine keys tmp1 in
     BP.Map.of_list tmp2
   in
-  ret ({| len := t.(len); new_params_indexed := new_params_indexed |}, renaming).
+  ret (update_new_params_indexed t new_params_indexed, renaming).
 
 (* 59-60 *)
 Definition fold_aux {A : Type} (init : A) (f : BP.t -> BP.t -> A -> M A)
