@@ -532,6 +532,15 @@ let simplify_direct_full_application simplify_expr rebuild_expr dacc apply0
       simplify_expr dacc0 inlined0 down_to_up1)
     inlined
 
+type applied_value =
+  | Const of Reg_width_const.t
+  | Symbol of Symbol.t
+  | In_closure of
+      { var : Variable.t;
+        value : Simple.t;
+        value_slot : Value_slot.t
+      }
+
 (** val simplify_direct_partial_application : Flambda.Expr.t expr_simplifier ->
     Downwards_acc.t -> Flambda.Apply.t -> Code_id.t -> Code_metadata.t ->
     Function_slot.t -> [ `Complex ] Flambda_arity.t -> Alloc_mode.For_types.t
@@ -540,9 +549,601 @@ let simplify_direct_full_application simplify_expr rebuild_expr dacc apply0
     Alloc_mode.For_types.t -> First_complex_local_param.t -> (Simplified_expr.t
     * Downwards_acc.t) coq_M **)
 
-let simplify_direct_partial_application =
- fun _ ->
-  Misc.fatal_error "PORT-GAP(unported): simplify_direct_partial_application"
+let simplify_direct_partial_application simplify_expr dacc apply0
+    callee's_code_id callee's_code_metadata callee's_function_slot param_arity
+    param_modes args_arity result_arity0 recursive down_to_up0 original_call
+    closure_alloc_mode_from_type first_complex_local_param =
+  let () = fail_if_probe apply0 in
+  let args = Flambda.Apply.args apply0 in
+  let dbg = Flambda.Apply.dbg apply0 in
+  let apply_continuation =
+    match Flambda.Apply.continuation apply0 with
+    | Apply_expr.Result_continuation.Return continuation -> continuation
+    | Apply_expr.Result_continuation.Never_returns ->
+      Misc.fatal_error
+        "cannot simplify a partial application that never returns"
+  in
+  let () =
+    match Flambda.Apply.inlined apply0 with
+    | Inlined_attribute.Always_inlined _ ->
+      Location.prerr_warning
+        (Debuginfo.to_location dbg)
+        (Warnings.Inlining_impossible
+           (Inlining_helpers.inlined_attribute_on_partial_application_msg
+              Inlining_helpers.Inlined))
+    | Inlined_attribute.Hint_inlined -> ()
+    | Inlined_attribute.Forward_inlined -> ()
+    | Inlined_attribute.Never_inlined ->
+      Location.prerr_warning
+        (Debuginfo.to_location dbg)
+        (Warnings.Inlining_impossible
+           (Inlining_helpers.inlined_attribute_on_partial_application_msg
+              Inlining_helpers.Inlined))
+    | Inlined_attribute.Unroll (_, _) ->
+      Location.prerr_warning
+        (Debuginfo.to_location dbg)
+        (Warnings.Inlining_impossible
+           (Inlining_helpers.inlined_attribute_on_partial_application_msg
+              Inlining_helpers.Unrolled))
+    | Inlined_attribute.Default_inlined -> ()
+  in
+  let num_non_unarized_params = Flambda_arity.num_params param_arity in
+  let num_non_unarized_args = Flambda_arity.num_params args_arity in
+  let () = assert (num_non_unarized_params > num_non_unarized_args) in
+  let remaining_param_arity =
+    Flambda_arity.partially_apply param_arity num_non_unarized_args
+  in
+  let applied_unarized_args, _ =
+    Misc.Stdlib.List.map2_prefix
+      (fun arg kind -> arg, kind)
+      args
+      (Flambda_arity.unarize param_arity)
+  in
+  let wrapper_var =
+    (fun x__1 x__2 x__3 -> Variable.create ?user_visible:x__1 x__2 x__3)
+      None "partial_app" Flambda_kind.value
+  in
+  let wrapper_var_duid = Flambda_debug_uid.none in
+  let compilation_unit = Current_unit.get_cu_exn () in
+  let wrapper_function_slot =
+    Function_slot.create compilation_unit "partial_app_closure"
+      (Function_slot.size_from_arity
+         (num_non_unarized_params - num_non_unarized_args)
+         false)
+  in
+  let new_closure_alloc_mode_and_first_complex_local_param =
+    match first_complex_local_param with
+    | First_complex_local_param.Index index ->
+      if num_non_unarized_args <= index
+      then
+        let alloc_region =
+          (fun f__1 f__2 x__0 ->
+            match (x__0 : Alloc_mode.For_applications.t) with
+            | Alloc_mode.For_applications.Not_alloc_stack
+                { alloc_region = x__1 } ->
+              f__1 x__1
+            | Alloc_mode.For_applications.Maybe_alloc_stack
+                { alloc_region = x__1; region = x__2; ghost_region = x__3 } ->
+              f__2 x__1 x__2 x__3)
+            (fun alloc_region -> alloc_region)
+            (fun alloc_region _ _ -> alloc_region)
+            (Apply_expr.return_mode apply0)
+        in
+        Or_bottom.Ok
+          ( Alloc_mode.For_allocations.heap alloc_region,
+            First_complex_local_param.Index (index - num_non_unarized_args) )
+      else
+        (fun f__1 f__2 x__0 ->
+          match (x__0 : Alloc_mode.For_applications.t) with
+          | Alloc_mode.For_applications.Not_alloc_stack { alloc_region = x__1 }
+            ->
+            f__1 x__1
+          | Alloc_mode.For_applications.Maybe_alloc_stack
+              { alloc_region = x__1; region = x__2; ghost_region = x__3 } ->
+            f__2 x__1 x__2 x__3)
+          (fun _ -> Or_bottom.Bottom)
+          (fun alloc_region region _ ->
+            Or_bottom.Ok
+              ( Alloc_mode.For_allocations.local alloc_region region,
+                First_complex_local_param.Index 0 ))
+          (Apply_expr.return_mode apply0)
+    | First_complex_local_param.Never_partially_applied ->
+      Misc.fatal_errorf
+        "Partial application of %a, whose code metadata states that it is \
+         never partially applied"
+        Flambda.Apply.print apply0
+  in
+  let expr, dacc0 =
+    match new_closure_alloc_mode_and_first_complex_local_param with
+    | Or_bottom.Ok p ->
+      let new_closure_alloc_mode, first_complex_local_param0 = p in
+      let () =
+        match closure_alloc_mode_from_type with
+        | Alloc_mode.For_types.Heap -> ()
+        | Alloc_mode.For_types.Local ->
+          (fun f__1 f__2 x__0 ->
+            match (x__0 : Alloc_mode.For_allocations.t) with
+            | Alloc_mode.For_allocations.Heap { alloc_region = x__1 } ->
+              f__1 x__1
+            | Alloc_mode.For_allocations.Local
+                { alloc_region = x__1; region = x__2 } ->
+              f__2 x__1 x__2)
+            (fun _ ->
+              Misc.fatal_errorf
+                "New closure alloc mode cannot be [Not_alloc_stack] when \
+                 existing closure alloc mode is [Local]: direct partial \
+                 application:@ %a"
+                Flambda.Apply.print apply0)
+            (fun _ _ -> ())
+            new_closure_alloc_mode
+        | Alloc_mode.For_types.Heap_or_local -> ()
+      in
+      let result_mode = Code_metadata.result_mode callee's_code_metadata in
+      let ( wrapper_taking_remaining_args,
+            wrapper_alloc_mode,
+            dacc0,
+            code_id,
+            code ) =
+        let return_continuation =
+          (fun x__1 x__2 x__3 -> Continuation.create ?sort:x__1 ?name:x__2 x__3)
+            (Some Continuation.Sort.Return) None ()
+        in
+        let remaining_params =
+          Bound_parameters.create
+            (List.map
+               (fun kind ->
+                 let param =
+                   (fun x__1 x__2 x__3 ->
+                     Variable.create ?user_visible:x__1 x__2 x__3)
+                     None "param"
+                     (Flambda_kind.With_subkind.kind kind)
+                 in
+                 let param_duid = Flambda_debug_uid.none in
+                 Bound_parameter.create param kind param_duid)
+               (Flambda_arity.unarize remaining_param_arity))
+        in
+        let _, remaining_params_alloc_modes =
+          Misc.Stdlib.List.split_at (List.length args) param_modes
+        in
+        let mk_value_slot =
+         fun kind ->
+          let is_always_immediate =
+            (fun f__1
+              f__2
+              f__3
+              f__4
+              f__5
+              f__6
+              f__7
+              f__8
+              f__9
+              f__10
+              f__11
+              f__12
+              f__13
+              f__14
+              f__15
+              f__16
+              f__17
+              f__18
+              f__19
+              f__20
+              f__21
+              f__22
+              f__23
+              f__24
+              f__25
+              f__26
+              f__27
+              f__28
+              f__29
+              x__0
+            ->
+              match
+                (x__0 : Flambda_kind.With_subkind.Non_null_value_subkind.t)
+              with
+              | Flambda_kind.With_subkind.Non_null_value_subkind.Anything ->
+                f__1 ()
+              | Flambda_kind.With_subkind.Non_null_value_subkind.Boxed_float32
+                ->
+                f__2 ()
+              | Flambda_kind.With_subkind.Non_null_value_subkind.Boxed_float ->
+                f__3 ()
+              | Flambda_kind.With_subkind.Non_null_value_subkind.Boxed_int32 ->
+                f__4 ()
+              | Flambda_kind.With_subkind.Non_null_value_subkind.Boxed_int64 ->
+                f__5 ()
+              | Flambda_kind.With_subkind.Non_null_value_subkind.Boxed_nativeint
+                ->
+                f__6 ()
+              | Flambda_kind.With_subkind.Non_null_value_subkind.Boxed_vec128 ->
+                f__7 ()
+              | Flambda_kind.With_subkind.Non_null_value_subkind.Boxed_vec256 ->
+                f__8 ()
+              | Flambda_kind.With_subkind.Non_null_value_subkind.Boxed_vec512 ->
+                f__9 ()
+              | Flambda_kind.With_subkind.Non_null_value_subkind.Boxed_mask ->
+                f__10 ()
+              | Flambda_kind.With_subkind.Non_null_value_subkind
+                .Tagged_immediate ->
+                f__11 ()
+              | Flambda_kind.With_subkind.Non_null_value_subkind.Variant
+                  { consts = x__1; non_consts = x__2 } ->
+                f__12 x__1 x__2
+              | Flambda_kind.With_subkind.Non_null_value_subkind.Float_block
+                  { num_fields = x__1 } ->
+                f__13 x__1
+              | Flambda_kind.With_subkind.Non_null_value_subkind.Float_array ->
+                f__14 ()
+              | Flambda_kind.With_subkind.Non_null_value_subkind.Immediate_array
+                ->
+                f__15 ()
+              | Flambda_kind.With_subkind.Non_null_value_subkind.Value_array ->
+                f__16 ()
+              | Flambda_kind.With_subkind.Non_null_value_subkind.Generic_array
+                ->
+                f__17 ()
+              | Flambda_kind.With_subkind.Non_null_value_subkind
+                .Unboxed_float32_array ->
+                f__18 ()
+              | Flambda_kind.With_subkind.Non_null_value_subkind
+                .Untagged_int_array ->
+                f__19 ()
+              | Flambda_kind.With_subkind.Non_null_value_subkind
+                .Untagged_int8_array ->
+                f__20 ()
+              | Flambda_kind.With_subkind.Non_null_value_subkind
+                .Untagged_int16_array ->
+                f__21 ()
+              | Flambda_kind.With_subkind.Non_null_value_subkind
+                .Unboxed_int32_array ->
+                f__22 ()
+              | Flambda_kind.With_subkind.Non_null_value_subkind
+                .Unboxed_int64_array ->
+                f__23 ()
+              | Flambda_kind.With_subkind.Non_null_value_subkind
+                .Unboxed_nativeint_array ->
+                f__24 ()
+              | Flambda_kind.With_subkind.Non_null_value_subkind
+                .Unboxed_vec128_array ->
+                f__25 ()
+              | Flambda_kind.With_subkind.Non_null_value_subkind
+                .Unboxed_vec256_array ->
+                f__26 ()
+              | Flambda_kind.With_subkind.Non_null_value_subkind
+                .Unboxed_vec512_array ->
+                f__27 ()
+              | Flambda_kind.With_subkind.Non_null_value_subkind
+                .Unboxed_mask_array ->
+                f__28 ()
+              | Flambda_kind.With_subkind.Non_null_value_subkind
+                .Unboxed_product_array ->
+                f__29 ())
+              (fun _ -> false)
+              (fun _ -> false)
+              (fun _ -> false)
+              (fun _ -> false)
+              (fun _ -> false)
+              (fun _ -> false)
+              (fun _ -> false)
+              (fun _ -> false)
+              (fun _ -> false)
+              (fun _ -> false)
+              (fun _ -> true)
+              (fun _ _ -> false)
+              (fun _ -> false)
+              (fun _ -> false)
+              (fun _ -> false)
+              (fun _ -> false)
+              (fun _ -> false)
+              (fun _ -> false)
+              (fun _ -> false)
+              (fun _ -> false)
+              (fun _ -> false)
+              (fun _ -> false)
+              (fun _ -> false)
+              (fun _ -> false)
+              (fun _ -> false)
+              (fun _ -> false)
+              (fun _ -> false)
+              (fun _ -> false)
+              (fun _ -> false)
+              (Flambda_kind.With_subkind.non_null_value_subkind kind)
+          in
+          Value_slot.create compilation_unit "arg" is_always_immediate
+            (Flambda_kind.With_subkind.kind kind)
+        in
+        let applied_value0 =
+         fun value_and_kind ->
+          let value, kind = value_and_kind in
+          Simple.pattern_match' value
+            (fun var _ ->
+              (fun (x__1, x__2, x__3) ->
+                In_closure { var = x__1; value = x__2; value_slot = x__3 })
+                (var, value, mk_value_slot kind))
+            (fun symbol coercion ->
+              if Coercion.is_id coercion
+              then Symbol symbol
+              else
+                let var =
+                  (fun x__1 x__2 x__3 ->
+                    Variable.create ?user_visible:x__1 x__2 x__3)
+                    None "symbol" Flambda_kind.value
+                in
+                let () =
+                  if
+                    not
+                      (Flambda_kind.equal
+                         (Flambda_kind.With_subkind.kind kind)
+                         Flambda_kind.value)
+                  then
+                    Misc.fatal_errorf
+                      "Simple %a which is a symbol should be of kind Value"
+                      Simple.print value
+                  else ()
+                in
+                (fun (x__1, x__2, x__3) ->
+                  In_closure { var = x__1; value = x__2; value_slot = x__3 })
+                  (var, value, mk_value_slot kind))
+            (fun const -> Const const)
+        in
+        let applied_callee =
+          match Flambda.Apply.callee apply0 with
+          | Some callee ->
+            Some (applied_value0 (callee, Flambda_kind.With_subkind.any_value))
+          | None -> None
+        in
+        let applied_unarized_args0 =
+          List.map applied_value0 applied_unarized_args
+        in
+        let applied_values =
+          match applied_callee with
+          | Some applied_callee0 -> applied_callee0 :: applied_unarized_args0
+          | None -> applied_unarized_args0
+        in
+        let contains_no_escaping_local_allocs =
+          match result_mode with
+          | Lambda.Maybe_alloc_stack -> false
+          | Lambda.Not_alloc_stack -> true
+        in
+        let my_closure =
+          (fun x__1 x__2 x__3 -> Variable.create ?user_visible:x__1 x__2 x__3)
+            None "my_closure" Flambda_kind.value
+        in
+        let my_alloc_mode =
+          if contains_no_escaping_local_allocs
+          then
+            Alloc_mode.For_applications.not_alloc_stack
+              ((fun x__1 x__2 x__3 ->
+                 Variable.create ?user_visible:x__1 x__2 x__3)
+                 None "my_alloc_region" Flambda_kind.region)
+          else
+            Alloc_mode.For_applications.maybe_alloc_stack
+              ((fun x__1 x__2 x__3 ->
+                 Variable.create ?user_visible:x__1 x__2 x__3)
+                 None "my_alloc_region" Flambda_kind.region)
+              ((fun x__1 x__2 x__3 ->
+                 Variable.create ?user_visible:x__1 x__2 x__3)
+                 None "my_region" Flambda_kind.region)
+              ((fun x__1 x__2 x__3 ->
+                 Variable.create ?user_visible:x__1 x__2 x__3)
+                 None "my_ghost_region" Flambda_kind.region)
+        in
+        let my_depth =
+          (fun x__1 x__2 x__3 -> Variable.create ?user_visible:x__1 x__2 x__3)
+            None "my_depth" Flambda_kind.rec_info
+        in
+        let exn_continuation =
+          Exn_continuation.without_extra_args
+            (Flambda.Apply.exn_continuation apply0)
+        in
+        let call_kind = Call_kind.direct_function_call callee's_code_id in
+        let body, cost_metrics_of_body, free_names =
+          let arg =
+           fun x ->
+            (fun f__1 f__2 f__3 x__0 ->
+              match x__0 with
+              | Const x__1 -> f__1 x__1
+              | Symbol x__1 -> f__2 x__1
+              | In_closure { var = x__1; value = x__2; value_slot = x__3 } ->
+                f__3 x__1 x__2 x__3)
+              (fun const -> Simple.const const)
+              (fun symbol -> Simple.symbol symbol)
+              (fun var _ _ -> Simple.var var)
+              x
+          in
+          let callee = Option.map arg applied_callee in
+          let args0 =
+            List.map arg applied_unarized_args0
+            @ Bound_parameters.simples remaining_params
+          in
+          let inlined = Inlined_attribute.forward_inlined () in
+          let full_application =
+            Flambda.Apply.create callee
+              (Apply_expr.Result_continuation.Return return_continuation)
+              exn_continuation args0 param_arity result_arity0 call_kind
+              my_alloc_mode dbg inlined
+              (Flambda.Apply.inlining_state apply0)
+              None Apply_expr.Position.Normal Inlining_history.Relative.empty
+          in
+          let cost_metrics =
+            Cost_metrics.from_size (Code_size.apply full_application)
+          in
+          List.fold_left
+            (fun acc applied_value1 ->
+              let expr, cost_metrics0, free_names = acc in
+              (fun f__1 f__2 f__3 x__0 ->
+                match x__0 with
+                | Const x__1 -> f__1 x__1
+                | Symbol x__1 -> f__2 x__1
+                | In_closure { var = x__1; value = x__2; value_slot = x__3 } ->
+                  f__3 x__1 x__2 x__3)
+                (fun _ -> expr, cost_metrics0, free_names)
+                (fun _ -> expr, cost_metrics0, free_names)
+                (fun var _ value_slot ->
+                  let arg0 =
+                    Bound_var.create var Flambda_debug_uid.none Name_mode.normal
+                  in
+                  let prim =
+                    Flambda_primitive.Unary
+                      ( (fun (x__1, x__2) ->
+                          (Flambda_primitive.Project_value_slot
+                             { project_from = x__1; value_slot = x__2 }
+                            : Flambda_primitive.unary_primitive))
+                          (wrapper_function_slot, value_slot),
+                        Simple.var my_closure )
+                  in
+                  let machine_width =
+                    Downwards_env.machine_width (Downwards_acc.denv dacc)
+                  in
+                  let cost_metrics_of_defining_expr =
+                    Cost_metrics.from_size (Code_size.prim machine_width prim)
+                  in
+                  let free_names0 =
+                    Name_occurrences.add_value_slot_in_projection free_names
+                      value_slot Name_mode.normal
+                  in
+                  let expr0 =
+                    Flambda.Expr.create_let
+                      (Flambda.Let.create
+                         (Bound_pattern.singleton arg0)
+                         (Flambda.Named.create_prim prim dbg)
+                         expr Or_unknown.Unknown)
+                  in
+                  ( expr0,
+                    Cost_metrics.( + ) cost_metrics0
+                      (Cost_metrics.increase_due_to_let_expr false
+                         cost_metrics_of_defining_expr),
+                    free_names0 ))
+                applied_value1)
+            ( Flambda.Expr.create_apply full_application,
+              cost_metrics,
+              Name_occurrences.without_names_or_continuations
+                (Flambda.Apply.free_names full_application) )
+            (List.rev applied_values)
+        in
+        let params_and_body =
+          Flambda.Function_params_and_body.create return_continuation
+            (Exn_continuation.exn_handler exn_continuation)
+            remaining_params body Or_unknown.Unknown my_closure my_alloc_mode
+            my_depth
+        in
+        let name =
+          Function_slot.to_string callee's_function_slot ^ "_partial"
+        in
+        let absolute_history, relative_history =
+          Inlining_history.Tracker.fundecl dbg Inlining_history.Relative.empty
+            name
+            (Downwards_env.inlining_history_tracker (Downwards_acc.denv dacc))
+        in
+        let code_id = Code_id.create name dbg (Current_unit.get_cu_exn ()) in
+        let code =
+          let code =
+            Code.create params_and_body free_names code_id None
+              remaining_param_arity remaining_params_alloc_modes
+              first_complex_local_param0 result_arity0
+              Or_unknown_or_bottom.Unknown result_mode true
+              Inline_attribute.Default_inline Lambda.Default_zero_alloc
+              Poll_attribute.Default Lambda.Default_regalloc
+              Lambda.Default_regalloc_params false false false recursive
+              cost_metrics_of_body
+              (Downwards_env.inlining_arguments (Downwards_acc.denv dacc))
+              dbg false
+              (Flambda.Function_params_and_body.is_my_closure_used
+                 params_and_body)
+              Function_decl_inlining_decision_type.Stub absolute_history
+              relative_history Loopify_attribute.Never_loopify
+          in
+          Flambda.Import.Static_const_or_code.create_code code
+        in
+        let function_decls =
+          Flambda.Function_declarations.create
+            (Function_slot.Lmap.singleton wrapper_function_slot
+               ((fun (x__1, x__2) ->
+                  (Function_declarations.Code_id
+                     { code_id = x__1; only_full_applications = x__2 }
+                    : Function_declarations.code_id_in_function_declaration))
+                  (code_id, false)))
+        in
+        let value_slots =
+          Value_slot.Map.of_list
+            (List.filter_map
+               (fun value ->
+                 (fun f__1 f__2 f__3 x__0 ->
+                   match x__0 with
+                   | Const x__1 -> f__1 x__1
+                   | Symbol x__1 -> f__2 x__1
+                   | In_closure { var = x__1; value = x__2; value_slot = x__3 }
+                     ->
+                     f__3 x__1 x__2 x__3)
+                   (fun _ -> None)
+                   (fun _ -> None)
+                   (fun _ value0 value_slot -> Some (value_slot, value0))
+                   value)
+               applied_values)
+        in
+        ( Flambda.Set_of_closures.create value_slots dbg function_decls,
+          new_closure_alloc_mode,
+          dacc,
+          code_id,
+          code )
+      in
+      let apply_cont =
+        (fun x__1 x__2 x__3 x__4 ->
+          Flambda.Apply_cont.create ?trap_action:x__1 x__2 x__3 x__4)
+          None apply_continuation
+          (Simple.var wrapper_var :: [])
+          dbg
+      in
+      let expr =
+        let wrapper_var0 =
+          Bound_var.create wrapper_var wrapper_var_duid Name_mode.normal
+        in
+        let bound_vars = wrapper_var0 :: [] in
+        let bound = Bound_pattern.set_of_closures bound_vars in
+        let body =
+          Flambda.Expr.create_let
+            (Flambda.Let.create bound
+               (Flambda.Named.create_set_of_closures wrapper_alloc_mode
+                  wrapper_taking_remaining_args)
+               (Flambda.Expr.create_apply_cont apply_cont)
+               Or_unknown.Unknown)
+        in
+        let bound_static =
+          Bound_static.singleton (Bound_static.Pattern.code code_id)
+        in
+        let static_consts =
+          Flambda.Import.Static_const_group.create (code :: [])
+        in
+        Flambda.Expr.create_let
+          (Flambda.Let.create
+             (Bound_pattern.static bound_static)
+             (Flambda.Named.create_static_consts static_consts)
+             body Or_unknown.Unknown)
+      in
+      expr, dacc0
+    | Or_bottom.Bottom ->
+      ( Flambda.Expr.create_invalid
+          (Flambda.Invalid.Partial_application_mode_mismatch
+             (apply0, callee's_code_metadata)),
+        dacc )
+  in
+  let down_to_up1 =
+   fun dacc1 expr0 ->
+    let expr1 =
+      match original_call with
+      | Call_kind.Function_call.Direct _ -> expr0
+      | Call_kind.Function_call.Indirect_unknown_arity ->
+        Simplified_expr.notify_removed
+          Removed_operations.direct_call_of_indirect expr0
+      | Call_kind.Function_call.Indirect_known_arity _ ->
+        Simplified_expr.notify_removed
+          Removed_operations.direct_call_of_indirect expr0
+    in
+    let expr2 = Simplified_expr.notify_removed Removed_operations.call expr1 in
+    down_to_up0 dacc1 expr2
+  in
+  simplify_expr dacc0 expr down_to_up1
 
 (** val simplify_direct_over_application : Flambda.Expr.t expr_simplifier ->
     Downwards_acc.t -> Flambda.Apply.t -> Simplified_expr.t down_to_up ->

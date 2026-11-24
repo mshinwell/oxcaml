@@ -37,6 +37,11 @@ From SimplifyPort.decl Require Alloc_mode Apply_cont_expr Apply_cont_rewrite_id
   Loopify_state Name_mode Or_bottom Or_unknown Or_unknown_or_bottom Recursive
   Removed_operations Result_types Simple Simplify_apply_cont_expr
   Simplify_common Simplify_extcall Simplify_rec_info_expr Variable_.
+From SimplifyPort.decl Require Bound_parameter Bound_static Code_size Coercion
+  Cost_metrics Current_unit Debuginfo Function_decl_inlining_decision_type
+  Function_declarations Inline_attribute Inlining_helpers Lambda Location
+  Loopify_attribute Misc Option Poll_attribute Reg_width_const Symbol
+  Value_slot Warnings.
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 Local Open Scope list_scope.
@@ -567,19 +572,501 @@ Definition simplify_direct_full_application
     end
   end.
 
-(* PORT-GAP(unported): 441-851, [simplify_direct_partial_application]. In
-   the compiler: [~simplify_expr dacc apply ~callee's_code_id
+(* 595-604 *)
+(* PORT-GAP(type): 583-605, the type [applied_value], a variant with an
+   inline record that the compiler defines INSIDE the function
+   [simplify_direct_partial_application] ([let open struct ... end in]), is
+   defined here, before that function; the Rocq type takes the fields by
+   place and has the name [applied_value_], the local function of line 617
+   having the name of the type. Rocq prints the compiler's definition. *)
+(* An argument or the callee, with information about its entry in the
+   closure, if any. If the argument is a constant or uncoerced symbol,
+   we don't need to put it in the closure. *)
+Inductive applied_value_ : Type :=
+| Const (const : Reg_width_const.t)
+| Symbol (symbol : Symbol.t)
+| In_closure (var : Variable_.t) (value : Simple.t) (value_slot : Value_slot.t).
+Extract Inductive applied_value_ => "applied_value" [ "Const" "Symbol" "(fun (x__1, x__2, x__3) -> In_closure { var = x__1; value = x__2; value_slot = x__3 })" ] "(fun f__1 f__2 f__3 x__0 -> match x__0 with Const x__1 -> f__1 x__1 | Symbol x__1 -> f__2 x__1 | In_closure { var = x__1; value = x__2; value_slot = x__3 } -> f__3 x__1 x__2 x__3)".
+Definition applied_value : Type := applied_value_.
+Extract Constant applied_value => "| Const of Reg_width_const.t | Symbol of Symbol.t | In_closure of { var : Variable.t; value : Simple.t; value_slot : Value_slot.t }".
+
+(* 441-851. In the compiler: [~simplify_expr dacc apply ~callee's_code_id
    ~callee's_code_metadata ~callee's_function_slot ~param_arity ~param_modes
    ~args_arity ~result_arity ~recursive ~down_to_up ~original_call
    ~closure_alloc_mode_from_type ~first_complex_local_param]. *)
-Parameter simplify_direct_partial_application :
-  Simplify_common.expr_simplifier Expr.t -> DA.t -> Apply.t -> Code_id.t ->
-  Code_metadata.t -> Function_slot.t -> Flambda_arity.t_Complex ->
-  list Alloc_mode.For_types.t -> Flambda_arity.t_Complex ->
-  Flambda_arity.t_Complex -> Recursive.t -> Simplify_common.down_to_up SE.t ->
-  Call_kind.Function_call.t -> Alloc_mode.For_types.t ->
-  First_complex_local_param.t -> M (SE.t * DA.t).
-Extract Constant simplify_direct_partial_application => "fun _ -> Misc.fatal_error ""PORT-GAP(unported): simplify_direct_partial_application""".
+Definition simplify_direct_partial_application
+    (simplify_expr : Simplify_common.expr_simplifier Expr.t) (dacc : DA.t)
+    (apply : Apply.t) (callee's_code_id : Code_id.t)
+    (callee's_code_metadata : Code_metadata.t)
+    (callee's_function_slot : Function_slot.t)
+    (param_arity : Flambda_arity.t_Complex)
+    (param_modes : list Alloc_mode.For_types.t)
+    (args_arity : Flambda_arity.t_Complex)
+    (result_arity : Flambda_arity.t_Complex) (recursive : Recursive.t)
+    (down_to_up : Simplify_common.down_to_up SE.t)
+    (original_call : Call_kind.Function_call.t)
+    (closure_alloc_mode_from_type : Alloc_mode.For_types.t)
+    (first_complex_local_param : First_complex_local_param.t)
+    : M (SE.t * DA.t) :=
+  (* Partial-applications are converted in full applications. Let's assume that
+     [foo] takes 6 arguments. Then [foo a b c] gets transformed into:
+
+     let foo_partial x y z = foo a b c x y z in foo_partial
+
+     The call to [foo] as an empty relative history as it was defined right
+     after [foo_partial]. The definition of [foo_partial] will inherit the
+     relative history of the original code. *)
+  (* For simplicity, we disallow [@inline] attributes on partial applications.
+     The user may always write an explicit wrapper instead with such an
+     attribute. *)
+  fail_if_probe apply ;;
+  let* args := Apply.args apply in
+  let* dbg := Apply.dbg apply in
+  let* apply_continuation :=
+    let! tmp1 := Apply.continuation apply in
+    match tmp1 with
+    | Apply_expr.Result_continuation.Never_returns =>
+      fatal_error "cannot simplify a partial application that never returns"
+    | Apply_expr.Result_continuation.Return continuation => ret continuation
+    end
+  in
+  (* 470-482 *)
+  (let! tmp1 := Apply.inlined apply in
+   match tmp1 with
+   | Inlined_attribute.Always_inlined _ | Inlined_attribute.Never_inlined =>
+     let! tmp2 :=
+       Inlining_helpers.inlined_attribute_on_partial_application_msg
+         Inlining_helpers.Inlined
+     in
+     let! tmp3 := Debuginfo.to_location dbg in
+     Location.prerr_warning tmp3 (Warnings.Inlining_impossible tmp2)
+   | Inlined_attribute.Unroll _ _ =>
+     let! tmp2 :=
+       Inlining_helpers.inlined_attribute_on_partial_application_msg
+         Inlining_helpers.Unrolled
+     in
+     let! tmp3 := Debuginfo.to_location dbg in
+     Location.prerr_warning tmp3 (Warnings.Inlining_impossible tmp2)
+   | Inlined_attribute.Default_inlined | Inlined_attribute.Hint_inlined
+   | Inlined_attribute.Forward_inlined =>
+     ret tt
+   end) ;;
+  let* num_non_unarized_params := Flambda_arity.num_params param_arity in
+  let* num_non_unarized_args := Flambda_arity.num_params args_arity in
+  assert_ (num_non_unarized_params >? num_non_unarized_args) ;;
+  let* remaining_param_arity :=
+    Flambda_arity.partially_apply param_arity num_non_unarized_args
+  in
+  let* '(applied_unarized_args, _) :=
+    let! tmp1 := Flambda_arity.unarize param_arity in
+    Misc.Stdlib.List.map2_prefix (fun arg kind => ret (arg, kind)) args tmp1
+  in
+  let* wrapper_var := Variable_.create None "partial_app" K.value in
+  let& wrapper_var_duid := Flambda_debug_uid.none in
+  let* compilation_unit := Current_unit.get_cu_exn tt in
+  (* 501-507: the arguments are in the order of the interface. *)
+  let* wrapper_function_slot :=
+    let! tmp1 :=
+      Function_slot.size_from_arity
+        (num_non_unarized_params - num_non_unarized_args) false
+    in
+    Function_slot.create compilation_unit "partial_app_closure" tmp1
+  in
+  (* The allocation mode of the closure is directly determined by
+     [first_complex_local_param]. We check that it is consistent with the
+     return_mode of the application *)
+  (* 511-548. 513: the guard [when num_non_unarized_args <= index] is the
+     [if] inside the case [Index index]; its [else] is the case [Index _] of
+     line 535. *)
+  let* new_closure_alloc_mode_and_first_complex_local_param :=
+    match first_complex_local_param with
+    | First_complex_local_param.Index index =>
+      if num_non_unarized_args <=? index
+      then
+        (* At this point, we *have* to allocate the closure on the heap, even if
+           the return_mode of the application was maybe_alloc_stack. Indeed,
+           consider a three-argument function, of type [string -> string -> string
+           -> string], coerced to [string -> local_ t] where [type t = string ->
+           string -> string].
+
+           If we apply this function twice to single arguments, the first
+           application will have a maybe_alloc_stack return_mode. However, the
+           second application has a not_alloc_stack return_mode, and contains a
+           reference to the partial closure made by the first application. Due to
+           this, the first application must have a closure allocated on the heap
+           as well, even though it was with a maybe_alloc_stack return_mode. *)
+        let* alloc_region :=
+          let! tmp1 := Apply_expr.return_mode apply in
+          match tmp1 with
+          | Alloc_mode.For_applications.Not_alloc_stack alloc_region
+          | Alloc_mode.For_applications.Maybe_alloc_stack alloc_region _ _ =>
+            ret alloc_region
+          end
+        in
+        let! tmp1 := Alloc_mode.For_allocations.heap alloc_region in
+        ret
+          (Or_bottom.Ok
+             (tmp1,
+              First_complex_local_param.Index (index - num_non_unarized_args)))
+      else
+        let! tmp1 := Apply_expr.return_mode apply in
+        match tmp1 with
+        | Alloc_mode.For_applications.Not_alloc_stack _ =>
+          (* This can happen in dead GADT match cases. *)
+          ret Or_bottom.Bottom
+        | Alloc_mode.For_applications.Maybe_alloc_stack alloc_region region _
+          =>
+          let! tmp2 := Alloc_mode.For_allocations.local alloc_region region in
+          ret (Or_bottom.Ok (tmp2, First_complex_local_param.Index 0))
+        end
+    | First_complex_local_param.Never_partially_applied =>
+      fatal_errorf2
+        "Partial application of %a, whose code metadata states that it is never partially applied"
+        Apply.print apply
+    end
+  in
+  (* 549-837 *)
+  let* '(expr, dacc) :=
+    match new_closure_alloc_mode_and_first_complex_local_param with
+    | Or_bottom.Bottom =>
+      let! tmp1 :=
+        Expr.create_invalid
+          (Flambda.Invalid.Partial_application_mode_mismatch apply
+             callee's_code_metadata)
+      in
+      ret (tmp1, dacc)
+    | Or_bottom.Ok (new_closure_alloc_mode, first_complex_local_param) =>
+      (* 556-566 *)
+      match closure_alloc_mode_from_type with
+      | Alloc_mode.For_types.Heap_or_local => ret tt
+      | Alloc_mode.For_types.Heap => ret tt
+      | Alloc_mode.For_types.Local =>
+        match new_closure_alloc_mode with
+        | Alloc_mode.For_allocations.Local _ _ => ret tt
+        | Alloc_mode.For_allocations.Heap _ =>
+          fatal_errorf2
+            "New closure alloc mode cannot be [Not_alloc_stack] when existing closure alloc mode is [Local]: direct partial application:@ %a"
+            Apply.print apply
+        end
+      end ;;
+      let* result_mode := Code_metadata.result_mode callee's_code_metadata in
+      (* 568-806 *)
+      let* '(T5 wrapper_taking_remaining_args wrapper_alloc_mode dacc code_id
+               code) :=
+        let* return_continuation :=
+          Continuation.create (Some Continuation.Sort.Return) None tt
+        in
+        (* 571-579: [a |> f] is [f a]. *)
+        let* remaining_params :=
+          let! tmp1 := Flambda_arity.unarize remaining_param_arity in
+          let! tmp2 :=
+            List.map
+              (fun kind =>
+                let* param :=
+                  let! tmp3 := KS.kind kind in
+                  Variable_.create None "param" tmp3
+                in
+                let& param_duid := Flambda_debug_uid.none in
+                Bound_parameter.create param kind param_duid)
+              tmp1
+          in
+          Bound_parameters.create tmp2
+        in
+        let* '(_, remaining_params_alloc_modes) :=
+          let! tmp1 := List.length args in
+          Misc.Stdlib.List.split_at tmp1 param_modes
+        in
+        (* 583-605: the type [applied_value] is before this function. *)
+        (* PORT-GAP(loose): 608, the attribute [@ocaml.warning "-4"] is not
+           kept. *)
+        let& mk_value_slot :=
+          fun (kind : K.With_subkind.t) =>
+          let* is_always_immediate :=
+            let! tmp1 := K.With_subkind.non_null_value_subkind kind in
+            match tmp1 with
+            | K.With_subkind.Non_null_value_subkind.Tagged_immediate => ret true
+            | _ => ret false
+            end
+          in
+          let! tmp1 := K.With_subkind.kind kind in
+          Value_slot.create compilation_unit "arg" is_always_immediate tmp1
+        in
+        (* 617-633: the compiler's parameter is the pattern [(value, kind)];
+           the arguments of [Simple.pattern_match'] are in the order of the
+           interface. *)
+        let& applied_value :=
+          fun (value_and_kind : Simple.t * K.With_subkind.t) =>
+          let '(value, kind) := value_and_kind in
+          Simple.pattern_match' value
+            (fun var _ =>
+              let! tmp1 := mk_value_slot kind in
+              ret (In_closure var value tmp1))
+            (fun symbol coercion =>
+              let! tmp1 := Coercion.is_id coercion in
+              if tmp1
+              then ret (Symbol symbol)
+              else
+                let* var := Variable_.create None "symbol" K.value in
+                (let! tmp2 := K.With_subkind.kind kind in
+                 let! tmp3 := K.equal tmp2 K.value in
+                 if negb tmp3
+                 then
+                   fatal_errorf2
+                     "Simple %a which is a symbol should be of kind Value"
+                     Simple.print value
+                 else ret tt) ;;
+                let! tmp4 := mk_value_slot kind in
+                ret (In_closure var value tmp4))
+            (fun const => ret (Const const))
+        in
+        let* applied_callee :=
+          let! tmp1 := Apply.callee apply in
+          match tmp1 with
+          | None => ret None
+          | Some callee =>
+            let! tmp2 := applied_value (callee, K.With_subkind.any_value) in
+            ret (Some tmp2)
+          end
+        in
+        let* applied_unarized_args :=
+          List.map applied_value applied_unarized_args
+        in
+        let* applied_values :=
+          match applied_callee with
+          | None => ret applied_unarized_args
+          | Some applied_callee => ret (applied_callee :: applied_unarized_args)
+          end
+        in
+        let* contains_no_escaping_local_allocs :=
+          match result_mode with
+          | Lambda.Not_alloc_stack => ret true
+          | Lambda.Maybe_alloc_stack => ret false
+          end
+        in
+        let* my_closure := Variable_.create None "my_closure" K.value in
+        let* my_alloc_mode :=
+          if contains_no_escaping_local_allocs
+          then
+            let! tmp1 := Variable_.create None "my_alloc_region" K.region in
+            Alloc_mode.For_applications.not_alloc_stack tmp1
+          else
+            let! tmp1 := Variable_.create None "my_ghost_region" K.region in
+            let! tmp2 := Variable_.create None "my_region" K.region in
+            let! tmp3 := Variable_.create None "my_alloc_region" K.region in
+            Alloc_mode.For_applications.maybe_alloc_stack tmp3 tmp2 tmp1
+        in
+        let* my_depth := Variable_.create None "my_depth" K.rec_info in
+        let* exn_continuation :=
+          let! tmp1 := Apply.exn_continuation apply in
+          Exn_continuation.without_extra_args tmp1
+        in
+        let* call_kind := Call_kind.direct_function_call callee's_code_id in
+        (* 670-738 *)
+        let* '(T3 body cost_metrics_of_body free_names) :=
+          (* [free_names] is going to be the free names of the whole resulting
+             function params and body (i.e. as seen from outside the lambda). *)
+          let& arg :=
+            fun (x : applied_value_) =>
+            match x with
+            | Const const => Simple.const const
+            | Symbol symbol => Simple.symbol symbol
+            | In_closure var _ _ => Simple.var var
+            end
+          in
+          let* callee := Option.map arg applied_callee in
+          let* args :=
+            let! tmp1 := Bound_parameters.simples remaining_params in
+            let! tmp2 := List.map arg applied_unarized_args in
+            ret (tmp2 ++ tmp1)
+          in
+          let* inlined := Inlined_attribute.forward_inlined tt in
+          (* 684-692: the arguments are in the order of the interface. *)
+          let* full_application :=
+            let! tmp1 := Apply.inlining_state apply in
+            Apply.create callee
+              (Apply_expr.Result_continuation.Return return_continuation)
+              exn_continuation args param_arity result_arity call_kind
+              my_alloc_mode dbg inlined tmp1 None Apply_expr.Position.Normal
+              Inlining_history.Relative.empty
+          in
+          let* cost_metrics :=
+            let! tmp1 := Code_size.apply full_application in
+            Cost_metrics.from_size tmp1
+          in
+          (* 696-737: [a |> f] is [f a]; the compiler's first parameter of
+             the function is the pattern [(expr, cost_metrics, free_names)]. *)
+          let! tmp1 := List.rev applied_values in
+          let! tmp2 := Apply.free_names full_application in
+          let! tmp3 := NO.without_names_or_continuations tmp2 in
+          let! tmp4 := Expr.create_apply full_application in
+          List.fold_left
+            (fun acc applied_value =>
+              let '(T3 expr cost_metrics free_names) := acc in
+              match applied_value with
+              | Const _ | Symbol _ => ret (T3 expr cost_metrics free_names)
+              | In_closure var _ value_slot =>
+                let* arg :=
+                  VB.create var Flambda_debug_uid.none Name_mode.normal
+                in
+                let* prim :=
+                  let! tmp5 := Simple.var my_closure in
+                  ret
+                    (P.Unary
+                       (P.Project_value_slot wrapper_function_slot value_slot)
+                       tmp5)
+                in
+                let* machine_width :=
+                  let! tmp5 := DA.denv dacc in
+                  DE.machine_width tmp5
+                in
+                let* cost_metrics_of_defining_expr :=
+                  let! tmp5 := Code_size.prim machine_width prim in
+                  Cost_metrics.from_size tmp5
+                in
+                let* free_names :=
+                  NO.add_value_slot_in_projection free_names value_slot
+                    NM.normal
+                in
+                let* expr :=
+                  let! tmp5 := Named.create_prim prim dbg in
+                  let! tmp6 := Bound_pattern.singleton arg in
+                  let! tmp7 := Let.create tmp6 tmp5 expr Or_unknown.Unknown in
+                  Expr.create_let tmp7
+                in
+                let! tmp5 :=
+                  Cost_metrics.increase_due_to_let_expr false
+                    cost_metrics_of_defining_expr
+                in
+                let! tmp6 := Cost_metrics.op_plus cost_metrics tmp5 in
+                ret (T3 expr tmp6 free_names)
+              end)
+            (T3 tmp4 cost_metrics tmp3) tmp1
+        in
+        (* 739-745: the arguments are in the order of the interface. *)
+        let* params_and_body :=
+          (* Note that [exn_continuation] has no extra args -- see above. *)
+          let! tmp1 := Exn_continuation.exn_handler exn_continuation in
+          Function_params_and_body.create return_continuation tmp1
+            remaining_params body Or_unknown.Unknown my_closure my_alloc_mode
+            my_depth
+        in
+        let* name :=
+          let! tmp1 := Function_slot.to_string callee's_function_slot in
+          ret (String.append tmp1 "_partial")
+        in
+        (* 749-754: [a |> f b] is [f b a]; the arguments are in the order of
+           the interface. *)
+        let* '(absolute_history, relative_history) :=
+          let! tmp1 := DA.denv dacc in
+          let! tmp2 := DE.inlining_history_tracker tmp1 in
+          Inlining_history.Tracker.fundecl dbg Inlining_history.Relative.empty
+            name tmp2
+        in
+        let* code_id :=
+          let! tmp1 := Current_unit.get_cu_exn tt in
+          Code_id.create name dbg tmp1
+        in
+        (* We could create better result types by combining the types for the
+           first arguments with the result types from the called function.
+           However given that stubs are supposed to be inlined, and the inner
+           full application will come with the expected result types, it's not
+           going to be particularly useful. *)
+        let* code :=
+          (* 765-781: the arguments are in the order of the interface. *)
+          let* code :=
+            let! tmp1 :=
+              Function_params_and_body.is_my_closure_used params_and_body
+            in
+            let! tmp2 := DA.denv dacc in
+            let! tmp3 := DE.inlining_arguments tmp2 in
+            Code.create params_and_body free_names code_id None
+              remaining_param_arity remaining_params_alloc_modes
+              first_complex_local_param result_arity
+              Or_unknown_or_bottom.Unknown result_mode true
+              Inline_attribute.Default_inline Lambda.Default_zero_alloc
+              Poll_attribute.Default Lambda.Default_regalloc
+              Lambda.Default_regalloc_params false false false recursive
+              cost_metrics_of_body tmp3 dbg false tmp1
+              Function_decl_inlining_decision_type.Stub absolute_history
+              relative_history Loopify_attribute.Never_loopify
+          in
+          Static_const_or_code.create_code code
+        in
+        let* function_decls :=
+          let! tmp1 :=
+            Function_slot.Lmap.singleton wrapper_function_slot
+              (decl.Function_declarations.Code_id code_id false)
+          in
+          Function_declarations.create tmp1
+        in
+        (* 791-800: [a |> f] is [f a]. *)
+        let* value_slots :=
+          let! tmp1 :=
+            List.filter_map
+              (fun value =>
+                match value with
+                | Const _ | Symbol _ => ret None
+                | In_closure _ value value_slot =>
+                  ret (Some (value_slot, value))
+                end)
+              applied_values
+          in
+          Value_slot.Map.of_list tmp1
+        in
+        let! tmp1 := Set_of_closures.create value_slots dbg function_decls in
+        ret (T5 tmp1 new_closure_alloc_mode dacc code_id code)
+      in
+      let* apply_cont :=
+        let! tmp1 := Simple.var wrapper_var in
+        Apply_cont.create None apply_continuation [tmp1] dbg
+      in
+      (* 810-835 *)
+      let* expr :=
+        let* wrapper_var :=
+          VB.create wrapper_var wrapper_var_duid Name_mode.normal
+        in
+        let& bound_vars := [wrapper_var] in
+        let* bound := Bound_pattern.set_of_closures bound_vars in
+        let* body :=
+          let! tmp1 := Expr.create_apply_cont apply_cont in
+          let! tmp2 :=
+            Named.create_set_of_closures wrapper_alloc_mode
+              wrapper_taking_remaining_args
+          in
+          let! tmp3 := Let.create bound tmp2 tmp1 Or_unknown.Unknown in
+          Expr.create_let tmp3
+        in
+        let* bound_static :=
+          let! tmp1 := Bound_static.Pattern.code code_id in
+          Bound_static.singleton tmp1
+        in
+        let* static_consts := Static_const_group.create [code] in
+        (* Since we are only generating a "let code" binding and not a "let
+           symbol", it doesn't matter if we are not at toplevel. *)
+        let! tmp1 := Named.create_static_consts static_consts in
+        let! tmp2 := Bound_pattern.static bound_static in
+        let! tmp3 := Let.create tmp2 tmp1 body Or_unknown.Unknown in
+        Expr.create_let tmp3
+      in
+      ret (expr, dacc)
+    end
+  in
+  let& down_to_up :=
+    fun (dacc : DA.t) (expr : SE.t) =>
+    let* expr :=
+      match original_call with
+      | Call_kind.Function_call.Direct _ => ret expr
+      | Call_kind.Function_call.Indirect_known_arity _
+      | Call_kind.Function_call.Indirect_unknown_arity =>
+        SE.notify_removed Removed_operations.direct_call_of_indirect expr
+      end
+    in
+    (* Increase the counter of calls as the apply has been replaced by an
+       allocation of the partial set of closures. *)
+    let* expr := SE.notify_removed Removed_operations.call expr in
+    down_to_up dacc expr
+  in
+  simplify_expr dacc expr down_to_up.
 
 (* 853-871. In the compiler: [~simplify_expr dacc apply ~down_to_up
    ~original_call ~callee's_code_id ~callee's_code_metadata]. *)
