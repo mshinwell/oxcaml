@@ -2168,6 +2168,19 @@ Function_slot.print	Function_slot.print	value	2	function_slot.mli:26
 Function_slot.size_from_arity	Function_slot.size_from_arity	value	2	function_slot.mli:32
 Function_slot.t	Function_slot.t	type	0	function_slot.mli:26
 Function_slot.to_string	Function_slot.to_string	value	1	function_slot.mli:26
+G.Has_loop	Control_flow_graph__local.G.Has_loop	constructor	1	strongly_connected_components.mli:91
+G.Has_loop	Dominator_graph__local.G.Has_loop	constructor	1	strongly_connected_components.mli:91
+G.No_loop	Control_flow_graph__local.G.No_loop	constructor	1	strongly_connected_components.mli:91
+G.No_loop	Dominator_graph__local.G.No_loop	constructor	1	strongly_connected_components.mli:91
+G.connected_components_sorted_from_roots_to_leaf	Control_flow_graph__local.G.connected_components_sorted_from_roots_to_leaf	value	1	strongly_connected_components.mli:91
+G.connected_components_sorted_from_roots_to_leaf	Dominator_graph__local.G.connected_components_sorted_from_roots_to_leaf	value	1	strongly_connected_components.mli:91
+G.directed_graph	Control_flow_graph__local.G.directed_graph	type	0	strongly_connected_components.mli:91
+G.directed_graph	Dominator_graph__local.G.directed_graph	type	0	strongly_connected_components.mli:91
+HV.create	Rebuilt_expr__local.Matching_for_unique_handler.Match_permutable_parameters.HV.create	value	1	stdlib/hashtbl.mli
+HV.find	Rebuilt_expr__local.Matching_for_unique_handler.Match_permutable_parameters.HV.find	value	2	stdlib/hashtbl.mli
+HV.key	Rebuilt_expr__local.Matching_for_unique_handler.Match_permutable_parameters.HV.key	type	0	stdlib/hashtbl.mli
+HV.replace	Rebuilt_expr__local.Matching_for_unique_handler.Match_permutable_parameters.HV.replace	value	3	stdlib/hashtbl.mli
+HV.t	Rebuilt_expr__local.Matching_for_unique_handler.Match_permutable_parameters.HV.t	type	1	stdlib/hashtbl.mli
 Hashtbl.hash	Hashtbl.hash	value	1	stdlib/hashtbl.mli
 Inline_attribute.Always_inline	Inline_attribute.Always_inline	constructor	0	inline_attribute.mli:19
 Inline_attribute.Available_inline	Inline_attribute.Available_inline	constructor	0	inline_attribute.mli:19
@@ -5914,6 +5927,10 @@ Original_handlers.create_recursive	Original_handlers.create_recursive	value	4	or
 Original_handlers.print	Original_handlers.print	value	2	original_handlers.mli:34
 Oxcaml_args.Extra_options.symbol	Oxcaml_args.Extra_options.symbol	value	5	oxcaml_args.mli:309
 Oxcaml_flags.opt_level	Oxcaml_flags.opt_level_	type	0	oxcaml_flags.mli:132
+Pair.Set.t	Number_adjuncts__local.For_int16s.Num.Pair.Set_.t	type	0	container_types.mli:47
+Pair.Set.t	Number_adjuncts__local.For_int8s.Num.Pair.Set_.t	type	0	container_types.mli:47
+Pair.create_from_cross_product	Number_adjuncts__local.For_int16s.Num.Pair.create_from_cross_product	value	2	container_types.mli:49
+Pair.create_from_cross_product	Number_adjuncts__local.For_int8s.Num.Pair.create_from_cross_product	value	2	container_types.mli:49
 Poll_attribute.Default	Poll_attribute.Default	constructor	0	poll_attribute.mli:15
 Poll_attribute.Error	Poll_attribute.Error	constructor	0	poll_attribute.mli:15
 Printexc.get_raw_backtrace	Printexc.get_raw_backtrace	value	1	stdlib/printexc.mli
@@ -6121,6 +6138,22 @@ Result_types.create	Result_types.create	value	3	result_types.mli:17
 Result_types.pattern_match	Result_types.pattern_match	value	2	result_types.mli:23
 Result_types.print	Result_types.print	value	2	result_types.mli:36
 Result_types.t	Result_types.t	type	0	result_types.mli:15
+Rhs_kind.Needs_extra_binding	Common_subexpression_elimination__local.Rhs_kind.Needs_extra_binding	constructor	1	common_subexpression_elimination.ml:79
+Rhs_kind.Needs_extra_binding { bound_to }	Common_subexpression_elimination__local.Rhs_kind.Needs_extra_binding, argument 1	inline field	0	common_subexpression_elimination.ml:79
+Rhs_kind.Rhs_in_scope	Common_subexpression_elimination__local.Rhs_kind.Rhs_in_scope	constructor	1	common_subexpression_elimination.ml:79
+Rhs_kind.Rhs_in_scope { bound_to }	Common_subexpression_elimination__local.Rhs_kind.Rhs_in_scope, argument 1	inline field	0	common_subexpression_elimination.ml:79
+Rhs_kind.Set.elt	Common_subexpression_elimination__local.Rhs_kind.Set_.elt	type	0	common_subexpression_elimination.ml:85
+Rhs_kind.Set.get_singleton	Common_subexpression_elimination__local.Rhs_kind.Set_.get_singleton	value	1	common_subexpression_elimination.ml:85
+Rhs_kind.Set.of_list	Common_subexpression_elimination__local.Rhs_kind.Set_.of_list	value	1	common_subexpression_elimination.ml:85
+Rhs_kind.Set.t	Common_subexpression_elimination__local.Rhs_kind.Set_.t	type	0	common_subexpression_elimination.ml:85
+Rhs_kind.bound_to	Common_subexpression_elimination__local.Rhs_kind.bound_to	value	1	common_subexpression_elimination.ml:83
+SCC.Has_loop	Simplify_let_cont_expr__local.SCC.Has_loop	constructor	1	strongly_connected_components.mli:91
+SCC.No_loop	Simplify_let_cont_expr__local.SCC.No_loop	constructor	1	strongly_connected_components.mli:91
+SCC.connected_components_sorted_from_roots_to_leaf	Simplify_let_cont_expr__local.SCC.connected_components_sorted_from_roots_to_leaf	value	1	strongly_connected_components.mli:91
+SCC.directed_graph	Simplify_let_cont_expr__local.SCC.directed_graph	type	0	strongly_connected_components.mli:91
+SCC_lifted_constants.Has_loop	Lifted_constant_state__local.SCC_lifted_constants.Has_loop	constructor	1	strongly_connected_components.mli:91
+SCC_lifted_constants.No_loop	Lifted_constant_state__local.SCC_lifted_constants.No_loop	constructor	1	strongly_connected_components.mli:91
+SCC_lifted_constants.stable_connected_components_sorted_from_roots_to_leaf	Lifted_constant_state__local.SCC_lifted_constants.stable_connected_components_sorted_from_roots_to_leaf	value	1	strongly_connected_components.mli:91
 Scalar.Signedness.Signed	Scalar.Signedness.Signed	constructor	0	scalar.mli:208
 Scalar.Signedness.Unsigned	Scalar.Signedness.Unsigned	constructor	0	scalar.mli:208
 Scope.Map.add	Scope.Map.add	value	3	scope.mli:21

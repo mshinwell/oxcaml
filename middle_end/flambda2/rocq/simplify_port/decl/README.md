@@ -118,14 +118,31 @@ reason. The kit (`Port_monad.v`) has `ref`, `!`, `:=`, `raise`, `ignore`,
 `compare`, `not`, `Lazy.force`, `Not_found`, the fatal errors: they are not
 declared here.
 
-The modules that a file of Simplify makes for itself by applying a functor of
-outside (11 places; the module is local to the file, so no interface names
-it): `Container_types.Make` (common_subexpression_elimination.ml:95),
-`Container_types.Make_pair` (number_adjuncts.ml:612 and :738,
-simplify_binary_primitive.ml:511), `Container_types.Make_set`
-(simplify_binary_primitive.ml:115), `Strongly_connected_components.Make`
-(flow/control_flow_graph.ml:16, flow/dominator_graph.ml:16,
-lifting/lifted_constant_state.ml:82, simplify_let_cont_expr.ml:1048),
-`Code_metadata.Code_metadata_accessors` (non_constructed_code.ml:27),
-`Hashtbl.Make` (rebuilt_expr.ml:390). Module types (9, in the same list) are
-not declared.
+## The modules that a file of Simplify makes for itself
+
+A file of Simplify that applies a functor of another part of the compiler
+(`module G = Strongly_connected_components.Make (Continuation)`), or has a
+module with such an `include`, has a file `FILE__local.v` here: one `Module`
+for each such module, in the usual form, with what the file uses of it. The
+realisations name the module as the file does (`G.component`), so the port
+keeps the module's definition in the extracted file as it is, and writes
+`From SimplifyPort.decl Require Import FILE__local.` A module inside another
+module of the file is inside a `Module` of that name
+(`Rebuilt_expr__local.Matching_for_unique_handler.Match_permutable_parameters.HV`).
+
+| file of Simplify | modules |
+|---|---|
+| `common_subexpression_elimination.ml` | `Rhs_kind` (the whole module: its type, `bound_to`, its sets) |
+| `flow/control_flow_graph.ml` | `G` |
+| `flow/dominator_graph.ml` | `G` |
+| `lifting/lifted_constant_state.ml` | `SCC_lifted_constants` |
+| `number_adjuncts.ml` | `For_int8s.Num.Pair`, `For_int16s.Num.Pair` |
+| `rebuilt_expr.ml` | `Matching_for_unique_handler.Match_permutable_parameters.HV` |
+| `simplify_let_cont_expr.ml` | `SCC` |
+
+Not declared: `Set` and `Pair` of `simplify_binary_primitive.ml` (lines 99 and
+508), which are made inside a functor of the file and depend on its parameter
+(the port of that functor has them); the `include` of
+`Code_metadata.Code_metadata_accessors` in `non_constructed_code.ml`, of which
+the file itself uses nothing. Module types (9, in `NOT-DECLARED.tsv`) are not
+declared.
