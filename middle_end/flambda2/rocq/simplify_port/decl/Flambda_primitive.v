@@ -391,6 +391,12 @@ Module Without_args.
   (* flambda_primitive.mli:689  type t = | Nullary of nullary_primitive | Unary of unary_primitive | Binary of binary_primitive | Ternary of ternary_primitive | Quaternary of quaternary_primitive | Variadic of variadic_primitive *)
   Parameter t : Type.
   Extract Inlined Constant t => "Flambda_primitive.Without_args.t".
+  (* flambda_primitive.mli:699  val equal : t -> t -> bool *)
+  Parameter equal : t -> t -> M bool.
+  Extract Inlined Constant equal => "Flambda_primitive.Without_args.equal".
+  (* flambda_primitive.mli:701  val free_names : t -> Name_occurrences.t *)
+  Parameter free_names : t -> M Name_occurrences.t.
+  Extract Inlined Constant free_names => "Flambda_primitive.Without_args.free_names".
 End Without_args.
 (* flambda_primitive.mli:708  val without_args : t -> Without_args.t *)
 Parameter without_args : t -> M Flambda_primitive.Without_args.t.

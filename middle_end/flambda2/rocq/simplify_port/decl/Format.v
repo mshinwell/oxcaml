@@ -72,6 +72,10 @@ Parameter fprintf15 : forall {A1 A2 A3 A4 A5 A6 A7 A8 A9 A10 A11 A12 A13 A14 A15
 Extract Inlined Constant fprintf15 => "Format.fprintf".
 Parameter fprintf16 : forall {A1 A2 A3 A4 A5 A6 A7 A8 A9 A10 A11 A12 A13 A14 A15 A16 : Type}, formatter -> string -> A1 -> A2 -> A3 -> A4 -> A5 -> A6 -> A7 -> A8 -> A9 -> A10 -> A11 -> A12 -> A13 -> A14 -> A15 -> A16 -> M unit.
 Extract Inlined Constant fprintf16 => "Format.fprintf".
+Parameter fprintf24 : forall {A1 A2 A3 A4 A5 A6 A7 A8 A9 A10 A11 A12 A13 A14 A15 A16 A17 A18 A19 A20 A21 A22 A23 A24 : Type}, formatter -> string -> A1 -> A2 -> A3 -> A4 -> A5 -> A6 -> A7 -> A8 -> A9 -> A10 -> A11 -> A12 -> A13 -> A14 -> A15 -> A16 -> A17 -> A18 -> A19 -> A20 -> A21 -> A22 -> A23 -> A24 -> M unit.
+Extract Inlined Constant fprintf24 => "Format.fprintf".
+Parameter fprintf33 : forall {A1 A2 A3 A4 A5 A6 A7 A8 A9 A10 A11 A12 A13 A14 A15 A16 A17 A18 A19 A20 A21 A22 A23 A24 A25 A26 A27 A28 A29 A30 A31 A32 A33 : Type}, formatter -> string -> A1 -> A2 -> A3 -> A4 -> A5 -> A6 -> A7 -> A8 -> A9 -> A10 -> A11 -> A12 -> A13 -> A14 -> A15 -> A16 -> A17 -> A18 -> A19 -> A20 -> A21 -> A22 -> A23 -> A24 -> A25 -> A26 -> A27 -> A28 -> A29 -> A30 -> A31 -> A32 -> A33 -> M unit.
+Extract Inlined Constant fprintf33 => "Format.fprintf".
 (* stdlib/format.mli  val printf : ('a, Stdlib__Format.formatter, unit) format -> 'a *)
 Parameter printf0 : string -> M unit.
 Extract Inlined Constant printf0 => "Format.printf".

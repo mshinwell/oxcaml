@@ -608,6 +608,7 @@ Code_size.zero	Code_size.zero	value	0	code_size.mli:29
 Coeffects.t	Coeffects.t	type	0	coeffects.mli:20
 Coercion.change_depth	Coercion.change_depth	value	2	coercion0.mli:44
 Coercion.compose_exn	Coercion.compose_exn	value	2	coercion.mli:27
+Coercion.equal	Coercion.equal	value	2	coercion0.mli:59
 Coercion.free_names	Coercion.free_names	value	1	coercion.mli:19
 Coercion.id	Coercion.id	value	0	coercion0.mli:46
 Coercion.is_id	Coercion.is_id	value	1	coercion0.mli:51
@@ -1999,6 +2000,8 @@ Flambda_primitive.Variadic_all_of_kind	Flambda_primitive.Variadic_all_of_kind	co
 Flambda_primitive.Variadic_mixed	Flambda_primitive.Variadic_mixed	constructor	1	flambda_primitive.mli:724
 Flambda_primitive.Variadic_unboxed_product	Flambda_primitive.Variadic_unboxed_product	constructor	1	flambda_primitive.mli:724
 Flambda_primitive.Variadic_zero_or_one	Flambda_primitive.Variadic_zero_or_one	constructor	1	flambda_primitive.mli:724
+Flambda_primitive.Without_args.equal	Flambda_primitive.Without_args.equal	value	2	flambda_primitive.mli:699
+Flambda_primitive.Without_args.free_names	Flambda_primitive.Without_args.free_names	value	1	flambda_primitive.mli:701
 Flambda_primitive.Without_args.t	Flambda_primitive.Without_args.t	type	0	flambda_primitive.mli:689
 Flambda_primitive.Write_offset	Flambda_primitive.Write_offset	constructor	3	flambda_primitive.mli:605
 Flambda_primitive.Write_offset_kind.t	Flambda_primitive.Write_offset_kind.t	type	0	flambda_primitive.mli:597
@@ -2201,7 +2204,9 @@ Format.fprintf	Format.fprintf14	value	16	stdlib/format.mli
 Format.fprintf	Format.fprintf15	value	17	stdlib/format.mli
 Format.fprintf	Format.fprintf16	value	18	stdlib/format.mli
 Format.fprintf	Format.fprintf2	value	4	stdlib/format.mli
+Format.fprintf	Format.fprintf24	value	26	stdlib/format.mli
 Format.fprintf	Format.fprintf3	value	5	stdlib/format.mli
+Format.fprintf	Format.fprintf33	value	35	stdlib/format.mli
 Format.fprintf	Format.fprintf4	value	6	stdlib/format.mli
 Format.fprintf	Format.fprintf5	value	7	stdlib/format.mli
 Format.fprintf	Format.fprintf6	value	8	stdlib/format.mli

@@ -56,7 +56,10 @@ gives a module to a functor of its own (`Edge (Name.Map) (Name.Set)` in
 uses of its parameter (`Src_map.find` is `Name.Map.find`) and all that the
 parameter's module type names; the modules of the
 file are followed for that, through a structure written in the place and
-through the result of another functor of the file. After `include X` in a
+through the result of another functor of the file. A module that a file
+gives as a first-class module (`(module Coercion)` in `rebuilt_expr.ml`) is
+used in the same way: all that the module type of that place names. After
+`include X` in a
 module of the file, where `X` is a module with a name, what the file names
 without `X.` is a use of what `X` has. An abbreviation of
 a module in a file of Simplify (`module DA = Downwards_acc`,
@@ -78,8 +81,9 @@ OCaml name, Rocq name, kind, number of arguments, interface and line.
 - An optional argument: by place, of type `option a`; the realisation is a
   closed function that passes it with `?l:`.
 - A function with a format (`Format.fprintf`): one declaration for each number
-  of arguments after the format, `fprintf0` to `fprintf16`, the format a
-  `string`, all realised by the same name.
+  of arguments after the format, `fprintf0` to `fprintf16`, and one for each
+  greater number that a file of Simplify gives (`fprintf24`, `fprintf33`), the
+  format a `string`, all realised by the same name.
 - A value that is not a function: pure, `Parameter empty : t.`
 - An exception: `Parameter E : exception payload.`, realised by a pair (the
   maker, the test).

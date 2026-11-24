@@ -36,6 +36,9 @@ Extract Inlined Constant id => "Coercion.id".
 (* coercion0.mli:51  val is_id : t -> bool *)
 Parameter is_id : t -> M bool.
 Extract Inlined Constant is_id => "Coercion.is_id".
+(* coercion0.mli:59  val equal : t -> t -> bool *)
+Parameter equal : t -> t -> M bool.
+Extract Inlined Constant equal => "Coercion.equal".
 (* coercion.mli:19  include Contains_names.S with type t := t *)
 Parameter free_names : t -> M Name_occurrences.t.
 Extract Inlined Constant free_names => "Coercion.free_names".
