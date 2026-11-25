@@ -203,6 +203,10 @@ Extract Inlined Constant force => "Lazy.force".
 
 Parameter array : Type -> Type.
 Extract Constant array "'a" => "'a array".
+Parameter array_empty : forall {A : Type}, array A.
+Extract Inlined Constant array_empty => "[||]".
+Parameter array_singleton : forall {A : Type}, A -> M (array A).
+Extract Inlined Constant array_singleton => "(fun x__1 -> [| x__1 |])".
 
 (* ------------------------------------------------------------------ *)
 (* OCaml's values that Rocq's own types stand for                     *)

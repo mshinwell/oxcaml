@@ -21,6 +21,21 @@ with the header of the interface that it follows, then names it and the commit.
 Two interfaces have no header (`backend/debug/dwarf/dwarf_flags/dwarf_flags.mli`
 and `utils/target_system.mli`): their files say so in its place.
 
+THE STANDARD LIBRARY IS NOT READ FROM THIS TREE. The compiled interfaces
+of `List`, `Option`, `Format` and the other units of the standard library
+(18 files here, 247 declarations: 232 values and 15 types) are those of
+the OCaml that compiled the build's first stage, found through the load
+path that the build recorded; the tree's own `stdlib/` is compiled later,
+by the tree's own compiler, in a format that the OCaml which builds
+`tools/declgen` does not read. What is taken from them is the names and
+the types. The header of such a file is that of the tree's own
+`stdlib/NAME.mli`, and the comment before a declaration names that file,
+without a line; the words of the comment are not that file's text: they
+are the name and the type as the generator prints them from the compiled
+interface (for a type, the name only). `PROVENANCE.md`, last section,
+has the command that counts them and what a comparison of the two
+libraries' interfaces found.
+
 ## To make them again
 
     cd middle_end/flambda2/rocq/simplify_port

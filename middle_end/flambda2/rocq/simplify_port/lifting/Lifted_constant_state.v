@@ -64,13 +64,6 @@ Extract Inductive t_ => "t" [ "Empty" "Leaf" "(fun x__1 -> Leaf_array { ts = x__
 Definition t : Type := t_.
 Extract Constant t => "| Empty | Leaf of LC.t | Leaf_array of { ts : LC.t array } | Union of { t1 : t; t2 : t }".
 
-(* PORT-GAP(decl): OCaml's array literals [[||]] and [[| x |]] (lines 201
-   and 202) have no declaration in decl/ and no operation in the kit. *)
-Parameter array_empty : forall {A : Type}, array A.
-Extract Inlined Constant array_empty => "[||]".
-Parameter array_singleton : forall {A : Type}, A -> M (array A).
-Extract Inlined Constant array_singleton => "(fun x__1 -> [| x__1 |])".
-
 (* 28-41 *)
 Definition print (ppf : Format.formatter) (t : Lifted_constant_state.t)
     : M unit :=

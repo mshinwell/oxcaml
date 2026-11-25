@@ -389,8 +389,12 @@ Parameter lazy_ : forall {A : Type}, (unit -> M A) -> M (lazy_t A).
 Parameter force : forall {A : Type}, lazy_t A -> M A.
 
 (* OCaml's arrays. They can be written to: every operation on one is a
-   declared function, in [M]. *)
+   declared function, in [M]. The two array literals that the compiler's
+   files of Simplify write: [[||]], which is one value, and [[| x |]], which
+   makes an array anew each time and so is in [M]. *)
 Parameter array : Type -> Type.
+Parameter array_empty : forall {A : Type}, array A.
+Parameter array_singleton : forall {A : Type}, A -> M (array A).
 
 (* ------------------------------------------------------------------ *)
 (* OCaml's values that Rocq's own types stand for                     *)

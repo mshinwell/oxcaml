@@ -27,14 +27,15 @@
    - The abbreviations of modules (18-25) are a Rocq library of the file's
      own (abbrev/number_adjuncts), and a name is written through one where
      the compiler's file writes it so; the compiler's own lines are in the
-     OCaml head. The module types (50-176) are OCaml text, verbatim (the
-     mark is below).
+     OCaml head. The module types (50-176) are OCaml text, verbatim; [make
+     given] compares it with the compiler's lines.
    - An [include] of a module of the compiler, and a module made with a
      functor inside a module, cannot be said in Rocq, and the kit copies
      verbatim text to the head or the end of the file only. Here such a line
      is the realisation string of a constant of type [unit] at its place
-     ([let include_Target_ocaml_int = () include Target_ocaml_int]): marked
-     PORT-GAP(verbatim). A name of the included module is written with the
+     ([let include_Target_ocaml_int = () include Target_ocaml_int]); [make
+     given] compares the line with the compiler's. A name of the included
+     module is written with the
      name that the [include] gives that module ([Target_ocaml_int.xor] for
      [xor], [Int8.compare] for [compare]).
    - Where the compiler defines a name twice in one module ([let div x y =

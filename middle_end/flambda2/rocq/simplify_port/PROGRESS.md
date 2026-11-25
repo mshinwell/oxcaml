@@ -40,7 +40,7 @@ compiler's own definitions; alone: no interface).
 | `join_points.ml` | 442 | 7 | 7 | loose:4 verbatim:1 | yes | strict |
 | `lifted_cont_params.ml` | 88 | 11 | 11 | loose:1 | yes | strict |
 | `lifting/lifted_constant.ml` | 324 | 17 | 17 | loose:7 type:1 verbatim:2 record-order:4 | yes | strict |
-| `lifting/lifted_constant_state.ml` | 203 | 13 | 13 | loose:2 decl:1 | yes | strict |
+| `lifting/lifted_constant_state.ml` | 203 | 13 | 13 | loose:2 | yes | strict |
 | `lifting/reification.ml` | 199 | 3 | 3 | loose:1 | yes | strict |
 | `loopify_state.ml` | 26 | 3 | 3 | none | yes | strict |
 | `named_rewrite.ml` | 48 | 2 | 2 | none | yes | strict |
@@ -87,7 +87,7 @@ compiler's own definitions; alone: no interface).
 | `unboxing/unboxers.ml` | 260 | 0 | 0 | loose:1 init:10 record-order:1 | yes | strict |
 | `unboxing/unboxing_epa.ml` | 553 | 15 | 15 | loose:1 | yes | strict |
 | `unboxing/unboxing_types.ml` | 185 | 6 | 6 | type:1 verbatim:2 | yes | strict |
-| **total: 78 files of 78** | 26900 | 930 | 926 | 277 marks | 78 | 78 |
+| **total: 78 files of 78** | 26900 | 930 | 926 | 276 marks | 78 | 78 |
 
 Gaps by kind, all files:
 
@@ -98,7 +98,7 @@ Gaps by kind, all files:
 - verbatim: 14
 - init: 22
 - order: 0
-- decl: 2
+- decl: 1
 - papp: 2
 - record-order: 23
 - update: 0
