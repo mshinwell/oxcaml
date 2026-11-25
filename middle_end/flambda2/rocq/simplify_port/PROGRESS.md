@@ -59,7 +59,7 @@ compiler's own definitions; alone: no interface).
 | `simplify_binary_primitive.ml` | 1270 | 12 | 12 | loose:21 verbatim:1 init:1 | yes | strict |
 | `simplify_coercion.ml` | 25 | 1 | 1 | none | yes | strict |
 | `simplify_common.ml` | 479 | 10 | 10 | loose:2 type:6 | yes | strict |
-| `simplify_expr.ml` | 231 | 7 | 7 | loose:1 type:2 | yes | strict |
+| `simplify_expr.ml` | 231 | 7 | 7 | loose:1 type:2 papp:1 | yes | strict |
 | `simplify_extcall.ml` | 239 | 9 | 9 | loose:2 type:1 | yes | strict |
 | `simplify_import.ml` | 67 | 1 | 1 | none | yes | strict |
 | `simplify_let_cont_expr.ml` | 2039 | 36 | 36 | loose:2 type:11 verbatim:1 record-order:2 update:3 | yes | strict |
@@ -87,7 +87,7 @@ compiler's own definitions; alone: no interface).
 | `unboxing/unboxers.ml` | 260 | 0 | 0 | loose:1 init:10 record-order:1 | yes | strict |
 | `unboxing/unboxing_epa.ml` | 553 | 15 | 15 | loose:1 type:2 verbatim:1 | yes | strict |
 | `unboxing/unboxing_types.ml` | 185 | 6 | 6 | type:1 verbatim:2 update:1 | yes | strict |
-| **total: 78 files of 78** | 26900 | 930 | 926 | 451 marks | 78 | 78 |
+| **total: 78 files of 78** | 26900 | 930 | 926 | 452 marks | 78 | 78 |
 
 Gaps by kind, all files:
 
@@ -99,6 +99,6 @@ Gaps by kind, all files:
 - init: 22
 - order: 0
 - decl: 5
-- papp: 4
+- papp: 5
 - record-order: 23
 - update: 96
