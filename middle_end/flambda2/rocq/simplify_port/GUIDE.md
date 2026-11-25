@@ -608,7 +608,8 @@ answer is yes:
   (`tools/shells.py`; `make` asks it too, before it compiles a file);
 - `make` from nothing exits 0, and `git status --porcelain` is empty
   after it: the extracted files and `PROGRESS.md` are made again as they
-  are committed.
+  are committed;
+- the make leaves nothing in the folder but `_build/`.
 
 The make is the long part (about 25 minutes, one process); it is not run
 if an answer before it is no. The head of the script has the whole list

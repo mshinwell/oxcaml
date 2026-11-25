@@ -41,7 +41,8 @@ OCaml from the identity-monad build. OCaml checks each extracted file
 against the compiler's interfaces. The default target also runs the text
 checks (`make shells`, `make given`, `make lines` and `make papp`), regenerates
 `PROGRESS.md` and checks the comments. Build copies, compiled Rocq files
-and type-checking outputs are under `_build/` here. The head of the
+and type-checking outputs are under `_build/` here, and `make` leaves
+nothing else in the folder. The head of the
 `Makefile` lists the targets.
 
 The extracted files are not compiled by the build of the compiler, nor is
@@ -70,7 +71,8 @@ the folder's `dune` file is the one stanza that the section above names,
 and the only file of dune in the folder; that ocamlformat leaves every
 `.ml` and `.mli` file as it is; that every shell script begins with `set
 -eu`; then runs `make` from nothing and asks
-that `git status --porcelain` is empty after it. It prints each thing
+that `git status --porcelain` is empty after it and that the make left
+nothing in the folder but `_build/`. It prints each thing
 that it asks with the answer, one line each, and exits 0 only if every
 answer is yes. The make is the long part (about 25 minutes, one process).
 The head of `tools/gate.sh` has the whole list, and what the gate does

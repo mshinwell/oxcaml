@@ -72,19 +72,30 @@
 # (11) after the make, git status --porcelain of the folder is empty: the
 #      extracted files and PROGRESS.md are made again as they are committed;
 # (12) after the make, the files on the disk under extracted/ and runtime/
-#      are the tracked ones, and (7) holds on the disk.
+#      are the tracked ones, and (7) holds on the disk;
+# (13) after the make, git status --porcelain --ignored of the folder shows
+#      _build/ and nothing else: the make left nothing in the folder but
+#      that directory (the Makefile lets Python write no compiled copy of
+#      the tools beside them), so whoever removes _build/ after the gate
+#      has the tree as it was.
 # The make is the long part (about 25 minutes). It is NOT RUN if an answer
-# before it is NO, and the gate has then failed: (10) to (12) say "not
+# before it is NO, and the gate has then failed: (10) to (13) say "not
 # asked".
 #
 # WHAT IT DOES NOT ASK: whether a range of commits changes a path outside
 # the folder; who made the commits and how their subjects read; which words
 # the texts use. The programs are named with their versions and not judged.
 #
-# LOG_DIR (made if it is not there; a new directory under the temporary
-# directory if it is not given; it must not be in the tree) keeps decl.log,
-# the decl/ that was made, and make.log. The gate removes nothing: the _build
-# of its make stays in the folder.
+# THE PLACE OF THE LOGS is the second argument, LOG_DIR. It is made if it is
+# not there. If it is not given, a new directory is made under the
+# temporary directory; the second line that the gate prints names it. It
+# must not be in the tree. It keeps decl.log, the decl/ that was made
+# (decl/), the generator as it was compiled (declgen/), shells.log and
+# make.log. What an earlier run of the gate left there under these names is
+# removed first, so the gate can be called again with the same LOG_DIR; to
+# keep the logs of several commits, give each call its own. In the folder
+# of the port the gate removes nothing: the _build of its make stays, and
+# before the gate is called again in the same tree it must be removed (1).
 set -eu
 if [ $# -lt 1 ] || [ ! -d "$1/middle_end/flambda2/simplify/.flambda2_simplify.objs/byte" ]; then
   echo "usage: tools/gate.sh BUILD_ROOT [LOG_DIR]"
@@ -93,6 +104,8 @@ if [ $# -lt 1 ] || [ ! -d "$1/middle_end/flambda2/simplify/.flambda2_simplify.ob
 fi
 build=$(cd "$1" && pwd)
 if [ $# -ge 2 ]; then mkdir -p "$2"; logs=$(cd "$2" && pwd); else logs=$(mktemp -d); fi
+rm -rf "$logs/decl" "$logs/declgen"
+rm -f "$logs/decl.log" "$logs/decl.made" "$logs/decl.tracked" "$logs/shells.log" "$logs/make.log"
 cd "$(dirname "$0")/.."
 ROCQ=${ROCQ:-rocq}; OCAMLC=${OCAMLC:-ocamlc.opt}; PYTHON=${PYTHON:-python3}
 no=0
@@ -214,12 +227,12 @@ found=$(one_line < "$logs/shells.log")
 if [ $rc = 0 ] && [ -n "$found" ]; then a=yes; else a=NO; fi
 answer 9 "every tracked file of the folder that is a shell script has the line set -eu before its first command" $a "${found#shells: }"
 
-# (10) to (12)
+# (10) to (13)
 if [ $no != 0 ]; then
-  for n in 10 11 12; do echo "gate: ($n) not asked: the make is not run, an answer above is NO"; done
+  for n in 10 11 12 13; do echo "gate: ($n) not asked: the make is not run, an answer above is NO"; done
 elif [ -e _build ]; then
   answer 10 "make, from nothing, exits 0" NO "a _build is there: the make is not run"
-  for n in 11 12; do echo "gate: ($n) not asked: the make is not run"; done
+  for n in 11 12 13; do echo "gate: ($n) not asked: the make is not run"; done
 else
   start=$(date +%s); rc=0
   make -j1 CMI_ROOT="$build" > "$logs/make.log" 2>&1 || rc=$?
@@ -233,6 +246,9 @@ else
   if on_disk extracted && on_disk runtime && [ "$disk" = dune ]; then a=yes; found=""
   else a=NO; found="not tracked, or not on the disk: $( { find extracted runtime -type f; git ls-files extracted runtime; } | LC_ALL=C sort | uniq -u | one_line); files of dune on the disk: ${disk:-none}"; fi
   answer 12 "after the make, the files on the disk under extracted/ and runtime/ are the tracked ones, and the folder's dune file is the only file of dune on the disk" $a "$found"
+  found=$(git status --porcelain --ignored -- . | one_line)
+  if [ "$found" = "!! $(git rev-parse --show-prefix)_build/" ]; then a=yes; found=""; else a=NO; found="it shows: ${found:-nothing}"; fi
+  answer 13 "after the make, git status --porcelain --ignored of the folder shows _build/ and nothing else" $a "$found"
 fi
 if [ $no = 0 ]; then echo "gate: PASSED: every answer is yes"; else echo "gate: FAILED: the number of answers NO is $no"; fi
 [ $no = 0 ]

@@ -66,6 +66,11 @@ CMI_ROOT ?= $(REPO_ROOT)/_build/default
 SIMPLIFY := ../../simplify
 B := _build
 
+# The tools of Python write no compiled copy of themselves beside the
+# sources (tools/__pycache__): what make leaves in the folder is under
+# $(B)/, or is a tracked file that it makes again. tools/gate.sh asks it.
+export PYTHONDONTWRITEBYTECODE := 1
+
 # The declarations of what the port calls: after the compiler's interfaces
 # (decl/README.md).
 DECL := $(patsubst %.v,%,$(sort $(wildcard decl/*.v)))
