@@ -72,7 +72,7 @@ Definition fun_symbol (simple : Simple.t) : M Symbol.t :=
        simple
       : M Symbol.t)
   in
-  (* PORT-GAP(loose): 31-35, the compiler's [~name] is [fun name ->
+  (* PORT-GAP(loose): 33-36, the compiler's [~name] is [fun name ->
      Name.pattern_match name ~var:(fun _ ~coercion:_ -> ..) ~symbol:(fun sym
      ~coercion:_ -> ..)]: [Name.pattern_match] answers the function of the
      coercion. Here that function is named and applied to the coercion. *)
@@ -261,7 +261,7 @@ Definition simplify_caml_array_make (dacc : DA.t) (len_ty init_value_ty : T.t)
 
 (* 171-215. In the compiler: [~dbg ~cont ~exn_cont:_ dacc fun_name args
    ~arg_types]. *)
-(* PORT-GAP(loose): 170-212, the compiler matches the triple [fun_name,
+(* PORT-GAP(loose): 173-215, the compiler matches the triple [fun_name,
    args, arg_types], the name against string constants. Here the two lists
    are matched first, and then the name is compared with each constant, in
    the compiler's order; the last case [_] is the two answers [Unchanged]. *)

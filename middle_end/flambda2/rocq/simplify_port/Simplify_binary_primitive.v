@@ -385,9 +385,9 @@ Module Binary_arith_like (N : Binary_arith_like_sig).
 
     (* This signature aims to constrain the size of the [Set] module block,
        since this is duplicated a lot via inlining in the rest of this file. *)
-    (* PORT-GAP(loose): 97-128, the compiler's [Set] is
+    (* PORT-GAP(loose): 97-129, the compiler's [Set] is
        [Container_types.Make_set] applied to this type with [compare] and
-       [print] (116-126), under a signature of six values (99-113). That
+       [print] (116-128), under a signature of six values (99-115). That
        functor of the compiler's library cannot be applied here (decl/ has
        no functors, and Rocq does not take a directive inside a functor):
        [compare] and [print] are ported, and the set with its six values is
@@ -543,7 +543,7 @@ Module Binary_arith_like (N : Binary_arith_like_sig).
         end
     in
     (* 190-243. In the compiler: [op nums ~folder ~other_side]. *)
-    (* PORT-GAP(loose): 190-243, the function is used for the two sides
+    (* PORT-GAP(loose): 190-240, the function is used for the two sides
        (263 and 269), at two types of numbers and of sets, and a local
        function that stays in the extracted text ([let&]) has one type. It
        is Rocq's own [let], with the two types as its first arguments: one
@@ -1054,7 +1054,7 @@ Module Int_ops_for_binary_shift (I : A.Int_number_kind)
   (* 508-512 *)
   (* PORT-GAP(loose): 508-512, the compiler's [Pair] is
      [Container_types.Make_pair (Lhs) (Rhs)]. That functor of the compiler's
-     library cannot be applied here (as at 97-128): of [Pair] the file uses
+     library cannot be applied here (as at 97-129): of [Pair] the file uses
      the type, and the empty set, [add] and [fold] of its sets. A set of
      pairs is the list of the pairs added, the last one first; the pairs
      that [cross_product] adds are all different, and [fold] takes them in
@@ -1502,7 +1502,7 @@ Module Float_ops_for_binary_arith_gen (FP : Float_ops_for_binary_arith_gen_FP)
      numbers to those that preserve the _bit pattern_. *)
 
   (* 770-789. In the compiler: [op ~this_side]. *)
-  (* PORT-GAP(loose): 778-779 and 783-784, the four attributes [@z3 ...] on
+  (* PORT-GAP(loose): 782-783 and 787-788, the four attributes [@z3 ...] on
      the answers are not kept. *)
   Definition symmetric_op_one_side_unknown (op : symmetric_op)
       (this_side : F.t) : M (binary_arith_outcome_for_one_side_only F.t) :=

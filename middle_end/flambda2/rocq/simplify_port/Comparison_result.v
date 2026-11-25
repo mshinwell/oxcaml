@@ -98,7 +98,7 @@ Definition create (prim : P.t) (comparison_results : Variable_.Map.t t)
   end.
 
 (* 47-62 *)
-(* PORT-GAP(loose): 48, the attribute [@ocamlformat "disable"] is not
+(* PORT-GAP(loose): 47, the attribute [@ocamlformat "disable"] is not
    kept. *)
 Definition print (ppf : Format.formatter)
     '({| lhs := lhs;
@@ -133,7 +133,7 @@ Definition convert_result_compared_to_tagged_zero
    | Untagged =>
      fatal_errorf2 "Comparing untagged result with tagged zero: %a" print t
    end) ;;
-  (* PORT-GAP(loose): 72, the attribute [@local] is not kept. *)
+  (* PORT-GAP(loose): 71, the attribute [@local] is not kept. *)
   let& make_result :=
     fun (new_op : P.comparison P.signed_or_unsigned) =>
     let& prim := P.Int_comp kind (P.Yielding_bool new_op) in

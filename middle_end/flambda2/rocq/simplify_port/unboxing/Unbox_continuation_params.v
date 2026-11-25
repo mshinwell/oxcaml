@@ -146,7 +146,7 @@ Inductive continuation_arg_types : Type :=
 
 (* 84-155 *)
 (* PORT-GAP(loose): the compiler defines [make_decisions] twice, the second
-   time (154-177) by the first; here the first is [make_decisions_]. *)
+   time (157-180) by the first; here the first is [make_decisions_]. *)
 Definition make_decisions_ (continuation_arg_types : continuation_arg_types)
     (denv : DE.t) (params : Bound_parameters.t) (params_types : list T.t)
     : M (DE.t * Decisions.t) :=

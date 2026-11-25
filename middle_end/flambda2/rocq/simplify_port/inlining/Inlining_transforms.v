@@ -49,7 +49,7 @@ module VB = Bound_var
 OCAML*)
 
 (* 23-84 *)
-(* PORT-GAP(loose): 80-83, the compiler does not give
+(* PORT-GAP(loose): 81-84, the compiler does not give
    [Inlining_helpers.make_inlined_body] its argument [~region_inlined_into],
    so that the compiler's [make_inlined_body] returns a function of that
    label; here [region_inlined_into] is the last parameter (the place that

@@ -100,7 +100,7 @@ Fixpoint simplify_rec_info_expr0 (fuel : fuel) (denv : DE.t)
   match orig with
   | Int_ids.Rec_info_expr.Const _ _ => ret orig
   | Int_ids.Rec_info_expr.Var dv =>
-    (* PORT-GAP(loose): 62, the attribute [@local] is not kept. *)
+    (* PORT-GAP(loose): 63, the attribute [@local] is not kept. *)
     let& normal_case :=
       fun (_ : unit) =>
       let* ty :=
@@ -163,7 +163,7 @@ Fixpoint simplify_rec_info_expr0 (fuel : fuel) (denv : DE.t)
         (fun _canonical => normal_case tt)
     else normal_case tt
   | Int_ids.Rec_info_expr.Succ ri =>
-    (* PORT-GAP(loose): 108-111, the compiler matches the call, and its
+    (* PORT-GAP(loose): 110-113, the compiler matches the call, and its
        second case is [(Var _ | Succ _ | Unroll_to _) as new_ri]; here the
        result of the call is bound under that name, then matched. *)
     let* new_ri := simplify_rec_info_expr0 fuel denv ri on_unknown in
@@ -176,7 +176,7 @@ Fixpoint simplify_rec_info_expr0 (fuel : fuel) (denv : DE.t)
       if tmp1 then ret orig else Rec_info_expr.succ new_ri
     end
   | Int_ids.Rec_info_expr.Unroll_to unroll_depth ri =>
-    (* PORT-GAP(loose): 113-120, as for [Succ]: the result of the call is
+    (* PORT-GAP(loose): 115-121, as for [Succ]: the result of the call is
        bound as [new_ri], then matched. *)
     let* new_ri := simplify_rec_info_expr0 fuel denv ri on_unknown in
     match new_ri with

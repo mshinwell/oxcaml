@@ -1417,7 +1417,7 @@ Definition simplify_arm (arm : TI.t) (pat : Switch_arm.t * TE.t)
 Parameter float_0 : Stdlib_.float_.
 Extract Inlined Constant float_0 => "0.".
 
-(* PORT-GAP(type): 956-992, the value [join_analysis_result] of
+(* PORT-GAP(type): 956-989, the value [join_analysis_result] of
    [decide_continuation_specialization0] is of a type of polymorphic
    variants, which the compiler does not name: a Rocq type whose
    constructors are printed as the compiler's tags. Four of the tags are

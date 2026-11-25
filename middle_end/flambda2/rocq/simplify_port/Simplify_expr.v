@@ -47,9 +47,9 @@ Definition rebuild_terminator
   | Simplified_expr.Simplified_apply simplified_apply =>
     Simplify_apply_expr.rebuild_apply simplified_apply uacc after_rebuild
   | Simplified_expr.Simplified_apply_cont simplified_apply_cont =>
-    (* PORT-GAP(type): 25, [Simplified_expr.simplified_apply_cont] is
+    (* PORT-GAP(type): 24, [Simplified_expr.simplified_apply_cont] is
        abstract in decl/: its eliminator stands for the compiler's record
-       pattern [{ apply_cont; args; rewrite_id }]. 26-27,
+       pattern [{ apply_cont; args; rewrite_id }]. 25-26,
        [rebuild_apply_cont apply_cont ~args ~rewrite_id uacc
        ~after_rebuild]: the arguments are in the order of the interface. *)
     Simplified_expr.match_simplified_apply_cont_ simplified_apply_cont
@@ -67,7 +67,7 @@ Fixpoint rebuild_expr (fuel : fuel) (expr : Simplified_expr.t) (uacc : UA.t)
     (after_rebuild : Simplify_common.after_rebuild) {struct fuel}
     : M (RE.t * UA.t) :=
   recursive! fuel in
-  (* PORT-GAP(type): 32-39, [Simplified_expr.t] is abstract in decl/: its
+  (* PORT-GAP(type): 32-38, [Simplified_expr.t] is abstract in decl/: its
      eliminator stands for the compiler's record pattern. *)
   Simplified_expr.match_t expr
     (fun simplified_lets_and_let_conts simplified_terminator
@@ -320,7 +320,7 @@ with simplify_function_body (fuel : fuel) (dacc : DA.t) (expr : Expr.t)
   end
 
 (* 220-222 *)
-(* PORT-GAP(loose): 216, the attribute [@inline always] is not kept. *)
+(* PORT-GAP(loose): 220, the attribute [@inline always] is not kept. *)
 with simplify_let (fuel : fuel) (dacc : DA.t) (let_expr : Let.t)
     (down_to_up : Simplify_common.down_to_up SE.t) {struct fuel}
     : M (Simplified_expr.t * Downwards_acc.t) :=

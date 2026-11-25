@@ -119,7 +119,7 @@ Definition deciders : list Unboxers.number_decider :=
     Unboxers.Mask.decider ].
 
 (* 72-153. In the compiler: [~depth ~recursive tenv ~param_type]. *)
-(* PORT-GAP(loose): 100, 109-110, 148-149, a case [p when c -> e] whose
+(* PORT-GAP(loose): 99, 109-110, 145-146, a case [p when c -> e] whose
    guard [c] is made of constants and of parameters of the function is
    written with [c] as a second scrutinee, so that the other cases are
    written once in this file; Rocq then prints [if c then e else] the other

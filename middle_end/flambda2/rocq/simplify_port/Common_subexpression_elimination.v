@@ -212,7 +212,7 @@ Definition cse_with_eligible_lhs (typing_env_at_fork : TE.t)
           | Or_invalid.Invalid =>
             ret (fun (_arg : Simple.t) => ret (None : option Simple.t))
           | Or_invalid.Ok extra_args =>
-            (* PORT-GAP(loose): 155-173, a recursion on the list [args]. The
+            (* PORT-GAP(loose): 156-173, a recursion on the list [args]. The
                local function is used once, under the [fun arg] of 174: the
                extraction writes its definition there, in the case [None],
                and not before the [fun]. *)
@@ -250,7 +250,7 @@ Definition cse_with_eligible_lhs (typing_env_at_fork : TE.t)
             in
             ret
               (fun (arg : Simple.t) =>
-                (* PORT-GAP(loose): 175-179, the compiler matches the call,
+                (* PORT-GAP(loose): 175-178, the compiler matches the call,
                    and its second case is [Some _ as r]; here the result of
                    the call is bound under that name, then matched. *)
                 let* r := find_param arg params in
@@ -277,7 +277,7 @@ Definition cse_with_eligible_lhs (typing_env_at_fork : TE.t)
                   Not_found
                   (fun _ => ret None)
                   (fun arg =>
-                    (* PORT-GAP(loose): 191-196, as at 175-179: the result of
+                    (* PORT-GAP(loose): 191-196, as at 175-178: the result of
                        the call is bound as [arg_opt], then matched. *)
                     let* arg_opt := find_new_name arg in
                     match arg_opt with
@@ -410,7 +410,7 @@ Definition join_one_cse_equation
            a lot of the other non-arithmetic primitives, but in the other cases
            the join of the types will usually give us the relevant equation
            anyway. *)
-        (* PORT-GAP(loose): 285, the attribute [@ocaml.warning
+        (* PORT-GAP(loose): 286, the attribute [@ocaml.warning
            "-fragile-match"] is not kept. *)
         let! tmp2 := EP.to_primitive prim in
         match tmp2 with

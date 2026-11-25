@@ -189,7 +189,7 @@ Definition simplify_make_array (array_kind : P.Array_kind.t)
         let! tmp2 := DE.machine_width tmp1 in
         T.unknown_with_subkind None tmp2 element_kind
       in
-      (* PORT-GAP(loose): 115-123, as at 34-49: the binding operators of
+      (* PORT-GAP(loose): 125-133, as at 34-49: the binding operators of
          [Or_bottom.Let_syntax] are written as applications. *)
       List.fold_left
         (fun (typing_env : Or_bottom.t TE.t) (element_type : T.t) =>
