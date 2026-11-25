@@ -43,7 +43,8 @@
 # It prints each thing that it asks with the answer, one line each
 # ("gate: (N) ...: yes" or "... : NO", with what was found), and then PASSED
 # or FAILED. Exit status 0 only if every answer is yes; 1 if one is NO; 2 if
-# it was not given a build root. One process at a time (make -j1).
+# it was not given a build root, or if it may not write in the place of the
+# logs (below): then it has asked nothing. One process at a time (make -j1).
 #
 # WHAT IT ASKS:
 #  (1) before anything is made, the folder has only tracked files, none of
@@ -88,26 +89,64 @@
 #
 # THE PLACE OF THE LOGS is the second argument, LOG_DIR. It is made if it is
 # not there. If it is not given, a new directory is made under the
-# temporary directory; the second line that the gate prints names it. It
-# must not be in the tree. It keeps decl.log, the decl/ that was made
-# (decl/), the generator as it was compiled (declgen/), shells.log and
-# make.log. What an earlier run of the gate left there under these names is
-# removed first, so the gate can be called again with the same LOG_DIR; to
-# keep the logs of several commits, give each call its own. In the folder
-# of the port the gate removes nothing: the _build of its make stays, and
-# before the gate is called again in the same tree it must be removed (1).
+# temporary directory (TMPDIR, or /tmp); the second line that the gate
+# prints names it. It keeps decl.log, the decl/ that was made (decl/), the
+# generator as it was compiled (declgen/), shells.log and make.log. What an
+# earlier run of the gate left there under these names is removed first, so
+# the gate can be called again with the same LOG_DIR; to keep the logs of
+# several commits, give each call its own. In the folder of the port the
+# gate removes nothing: the _build of its make stays, and before the gate
+# is called again in the same tree it must be removed (1).
+#
+# THE GATE REFUSES A PLACE OF THE LOGS IN WHICH IT COULD REMOVE OR WRITE
+# WHAT IS NOT ITS OWN, BEFORE IT MAKES OR REMOVES ANYTHING (exit status 2).
+# Four directories are kept from it: the work tree of the repository, the
+# directory of Git of that work tree, the directory of Git of the
+# repository, and the build root. The place of the logs may not be one of
+# them, nor be in one, nor hold one (what is removed first, LOG_DIR/decl,
+# could be it). Each path is compared as it is without its symbolic links,
+# so a link to such a place is refused too. A temporary directory that is
+# one of the four, or in one, is refused in the same way.
 set -eu
 if [ $# -lt 1 ] || [ ! -d "$1/middle_end/flambda2/simplify/.flambda2_simplify.objs/byte" ]; then
   echo "usage: tools/gate.sh BUILD_ROOT [LOG_DIR]"
   echo "  BUILD_ROOT: the _build/default of a dune build of the compiler from the sources of this tree"
   exit 2
 fi
-build=$(cd "$1" && pwd)
-if [ $# -ge 2 ]; then mkdir -p "$2"; logs=$(cd "$2" && pwd); else logs=$(mktemp -d); fi
+ROCQ=${ROCQ:-rocq}; OCAMLC=${OCAMLC:-ocamlc.opt}; PYTHON=${PYTHON:-python3}
+# physical PATH : the path without its symbolic links, whether or not
+# something is there
+physical() { "$PYTHON" -c 'import os, sys; print(os.path.realpath(sys.argv[1]))' "$1"; }
+# within A B : is the path A the path B, or under it (two physical paths)
+within() { local a=${1%/} b=${2%/}; case "$a/" in "$b/"*) return 0;; esac; return 1; }
+build=$(physical "$1")
+if [ $# -ge 2 ]; then given=yes; logs=$(physical "$2"); else given=no; logs=$(physical "${TMPDIR:-/tmp}"); fi
+cd "$(dirname "$0")/.."
+tree=$(git rev-parse --show-toplevel); tree=$(physical "$tree")
+# of_git OPTION : the directory that git rev-parse OPTION names, asked at
+# the top of the work tree
+of_git() { (cd "$tree" && d=$(git rev-parse "$1") && physical "$d"); }
+gitdir=$(of_git --git-dir); common=$(of_git --git-common-dir)
+# kept WHAT PATH : PATH is one of the four directories; if the place of the
+# logs is refused for it, why. A temporary directory that holds one of them
+# is not refused: the new directory that is made in it holds nothing.
+why=""
+kept() {
+  if within "$logs" "$2"; then why="it is $1, $2, or is in it"
+  elif [ $given = yes ] && within "$2" "$logs"; then why="$1, $2, is in it"; fi
+}
+kept "the work tree of the repository" "$tree"
+kept "the directory of Git of the work tree" "$gitdir"
+kept "the directory of Git of the repository" "$common"
+kept "the build root" "$build"
+if [ -n "$why" ]; then
+  if [ $given = yes ]; then what="the place of the logs"; else what="the temporary directory"; fi
+  echo "gate: $what $logs is refused: $why. Nothing was made or removed."
+  exit 2
+fi
+if [ $given = yes ]; then mkdir -p "$logs"; else logs=$(mktemp -d "$logs/tmp.XXXXXXXXXX"); fi
 rm -rf "$logs/decl" "$logs/declgen"
 rm -f "$logs/decl.log" "$logs/decl.made" "$logs/decl.tracked" "$logs/shells.log" "$logs/make.log"
-cd "$(dirname "$0")/.."
-ROCQ=${ROCQ:-rocq}; OCAMLC=${OCAMLC:-ocamlc.opt}; PYTHON=${PYTHON:-python3}
 no=0
 # answer N WHAT yes|NO [FOUND] : one line; counts the answers NO
 answer() {
