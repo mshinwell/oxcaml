@@ -19,7 +19,7 @@ comes from outside this repository.
 | `tools/check.sh` | none; its list of include directories and `-open` flags is after `middle_end/flambda2/simplify/dune` | original |
 | `tools/declgen/*` | none; it reads the compiled interfaces and typed trees of a build of the compiler, with the compiler's own library (`compiler-libs`) | original |
 | `decl/*.v` | written by `tools/declgen` from the compiled interface of the compiler's module of the same name; each begins with the header of that interface (`decl/README.md`) | generated |
-| `decl/INDEX.tsv`, `decl/NOT-DECLARED.tsv` | written by `tools/declgen` | generated |
+| `decl/INDEX.tsv`, `decl/NOT-DECLARED.tsv`, `decl/FUNCTOR-ARGUMENTS.tsv`, `decl/VARIANTS.tsv` | written by `tools/declgen` with the `.v` files, from the compiled interfaces and the typed trees of the compiler (`decl/README.md` says what each holds) | generated |
 | `decl/ARITIES.tsv` | written by `tools/declgen` from the typed trees of the implementations of the compiler's modules (`decl/README.md`, last section) | generated |
 | `decl/README.md` | none | original |
 | `extracted/.ocamlformat`, `runtime/.ocamlformat` | `middle_end/flambda2/.ocamlformat` | copy |
