@@ -511,7 +511,10 @@ Definition create (round : int)
   let* typing_env := TE.create machine_width resolver in
   (* PORT-GAP(record-order): 245-276, three fields of the record have a
      call: [specialization_cost], the last of them in the type, first; then
-     [inlining_history_tracker]; then [inlining_state]. *)
+     [inlining_history_tracker]; then [inlining_state].
+     VERDICT (record_order/README.md, place 3): COMMUTE, FAILURES ORDERED. No
+     call writes. One call alone can fail ([Current_unit.get_cu_exn], when no
+     unit is set), so the order chooses nothing. *)
   let* specialization_cost :=
     Specialization_cost.cannot_specialize Specialization_cost.At_toplevel
   in
@@ -839,7 +842,10 @@ Definition enter_set_of_closures (t : Downwards_env.t) : M Downwards_env.t :=
     |} =>
     (* PORT-GAP(record-order): 372-402, two fields of the record have a
        call: [specialization_cost], the later one in the type, first; then
-       [typing_env]. *)
+       [typing_env].
+       VERDICT (record_order/README.md, place 4): COMMUTE. [TE.closure_env] and
+       [Specialization_cost.cannot_specialize]: no write, no read of state, no
+       failure. *)
     let* specialization_cost :=
       Specialization_cost.cannot_specialize Specialization_cost.At_toplevel
     in

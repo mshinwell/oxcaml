@@ -95,7 +95,9 @@ Definition create_have_lifted_set_of_closures (dacc : Downwards_acc.t)
      port chooses for a record: the fields in the order of the type, the
      last first ([simplified_defining_expr], then [let_bound]). Each of the
      two calls is bound by [let*], so that the extracted code has that
-     order too. *)
+     order too.
+     VERDICT (record_order/README.md, place 19): COMMUTE. For a symbol no call
+     reads or writes a table, a counter or a flag, and none can fail. *)
   let! tmp3 :=
     List.mapi
       (fun (i : int) '(var, sym) =>

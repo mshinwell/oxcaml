@@ -318,7 +318,10 @@ Definition create_block_like (symbol : Symbol.t)
   let& definitions := [definition] in
   (* PORT-GAP(record-order): 180-185, four fields of the record are calls:
      each is bound before the record, in the order of the type, the last
-     field first. *)
+     field first.
+     VERDICT (record_order/README.md, place 7): COMMUTE. No call writes state
+     (one allocates). The constant is a block here, so its free names are
+     stored, and no call can fail. *)
   let* is_fully_static :=
     Rebuilt_static_const.is_fully_static defining_expr
   in
@@ -353,7 +356,11 @@ Definition create_set_of_closures (denv : Flambda2_types.Typing_env.t)
   let& definitions := [definition] in
   (* PORT-GAP(record-order): 198-203, four fields of the record are calls:
      each is bound before the record, in the order of the type, the last
-     field first. *)
+     field first.
+     VERDICT (record_order/README.md, place 8): COMMUTE, FAILURES ORDERED. No
+     call writes state (one allocates). One call alone can fail
+     ([compute_bound_static]: the heavy checks on, and one symbol given to two
+     function slots), so the order chooses nothing. *)
   let* is_fully_static :=
     Rebuilt_static_const.is_fully_static defining_expr
   in
@@ -381,7 +388,12 @@ Definition create_code (code_id : Code_id.t)
   let& definitions := [definition] in
   (* PORT-GAP(record-order): 212-217, four fields of the record are calls:
      each is bound before the record, in the order of the type, the last
-     field first. *)
+     field first.
+     VERDICT (record_order/README.md, place 9): COMMUTE, FAILURES ORDERED.
+     [is_fully_static] alone writes (for code that is not rebuilt: caches of
+     free names in its result types, a waiting renaming, entries of tables that
+     intern) and alone can fail. The other calls read none of that. The order
+     chooses nothing. *)
   let* is_fully_static :=
     Rebuilt_static_const.is_fully_static defining_expr
   in
@@ -402,7 +414,12 @@ Definition create_definition (definition : Definition_.t) : M t :=
   (* PORT-GAP(record-order): 221-227, four fields of the record are calls:
      each is bound before the record, in the order of the type, the last
      field first. 225: [Definition.defining_expr definition] is the
-     projection. *)
+     projection.
+     VERDICT (record_order/README.md, place 10): COMMUTE, FAILURES ORDERED. As
+     place 9, but [compute_bound_static] can fail too. The order chooses which
+     of the two failures is seen (here [is_fully_static] runs first), and
+     whether the writes of [is_fully_static] come before a failure of
+     [compute_bound_static]. *)
   let* is_fully_static :=
     Rebuilt_static_const.is_fully_static
       definition.(Definition_.defining_expr)

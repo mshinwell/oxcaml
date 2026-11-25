@@ -387,7 +387,11 @@ Module Closure_field.
     (* PORT-GAP(record-order): 249-253, two fields of the record have
        calls, [var_kind] and [poison_const]: they are taken in the order of
        the type, the last field first, and each is bound before the record
-       is built. *)
+       is built.
+       VERDICT (record_order/README.md, place 23): COMMUTE, FAILURES ORDERED.
+       [Const.const_poison] alone may add to the table of constants and alone
+       can fail (no identifier left). [Value_slot.kind] reads a field. The order
+       chooses nothing. *)
     let* poison_const :=
       let! tmp1 := Value_slot.kind value_slot in
       Const.const_poison tmp1 "variant_unboxing_closure_field"

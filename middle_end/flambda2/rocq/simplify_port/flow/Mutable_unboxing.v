@@ -708,7 +708,9 @@ Module Fold_prims.
                 ret (tmp5, fields))
         in
         (* PORT-GAP(record-order): 450-452, a record with a call in each of
-           its two fields: the last field of the type first. *)
+           its two fields: the last field of the type first.
+           VERDICT (record_order/README.md, place 5): COMMUTE. Two additions to
+           two immutable maps: no write, no read of state, no failure. *)
         let* rewrites :=
           Named_rewrite_id.Map.add rewrite_id rewrite
             env.(Fold_prims.rewrites)
@@ -735,7 +737,9 @@ Module Fold_prims.
         in
         let* fields := list_to_int_map fields in
         (* PORT-GAP(record-order): 463-465, a record with a call in each of
-           its two fields: the last field of the type first. *)
+           its two fields: the last field of the type first.
+           VERDICT (record_order/README.md, place 6): COMMUTE. As place 5;
+           [Simple.var] returns its argument. *)
         let* rewrites :=
           Named_rewrite_id.Map.add rewrite_id rewrite
             env.(Fold_prims.rewrites)

@@ -397,7 +397,10 @@ Definition arg_types_by_use_id_for_lifting
             (* PORT-GAP(record-order): 211-217, a record with a call in
                each of its two fields, which the compiler writes
                [typing_env] first; here in the order of the type
-               ([arg_type], [typing_env]), the last field first. *)
+               ([arg_type], [typing_env]), the last field first.
+               VERDICT (record_order/README.md, place 17): COMMUTE.
+               [alias_type_of] and the projections: no write, no read of state,
+               no failure. *)
             let* typing_env := DE.typing_env env_at_use in
             let* arg_type :=
               let! tmp2 := Bound_parameter.kind param in
@@ -1677,7 +1680,13 @@ Fixpoint compute_specialized_continuation (fuel : fuel)
         (* PORT-GAP(record-order): 1165-1176, a record with a call in two
            of the fields that it changes ([handlers], [cont_uses_env]),
            which the compiler writes [handlers] first; here in the order of
-           the type, the last field ([handlers]) first. *)
+           the type, the last field ([handlers]) first.
+           VERDICT (record_order/README.md, place 18): REPORT.
+           [CUE.add_continuation_use] calls the meet of types, which can make a
+           fresh variable and was not read to its leaves. Every write and every
+           failure of the place is in that one field; [Continuation.Map.add] is
+           pure. Nothing was found that the order can change. Reported to the
+           human. *)
         let* data :=
           let* handlers := Continuation.Map.add cont rebuild data.(handlers) in
           let* cont_uses_env :=

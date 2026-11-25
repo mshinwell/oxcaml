@@ -129,7 +129,10 @@ Definition create_normal_non_code (cost_metrics : Cost_metrics.t)
     (const : SC.t) : M t :=
   (* PORT-GAP(record-order): 70-71, calls in the fields [const] and
      [free_names]: the last field first, each bound under the name of its
-     field. *)
+     field.
+     VERDICT (record_order/README.md, place 12): COMMUTE, FAILURES ORDERED. No
+     call writes. [Static_const.free_names] alone can fail, so the order chooses
+     nothing. *)
   let* free_names := Static_const.free_names const in
   let* const := Static_const_or_code.create_static_const const in
   ret (Normal const free_names cost_metrics).
@@ -180,7 +183,12 @@ Definition create_code (are_rebuilding : ART.t)
         in
         (* PORT-GAP(record-order): 94-95, calls in the fields [const] and
            [free_names]: the last field first, each bound under the name of
-           its field. *)
+           its field.
+           VERDICT (record_order/README.md, place 13): COMMUTE, FAILURES
+           ORDERED. [Code.free_names] computes: it writes caches (and may force
+           a waiting renaming and add to tables that intern), and it alone can
+           fail. [create_code] applies a constructor and reads none of that. The
+           order chooses nothing. *)
         let* free_names := Code.free_names code in
         let* const := Static_const_or_code.create_code code in
         ret (Normal const free_names Cost_metrics.zero, Some code))
@@ -195,7 +203,9 @@ Definition create_code (are_rebuilding : ART.t)
 Definition create_code' (code : Code.t) : M t :=
   (* PORT-GAP(record-order): 102-103, calls in the fields [const] and
      [free_names]: the last field first, each bound under the name of its
-     field. *)
+     field.
+     VERDICT (record_order/README.md, place 14): COMMUTE, FAILURES ORDERED. As
+     place 13. *)
   let* free_names := Code.free_names code in
   let* const := Static_const_or_code.create_code code in
   ret (Normal const free_names Cost_metrics.zero).
@@ -206,7 +216,9 @@ Definition find_code_characteristics
     (code_id : Code_id.t) : M Cost_metrics.code_characteristics :=
   let* code_metadata := find_code_metadata code_id in
   (* PORT-GAP(record-order): 110-111, calls in the two fields: the last
-     field first, each bound under the name of its field. *)
+     field first, each bound under the name of its field.
+     VERDICT (record_order/README.md, place 15): COMMUTE. Two readings of fields
+     of one immutable record. *)
   let* function_slot_size := Code_metadata.function_slot_size code_metadata in
   let* cost_metrics := Code_metadata.cost_metrics code_metadata in
   ret
@@ -617,7 +629,10 @@ Definition map_set_of_closures (t : Rebuilt_static_const.t)
         in
         (* PORT-GAP(record-order): 341-344, calls in the fields [const] and
            [free_names]: the last field first, each bound under the name of
-           its field. *)
+           its field.
+           VERDICT (record_order/README.md, place 16): COMMUTE, FAILURES
+           ORDERED. No call writes. [Set_of_closures.free_names] alone can fail,
+           so the order chooses nothing. *)
         let* free_names := Set_of_closures.free_names set_of_closures in
         let* const :=
           let! tmp1 := SC.set_of_closures set_of_closures in

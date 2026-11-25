@@ -126,7 +126,12 @@ Definition create (denv : DE.t) (slot_offsets : Code_id.Map.t Slot_offsets.t)
   (* PORT-GAP(record-order): three fields of the record are calls
      ([flow_acc], [are_lifting_conts], [continuation_lifting_budget]); they
      are taken in the order of the type, the last field first, and each is
-     bound before the record is built. *)
+     bound before the record is built.
+     VERDICT (record_order/README.md, place 2): REPORT. [Flow.Acc.empty] makes a
+     fresh continuation: it writes a counter and a table. It is the only call of
+     the three that writes or that can fail; the two others read flags or
+     nothing. Nothing was found that the order can change. Reported to the
+     human, as the rule for a fresh name asks. *)
   let* continuation_lifting_budget :=
     Flambda_features.Expert.cont_lifting_budget tt
   in

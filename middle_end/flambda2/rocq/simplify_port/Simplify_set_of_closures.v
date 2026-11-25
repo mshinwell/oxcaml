@@ -1276,7 +1276,9 @@ Definition simplify_non_lifted_set_of_closures0 (dacc : DA.t)
                 (* PORT-GAP(record-order): 935-939, the two fields of the
                    inline record are calls: each is bound before the
                    constructor, in the order of the type, the last field
-                   first. *)
+                   first.
+                   VERDICT (record_order/README.md, place 20): COMMUTE. Two
+                   readings of fields of one immutable record. *)
                 let* dbg := Code_metadata.dbg code_metadata in
                 let* function_slot_size :=
                   Code_metadata.function_slot_size code_metadata
@@ -1314,7 +1316,9 @@ Definition simplify_non_lifted_set_of_closures0 (dacc : DA.t)
       in
       (* PORT-GAP(record-order): 961-964, the two fields of the record are
          calls: each is bound before the record, in the order of the type,
-         the last field first. *)
+         the last field first.
+         VERDICT (record_order/README.md, place 21): COMMUTE. Two readings of
+         fields of one immutable record. *)
       let* function_slot_size :=
         Code_metadata.function_slot_size code_metadata
       in

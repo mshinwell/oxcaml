@@ -248,7 +248,10 @@ Definition remove (t : Continuation_uses_env.t) (cont : Continuation.t)
     : M Continuation_uses_env.t :=
   (* PORT-GAP(record-order): the two fields of the record are calls; they
      are taken in the order of the type, the last field first, and each is
-     bound before the record is built. *)
+     bound before the record is built.
+     VERDICT (record_order/README.md, place 1): COMMUTE. Both calls are
+     [Continuation.Map.remove], on two maps: no write, no read of state, no
+     failure. *)
   let* continuation_arities :=
     Continuation.Map.remove cont t.(continuation_arities)
   in

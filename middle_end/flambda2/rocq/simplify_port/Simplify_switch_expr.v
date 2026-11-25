@@ -634,7 +634,11 @@ Definition let_op_dollar (expr : named) (k : Simple.t -> M rebuilder)
             (* PORT-GAP(record-order): 381-386, two fields of the inline
                record have a call: [simplified_defining_expr], the later
                field of the type, first; then [let_bound]. Each is bound
-               before the record is built. *)
+               before the record is built.
+               VERDICT (record_order/README.md, place 22): COMMUTE, FAILURES
+               ORDERED. No call writes. [Simplified_named.create] alone can
+               fail, and only on a broken invariant, so the order chooses
+               nothing. The fresh variable is made before the record. *)
             let* simplified_defining_expr :=
               Simplified_named.create machine_width named
             in

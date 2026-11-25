@@ -714,7 +714,10 @@ Module Matching_for_unique_handler.
       in
       (* PORT-GAP(record-order): 432, calls in the two fields: the last
          field first, each bound by [let*] ([mapping2], [mapping1]: names
-         that the compiler does not have). *)
+         that the compiler does not have).
+         VERDICT (record_order/README.md, place 11): COMMUTE. Each call of
+         [create_mapping] fills a table that it has just made: two
+         allocations. *)
       let* mapping2 := create_mapping params2 in
       let* mapping1 := create_mapping params1 in
       ret
