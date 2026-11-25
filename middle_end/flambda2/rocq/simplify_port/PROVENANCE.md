@@ -20,7 +20,7 @@ read, what is taken, for how many declarations and in which files.
 |---|---|---|
 | `monad/real/Port_monad.v`, `monad/real/Kit_refuses.v`, `monad/real/Kit_laws.v`, `monad/id/Port_monad.v` | none | original |
 | `contracts/*.v`, `contracts/ported/*.v`, `contracts/ported/DIR/*.v`, `contracts/README.md` | none; they name functions, exceptions and files of the compiler and of the port | original |
-| `proofs/*.v`, `proofs/DIR/*.v`, `proofs/README.md` | none; statements and proofs about ported files, written for the port. `proofs/env/Continuation_uses_handlers.v` holds two format strings of `env/Continuation_uses.v` (which has them from `middle_end/flambda2/simplify/env/continuation_uses.ml`): two of its premises name a call by its format | original |
+| `proofs/*.v`, `proofs/DIR/*.v`, `proofs/README.md` | none; statements and proofs about ported files, written for the port. `proofs/env/Continuation_uses_handlers.v` holds two format strings of `env/Continuation_uses.v` WITH THE TERMS OF THEIR CALLS (the printers and the arguments of the two formatter calls), which that file has from `middle_end/flambda2/simplify/env/continuation_uses.ml`, 45-58: two of its premises (`message_ok`, `context_ok`) name a call by its format and its arguments; the file has a `CR mshinwell` under its head that asks whether more credits are needed | original |
 | `runtime/port_monad.ml`, `runtime/port_abbreviations.ml` (empty) | none | original |
 | `abbrev/FILE/Port_abbreviations.v` | the lines `module A = P` of the compiler's file that the ported file FILE follows (its abbreviations of modules), as Rocq's `Module A := P.` | transcribed |
 | `Makefile`, `GUIDE.md`, `PROVENANCE.md`, `README.md`, `.gitignore` | none | original |
@@ -61,7 +61,11 @@ guess. Four files of `decl/` carry one, and the generator writes it
 that they follow has no header: which header does the generated file
 take?); `Numeric_types.v` and `Rebuilt_expr__local.v` (declarations whose
 names and types come from the standard library stand under the header of
-the compiler's file: are more credits owed? See the last section).
+the compiler's file: are more credits owed? See the last section). One
+file of `proofs/` carries one, written by hand:
+`proofs/env/Continuation_uses_handlers.v` (two of its premises carry two
+format strings and the terms of two formatter calls of a ported file,
+under the MIT header of an original file: are more credits owed?).
 
 ## What is read that is not made from this tree's sources
 

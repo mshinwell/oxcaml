@@ -25,6 +25,13 @@
  * DEALINGS IN THE SOFTWARE.                                                  *
  ******************************************************************************)
 
+(* CR mshinwell: message_ok and context_ok carry format strings and
+   formatter-call terms from
+   middle_end/flambda2/simplify/env/continuation_uses.ml, via
+   env/Continuation_uses.v. This original proof file has the kit's MIT
+   header; the transcription rule gives that donor's LGPL 2.1/linking-exception
+   notice. Are additional donor credits needed for these portions? *)
+
 (* FIRST LEMMAS ABOUT THE HANDLER OF [add_use] OF env/Continuation_uses.v.
    Read proofs/README.md first. [add_use] has a handler for a fatal error
    that prints a context and raises the fatal error again with
@@ -39,9 +46,11 @@
    [Printexc.raise_with_backtrace] (contracts/Printexc.v). By
    [add_use_fatal_only]: that contract, the contract of
    [Printexc.get_raw_backtrace], and six premises about the calls of
-   [add_use] itself, which the second section states. Two of them name a
-   call by its format string, which is the one of env/Continuation_uses.v
-   (the compiler's). *)
+   [add_use] itself, which the second section states. Two of them
+   ([message_ok], [context_ok]) name a call by its format string and its
+   arguments (the printers and what is printed): these are the terms of
+   that call in env/Continuation_uses.v, which has them from the compiler's
+   file. *)
 
 From SimplifyPort Require Import Port_monad Kit_laws.
 From SimplifyPort.decl Require Continuation Downwards_env Flambda2_types
