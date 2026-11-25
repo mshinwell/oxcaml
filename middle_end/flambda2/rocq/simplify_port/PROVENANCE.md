@@ -20,6 +20,7 @@ comes from outside this repository.
 | `tools/declgen/*` | none; it reads the compiled interfaces and typed trees of a build of the compiler, with the compiler's own library (`compiler-libs`) | original |
 | `decl/*.v` | written by `tools/declgen` from the compiled interface of the compiler's module of the same name; each begins with the header of that interface (`decl/README.md`) | generated |
 | `decl/INDEX.tsv`, `decl/NOT-DECLARED.tsv` | written by `tools/declgen` | generated |
+| `decl/ARITIES.tsv` | written by `tools/declgen` from the typed trees of the implementations of the compiler's modules (`decl/README.md`, last section) | generated |
 | `decl/README.md` | none | original |
 | `extracted/.ocamlformat`, `runtime/.ocamlformat` | `middle_end/flambda2/.ocamlformat` | copy |
 | `Simplify_import.v` | `middle_end/flambda2/simplify/simplify_import.ml` | transcribed |
