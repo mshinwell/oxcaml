@@ -1189,7 +1189,7 @@ Definition rebuild_single_recursive_handler
           in
           k invariant_params rebuilt_handler uacc)).
 
-(* 836-920: a [let rec] on the list [groups_to_rebuild]. *)
+(* 836-920. A [let rec] on the list [groups_to_rebuild]. *)
 Fixpoint rebuild_continuation_handlers_loop {A : Type}
     (rebuild_body : Simplify_common.rebuild A)
     (rebuild_expr : Simplify_common.rebuild Simplified_expr.t)
@@ -1350,7 +1350,7 @@ Definition prepare_to_rebuild_handlers {A : Type}
         at_unit_toplevel original_invariant_params invariant_extra_params uacc
         after_rebuild handlers_from_the_outside_to_the_inside []).
 
-(* 961-964: the third parameter is the pattern [(simplified_let_cont,
+(* 961-964. The third parameter is the pattern [(simplified_let_cont,
    simplified_body)]. *)
 Definition rebuild_let_cont {A : Type}
     (rebuild_body : Simplify_common.rebuild A)
@@ -2743,7 +2743,7 @@ Definition simplify_let_cont
     {| body := body; handlers_ := handlers |}
     down_to_up.
 
-(* 2016-2039: the third parameter is the pattern [(body, handlers)]. *)
+(* 2016-2039. The third parameter is the pattern [(body, handlers)]. *)
 Definition simplify_as_recursive_let_cont
     (simplify_expr : Simplify_common.expr_simplifier Expr.t) (dacc : DA.t)
     (pat : Expr.t * Continuation.Lmap.t Continuation_handler.t)

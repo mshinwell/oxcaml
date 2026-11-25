@@ -48,7 +48,7 @@ Module Cont_arg.
     | Simple (_ : Simple.t)
     | New_let_binding (_ : Variable_.t) (_ : Name_occurrences.t).
 
-  (* 32-36: the compiler's function is a [function] of its second
+  (* 32-36. The compiler's function is a [function] of its second
      argument. *)
   Definition print (ppf : Format.formatter) (x : Cont_arg.t) : M unit :=
     match x with
@@ -105,7 +105,7 @@ Module Mutable_prim.
           fields : Simple.t list
         }".
 
-  (* 65-74: the compiler's function is a [function] of its second
+  (* 65-74. The compiler's function is a [function] of its second
      argument. *)
   Definition print (ppf : Format.formatter) (x : Mutable_prim.t) : M unit :=
     match x with
@@ -150,7 +150,7 @@ Module Mutable_let_prim.
 
   (* 92-99 *)
   Module List.
-    (* 93: [type nonrec t = t list] *)
+    (* 93. [type nonrec t = t list] *)
     Definition t : Type := list Mutable_let_prim.t.
 
     (* 95-98 *)

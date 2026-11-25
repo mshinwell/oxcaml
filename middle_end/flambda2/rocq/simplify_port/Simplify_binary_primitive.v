@@ -1419,6 +1419,7 @@ Module Type Float_ops_for_binary_arith_gen_FP.
   Parameter const : F.t -> M Const.t.
 End Float_ops_for_binary_arith_gen_FP.
 
+(* 702-813 *)
 Module Float_ops_for_binary_arith_gen (FP : Float_ops_for_binary_arith_gen_FP)
   <: Binary_arith_like_sig.
   (* 721-724 *)
@@ -1576,6 +1577,7 @@ Module Float_ops_for_binary_arith_FP.
   Definition const := Reg_width_const.naked_float.
 End Float_ops_for_binary_arith_FP.
 
+(* 815-831 *)
 Module Float_ops_for_binary_arith :=
   Float_ops_for_binary_arith_gen (Float_ops_for_binary_arith_FP).
 
@@ -1600,6 +1602,7 @@ Module Float32_ops_for_binary_arith_FP.
   Definition const := Reg_width_const.naked_float32.
 End Float32_ops_for_binary_arith_FP.
 
+(* 833-849 *)
 Module Float32_ops_for_binary_arith :=
   Float_ops_for_binary_arith_gen (Float32_ops_for_binary_arith_FP).
 
@@ -1619,6 +1622,7 @@ Module Type Float_ops_for_binary_comp_gen_FP.
   Parameter prover : T.Typing_env.t -> T.t -> M (T.meet_shortcut F.Set_.t).
 End Float_ops_for_binary_comp_gen_FP.
 
+(* 854-960 *)
 Module Float_ops_for_binary_comp_gen (FP : Float_ops_for_binary_comp_gen_FP)
   <: Binary_arith_like_sig.
   (* 863-866 *)
@@ -1814,6 +1818,7 @@ Module Float_ops_for_binary_comp_FP.
   Definition prover := T.meet_naked_floats.
 End Float_ops_for_binary_comp_FP.
 
+(* 962-968 *)
 Module Float_ops_for_binary_comp :=
   Float_ops_for_binary_comp_gen (Float_ops_for_binary_comp_FP).
 
@@ -1827,6 +1832,7 @@ Module Float32_ops_for_binary_comp_FP.
   Definition prover := T.meet_naked_float32s.
 End Float32_ops_for_binary_comp_FP.
 
+(* 970-976 *)
 Module Float32_ops_for_binary_comp :=
   Float_ops_for_binary_comp_gen (Float32_ops_for_binary_comp_FP).
 

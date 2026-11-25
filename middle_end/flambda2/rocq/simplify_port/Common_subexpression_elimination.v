@@ -166,7 +166,7 @@ end = struct
 end
 OCAML*)
 
-(* 124-240. In the compiler: [~typing_env_at_fork ~cse_at_each_use ~params
+(* 124-245. In the compiler: [~typing_env_at_fork ~cse_at_each_use ~params
    prev_cse extra_bindings env_extension]. *)
 Definition cse_with_eligible_lhs (typing_env_at_fork : TE.t)
     (cse_at_each_use : list (tuple3 TE.t RI.t (EP.Map.t Simple.t)))
@@ -344,13 +344,13 @@ Definition cse_with_eligible_lhs (typing_env_at_fork : TE.t)
         cse eligible)
     EP.Map.empty cse_at_each_use.
 
-(* 242-245 *)
+(* 247-250 *)
 Record extra_binding : Type := {
   extra_param : BP.t;
   extra_args : RI.Map.t EA.t
 }.
 
-(* 247-297. In the compiler: [~machine_width ~cse_at_each_use prim
+(* 252-297. In the compiler: [~machine_width ~cse_at_each_use prim
    bound_to_map (cse, extra_bindings, env_extension, allowed)]. *)
 Definition join_one_cse_equation
     (machine_width : Target_system.Machine_width.t)
@@ -465,6 +465,7 @@ result=%a@
 
 (* 322-329 *)
 Module Join_result.
+  (* 323-328 *)
   (* 323: [type nonrec t]: the field [cse_at_join_point] has the type [t] of
      the file. *)
   Record t : Type := {

@@ -174,7 +174,7 @@ Definition add_continuations (can_be_lifted : bool)
 
 (* Computing cost and benefits *)
 
-(* 101. In the compiler: [repeat n acc ~f]. *)
+(* 100. In the compiler: [repeat n acc ~f]. *)
 Fixpoint repeat {A : Type} (fuel : fuel) (n : int) (acc : A) (f : A -> M A)
     {struct fuel} : M A :=
   recursive! fuel in
@@ -184,7 +184,7 @@ Fixpoint repeat {A : Type} (fuel : fuel) (n : int) (acc : A) (f : A -> M A)
     let! tmp1 := f acc in
     repeat fuel (n - 1) tmp1 f.
 
-(* 103-193 *)
+(* 102-202 *)
 Definition cost_metrics (typing_env : Flambda2_types.Typing_env.t)
     (switch : Switch_expr.t)
     (join_analysis : Flambda2_types.Join_analysis.t Apply_cont_rewrite_id.t)

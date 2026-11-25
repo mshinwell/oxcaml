@@ -109,6 +109,7 @@ Definition refine_decision_based_on_arg_types_at_uses (pass : U.pass)
    included, and [fold_left3]. Here the module is [List_] and has
    [fold_left3] only; the other functions of [List] are those of decl/. *)
 Module List_.
+  (* 62-66 *)
   Fixpoint fold_left3 {A B C D : Type} (f : A -> B -> C -> D -> M A)
       (accu : A) (l1 : list B) (l2 : list C) (l3 : list D) {struct l1}
       : M A :=
@@ -121,7 +122,7 @@ Module List_.
     end.
 End List_.
 
-(* 70-80 *)
+(* 69-78 *)
 Definition make_do_not_unbox_decisions (params : Bound_parameters.t)
     : M Decisions.t :=
   let* decisions :=
@@ -138,12 +139,12 @@ Definition make_do_not_unbox_decisions (params : Bound_parameters.t)
          Apply_cont_rewrite_id.Set_.empty
     |}.
 
-(* 82-84 *)
+(* 80-82 *)
 Inductive continuation_arg_types : Type :=
 | Recursive
 | Non_recursive (arg_types_by_use_id : Continuation_uses.arg_types_by_use_id).
 
-(* 86-152 *)
+(* 84-155 *)
 (* PORT-GAP(loose): the compiler defines [make_decisions] twice, the second
    time (154-177) by the first; here the first is [make_decisions_]. *)
 Definition make_decisions_ (continuation_arg_types : continuation_arg_types)
@@ -238,7 +239,7 @@ Definition make_decisions_ (continuation_arg_types : continuation_arg_types)
         Unboxing_types.Decisions.rewrites_ids_known_as_invalid := invalids
      |}).
 
-(* 154-177 *)
+(* 157-180 *)
 Definition make_decisions (continuation_arg_types : continuation_arg_types)
     (denv : DE.t) (params : Bound_parameters.t) (params_types : list T.t)
     : M (DE.t * Decisions.t) :=
@@ -268,7 +269,7 @@ Definition make_decisions (continuation_arg_types : continuation_arg_types)
     "make_unboxing_decisions"
     (fun _ => make_decisions_ continuation_arg_types denv params params_types).
 
-(* 179-203. In the compiler: [~machine_width decisions ~arg_types_by_use_id
+(* 182-203. In the compiler: [~machine_width decisions ~arg_types_by_use_id
    existing_extra_params_and_args]. *)
 Definition compute_extra_params_and_args
     (machine_width : Target_system.Machine_width.t)

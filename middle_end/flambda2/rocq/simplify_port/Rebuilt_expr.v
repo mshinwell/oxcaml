@@ -664,7 +664,7 @@ Module Matching_for_unique_handler.
                variable). *)
       }.
 
-    (* 408-414; 383-386, the comment of the function in the signature: *)
+    (* 408-414. 383-386, the comment of the function in the signature: *)
     (** Returns an argument that can be used to bind the provided parameter from
         the second list from a parameter in the first list.
 
@@ -690,7 +690,7 @@ Module Matching_for_unique_handler.
           | Some var => ret var
           end).
 
-    (* 416-432; 369-371, the comment of the function in the signature: *)
+    (* 416-432. 369-371, the comment of the function in the signature: *)
     (** Create a new matcher.
 
         Fails if the two parameter lists have distinct number of parameters. *)
@@ -722,7 +722,7 @@ Module Matching_for_unique_handler.
            Match_permutable_parameters.params2 := mapping2
         |}.
 
-    (* 434-456; 374-380, the comment of the function in the signature: *)
+    (* 434-456. 374-380, the comment of the function in the signature: *)
     (** [match_variable t var1 var2] records that [var1] and [var2] must match
         in the respective parameter lists.
 
@@ -816,7 +816,7 @@ Module Matching_for_unique_handler.
       Match_permutable_parameters.match_variable permutation var1 var2
     end.
 
-  (* 498-511 *)
+  (* 506-511 *)
   (* PORT-GAP(loose): 498-504, the module type [Equal_and_free_names] is not
      kept, and 506-507, the first-class module [(module T :
      Equal_and_free_names with type t = t)] is its two functions [equal] and
@@ -862,7 +862,7 @@ Module Matching_for_unique_handler.
           (fun const2 =>
             fail_if_not_equal Reg_width_const.equal const1 const2)).
 
-  (* 536-543: Like [iter2], but raises [Match_failure] if the lengths are
+  (* 536-543. Like [iter2], but raises [Match_failure] if the lengths are
      not equal *)
   Fixpoint match_list {Env X Y : Type} (match_elt : Env -> X -> Y -> M unit)
       (env : Env) (xs : list X) (ys : list Y) {struct xs} : M unit :=

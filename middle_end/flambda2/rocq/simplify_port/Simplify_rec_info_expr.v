@@ -201,11 +201,13 @@ Definition simplify_rec_info_expr (dacc : DA.t)
 
 (* 130-138 *)
 Module Evaluated_rec_info_expr.
+  (* 131-134 *)
   Record t : Type := {
     depth : Or_infinity.t int;
     unrolling : Rec_info_expr.Unrolling_state.t
   }.
 
+  (* 136-137 *)
   (* PORT-GAP(loose): 136, the attribute [@ocamlformat "disable"] is not
      kept. *)
   Definition print (ppf : Format.formatter)

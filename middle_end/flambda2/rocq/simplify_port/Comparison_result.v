@@ -97,7 +97,7 @@ Definition create (prim : P.t) (comparison_results : Variable_.Map.t t)
   | _ => ret None
   end.
 
-(* 48-63 *)
+(* 47-62 *)
 (* PORT-GAP(loose): 48, the attribute [@ocamlformat "disable"] is not
    kept. *)
 Definition print (ppf : Format.formatter)
@@ -119,7 +119,7 @@ Definition print (ppf : Format.formatter)
     Simple.print lhs Simple.print rhs prefix
     Flambda_kind.Standard_int.print_lowercase kind result.
 
-(* 65-86 *)
+(* 64-86 *)
 Definition convert_result_compared_to_tagged_zero
     '({| lhs := lhs;
          rhs := rhs;

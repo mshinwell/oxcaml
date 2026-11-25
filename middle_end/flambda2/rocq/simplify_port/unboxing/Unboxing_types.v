@@ -206,7 +206,7 @@ Definition print_do_not_unbox_reason (ppf : Format.formatter)
   | All_fields_invalid => Format.fprintf0 ppf "all_fields_invalid"
   end.
 
-(* 116-142 *)
+(* 116-160 *)
 Fixpoint print_decision (fuel : fuel) (ppf : Format.formatter)
     (decision : decision_) {struct fuel} : M unit :=
   recursive! fuel in
@@ -295,7 +295,7 @@ Definition print (ppf : Format.formatter)
     tmp1 decisions Apply_cont_rewrite_id.Set_.print rewrite_ids_seen
     Apply_cont_rewrite_id.Set_.print rewrites_ids_known_as_invalid.
 
-(* 178-186 *)
+(* 177-185 *)
 Module Decisions.
   (* PORT-GAP(verbatim): 179-183, the compiler defines the record again,
      equal to [decisions]: the OCaml text is that of the directive. *)
@@ -307,6 +307,6 @@ Module Decisions.
       rewrites_ids_known_as_invalid : Apply_cont_rewrite_id.Set.t
     }".
 
-  (* 185 *)
+  (* 184 *)
   Definition print := print.
 End Decisions.

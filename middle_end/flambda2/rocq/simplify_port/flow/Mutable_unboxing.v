@@ -503,7 +503,7 @@ Definition continuations_with_live_block
       let! tmp1 := Simple.Set_.union old_using_blocks used_blocks in
       Simple.Set_.diff tmp1 defined_blocks).
 
-(* 342-351: the first argument of the function is the pair
+(* 342-351. The first argument of the function is the pair
    [(i, fields)]. *)
 Definition list_to_int_map {A : Type} (l : list A)
     : M (Numeric_types.Int.Map.t A) :=

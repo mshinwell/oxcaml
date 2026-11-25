@@ -116,13 +116,13 @@ Definition singleton_list_of_constants (constants : list LC.t) : M t :=
     ret (Leaf_array tmp1)
   end.
 
-(* 56-57: [Union { t2 = Leaf const; t1 = t }], the fields by place. *)
+(* 56-57. [Union { t2 = Leaf const; t1 = t }], the fields by place. *)
 Definition add (t : Lifted_constant_state.t) (const : LC.t)
     : M Lifted_constant_state.t :=
   let! tmp1 := is_empty t in
   if tmp1 then ret (Leaf const) else ret (Union t (Leaf const)).
 
-(* 59-64: [Union { t2 = t1; t1 = t2 }], the fields by place. *)
+(* 59-64. [Union { t2 = t1; t1 = t2 }], the fields by place. *)
 Definition union (t1 t2 : t) : M t :=
   match t1, t2 with
   | Empty, Empty => ret Empty
@@ -150,7 +150,7 @@ Definition fold {A : Type} (t : Lifted_constant_state.t) (init : A)
   in
   loop init t.
 
-(* 77-79: [a |> f b] is [f b a]. *)
+(* 77-79. [a |> f b] is [f b a]. *)
 Definition all_defined_symbols (t : Lifted_constant_state.t)
     : M Symbol.Set_.t :=
   fold t Symbol.Set_.empty

@@ -58,13 +58,16 @@ Definition pp_tag (print_tag : bool) (ppf : Format.formatter) (tag : Tag.t)
   else ret tt.
 
 (* Internal control knobs *)
-(* 25-31 *)
+(* 25 *)
 Definition unbox_numbers : bool := true.
 
+(* 27 *)
 Definition unbox_blocks : bool := true.
 
+(* 29 *)
 Definition unbox_variants : bool := true.
 
+(* 31 *)
 Definition unbox_closures : bool := true.
 
 (* 33-43 *)

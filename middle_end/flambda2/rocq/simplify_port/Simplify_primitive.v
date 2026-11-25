@@ -70,7 +70,7 @@ Definition apply_cse (dacc : DA.t) (original_prim : P.t)
     end
   end.
 
-(* 39-80 *)
+(* 39-81 *)
 Definition try_cse (dacc : DA.t) (dbg : Debuginfo.t) (original_prim : P.t)
     (min_name_mode : Name_mode.t) (result_var : Bound_var.t)
     : M cse_result :=
@@ -82,7 +82,7 @@ Definition try_cse (dacc : DA.t) (dbg : Debuginfo.t) (original_prim : P.t)
     let! tmp1 := apply_cse dacc original_prim in
     match tmp1 with
     | Some replace_with =>
-      (* 49-66 *)
+      (* 50-68 *)
       let* dacc := DA.merge_debuginfo_rewrite dacc replace_with dbg in
       let* named := Named.create_simple replace_with in
       let* ty :=
@@ -99,7 +99,7 @@ Definition try_cse (dacc : DA.t) (dbg : Debuginfo.t) (original_prim : P.t)
           let! tmp1 := DA.denv dacc in
           DE.machine_width tmp1
         in
-        (* 60-61: [a |> f b] is [f b a] *)
+        (* 61-64: [a |> f b] is [f b a] *)
         let* simplified_named :=
           let! tmp1 := Simplified_named.create machine_width named in
           Simplified_named.update_cost_metrics cost_metrics tmp1
@@ -109,7 +109,7 @@ Definition try_cse (dacc : DA.t) (dbg : Debuginfo.t) (original_prim : P.t)
       in
       ret (Applied result)
     | None =>
-      (* 68-80 *)
+      (* 70-81 *)
       let* dacc :=
         let! tmp1 := P.Eligible_for_cse.create original_prim in
         match tmp1 with

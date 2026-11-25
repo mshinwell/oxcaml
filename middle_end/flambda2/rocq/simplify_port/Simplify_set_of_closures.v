@@ -1588,7 +1588,7 @@ Definition simplify_lifted_set_of_closures0 (dacc : DA.t) (context : C.t)
    OCaml's [List] and adds [fold_left3]; here the module is [List_] and has
    that function only, and the other functions of [List] are OCaml's. *)
 Module List_.
-  (* 1154-1158: the recursion is on the structure of [l1]. *)
+  (* 1154-1158. The recursion is on the structure of [l1]. *)
   Fixpoint fold_left3 {Acc A1 A2 A3 : Type}
       (f : Acc -> A1 -> A2 -> A3 -> M Acc) (accu : Acc) (l1 : list A1)
       (l2 : list A2) (l3 : list A3) {struct l1} : M Acc :=

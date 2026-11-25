@@ -48,7 +48,7 @@ module FT = Flambda2_types.Function_type
 module VB = Bound_var
 OCAML*)
 
-(* 23-83 *)
+(* 23-84 *)
 (* PORT-GAP(loose): 80-83, the compiler does not give
    [Inlining_helpers.make_inlined_body] its argument [~region_inlined_into],
    so that the compiler's [make_inlined_body] returns a function of that
@@ -118,7 +118,7 @@ Definition make_inlined_body (callee : option Simple.t)
         Expr.create_let tmp3)
       body tmp5 tmp4
   in
-  (* 70-79 *)
+  (* 70-80 *)
   let& bind_depth :=
     fun (my_depth : Variable_.t) (rec_info : Rec_info_expr.t)
         (body : Expr.t) =>
@@ -131,13 +131,13 @@ Definition make_inlined_body (callee : option Simple.t)
     let! tmp2 := Let.create bound tmp1 body Or_unknown.Unknown in
     Expr.create_let tmp2
   in
-  (* 80-83 *)
+  (* 81-84 *)
   Inlining_helpers.make_inlined_body callee called_code_id region_inlined_into
     params args my_closure my_alloc_mode my_depth rec_info body
     exn_continuation return_continuation apply_exn_continuation
     apply_return_continuation bind_params bind_depth Expr.apply_renaming.
 
-(* 85-101 *)
+(* 86-102 *)
 Definition wrap_inlined_body_for_exn_extra_args
     (extra_args : list (Simple.t * Flambda_kind.With_subkind.t))
     (apply_exn_continuation : Exn_continuation.t)
@@ -146,7 +146,7 @@ Definition wrap_inlined_body_for_exn_extra_args
     (make_inlined_body :
       unit -> Continuation.t -> Apply.Result_continuation.t -> M Expr.t)
     : M Expr.t :=
-  (* 87-89: [~trap_action] is given to the optional argument of
+  (* 88-90: [~trap_action] is given to the optional argument of
      [Apply_cont.create]. *)
   let& apply_cont_create :=
     fun (_ : unit) (trap_action : Trap_action.t) (cont : Continuation.t)
@@ -154,7 +154,7 @@ Definition wrap_inlined_body_for_exn_extra_args
     let! tmp1 := Apply_cont.create (Some trap_action) cont args dbg in
     Expr.create_apply_cont tmp1
   in
-  (* 90-98 *)
+  (* 91-99 *)
   let& let_cont_create :=
     fun (_ : unit) (cont : Continuation.t)
         (handler_params : Bound_parameters.t) (handler body : unit -> M Expr.t)
@@ -167,7 +167,7 @@ Definition wrap_inlined_body_for_exn_extra_args
     let! tmp1 := body tt in
     Let_cont.create_non_recursive cont handler tmp1 Or_unknown.Unknown
   in
-  (* 99-101 *)
+  (* 100-102 *)
   Inlining_helpers.wrap_inlined_body_for_exn_extra_args tt extra_args
     apply_exn_continuation apply_return_continuation result_arity
     make_inlined_body apply_cont_create let_cont_create.

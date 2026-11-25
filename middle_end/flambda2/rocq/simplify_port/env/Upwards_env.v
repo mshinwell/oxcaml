@@ -278,7 +278,7 @@ Definition add_invalid_continuation (t : Upwards_env.t)
     : M Upwards_env.t :=
   add_continuation0 t cont (Continuation_in_env.Invalid arity).
 
-(* 139-140: [a |> f] is [f a] *)
+(* 139-140. [a |> f] is [f a] *)
 Definition continuation_arity (t : Upwards_env.t) (cont : Continuation.t)
     : M Flambda_arity.t_Unarized :=
   let! tmp1 := find_continuation t cont in

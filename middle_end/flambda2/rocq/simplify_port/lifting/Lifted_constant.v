@@ -281,7 +281,7 @@ Definition print (ppf : Format.formatter)
   in
   Format.fprintf2 ppf "@[<hov 1>(%a)@]" tmp1 definitions.
 
-(* 163-165: [a |> f b] is [f b a]; [ListLabels.map l ~f]: the arguments are
+(* 163-165. [a |> f b] is [f b a]; [ListLabels.map l ~f]: the arguments are
    in the order of the interface. *)
 Definition compute_bound_static (definitions : list Definition_.t)
     : M Bound_static.t :=

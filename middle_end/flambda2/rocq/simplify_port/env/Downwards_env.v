@@ -81,10 +81,12 @@ Extract Inlined Constant get_imported_code_ => "get_imported_code".
 
 (* 31-39 *)
 Module Disable_inlining_reason.
+  (* 32-34 *)
   Inductive t : Type :=
   | Stub
   | Speculative_inlining.
 
+  (* 36-38 *)
   Definition print (ppf : Format.formatter) (x : t) : M unit :=
     match x with
     | Stub => Format.fprintf0 ppf "Stub"
@@ -94,10 +96,12 @@ End Disable_inlining_reason.
 
 (* 41-51 *)
 Module Disable_inlining.
+  (* 42-44 *)
   Inductive t : Type :=
   | Disable_inlining (_ : Disable_inlining_reason.t)
   | Do_not_disable_inlining.
 
+  (* 46-50 *)
   Definition print (ppf : Format.formatter) (x : t) : M unit :=
     match x with
     | Disable_inlining reason =>

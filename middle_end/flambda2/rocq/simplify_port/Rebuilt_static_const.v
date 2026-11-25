@@ -784,7 +784,7 @@ Module Group.
         Cost_metrics.op_plus cm tmp1)
       Cost_metrics.zero (consts t).
 
-  (* 444-452: [a |> f |> g] is [g (f a)]. *)
+  (* 444-452. [a |> f |> g] is [g (f a)]. *)
   Definition to_named (t : Group.t) : M Named.t :=
     let! tmp1 :=
       ListLabels.map

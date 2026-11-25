@@ -34,6 +34,7 @@ Local Open Scope list_scope.
    CR gbury: move to a [Replay_action.ml] file ? *)
 (* 21-39 *)
 Module Action.
+  (* 22-25 *)
   Inductive t : Type :=
   | Bound_variable : Variable_.t -> t
   | Bound_continuations : list Continuation.t -> t

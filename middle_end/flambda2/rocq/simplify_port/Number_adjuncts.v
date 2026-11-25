@@ -293,7 +293,7 @@ Module For_tagged_immediates.
 
     (* Shift functions inherit correct signature from Target_ocaml_int *)
 
-    (* 211: [<] is that of [Target_ocaml_int]. *)
+    (* 211. [<] is that of [Target_ocaml_int]. *)
     Definition strictly_negative (t : Target_ocaml_int.t) : M bool :=
       let! tmp1 := Target_ocaml_int.machine_width t in
       let! tmp2 := Target_ocaml_int.zero tmp1 in
@@ -470,7 +470,7 @@ Module For_naked_immediates.
       let! tmp2 := minus_one tmp1 in
       Target_ocaml_int.xor t tmp2.
 
-    (* 304: [<] is that of [Target_ocaml_int]. *)
+    (* 304. [<] is that of [Target_ocaml_int]. *)
     Definition strictly_negative (t : Target_ocaml_int.t) : M bool :=
       let! tmp1 := Target_ocaml_int.machine_width t in
       let! tmp2 := Target_ocaml_int.zero tmp1 in
@@ -788,7 +788,7 @@ Module For_floats.
     Definition to_const (t : Float_by_bit_pattern.t) : M Reg_width_const.t :=
       Reg_width_const.naked_float t.
 
-    (* 469-470: [(Target_ocaml_int.of_float machine_width) (to_float t)] *)
+    (* 469-470. [(Target_ocaml_int.of_float machine_width) (to_float t)] *)
     Definition to_immediate (t : Float_by_bit_pattern.t)
         (machine_width : Target_system.Machine_width.t)
         : M Target_ocaml_int.t :=

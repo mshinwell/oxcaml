@@ -123,7 +123,7 @@ Definition fold {A : Type} (init : A) (f : BP.t -> A -> M A)
     (t : Lifted_cont_params.t) : M A :=
   fold_aux init (fun _ param acc => f param acc) t.
 
-(* 64-72: the recursion is on the list. *)
+(* 64-72. The recursion is on the list. *)
 Fixpoint find_arg (bp : BP.t) (l : list Lifted_cont_params.t) : M Simple.t :=
   match l with
   | [] =>

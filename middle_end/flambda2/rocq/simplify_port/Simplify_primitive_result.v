@@ -87,18 +87,18 @@ Definition create_unit (dacc : Downwards_acc.t) (result_var : Bound_var.t)
   let* dacc := Downwards_acc.add_variable dacc result_var ty in
   create original_term false dacc.
 
-(* 52-55 *)
+(* 51-54 *)
 Definition create_unknown (dacc : Downwards_acc.t) (result_var : Bound_var.t)
     (kind : Flambda_kind.t) (original_term : Flambda.Named.t) : M t :=
   let* ty := Flambda2_types.unknown kind in
   let* dacc := Downwards_acc.add_variable dacc result_var ty in
   create original_term false dacc.
 
-(* 57 *)
+(* 56 *)
 Definition create_rewritten (f : Flambda.Expr.t -> M Flambda.Expr.t) : M t :=
   ret (Simplified_named.Rewritten f).
 
-(* 59-62 *)
+(* 58-61 *)
 Definition is_invalid (t : Simplify_primitive_result.t) : M bool :=
   match t with
   | Simplified_named.Simplified
@@ -109,13 +109,13 @@ Definition is_invalid (t : Simplify_primitive_result.t) : M bool :=
     ret false
   end.
 
-(* 64-67 *)
+(* 63-66 *)
 Definition map_dacc (t : Simplify_primitive_result.t)
     (f : Downwards_acc.t -> M Downwards_acc.t)
     : M Simplify_primitive_result.t :=
   match t with
   | Simplified_named.Simplified t =>
-    (* 66: [{ t with dacc = f t.dacc }], all the fields. *)
+    (* 65: [{ t with dacc = f t.dacc }], all the fields. *)
     let! tmp1 := f t.(dacc) in
     ret
       (Simplified_named.Simplified

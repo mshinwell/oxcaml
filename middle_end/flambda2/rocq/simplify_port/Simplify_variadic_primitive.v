@@ -35,7 +35,7 @@ Local Open Scope Z_scope.
 open! Simplify_import
 OCAML*)
 
-(* 19-73. In the compiler: [~original_prim ~block_kind ~mutable_or_immutable
+(* 19-83. In the compiler: [~original_prim ~block_kind ~mutable_or_immutable
    alloc_mode dacc ~original_term _dbg ~args_with_tys ~result_var]. *)
 Definition simplify_make_block (original_prim : P.t)
     (block_kind : P.Block_kind.t) (mutable_or_immutable : Mutability.t)
@@ -44,7 +44,7 @@ Definition simplify_make_block (original_prim : P.t)
     (args_with_tys : list (Simple.t * T.t)) (result_var : Bound_var.t)
     : M SPR.t :=
   let* typing_env := DA.typing_env dacc in
-  (* 23-49 *)
+  (* 23-50 *)
   let* typing_env :=
     match block_kind with
     | P.Block_kind.Naked_floats | P.Block_kind.Mixed _ _ =>
@@ -83,7 +83,7 @@ Definition simplify_make_block (original_prim : P.t)
         (Or_bottom.Ok typing_env) field_kinds args_with_tys
     end
   in
-  (* 50-73 *)
+  (* 51-83 *)
   match typing_env with
   | Or_bottom.Bottom => SPR.create_invalid dacc
   | Or_bottom.Ok typing_env =>
@@ -130,7 +130,7 @@ Definition simplify_make_block (original_prim : P.t)
     SPR.create original_term true dacc
   end.
 
-(* 75-151. In the compiler: [array_kind ~mutable_or_immutable alloc_mode
+(* 85-165. In the compiler: [array_kind ~mutable_or_immutable alloc_mode
    dacc ~original_term dbg ~args_with_tys ~result_var]. *)
 Definition simplify_make_array (array_kind : P.Array_kind.t)
     (mutable_or_immutable : Mutability.t)
@@ -139,7 +139,7 @@ Definition simplify_make_array (array_kind : P.Array_kind.t)
     (args_with_tys : list (Simple.t * T.t)) (result_var : Bound_var.t)
     : M SPR.t :=
   let* '(args, tys) := List.split args_with_tys in
-  (* 79-84 *)
+  (* 89-94 *)
   let* length :=
     let* machine_width :=
       let! tmp1 := DA.denv dacc in
@@ -153,7 +153,7 @@ Definition simplify_make_array (array_kind : P.Array_kind.t)
     end
   in
   let* element_kinds := P.Array_kind.element_kinds array_kind in
-  (* 86-98 *)
+  (* 96-108 *)
   let* element_kind :=
     (* Remember that the element subkinds cannot in general be deduced from the
        types of the array members, it must be obtained from the array kind
@@ -168,7 +168,7 @@ Definition simplify_make_array (array_kind : P.Array_kind.t)
     end
   in
   let* num_element_kinds := List.length element_kinds in
-  (* 100-105 *)
+  (* 110-115 *)
   (let! tmp1 := List.length args in
    let! tmp2 := int_mod tmp1 num_element_kinds in
    if tmp2 <>? 0
@@ -178,7 +178,7 @@ Definition simplify_make_array (array_kind : P.Array_kind.t)
        "Array length not a multiple of the length of the unboxed product kind list:@ array_kind=%a@ num args=%d@ %a"
        P.Array_kind.print array_kind tmp3 Named.print original_term
    else ret tt) ;;
-  (* 106-124 *)
+  (* 116-134 *)
   let* env_extension :=
     let* typing_env := DA.typing_env dacc in
     match element_kind with
@@ -201,7 +201,7 @@ Definition simplify_make_array (array_kind : P.Array_kind.t)
         (Or_bottom.Ok typing_env) tys
     end
   in
-  (* 125-151 *)
+  (* 135-165 *)
   match env_extension with
   | Or_bottom.Bottom => SPR.create_invalid dacc
   | Or_bottom.Ok typing_env =>
@@ -239,7 +239,7 @@ Definition simplify_make_array (array_kind : P.Array_kind.t)
     SPR.create named true dacc
   end.
 
-(* 153-157. In the compiler: [dacc ~original_term _dbg ~args_with_tys:_
+(* 167-171. In the compiler: [dacc ~original_term _dbg ~args_with_tys:_
    ~result_var]. *)
 Definition simplify_begin_region (dacc : DA.t) (original_term : Named.t)
     (_dbg : Debuginfo.t) (_ : list (Simple.t * T.t)) (result_var : Bound_var.t)
@@ -248,13 +248,13 @@ Definition simplify_begin_region (dacc : DA.t) (original_term : Named.t)
   let* dacc := DA.add_variable dacc result_var ty in
   Simplify_primitive_result.create original_term false dacc.
 
-(* 159-173. In the compiler: [dacc original_prim prim ~args_with_tys dbg
+(* 173-186. In the compiler: [dacc original_prim prim ~args_with_tys dbg
    ~result_var]. *)
 Definition simplify_variadic_primitive (dacc : DA.t) (original_prim : P.t)
     (prim : P.variadic_primitive) (args_with_tys : list (Simple.t * T.t))
     (dbg : Debuginfo.t) (result_var : Bound_var.t) : M SPR.t :=
   let* original_term := Named.create_prim original_prim dbg in
-  (* 162-171: each case is a ported function, or one given its first
+  (* 176-185: each case is a ported function, or one given its first
      arguments: a value. *)
   let& simplifier :=
     match prim with

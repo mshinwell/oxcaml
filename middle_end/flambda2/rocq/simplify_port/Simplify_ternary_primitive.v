@@ -37,7 +37,7 @@ Local Open Scope Z_scope.
 open! Simplify_import
 OCAML*)
 
-(* 17-62. In the compiler: [array_kind array_set_kind dacc ~original_term dbg
+(* 19-63. In the compiler: [array_kind array_set_kind dacc ~original_term dbg
    ~arg1:array ~arg1_ty:array_ty ~arg2:index ~arg2_ty:_ ~arg3:new_value
    ~arg3_ty:_ ~result_var]. *)
 Definition simplify_array_set (array_kind : P.Array_kind.t)
@@ -52,7 +52,7 @@ Definition simplify_array_set (array_kind : P.Array_kind.t)
   match array_kind with
   | Or_bottom.Bottom => SPR.create_invalid dacc
   | Or_bottom.Ok array_kind =>
-    (* 28-49 *)
+    (* 30-51 *)
     (match array_kind with
      | P.Array_kind.Immediates | P.Array_kind.Gc_ignorable_values => ret tt
      | P.Array_kind.Values =>
@@ -82,7 +82,7 @@ Definition simplify_array_set (array_kind : P.Array_kind.t)
      | P.Array_kind.Unboxed_product _ =>
        ret tt
      end) ;;
-    (* 50-62 *)
+    (* 52-63 *)
     let* named :=
       Named.create_prim
         (P.Ternary (P.Array_set array_kind array_set_kind) array index
@@ -101,7 +101,7 @@ Definition simplify_array_set (array_kind : P.Array_kind.t)
     SPR.create named false dacc
   end.
 
-(* 64-67. In the compiler: [_bytes_like_value _string_accessor_width dacc
+(* 65-68. In the compiler: [_bytes_like_value _string_accessor_width dacc
    ~original_term _dbg ~arg1:_ ~arg1_ty:_ ~arg2:_ ~arg2_ty:_ ~arg3:_
    ~arg3_ty:_ ~result_var]. *)
 Definition simplify_bytes_or_bigstring_set
@@ -112,7 +112,7 @@ Definition simplify_bytes_or_bigstring_set
     (result_var : Bound_var.t) : M SPR.t :=
   SPR.create_unit dacc result_var original_term.
 
-(* 69-72. In the compiler: [~num_dimensions:_ _bigarray_kind _bigarray_layout
+(* 70-73. In the compiler: [~num_dimensions:_ _bigarray_kind _bigarray_layout
    dacc ~original_term _dbg ~arg1:_ ...]. *)
 Definition simplify_bigarray_set (_ : P.num_dimensions)
     (_bigarray_kind : P.Bigarray_kind.t)
@@ -122,7 +122,7 @@ Definition simplify_bigarray_set (_ : P.num_dimensions)
     (result_var : Bound_var.t) : M SPR.t :=
   SPR.create_unit dacc result_var original_term.
 
-(* 74-79. In the compiler: [(_op : P.int_atomic_op) ~original_prim dacc
+(* 75-80. In the compiler: [(_op : P.int_atomic_op) ~original_prim dacc
    ~original_term _dbg ~arg1:_ ...]. *)
 Definition simplify_atomic_int_arith (_op : P.int_atomic_op)
     (original_prim : P.t) (dacc : DA.t) (original_term : Named.t)
@@ -131,7 +131,7 @@ Definition simplify_atomic_int_arith (_op : P.int_atomic_op)
   let! tmp1 := P.result_kind' original_prim in
   SPR.create_unknown dacc result_var tmp1 original_term.
 
-(* 81-85 *)
+(* 82-86 *)
 Definition simplify_atomic_set (original_prim : P.t) (dacc : DA.t)
     (original_term : Named.t) (_dbg : Debuginfo.t) (_ : Simple.t) (_ : T.t)
     (_ : Simple.t) (_ : T.t) (_ : Simple.t) (_ : T.t)
@@ -139,7 +139,7 @@ Definition simplify_atomic_set (original_prim : P.t) (dacc : DA.t)
   let! tmp1 := P.result_kind' original_prim in
   SPR.create_unknown dacc result_var tmp1 original_term.
 
-(* 87-91 *)
+(* 88-92 *)
 Definition simplify_atomic_exchange (original_prim : P.t) (dacc : DA.t)
     (original_term : Named.t) (_dbg : Debuginfo.t) (_ : Simple.t) (_ : T.t)
     (_ : Simple.t) (_ : T.t) (_ : Simple.t) (_ : T.t)
@@ -147,7 +147,7 @@ Definition simplify_atomic_exchange (original_prim : P.t) (dacc : DA.t)
   let! tmp1 := P.result_kind' original_prim in
   SPR.create_unknown dacc result_var tmp1 original_term.
 
-(* 93-97 *)
+(* 94-98 *)
 Definition simplify_write_offset (original_prim : P.t) (dacc : DA.t)
     (original_term : Named.t) (_dbg : Debuginfo.t) (_ : Simple.t) (_ : T.t)
     (_ : Simple.t) (_ : T.t) (_ : Simple.t) (_ : T.t)

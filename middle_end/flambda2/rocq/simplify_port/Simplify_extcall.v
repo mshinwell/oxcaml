@@ -64,7 +64,7 @@ Extract Constant t =>
 (* Helpers *)
 (* ******* *)
 
-(* 26-36 *)
+(* 27-37 *)
 Definition fun_symbol (simple : Simple.t) : M Symbol.t :=
   let& fail :=
     fun (simple : Simple.t) =>
@@ -86,7 +86,7 @@ Definition fun_symbol (simple : Simple.t) : M Symbol.t :=
       of_coercion coercion)
     (fun _ => fail simple).
 
-(* 38-43. In the compiler: [cont v ~dbg]. *)
+(* 39-44. In the compiler: [cont v ~dbg]. *)
 Definition apply_cont (cont : Continuation.t) (v : Variable_.t)
     (dbg : Debuginfo.t) : M (NO.t * Expr.t) :=
   let* args :=
@@ -99,7 +99,7 @@ Definition apply_cont (cont : Continuation.t) (v : Variable_.t)
   let* expr := Expr.create_apply_cont apply_cont in
   ret (free_names, expr).
 
-(* 45-53. In the compiler: [~dbg v v_duid prim (free_names, body)]. *)
+(* 46-54. In the compiler: [~dbg v v_duid prim (free_names, body)]. *)
 Definition let_prim (dbg : Debuginfo.t) (v : Variable_.t)
     (v_duid : Flambda_debug_uid.t) (prim : P.t)
     '((free_names, body) : NO.t * Expr.t) : M (NO.t * Expr.t) :=
@@ -172,7 +172,7 @@ Definition simplify_comparison_of_boxed_numbers (dbg : Debuginfo.t)
   in
   ret (Specialised dacc res RO.specialized_poly_compare).
 
-(* 97-139. In the compiler: [~dbg ~dacc ~cont ~tagged_prim ~float_prim
+(* 97-140. In the compiler: [~dbg ~dacc ~cont ~tagged_prim ~float_prim
    ~boxed_int_prim a b a_ty b_ty]. *)
 Definition simplify_comparison (dbg : Debuginfo.t) (dacc : DA.t)
     (cont : Continuation.t) (tagged_prim : P.binary_primitive)
@@ -229,7 +229,7 @@ Definition simplify_comparison (dbg : Debuginfo.t) (dacc : DA.t)
     ret (Unchanged Or_unknown.Unknown)
   end.
 
-(* 141-166. In the compiler: [dacc ~len_ty ~init_value_ty]. *)
+(* 142-169. In the compiler: [dacc ~len_ty ~init_value_ty]. *)
 Definition simplify_caml_array_make (dacc : DA.t) (len_ty init_value_ty : T.t)
     : M t :=
   let* typing_env := DA.typing_env dacc in
@@ -259,7 +259,7 @@ Definition simplify_caml_array_make (dacc : DA.t) (len_ty init_value_ty : T.t)
   in
   ret (Unchanged (Or_unknown.Known [type_of_returned_array])).
 
-(* 168-212. In the compiler: [~dbg ~cont ~exn_cont:_ dacc fun_name args
+(* 171-215. In the compiler: [~dbg ~cont ~exn_cont:_ dacc fun_name args
    ~arg_types]. *)
 (* PORT-GAP(loose): 170-212, the compiler matches the triple [fun_name,
    args, arg_types], the name against string constants. Here the two lists
@@ -328,7 +328,7 @@ Definition simplify_returning_extcall (dbg : Debuginfo.t)
         a b a_ty b_ty
     else if (fun_name =? "caml_array_make")%string
     then
-      (* 209-210: [[_; _], [len_ty; init_value_ty]] *)
+      (* 213-214: [[_; _], [len_ty; init_value_ty]] *)
       simplify_caml_array_make dacc a_ty b_ty
     else ret (Unchanged Or_unknown.Unknown)
   | _, _ => ret (Unchanged Or_unknown.Unknown)
