@@ -41,11 +41,12 @@
 #   make id         Rocq compiles everything against monad/id
 #   make extract    extracted/DIR/foo.ml for every ported file
 #   make check      the types of every extracted file, make given, make
-#                   lines and make papp
+#                   lines, make exceptions and make papp
 #   make given      the OCaml text that the ported files give, against the
 #                   compiler's files
 #   make lines      the notes of lines of the ported files, against the
 #                   compiler's files
+#   make exceptions what a declared exception may carry
 #   make papp       the partial applications of functions of the ported
 #                   files, against the definitions in extracted/
 #   make shells     every shell script of the folder has `set -eu` before
@@ -113,13 +114,13 @@ ID_V := $(B)/id/Port_monad.v $(addprefix $(B)/id/,$(SRC))
 EXTRACTED := $(foreach p,$(PORTED),$(call extracted,$(p)))
 CHECKED := $(foreach p,$(PORTED),$(call checked,$(p)))
 
-.PHONY: all real id extract check given lines shells papp table comments list clean
+.PHONY: all real id extract check given lines shells exceptions papp table comments list clean
 all: shells real id extract check table comments
 
 real: $(REAL_V:.v=.vo)
 id: $(ID_V:.v=.vo)
 extract: $(EXTRACTED)
-check: shells given lines $(CHECKED) papp
+check: shells given lines exceptions $(CHECKED) papp
 
 list:
 	@$(foreach p,$(PORTED),echo '$(p).v	$(call donor,$(p))	$(call extracted,$(p))';)
@@ -151,9 +152,9 @@ $(B)/id/%.v: %.v
 # not); the list has the name depend only when it is whole (until then it
 # is depend.rocq and depend.tmp); and the lists are taken by [include],
 # not [-include] (with [-include] make goes on without a list that could
-# not be made, and says nothing). The five targets that need no list
-# (clean, list, given, lines, shells), each asked alone, do not ask for
-# one.
+# not be made, and says nothing). The six targets that need no list
+# (clean, list, given, lines, shells, exceptions), each asked alone, do
+# not ask for one.
 $(B)/real/depend: $(REAL_V)
 	@cd $(B)/real && $(ROCQ) dep -Q . SimplifyPort $(patsubst $(B)/real/%,%,$(REAL_V)) > depend.rocq \
 	  && sed -E 's#(^| )([^ /][^ ]*)#\1$(B)/real/\2#g' depend.rocq > depend.tmp \
@@ -168,8 +169,10 @@ ifneq ($(MAKECMDGOALS),list)
 ifneq ($(MAKECMDGOALS),given)
 ifneq ($(MAKECMDGOALS),lines)
 ifneq ($(MAKECMDGOALS),shells)
+ifneq ($(MAKECMDGOALS),exceptions)
 include $(B)/real/depend
 include $(B)/id/depend
+endif
 endif
 endif
 endif
@@ -271,6 +274,22 @@ lines:
 # Rocq for the dependencies of the files.
 shells:
 	$(PYTHON) tools/shells.py
+
+# What a declared exception may carry. The real monad can raise, make a
+# value of and handle an exception only if its argument has a type for
+# which monad/real/Port_monad.v has an instance of the class Carried (unit,
+# string): for another type Rocq refuses each use in the real build
+# (monad/real/Kit_refuses.v), and a file that only declares the exception
+# would pass. So each declaration of an exception in decl/ and in a ported
+# file must be [Parameter E : exception T.] with T one of those types, and
+# no such file may name the class (an instance made there would give the
+# type a second way to be carried). tools/exceptions.py says how; it first
+# tries itself on made-up texts. It reads the kit and the .v files, and
+# nothing that Rocq or OCaml makes: [make exceptions] alone does not ask
+# Rocq for the dependencies of the files.
+exceptions:
+	$(PYTHON) tools/exceptions.py --self-test
+	$(PYTHON) tools/exceptions.py monad/real/Port_monad.v $(addsuffix .v,$(DECL) $(PORTED))
 
 # A function that is given its first arguments only (pappN) runs nothing
 # if its definition has more parameters. tools/lint.py checks that against
