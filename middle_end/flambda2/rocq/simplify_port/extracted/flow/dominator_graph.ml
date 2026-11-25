@@ -394,7 +394,7 @@ module Dot = struct
 
   let node_id ctx ppf simple =
     Format.fprintf ppf "node_%d_%d" ctx
-      ((fun (simple : Simple.t) -> (simple :> int)) simple)
+      ((fun (x__1 : Simple.t) -> (x__1 :> int)) simple)
 
   (** val node : int -> bool -> Format.formatter -> Simple.t -> unit coq_M **)
 

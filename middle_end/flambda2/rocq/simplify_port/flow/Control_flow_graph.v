@@ -575,13 +575,6 @@ Toplevel continuation cannot have needed extra argument for aliases: %a@."
   in
   ret extra_args_for_aliases.
 
-(* PORT-GAP(decl): 385, the coercion [(cont :> int)] of the private type
-   [Continuation.t]: no function of the compiler, so no declaration in
-   decl/; its OCaml text. *)
-Parameter continuation_to_int : Continuation.t -> int.
-Extract Inlined Constant continuation_to_int =>
-  "(fun (cont : Continuation.t) -> (cont :> int))".
-
 (* 406 and 409. A function on characters, the argument of [String.map]: the
    kit has no character; the compiler's text. *)
 Parameter braces_to_brackets : Stdlib_.char -> M Stdlib_.char.
@@ -593,7 +586,7 @@ Module Dot.
   (* 384-385 *)
   Definition node_id (ctx : int) (ppf : Format.formatter)
       (cont : Continuation.t) : M unit :=
-    Format.fprintf2 ppf "node_%d_%d" ctx (continuation_to_int cont).
+    Format.fprintf2 ppf "node_%d_%d" ctx (Continuation.coerce_t_to_int cont).
 
   (* 387-411. [?(extra_args = Variable.Set.empty)] and [?(info = "")] are
      optional arguments in the compiler: by place here. *)

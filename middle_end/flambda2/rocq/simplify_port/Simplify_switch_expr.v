@@ -1413,7 +1413,7 @@ Definition simplify_arm (arm : TI.t) (pat : Switch_arm.t * TE.t)
   in
   ret (arms, dacc).
 
-(* PORT-GAP(decl): 1012, the float [0.] of that line. *)
+(* 1012. The float [0.] of that line. *)
 Parameter float_0 : Stdlib_.float_.
 Extract Inlined Constant float_0 => "0.".
 

@@ -502,19 +502,12 @@ Definition aliases_kind (t : Dominator_graph.t) (aliases : alias_map)
           (fun _ => ret acc))
     params_kind Variable_.Map.empty.
 
-(* PORT-GAP(decl): 312, the coercion [(simple :> int)] of the private type
-   [Simple.t]: no function of the compiler, so no declaration in decl/; its
-   OCaml text. *)
-Parameter simple_to_int : Simple.t -> int.
-Extract Inlined Constant simple_to_int =>
-  "(fun (simple : Simple.t) -> (simple :> int))".
-
 (* 310-359 *)
 Module Dot.
   (* 311-312 *)
   Definition node_id (ctx : int) (ppf : Format.formatter) (simple : Simple.t)
       : M unit :=
-    Format.fprintf2 ppf "node_%d_%d" ctx (simple_to_int simple).
+    Format.fprintf2 ppf "node_%d_%d" ctx (Simple.coerce_t_to_int simple).
 
   (* 314-321 *)
   Definition node (ctx : int) (root : bool) (ppf : Format.formatter)

@@ -268,9 +268,6 @@ Definition delete_continuation_uses
 (* 152-158 *)
 Definition clear_continuation_uses (t : Continuation_uses_env.t)
     (cont : Continuation.t) : M Continuation_uses_env.t :=
-  (* PORT-GAP(papp): [Option.map] is given its first argument only. Its
-     definition is in the standard library, which is not read
-     (decl/ARITIES.tsv). *)
   let! tmp1 := papp1 Option.map Continuation_uses.clear_uses in
   let! tmp2 := Continuation.Map.update cont tmp1 t.(continuation_uses) in
   ret (update_continuation_uses t tmp2).

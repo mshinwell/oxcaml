@@ -460,7 +460,7 @@ module Dot = struct
 
   let node_id ctx ppf cont =
     Format.fprintf ppf "node_%d_%d" ctx
-      ((fun (cont : Continuation.t) -> (cont :> int)) cont)
+      ((fun (x__1 : Continuation.t) -> (x__1 :> int)) cont)
 
   (** val node : Variable.Set.t option -> string option -> T.Acc.t ->
       (Format.formatter -> Continuation.t -> unit coq_M) -> int -> unit ->
