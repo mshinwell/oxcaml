@@ -29,7 +29,8 @@
 
    Writes, into OUT_DIR, one file of Rocq for each compilation unit that
    the given files of Simplify use, and for each of those files itself: the
-   declarations of decl/README.md. Also INDEX.tsv and NOT-DECLARED.tsv.
+   declarations of decl/README.md. Also INDEX.tsv, ARITIES.tsv and
+   NOT-DECLARED.tsv.
    This file follows no file of the compiler. *)
 
 open Common
@@ -126,6 +127,7 @@ let no_open ~local rocq =
 
 let pass scanned =
   Decl_out.index := [];
+  Decl_out.values := [];
   Decl_out.left := [];
   Decl_out.variants := [];
   Walk.emitted_now := SS.empty;
@@ -289,6 +291,14 @@ let () =
     (List.map
        (fun (o, r, k, a, p) -> Printf.sprintf "%s\t%s\t%s\t%d\t%s" o r k a p)
        !Decl_out.index);
+  (* for each declared value: the parameters of its realisation and of
+     its definition *)
+  tsv "ARITIES.tsv"
+    (List.map
+       (fun (comps, ocaml, rocq, wrapper) ->
+         let definition, where = Arities.row comps in
+         Printf.sprintf "%s\t%s\t%d\t%s\t%s" ocaml rocq wrapper definition where)
+       !Decl_out.values);
   (* the modules that the files give to their functors, where a module
      type with a name is wanted: in OCaml and in Rocq *)
   let rocq_module comps =

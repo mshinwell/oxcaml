@@ -131,6 +131,16 @@ let add_index ocaml rname kind arity place =
   if not !in_modtype
   then index := (ocaml, rocq_qualified rname, kind, arity, place) :: !index
 
+(* The declared values: the name (the unit, the modules, the value), the
+   OCaml name, the Rocq name, and the number of parameters of the function
+   that is written as the realisation (0 when the realisation is the
+   name). For ARITIES.tsv. *)
+let values : (string list * string * string * int) list ref = ref []
+
+let add_value comps ocaml rname wrapper =
+  if not !in_modtype
+  then values := (comps, ocaml, rocq_qualified rname, wrapper) :: !values
+
 (* A directive of the extraction. *)
 let directive fmt =
   Printf.ksprintf (fun s -> if not !in_modtype then line "%s" s) fmt
@@ -209,6 +219,16 @@ let realisation ocaml (labels : Asttypes.arg_label list) =
     Printf.sprintf "(fun %s -> %s %s)" (String.concat " " binders) ocaml
       (String.concat " " args)
 
+(* The number of parameters of that closed function; 0 for the plain
+   name. *)
+let wrapper_parameters (labels : Asttypes.arg_label list) =
+  if List.exists
+       (fun (l : Asttypes.arg_label) ->
+         match l with Optional _ -> true | _ -> false)
+       labels
+  then List.length labels
+  else 0
+
 let max_format_args = 16
 
 let emit_value modc name =
@@ -234,6 +254,7 @@ let emit_value modc name =
             let place = comment vd.val_loc ("val " ^ name ^ " : " ^ type_text vd.val_type) in
             line "Parameter %s : %s%s." rname (Print.quantifier ()) text;
             extract rname (realisation ocaml labels);
+            add_value comps ocaml rname (wrapper_parameters labels);
             add_index ocaml rname "value" (List.length labels) place)
           else (
             (* a family: one declaration for each number of arguments
@@ -268,6 +289,7 @@ let emit_value modc name =
               let rname = claim (Printf.sprintf "%s%d" (Sigs.value_rocq name) n) in
               line "Parameter %s : %s%s." rname q (Print.pp ty');
               extract rname ocaml;
+              add_value comps ocaml rname 0;
               add_index ocaml rname "value" (List.length before + n) place)
               numbers)
         | _ ->
@@ -277,6 +299,7 @@ let emit_value modc name =
           let place = comment vd.val_loc ("val " ^ name ^ " : " ^ type_text vd.val_type) in
           line "Parameter %s : %s%s." rname (Print.quantifier ()) text;
           extract rname ocaml;
+          add_value comps ocaml rname 0;
           add_index ocaml rname "value" 0 place
       with Tr.Unsupported why -> not_declared comps why)
 
