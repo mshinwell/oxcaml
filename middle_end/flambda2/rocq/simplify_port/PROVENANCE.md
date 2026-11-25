@@ -38,6 +38,21 @@ A file `DIR/Foo.v` that is not in this table follows
 `middle_end/flambda2/simplify/DIR/foo.ml` (`make list` prints the pairs) and
 is `transcribed`: its first comment after the header says so.
 
+The header of a transcribed file, and of its extracted file, is the donor's
+byte for byte: it is copied, not corrected. So `lifting/Reification.v` and
+`extracted/lifting/reification.ml` have the misspelling `LICENSDE` that the
+header of `middle_end/flambda2/simplify/lifting/reification.ml` has.
+
+A QUESTION ABOUT A HEADER that a human must decide is written in the file
+itself, under its header (or under the words that stand in its place), as
+a comment that begins `CR mshinwell:`; the header is not changed on a
+guess. Four files of `decl/` carry one, and the generator writes it
+(`decl/README.md`): `Dwarf_flags.v` and `Target_system.v` (the interface
+that they follow has no header: which header does the generated file
+take?); `Numeric_types.v` and `Rebuilt_expr__local.v` (declarations whose
+names and types come from the standard library stand under the header of
+the compiler's file: are more credits owed? See the last section).
+
 ## What is read that is not made from this tree's sources
 
 `tools/declgen` finds compiled interfaces through the load path that the
@@ -63,6 +78,19 @@ interface (for a type, the name only). So a type there may be written as
 the tree's file does not write it: without the kinds that the tree's
 library gives its type variables, or with a name such as
 `Stdlib__Format.formatter`.
+
+THE HEADERS of the 19 files of `decl/` that are named after a unit of the
+standard library (the 18 that have rows, and `Lazy.v`, which declares
+nothing) are those of the tree's own `stdlib/NAME.mli`, though the names
+and types were read from the other library; the comment under the header
+of each file says so. Is the tree's header also the header of what was
+read? The complete notice at the head of each of the 19 interfaces was
+compared once, for the audit of the origin of the port: in the tree's
+`stdlib/NAME.mli` and in the file of that name that is installed beside
+the compiled interfaces that were read, it is the same bytes for all 19
+(14 lines; 15 for `Float`). That compares the two sets of files as they
+stand. It does not show from which sources the compiled interfaces were
+made, and `make` does not repeat it, since the other library is not here.
 
 HOW MANY: the rows of `decl/INDEX.tsv` whose place is under `stdlib/`.
 
