@@ -48,7 +48,12 @@
 #
 # WHAT IT ASKS:
 #  (1) before anything is made, the folder has only tracked files, none of
-#      them changed, and no _build (git status --porcelain --ignored);
+#      them changed, and no _build (git status --porcelain --ignored); and
+#      no entry of the index for a file of the folder is marked
+#      assume-unchanged or skip-worktree (git ls-files -v shows such an
+#      entry with another letter than H). Git does not look at the file of
+#      an entry that is marked so: git status would say nothing of a change
+#      in it, here and in (11);
 #  (2) decl/ made again from BUILD_ROOT by tools/declgen/run.sh, in LOG_DIR,
 #      is the decl/ of the tree: the same files, README.md apart, which is
 #      written by hand, with the same bytes;
@@ -82,6 +87,14 @@
 # The make is the long part (about 25 minutes). It is NOT RUN if an answer
 # before it is NO, and the gate has then failed: (10) to (13) say "not
 # asked".
+#
+# WHERE GIT IS ASKED AND FAILS, THE ANSWER IS NO. What git status says is
+# taken by a command that stands alone, and its status is read (in a pipe
+# the failure would be lost, and a git status that says nothing because it
+# failed would be a tree with nothing changed). It is asked with
+# --untracked-files=normal in (1), (11) and (13): a setting of Git that
+# hides the files that are not tracked (status.showUntrackedFiles) does not
+# hide them from the gate.
 #
 # WHAT IT DOES NOT ASK: whether a range of commits changes a path outside
 # the folder; who made the commits and how their subjects read; which words
@@ -176,10 +189,25 @@ version "$PYTHON" --version
 version make --version
 version git --version
 
+# tree_status [--ignored] : what git status --porcelain says of the folder,
+# on one line, the files that are not tracked with it whatever the settings
+# of Git are; or, if git status fails, that it failed
+tree_status() {
+  local out rc=0
+  out=$(git status --porcelain --untracked-files=normal ${1:+"$1"} -- . 2>&1) || rc=$?
+  if [ $rc != 0 ]; then echo "git status exits $rc, and says: $(printf '%s\n' "$out" | one_line)"
+  else printf '%s\n' "$out" | one_line; fi
+}
+
 # (1)
-found=$(git status --porcelain --ignored -- . | one_line)
-if [ -z "$found" ]; then a=yes; else a=NO; fi
-answer 1 "before anything is made, the folder has only tracked files, none changed, and no _build" $a "$found"
+found=$(tree_status --ignored)
+rc=0
+entries=$(git ls-files -v -- . 2>&1) || rc=$?
+if [ $rc != 0 ]; then marked="git ls-files exits $rc, and says: $(printf '%s\n' "$entries" | one_line)"
+else marked=$(printf '%s\n' "$entries" | grep -v '^H ' | one_line) || true; fi
+if [ -z "$found" ] && [ -z "$marked" ]; then a=yes; else a=NO; fi
+if [ -n "$marked" ]; then found="${found:+$found; }entries of the index that are marked (git ls-files -v), or git ls-files failed: $marked"; fi
+answer 1 "before anything is made, the folder has only tracked files, none changed, none that the index tells Git not to look at, and no _build" $a "$found"
 
 # (2)
 rc=0
@@ -278,14 +306,14 @@ else
   took=$(( $(date +%s) - start ))
   if [ $rc = 0 ]; then a=yes; found="$took seconds"; else a=NO; found="exit status $rc after $took seconds: $(tail -1 "$logs/make.log" | cut -c1-200)"; fi
   answer 10 "make, from nothing, exits 0" $a "$found"
-  found=$(git status --porcelain -- . | one_line)
+  found=$(tree_status)
   if [ -z "$found" ]; then a=yes; else a=NO; fi
   answer 11 "after the make, git status --porcelain of the folder is empty" $a "$found"
   disk=$(find . -type f | sed 's|^\./||' | of_dune)
   if on_disk extracted && on_disk runtime && [ "$disk" = dune ]; then a=yes; found=""
   else a=NO; found="not tracked, or not on the disk: $( { find extracted runtime -type f; git ls-files extracted runtime; } | LC_ALL=C sort | uniq -u | one_line); files of dune on the disk: ${disk:-none}"; fi
   answer 12 "after the make, the files on the disk under extracted/ and runtime/ are the tracked ones, and the folder's dune file is the only file of dune on the disk" $a "$found"
-  found=$(git status --porcelain --ignored -- . | one_line)
+  found=$(tree_status --ignored)
   if [ "$found" = "!! $(git rev-parse --show-prefix)_build/" ]; then a=yes; found=""; else a=NO; found="it shows: ${found:-nothing}"; fi
   answer 13 "after the make, git status --porcelain --ignored of the folder shows _build/ and nothing else" $a "$found"
 fi
