@@ -50,14 +50,25 @@
 # After the swap the compiler of stage 1 holds the extracted Simplify, and
 # it compiles every file of stage 2: an object file of stage 2 that differs
 # is a file that the two Simplifys do not treat alike.
+#
+# A command whose output is used here stands alone, with its output in a
+# variable or in a file, and not in a pipe, in <( ) or in the list of a
+# for: there its failure would be lost, and a list that could not be made
+# would be an empty list (two lists that are not there differ in nothing).
+# An empty list is refused.
 set -eu
 here=$(cd "$(dirname "$0")/.." && pwd)
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
 case "${1:-}" in
 swap)
   tree=${2:-}; s=$tree/middle_end/flambda2/simplify
   [ -d "$s" ] || { echo "no $s"; exit 2; }
   n=0
-  for f in $(cd "$here/extracted" && find . -name '*.ml' | sed 's|^\./||'); do
+  files=$(cd "$here/extracted" && find . -name '*.ml')
+  [ -n "$files" ] || { echo "no file .ml under $here/extracted"; exit 1; }
+  for f in $files; do
+    f=${f#./}
     [ -e "$s/$f" ] || { echo "no file $s/$f"; exit 1; }
     cp "$here/extracted/$f" "$s/$f"; n=$((n+1))
   done
@@ -71,15 +82,22 @@ swap)
 sums)
   tree=$2; ctx=$3
   cd "$tree/_build/$ctx"
-  find . -name '*.o' ! -path '*flambda2_simplify*' ! -path './.sandbox/*' | LC_ALL=C sort | xargs md5sum
+  find . -name '*.o' ! -path '*flambda2_simplify*' ! -path './.sandbox/*' > "$tmp/paths"
+  [ -s "$tmp/paths" ] || { echo "no object file under $tree/_build/$ctx" >&2; exit 1; }
+  LC_ALL=C sort "$tmp/paths" > "$tmp/sorted"
+  xargs md5sum < "$tmp/sorted"
   ;;
 differ)
   # every path of either list: its two sums, "-" where a list has no such path
   a=$2; b=$3
-  join -j 2 -a 1 -a 2 -e - -o 0,1.1,2.1 <(sort -k2 "$a") <(sort -k2 "$b") \
-    | awk '$2!=$3{ if ($2=="-") print $1 " (only in the second list)";
-                   else if ($3=="-") print $1 " (only in the first list)";
-                   else print $1 }'
+  sort -k2 "$a" > "$tmp/a"
+  sort -k2 "$b" > "$tmp/b"
+  [ -s "$tmp/a" ] || { echo "the list $a is empty" >&2; exit 1; }
+  [ -s "$tmp/b" ] || { echo "the list $b is empty" >&2; exit 1; }
+  join -j 2 -a 1 -a 2 -e - -o 0,1.1,2.1 "$tmp/a" "$tmp/b" > "$tmp/both"
+  awk '$2!=$3{ if ($2=="-") print $1 " (only in the second list)";
+               else if ($3=="-") print $1 " (only in the first list)";
+               else print $1 }' "$tmp/both"
   ;;
 *) echo "usage: linktest.sh swap TREE | sums TREE CONTEXT | differ SUMS1 SUMS2"; exit 2;;
 esac

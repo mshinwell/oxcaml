@@ -35,10 +35,16 @@
 # Rocq's text is changed. It follows no file of the compiler.
 set -eu
 v=$1; donor=$2; out=$3
-if head -1 "$donor" | grep -q '^(\*\*\*'; then
+# The first line of the donor is read by a command that stands alone: in a
+# pipe under [if], a donor that cannot be read would be a donor that has no
+# header, and this script would go on.
+first=$(head -1 "$donor")
+case "$first" in
+'(***'*)
   sed -n '1,/\*\*\*)$/p' "$donor"
   echo
-fi
+  ;;
+esac
 d=${donor#../../}
 # A .v file whose OCaml text also copies lines of another file of the
 # compiler says so on a line "(* ALSO-FOLLOWS: PATH, lines N-M *)"; the
