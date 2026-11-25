@@ -72,15 +72,18 @@ done
 have_cmi() { [ -d "$S/simplify/.flambda2_simplify.objs/byte" ]; }
 # blank_places FILE RAW OUT : RAW (the output of -dinstr for FILE, by the name
 # that ocamlc was given) with the two kinds of places made blank; OUT.places.
+# What stands in their stead is no constant that ocamlc can print (it has no
+# quotes and no brackets), so it cannot be taken for one of the file's own;
+# the mark # that ocamlc puts before the string of a `__LOC__` is kept.
 blank_places() {
   P="$1" perl -0ne '
     my $p = quotemeta($ENV{P});
     my $a = s/\bconst\s+\[0:\s+"$p"\s+\d+\s+\d+\]
               (?=\s+push\s+getglobal\ Assert_failure\/\d+!
                  \s+makeblock\ 2,\ 0\s+raise\b)
-             /const [0: "FILE" N N]/gx;
+             /const <THE-PLACE-OF-AN-ASSERTION>/gx;
     my $l = s/\bconst\s+(\#?)"File\ \\"$p\\",\ line\ \d+,\ characters\ \d+-\d+"
-             /const $1"FILE-PLACE"/gx;
+             /const $1<THE-TEXT-OF-A-LOC>/gx;
     my $r = () = /$p/g;
     print; printf STDERR "%d %d %d\n", $a || 0, $l || 0, $r;' \
     "$2" > "$3" 2> "$3.places"

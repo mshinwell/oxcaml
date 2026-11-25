@@ -98,6 +98,10 @@ compare() {
       d=$((d+1))
       echo "samecode: OTHER INSTRUCTIONS: $name" \
         "($(diff "$a" "$b" | grep -c '^[<>]') lines differ)"
+    elif ! cmp -s "$a.places" "$b.places"; then
+      d=$((d+1))
+      echo "samecode: OTHER COUNTS OF PLACES MADE BLANK: $name" \
+        "($(cat "$b.places") now, $(cat "$a.places") at $rev)"
     fi
   done
 }
