@@ -43,7 +43,7 @@ From SimplifyPort.decl Require Bound_parameter Bound_static Code_size Coercion
   Loopify_attribute Misc Option Poll_attribute Reg_width_const Symbol
   Value_slot Warnings.
 (* CONSTRUCTORS-WITHOUT-MODULE: Apply_expr.Position.t
-   Apply_expr.Result_continuation.t Closure_info.in_or_out_of_closure_
+   Closure_info.in_or_out_of_closure_
    Closure_info.t Continuation.Sort.t Flambda.Invalid.t
    Flambda2_types.meet_shortcut Flambda2_types.reification_result
    Flambda_kind.With_subkind.Non_null_value_subkind.t

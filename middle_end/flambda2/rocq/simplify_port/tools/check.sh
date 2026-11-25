@@ -29,12 +29,23 @@
 # check.sh extracted/DIR/foo.ml SIMPLIFY_DIR STATUS_FILE : the types of one
 # extracted file, against the compiler's compiled interfaces under CMI_ROOT
 # (the _build/default of a dune build). It follows no file of the compiler.
+# What it READS of the compiler: the compiled interfaces under CMI_ROOT, and
+# the interface SIMPLIFY_DIR/DIR/foo.mli, which it compares with dune's copy
+# under CMI_ROOT and of which it compiles a copy in its scratch output (the
+# modes strict and --instr). It writes nothing of them into the folder.
 # check.sh --runtime runtime/FILE.ml : compiles one file of the runtime of the
 # port (port_monad.ml, port_abbreviations.ml) into the directory RUNTIME.
 # check.sh --instr FILE.ml SIMPLIFY_DIR OUT_FILE : compiles the extracted file
 # in the same way and writes to OUT_FILE the bytecode instructions that ocamlc
-# makes of it (-dinstr), with the places of assertions made blank; for
-# tools/samecode.sh.
+# makes of it (-dinstr); for tools/samecode.sh. Two kinds of places are made
+# blank in them, and nothing else: the place (file, line, character) of a
+# failed assertion, where the instructions build it and raise Assert_failure
+# at once, and the text of a `__LOC__`; both only if they name this very
+# file. OUT_FILE.places gets three counts: the assertions, the `__LOC__`s,
+# and the times that the file's name stands elsewhere in the instructions
+# (left as it is). Without compiled interfaces this mode FAILS.
+# check.sh --runtime-instr runtime/FILE.ml OUT_FILE : the same for a file of
+# the runtime.
 #
 # The file is compiled as the module Foo__port with the -open flags of
 # middle_end/flambda2/simplify/dune, so every name in it is the compiler's
@@ -59,6 +70,33 @@ for d in algorithms bound_identifiers classic_mode_types cmx compare datalog \
   [ -d "$S/$d/.flambda2_$d.objs/byte" ] && INC="$INC -I $S/$d/.flambda2_$d.objs/byte"
 done
 have_cmi() { [ -d "$S/simplify/.flambda2_simplify.objs/byte" ]; }
+# blank_places FILE RAW OUT : RAW (the output of -dinstr for FILE, by the name
+# that ocamlc was given) with the two kinds of places made blank; OUT.places.
+blank_places() {
+  P="$1" perl -0ne '
+    my $p = quotemeta($ENV{P});
+    my $a = s/\bconst\s+\[0:\s+"$p"\s+\d+\s+\d+\]
+              (?=\s+push\s+getglobal\ Assert_failure\/\d+!
+                 \s+makeblock\ 2,\ 0\s+raise\b)
+             /const [0: "FILE" N N]/gx;
+    my $l = s/\bconst\s+(\#?)"File\ \\"$p\\",\ line\ \d+,\ characters\ \d+-\d+"
+             /const $1"FILE-PLACE"/gx;
+    my $r = () = /$p/g;
+    print; printf STDERR "%d %d %d\n", $a || 0, $l || 0, $r;' \
+    "$2" > "$3" 2> "$3.places"
+}
+if [ "$1" = --runtime-instr ]; then
+  r=$(basename "$2" .ml); status=$3; out=$(dirname "$status")/$r.d
+  rm -rf "$out"; mkdir -p "$out"
+  if ! have_cmi; then
+    echo "check: no compiled interfaces under CMI_ROOT=$CMI_ROOT: no instructions of $2"; exit 1
+  fi
+  cp "$2" "$out/$r.ml"
+  $OCAMLC -c -w -a $INC -dinstr "$out/$r.ml" > "$out/instr.raw" 2>&1 \
+    || { head -20 "$out/instr.raw"; exit 1; }
+  blank_places "$out/$r.ml" "$out/instr.raw" "$status"
+  exit 0
+fi
 if [ "$1" = --runtime ]; then
   mkdir -p "$RUNTIME"
   r=$(basename "$2" .ml)
@@ -77,6 +115,9 @@ rel=${f#*extracted/}; dir=$(dirname "$rel"); base=$(basename "$rel" .ml)
 out=$(dirname "$status")/$base.d
 rm -rf "$out"; mkdir -p "$out"
 if ! have_cmi; then
+  if [ $mode = instr ]; then
+    echo "check: no compiled interfaces under CMI_ROOT=$CMI_ROOT: no instructions of $f"; exit 1
+  fi
   echo "check: no compiled interfaces under CMI_ROOT=$CMI_ROOT: $f not checked"
   echo skipped > "$status"; exit 0
 fi
@@ -100,14 +141,13 @@ cp "$f" "$out/${base}__port.ml"
 if [ $mode = instr ]; then
   # The instructions say no name of a variable and no spelling of a module:
   # two extracted files that differ only in how names are written give the
-  # same text here. An assertion carries the name of the file and its line.
+  # same text here, but for the places that blank_places makes blank.
   if [ -e "$mli" ]; then
     cp "$mli" "$out/${base}__port.mli"
     $CC "$out/${base}__port.mli" > "$out/instr.log" 2>&1 || { cat "$out/instr.log"; exit 1; }
   fi
   $CC -dinstr "$out/${base}__port.ml" > "$out/instr.raw" 2>&1 || { head -20 "$out/instr.raw"; exit 1; }
-  perl -0pe 's/"[^"]*__port\.ml"\s+\d+\s+\d+/"FILE" N N/g; s/File \\"[^"]*__port\.ml\\", line \d+, characters \d+-\d+/FILE-PLACE/g' \
-    "$out/instr.raw" > "$status"
+  blank_places "$out/${base}__port.ml" "$out/instr.raw" "$status"
   exit 0
 fi
 if [ -e "$mli" ]; then

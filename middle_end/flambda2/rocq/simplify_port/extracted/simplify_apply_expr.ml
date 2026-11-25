@@ -49,11 +49,11 @@ let record_free_names_of_apply_as_used0 apply0 use_id0 exn_cont_use_id0
   let result_cont =
     let continuation = Apply.continuation apply0 in
     match continuation with
-    | Return k -> (
+    | Apply_expr.Result_continuation.Return k -> (
       match use_id0 with
       | Some use_id1 -> Some (use_id1, k)
       | None -> assert false)
-    | Never_returns -> (
+    | Apply_expr.Result_continuation.Never_returns -> (
       match use_id0 with Some _ -> assert false | None -> None)
   in
   Flow.Acc.add_apply_conts result_cont
@@ -105,9 +105,10 @@ let loopify_decision_for_call dacc apply0 =
           if
             Simple.equal (canon (Simple.var my_closure)) (canon callee)
             && (match Apply.continuation apply0 with
-              | Return apply_return_continuation ->
+              | Apply_expr.Result_continuation.Return apply_return_continuation
+                ->
                 Continuation.equal apply_return_continuation return_continuation
-              | Never_returns -> true)
+              | Apply_expr.Result_continuation.Never_returns -> true)
             && Exn_continuation.equal
                  (Apply.exn_continuation apply0)
                  (Exn_continuation.create exn_continuation [])
@@ -314,7 +315,7 @@ let simplify_direct_full_application simplify_expr rebuild_expr dacc apply0
         let dacc0, use_id0, result_continuation =
           let result_continuation = Apply.continuation apply1 in
           match result_continuation with
-          | Return apply_return_continuation -> (
+          | Apply_expr.Result_continuation.Return apply_return_continuation -> (
             match result_types with
             | Or_unknown_or_bottom.Unknown ->
               let env_at_use = DA.denv dacc in
@@ -426,12 +427,16 @@ let simplify_direct_full_application simplify_expr rebuild_expr dacc apply0
                       env_at_use arg_types
                   in
                   dacc0, Some use_id0, result_continuation)
-            | Or_unknown_or_bottom.Bottom -> dacc, None, Never_returns)
-          | Never_returns -> (
+            | Or_unknown_or_bottom.Bottom ->
+              dacc, None, Apply_expr.Result_continuation.Never_returns)
+          | Apply_expr.Result_continuation.Never_returns -> (
             match result_types with
-            | Or_unknown_or_bottom.Unknown -> dacc, None, Never_returns
-            | Or_unknown_or_bottom.Ok _ -> dacc, None, Never_returns
-            | Or_unknown_or_bottom.Bottom -> dacc, None, Never_returns)
+            | Or_unknown_or_bottom.Unknown ->
+              dacc, None, Apply_expr.Result_continuation.Never_returns
+            | Or_unknown_or_bottom.Ok _ ->
+              dacc, None, Apply_expr.Result_continuation.Never_returns
+            | Or_unknown_or_bottom.Bottom ->
+              dacc, None, Apply_expr.Result_continuation.Never_returns)
         in
         let env_at_use = DA.denv dacc0 in
         let env_at_use0 =
@@ -517,8 +522,8 @@ let simplify_direct_partial_application simplify_expr dacc apply0
   let dbg = Apply.dbg apply0 in
   let apply_continuation =
     match Apply.continuation apply0 with
-    | Return continuation -> continuation
-    | Never_returns ->
+    | Apply_expr.Result_continuation.Return continuation -> continuation
+    | Apply_expr.Result_continuation.Never_returns ->
       Misc.fatal_error
         "cannot simplify a partial application that never returns"
   in
@@ -880,9 +885,10 @@ let simplify_direct_partial_application simplify_expr dacc apply0
           in
           let inlined = Inlined_attribute.forward_inlined () in
           let full_application =
-            Apply.create callee (Return return_continuation) exn_continuation
-              args0 param_arity result_arity0 call_kind my_alloc_mode dbg
-              inlined
+            Apply.create callee
+              (Apply_expr.Result_continuation.Return return_continuation)
+              exn_continuation args0 param_arity result_arity0 call_kind
+              my_alloc_mode dbg inlined
               (Apply.inlining_state apply0)
               None Normal Inlining_history.Relative.empty
           in
@@ -1131,7 +1137,7 @@ let simplify_function_call_where_callee's_type_unavailable dacc apply0 call
   let env_at_use = denv in
   let dacc0, use_id0 =
     match Apply.continuation apply0 with
-    | Return continuation ->
+    | Apply_expr.Result_continuation.Return continuation ->
       let dacc0, use_id0 =
         DA.record_continuation_use dacc continuation
           ((fun x__1 ->
@@ -1147,7 +1153,7 @@ let simplify_function_call_where_callee's_type_unavailable dacc apply0 call
              (Apply.return_arity apply0))
       in
       dacc0, Some use_id0
-    | Never_returns -> dacc, None
+    | Apply_expr.Result_continuation.Never_returns -> dacc, None
   in
   let dacc1, exn_cont_use_id0 =
     DA.record_continuation_use dacc0
@@ -1604,8 +1610,8 @@ let simplify_method_call dacc apply0 callee_ty _ obj down_to_up0 =
   in
   let apply_cont =
     match Apply.continuation apply0 with
-    | Return continuation -> continuation
-    | Never_returns ->
+    | Apply_expr.Result_continuation.Return continuation -> continuation
+    | Apply_expr.Result_continuation.Never_returns ->
       Misc.fatal_error "Cannot simplify a method call that never returns"
   in
   let denv = DA.denv dacc in
@@ -1672,7 +1678,7 @@ let simplify_c_call simplify_expr dacc apply0 callee_ty arg_types down_to_up0 =
     (fun return_types ->
       let dacc0, use_id0 =
         match Apply.continuation apply0 with
-        | Return apply_continuation ->
+        | Apply_expr.Result_continuation.Return apply_continuation ->
           let apply_continuation_arg_types =
             let from_arity =
               (fun x__1 x__2 x__3 ->
@@ -1700,7 +1706,7 @@ let simplify_c_call simplify_expr dacc apply0 callee_ty arg_types down_to_up0 =
               (DA.denv dacc) apply_continuation_arg_types
           in
           dacc0, Some use_id0
-        | Never_returns -> dacc, None
+        | Apply_expr.Result_continuation.Never_returns -> dacc, None
       in
       let dacc1, exn_cont_use_id0 =
         DA.record_continuation_use dacc0
@@ -1796,7 +1802,7 @@ let simplify_effect_op dacc apply0 op down_to_up0 =
   let apply1 = Apply.with_call_kind apply0 (Call_kind.effect_ op0) in
   let dacc0, use_id0 =
     match Apply.continuation apply1 with
-    | Return continuation ->
+    | Apply_expr.Result_continuation.Return continuation ->
       let dacc0, use_id0 =
         DA.record_continuation_use dacc continuation
           ((fun x__1 ->
@@ -1812,7 +1818,7 @@ let simplify_effect_op dacc apply0 op down_to_up0 =
              (Apply.return_arity apply1))
       in
       dacc0, Some use_id0
-    | Never_returns -> dacc, None
+    | Apply_expr.Result_continuation.Never_returns -> dacc, None
   in
   let dacc1, exn_cont_use_id0 =
     DA.record_continuation_use dacc0

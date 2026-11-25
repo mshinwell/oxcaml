@@ -282,15 +282,31 @@ compiler's, the cause is in section 7.
 
 A CHANGE THAT ONLY WRITES NAMES OTHERWISE (`tools/samecode.sh REV`; not
 part of `make`; CMI_ROOT set as for `make`): it compiles the extracted
-files of this folder and those of the commit REV and compares the
-bytecode instructions that `ocamlc` makes of each (`-dinstr`). The
-instructions hold no name of a variable and no spelling of a module. So a
-mend that only respells (an abbreviation of a module, a constructor
-without its module, a variable without its number) must give `78 with
-the same instructions`; a mend that changes what a function does gives
-others, and the script names the files. From checkpoint 5 to checkpoint
-6 all 78 are the same. Run it before you send such a mend, and say the
-line that it prints.
+files and the runtime of this folder and those of the commit REV and
+compares the bytecode instructions that `ocamlc` makes of each
+(`-dinstr`). The instructions hold no name of a variable and no spelling
+of a module. So a mend that only respells (an abbreviation of a module, a
+constructor without its module, a variable without its number) must give
+`78 with the same instructions`, and the runtime the same; where the
+instructions differ, or a file is on one side only, the script names the
+file. From checkpoint 5 to checkpoint 6 all 78 are the same (and the
+script says that the runtime has one file more, the empty
+`port_abbreviations.ml`). Run it before you send such a mend, and say
+the lines that it prints.
+WHAT THAT LINE SAYS, AND WHAT IT DOES NOT. It says that `ocamlc`, with
+the flags of `tools/check.sh`, makes the same bytecode of the two texts
+of each file; both are compiled now, against the same compiled
+interfaces and the same `.mli` files of this tree, not against the
+compiler as it was at REV. It does NOT say that a constructor written
+without its module is the constructor of the same TYPE as before:
+constructors of two types can have the same instructions (read the
+places, or compare OCaml's typed trees). It says nothing of native code,
+and it is not a proof about the program. Two kinds of places are made
+blank before the comparison, and nothing else: the place of a failed
+assertion (where the instructions build it and raise `Assert_failure` at
+once) and the text of a `__LOC__`, both only when they name the file
+itself; they change when lines move. The last line of the script counts
+them.
 
 THE LINK TEST (`tools/linktest.sh`; not part of `make`): in a SCRATCH work
 tree of the compiler, `tools/linktest.sh swap TREE` puts the extracted
@@ -384,14 +400,27 @@ same, TYPE BY TYPE, in a comment before its `Local Open Scope` lines:
 `(* CONSTRUCTORS-WITHOUT-MODULE: Flambda_primitive.unary_primitive
 Flambda_kind.Boxable_number.t *)` (the names of the inductive types as
 `decl/` has them, from the file's name). Every constructor of a listed
-type is then printed bare in that file, whatever the Rocq text writes
-(the Rocq text still needs the module). List a type when the compiler's
-file never writes its constructors with a module. If OCaml cannot find
-the type at some place (the compiler's file has a type annotation there
-that the extracted text has not), the file does not type-check: take the
-type off the list. This cannot change what the file does without
-changing its instructions: `tools/samecode.sh` must say that all 78 files
-have the same ones.
+type whose OCaml text in `decl/` is a plain path (`M.C`) is then printed
+bare in that file, whatever the Rocq text writes (the Rocq text still
+needs the module). A constructor whose text is anything else (a function
+that builds an inline record, an annotated form) and the text of a
+type's eliminator stay as `decl/` has them. List a type when the
+compiler's file never writes its constructors with a module, BY ANY
+NAME OF THAT MODULE: `Apply.Result_continuation.Never_returns` is a
+constructor of `Apply_expr.Result_continuation.t`, because
+`Simplify_import.Apply` is `Flambda.Apply`, which is `Apply_expr`. (The
+lists of checkpoint 7 were made by a script that looked for such places
+through the abbreviations that it knew, and then took off each type with
+which a file did not type-check; one place of this kind escaped it and
+was found by the review.) If OCaml cannot find the type at some place
+(the compiler's file has a type annotation there that the extracted
+text has not), the file does not type-check: take the type off the
+list. A bare constructor must be the SAME constructor. `tools/samecode.sh`
+must say that all 78 files have the same instructions; that shows the
+same bytecode, not the same type, so the places are also to be read (at
+checkpoint 7 the review compared OCaml's typed trees of the files before
+and after: each constructor that lost its module is the same constructor
+of the same type).
 AFTER THE ABBREVIATIONS, NO `open` AND NO `include` AT THE LEFT MARGIN OF
 THE OCAML HEAD (after `open! Simplify_import`, after a line `module A =
 P`): such a line could give `A` another meaning than Rocq's, the tool does
