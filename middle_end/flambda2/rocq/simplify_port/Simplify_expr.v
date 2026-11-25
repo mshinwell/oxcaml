@@ -94,6 +94,10 @@ Fixpoint rebuild_expr (fuel : fuel) (expr : Simplified_expr.t) (uacc : UA.t)
                   after_rebuild)
           | SE.Simplified_let_cont let_cont simplified_lets_and_let_conts =>
             (* 56-59: the two functions are passed as values. *)
+            (* PORT-GAP(papp): [rebuild_lets_and_let_conts] is a local
+               function, which the tool does not look up. In the extracted
+               text the use is the bare name of a local `let rec` with 3
+               parameters: nothing runs. *)
             let! tmp1 := papp1 rebuild_expr fuel in
             let! tmp2 := papp1 rebuild_lets_and_let_conts fuel in
             Simplify_let_cont_expr.rebuild_let_cont tmp2 tmp1
