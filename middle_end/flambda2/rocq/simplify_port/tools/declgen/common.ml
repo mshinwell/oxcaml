@@ -39,10 +39,13 @@ let build_root = ref ""
    declarations, and the comparison of [Src.compiled_from]). *)
 let source_root = ref ""
 
-(* What shows that the build which is read is no build of these sources: a file
-   that it compiled from another text than the tree has, a compiled interface
-   that is not the one that a given typed tree was compiled against. One
-   sentence for each. The generator stops on any, before it writes a file. *)
+(* What shows that the build which is read is not known to be a build of these
+   sources: a file that it compiled from another text than the tree has; a file
+   of it that was read, or a compiled interface of it that was loaded, of which
+   the text cannot be compared with the tree's ([Src.standing], [compare_loaded]
+   in declgen.ml); a compiled interface that is not the one that a given typed
+   tree was compiled against. One sentence for each. The generator stops on any,
+   before it writes a file. *)
 let stale : string list ref = ref []
 
 let fix_dir d =

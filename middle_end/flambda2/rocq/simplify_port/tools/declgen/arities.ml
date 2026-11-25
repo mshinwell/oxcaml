@@ -81,40 +81,16 @@ let stdlib_reason =
    compiler"
 
 (* The file of the tree that a typed tree was made from, when the text that the
-   build read is the text of the tree ([Src.compiled_from], which keeps what the
-   build compiled from another text; [file] is the file of the typed tree). A
-   list of the modules of a library, which the build writes ([module A =
-   Lib__A], perhaps an empty module, and no more), has no file in the tree: it
-   is accepted, and has no definition of a value. *)
-let tree_source ~file (cmt : Cmt_format.cmt_infos) (str : Typedtree.structure) =
-  match Src.compiled_from ~file cmt with
-  | Tree rel -> Ok rel
-  | Another_text s ->
-    Error (Printf.sprintf "not read: the build read another text of %s" s)
-  | No_text s ->
-    Error (Printf.sprintf "not read: the source %s was not found" s)
-  | Of_the_build s ->
-    let only_aliases =
-      List.for_all
-        (fun (item : Typedtree.structure_item) ->
-          match item.str_desc with
-          | Tstr_module { mb_expr = { mod_desc = Tmod_ident _; _ }; _ }
-          | Tstr_module
-              { mb_expr = { mod_desc = Tmod_structure { str_items = []; _ }; _ };
-                _
-              }
-          | Tstr_attribute _ ->
-            true
-          | _ -> false)
-        str.str_items
-    in
-    if only_aliases
-    then Ok s
-    else
-      Error
-        (Printf.sprintf
-           "not read: %s is written by the build, it is no file of the tree" s)
-  | Not_named -> Error "not read: the typed tree does not name its source"
+   build read is the text of the tree ([Src.standing]; [file] is the file of the
+   typed tree). A list of the modules of a library, which the build writes and
+   [Src.list_of_modules] knows, has no file in the tree: it is accepted, and has
+   no definition of a value. Any other typed tree of the build is refused:
+   [Src.standing] keeps the reason, and the generator writes nothing. *)
+let tree_source ~file (cmt : Cmt_format.cmt_infos) =
+  match Src.standing ~file cmt with
+  | Follows rel -> Ok rel
+  | List_of_modules s -> Ok s
+  | Refused why -> Error ("not read: " ^ why)
 
 (* For each unit: its structure, or why it was not read; and its file. *)
 let units : (string, modval) Hashtbl.t = Hashtbl.create 97
@@ -262,13 +238,21 @@ and read_unit u : modval =
         | f -> (
           match Cmt_format.read_cmt f with
           | exception _ ->
+            (* a typed tree that the build has and that cannot be read is
+               refused; one that the build does not have is not read, and the
+               row says so *)
+            if Src.of_the_build f
+            then
+              stale
+                := Printf.sprintf "the typed tree %s could not be read" f
+                   :: !stale;
             Unknown
               (Printf.sprintf "not read: the typed tree of %s could not be read"
                  (short_unit u))
           | cmt -> (
             match cmt.cmt_annots with
             | Implementation str -> (
-              match tree_source ~file:f cmt str with
+              match tree_source ~file:f cmt with
               | Ok file ->
                 Hashtbl.replace unit_file u file;
                 eval_structure { unit_name = u; env = [] } str

@@ -40,9 +40,10 @@
    given to it, and each file says which text it follows by the name that Git
    gives that text ([Blob]). SOURCE_ROOT must be the sources of which BUILD_ROOT
    is a build. Before a file is written, the text from which the build compiled
-   each file that was read is compared with the tree's ([Src.compiled_from]),
-   and the compiled interfaces that were loaded with those that the given typed
-   trees were compiled against. If one is another, it stops and writes nothing.
+   each file that was read is compared with the tree's ([Src.standing]), and the
+   compiled interfaces that were loaded with those that the given typed trees
+   were compiled against. If one is another, or if a unit of the build cannot be
+   compared ([compare_loaded]), it stops and writes nothing.
 
    declgen --parameters FILE.cmt
 
@@ -61,20 +62,24 @@ open Common
 module SS = Set.Make (String)
 
 (* The typed tree of the interface of a unit: that of its [.mli] file, or of its
-   [.ml] file if it has no other. *)
+   [.ml] file if it has no other. It is the one that stands beside the compiled
+   interface [cmi] of the unit, where the compiler writes it. *)
+let typed_tree_beside cmi =
+  let base = Filename.remove_extension cmi in
+  List.find_opt Sys.file_exists [base ^ ".cmti"; base ^ ".cmt"]
+
 let typed_tree_of_unit u =
-  let find ext =
-    try Some (Load_path.find_normalized (u ^ ext)) with Not_found -> None
-  in
-  match find ".cmti" with Some f -> Some f | None -> find ".cmt"
+  match Load_path.find_normalized (u ^ ".cmi") with
+  | exception Not_found -> None
+  | cmi -> typed_tree_beside cmi
 
 (* Where the interface of a unit is in the sources of the tree, and whether the
    text of that file is the text from which the build compiled the interface
    that is read: the compiler's own digest of what it read says so
-   ([Src.compiled_from]; the build compiles some files from a copy, [misc.mli],
-   which is utils/misc.mli). It is not for a unit of the standard library: the
-   build read the library of the OCaml that built the compiler, and the file is
-   the tree's own of the same name (Src.source_path). *)
+   ([Src.standing]; the build compiles some files from a copy, [misc.mli], which
+   is utils/misc.mli). It is not for a unit of the standard library: the build
+   read the library of the OCaml that built the compiler, and the file is the
+   tree's own of the same name (Src.source_path). *)
 let source_of_unit u =
   match typed_tree_of_unit u with
   | None -> None
@@ -84,51 +89,92 @@ let source_of_unit u =
     | cmt -> (
       if Src.of_the_build f
       then
-        match Src.compiled_from ~file:f cmt with
-        | Tree rel -> Some (rel, true)
-        | Another_text _ | Of_the_build _ | No_text _ | Not_named -> None
+        match Src.standing ~file:f cmt with
+        | Follows rel -> Some (rel, true)
+        | List_of_modules _ | Refused _ -> None
       else
         match Option.bind cmt.cmt_sourcefile Src.source_path with
         | Some (rel, _) -> Some (rel, false)
         | None -> None))
 
-(* Every compiled interface that was loaded, against the tree. For a unit of the
-   build, the text from which its interface was compiled is compared
-   ([Src.compiled_from], which keeps what was compiled from another text). The
-   result: how many were compiled from the text of the tree; the others of the
-   build, which cannot be compared, each with the reason (a text that the build
-   wrote); and how many are of the library of the OCaml that made the build. *)
+(* Every compiled interface that was loaded ([loaded]: each unit, and the digest
+   by which the compiled files that import its interface name it), against the
+   tree.
+
+   A UNIT OF THE BUILD IS TAKEN ONLY IF ITS TEXT IS KNOWN. Beside its compiled
+   interface there must be the typed tree that the compiler wrote with it: that
+   typed tree keeps the digest of the compiled interface, which must be the one
+   that was loaded. The text from which that typed tree was compiled must be the
+   text of the tree ([Src.standing]); or the unit must be a list of the modules
+   of a library, which the build writes ([Src.list_of_modules]). Anything else
+   is kept in [stale], with the reason, and the generator writes nothing: no
+   typed tree, one that cannot be read, one of another compilation, a text that
+   is neither in the tree nor in the build root, another text that the build
+   wrote.
+
+   A compiled interface that is not of the build is taken only for a unit of the
+   standard library ([Stdlib], [Stdlib__X], [CamlinternalX]): that library is of
+   the OCaml that made the build, and its text is not compared.
+
+   The result: how many units of the build were compiled from the text of the
+   tree; the lists of modules, each by the name of its text; and how many units
+   are of the standard library. *)
 let compare_loaded loaded =
   let of_tree = ref 0 in
   let of_library = ref 0 in
-  let others = ref [] in
+  let lists = ref [] in
+  let refuse fmt = Printf.ksprintf (fun why -> stale := why :: !stale) fmt in
   List.iter
-    (fun (u, _) ->
+    (fun (u, digest) ->
       match Load_path.find_normalized (u ^ ".cmi") with
-      | exception Not_found -> ()
-      | cmi when not (Src.of_the_build cmi) -> incr of_library
-      | _ -> (
-        match typed_tree_of_unit u with
-        | None -> others := (u ^ ": no typed tree of it") :: !others
+      | exception Not_found ->
+        refuse
+          "the compiled interface of %s was loaded, and no file of it is found \
+           now"
+          u
+      | cmi when not (Src.of_the_build cmi) ->
+        if is_stdlib_unit u || starts_with ~prefix:"Camlinternal" u
+        then incr of_library
+        else
+          refuse
+            "%s is no unit of the standard library, and its compiled interface \
+             %s is not of the build"
+            u cmi
+      | cmi -> (
+        match typed_tree_beside cmi with
+        | None ->
+          refuse
+            "the build has no typed tree beside the compiled interface %s, so \
+             the text from which the interface of %s was compiled cannot be \
+             compared with the tree"
+            cmi u
         | Some f -> (
           match Cmt_format.read_cmt f with
           | exception _ ->
-            others := (u ^ ": its typed tree could not be read") :: !others
+            refuse
+              "the typed tree %s could not be read, so the text from which the \
+               interface of %s was compiled cannot be compared with the tree"
+              f u
           | cmt -> (
-            match Src.compiled_from ~file:f cmt with
-            | Tree _ -> incr of_tree
-            | Another_text _ -> ()
-            | Of_the_build s ->
-              others
-                := (s ^ ": the build wrote it, the tree has no such file")
-                   :: !others
-            | No_text s ->
-              others
-                := (s ^ ": neither the tree nor the build has it") :: !others
-            | Not_named ->
-              others := (u ^ ": its typed tree names no source") :: !others))))
+            let written_with_it =
+              match digest, cmt.cmt_interface_digest with
+              | Some d, Some d' -> String.equal d d'
+              | _ -> false
+            in
+            if not written_with_it
+            then
+              refuse
+                "the typed tree %s was not written with the compiled interface \
+                 of %s that is read, so it does not say from which text that \
+                 interface was compiled"
+                f u
+            else
+              match Src.standing ~file:f cmt with
+              | Follows _ -> incr of_tree
+              | List_of_modules s -> lists := s :: !lists
+              | Refused _ -> ()))))
     loaded;
-  !of_tree, List.sort compare !others, !of_library
+  !of_tree, List.sort compare !lists, !of_library
 
 (* The comment under the header of a file of declarations: what the file is, and
    the text that it follows, by the name that Git gives that text. *)
@@ -334,12 +380,12 @@ let () =
     if (!Tr.changed || not same) && n < 12 then loop (n + 1) else results, n
   in
   let results, passes = loop 1 in
-  (* IS THE BUILD A BUILD OF THESE SOURCES? What is found otherwise is kept in
-     [stale]. First the compiled interfaces that were loaded: the text of each,
-     and that each is the one that the given typed trees were compiled
-     against. *)
+  (* IS THE BUILD A BUILD OF THESE SOURCES? What is found otherwise, and what
+     cannot be known, is kept in [stale]. First the compiled interfaces that
+     were loaded: the text of each, and that each is the one that the given
+     typed trees were compiled against. *)
   let loaded = Env.imports () in
-  let of_tree, others, of_library = compare_loaded loaded in
+  let of_tree, lists, of_library = compare_loaded loaded in
   List.iter
     (fun (f, imports) ->
       List.iter
@@ -389,7 +435,8 @@ let () =
   if !stale <> []
   then (
     prerr_endline
-      "declgen: the build that is read is no build of these sources:";
+      "declgen: the build that is read is not known to be a build of these \
+       sources:";
     List.iter
       (fun why -> prerr_endline ("  " ^ why))
       (List.sort_uniq compare !stale);
@@ -606,8 +653,9 @@ let () =
     passes;
   Printf.printf
     "%d compiled interfaces of the build were loaded: %d were compiled from \
-     the text of the tree, %d could not be compared (named below); %d more are \
-     of the library of the OCaml that made the build\n"
-    (of_tree + List.length others)
-    of_tree (List.length others) of_library;
-  List.iter (fun why -> Printf.printf "not compared: %s\n" why) others
+     the text of the tree, %d are lists of the modules of a library that the \
+     build wrote (named below); %d more are of the standard library of the \
+     OCaml that made the build\n"
+    (of_tree + List.length lists)
+    of_tree (List.length lists) of_library;
+  List.iter (fun s -> Printf.printf "list of modules: %s\n" s) lists

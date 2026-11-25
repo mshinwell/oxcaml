@@ -216,7 +216,7 @@ let read cmt_file : string option * string list * string list =
     in
     match cmt.cmt_annots with
     | Implementation str -> (
-      match Arities.tree_source ~file:cmt_file cmt str with
+      match Arities.tree_source ~file:cmt_file cmt with
       | Ok source -> Some source, updates_of source str, items_of source str
       | Error why -> no named why)
     | _ -> no named "not read: no typed tree of an implementation")
