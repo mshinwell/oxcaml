@@ -65,6 +65,18 @@ value). NOT SEEN: a partial application that is reached under another name
 library or in the file; in the file the line that makes it is itself
 refused, or is read as a use).
 
+LABELS. The kit has a notation for the reader, [~l:x], which Rocq reads
+as [x]: a label of the compiler's text before an argument (GUIDE.md,
+section 1). The tool reads FILE.v with each label made blank: the sign [~],
+a name and a colon (one that does not begin [:=], [::] or [:>]), outside
+comments and strings. So [pappN F ~l:a] is read as [pappN F a]; an argument
+that has a label is counted as one argument; and the name of a label is no
+word of the file: it is no use of a function of that name, and it stands
+nowhere that a variable may be bound. NOT SEEN: Rocq reads a label only
+where an argument stands. At the head of a term [~ P : T] is Rocq's
+negation and a cast, and the tool would take [~ P :] there for a label. No
+ported file has the sign [~] for anything but a label.
+
 THE MARK of a use is a comment that begins (* PORT-GAP(papp): , stands
 before the use in the same definition (up to the full stop that ends a
 line), and has the function in square brackets as the use writes it:
@@ -460,6 +472,18 @@ def blank(s, strings):
     return "".join(out)[:len(s)]
 
 
+LABEL = re.compile(r"~\s*%s\s*:(?![=:>])" % PNAME)
+
+
+def without_labels(text):
+    """A Rocq text whose comments and strings are blank, with each label of
+    the kit made blank too, in the same length: [~l:x] is [x] for Rocq
+    (LABELS, above), so the tool reads the argument and not the label. A
+    label is the sign [~], a name and a colon that does not begin [:=],
+    [::] or [:>]."""
+    return LABEL.sub(lambda m: " " * len(m.group(0)), text)
+
+
 def read_table():
     """Rocq name -> (parameters of the realisation, parameters of the
     definition or "-", place or reason, OCaml name)."""
@@ -628,8 +652,8 @@ def analyse(path, raw):
     """(the uses, each with its line; the lines to print; the number of
     errors)"""
     global TABLE, IN_DECL
-    text = blank(raw, False)
-    code = blank(raw, True)
+    text = without_labels(blank(raw, False))
+    code = without_labels(blank(raw, True))
     lines = []
     bad = 0
 
@@ -1791,7 +1815,7 @@ def main(files):
                 here = "%s:%d: %s" % (path, line, u.shown)
                 if u.verdict is None:
                     own += 1
-                    passes, why = of_the_file(path, blank(raw, False), u)
+                    passes, why = of_the_file(path, without_labels(blank(raw, False)), u)
                 else:
                     std += 1
                     passes, why = of_the_stdlib(u)

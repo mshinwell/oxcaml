@@ -108,7 +108,8 @@ files beside the donors first. Points marked HUMAN are the human's to judge.
   away, and the extracted text is the same bytes. A PILOT: only
   `inlining/Inlining_transforms.v` has them. NOTHING CHECKS A LABEL: a
   wrong one, or one before the wrong argument, passes Rocq and every
-  tool here. The rule:
+  tool here. The lint and `make papp` read a call as if its labels were
+  not there (`tools/papp.py`, LABELS). The rule:
   - write the labels that the compiler's call names at that place, each
     before its own argument; the arguments stay in the Rocq order,
     whatever order the compiler writes. Which label a place of a declared
