@@ -83,13 +83,17 @@ application that has NO MARK IS NOT FOUND.
 WHICH FUNCTION. It COUNTS WORDS, as tools/lint.py does. The name F is
 looked up among the Rocq names of the table: with its first name replaced,
 if that is an abbreviation that FILE.v makes ([Module A := P.], at any
-depth; not followed if the file makes two of that name with different
-modules) or takes from abbrev/NAME/Port_abbreviations.v; then as it
-stands; then under each module that FILE.v imports ([Require Import] of
-files of decl/, [Import P.]), the last first. An abbreviation that decl/
+depth) or takes from abbrev/NAME/Port_abbreviations.v (not followed if
+these make two of that name with different modules); then as it stands;
+then under each module that FILE.v imports ([Require Import] of files of
+decl/, [Import P.]), the last first. These sentences are read up to their
+full stops, wherever on a line they stand. An abbreviation that decl/
 makes is followed. What it does not see: a name that Rocq reads otherwise
-because a nearer module or variable has the same name. A name with a
-module that is not found in the table does not pass.
+because a nearer module has the same name, or because the file imports a
+module in another form than these two. (A name without a module that is
+found under an import does not pass if a variable of the file may have
+the name: A NAME THAT IS ALSO A VARIABLE, below.) A name with a module
+that is not found in the table does not pass.
 
 A FUNCTION OF THE FILE: a name without a module that FILE.v binds,
 anywhere, by [Definition f], [Fixpoint f], [with f (] or Rocq's own [let
@@ -147,55 +151,108 @@ from the definition and from the use). But elaboration, which comes before
 it, does add arguments: after a [Section], a function that uses a variable
 of the section takes that variable as a first parameter, and every use
 inside the section gives it; an implicit parameter that is no type ([{n :
-nat}]) is given at every use without being written. Then the extracted
-definition has more parameters than the Rocq binding shows, the written N
-is too small, and a use that gives the function all its parameters would
-pass. So a use of a function of the file is REFUSED unless the words show
-that nothing is added:
-- neither the binding nor the use stands inside a [Section] (any);
-- the binders of the binding, up to its [:] or [:=], are groups in round
-  brackets, plain names and [{struct x}]: no [{..}], no [[..]], no
-  backquote, nothing else;
-- the file has no [Set Implicit Arguments], [Generalizable] or [Existing
-  Instance], and no [Arguments] that names the function.
-Under these conditions the bound holds, and it is stricter than needed by
-what is erased: when this was written the 15 such uses were all [papp1 f
-fuel], which in OCaml is the bare name f and runs nothing.
+nat}]) is given at every use without being written, and Rocq takes an
+implicit parameter from the binders of the head, from the type that the
+head declares ([: forall {n : nat}, ..]) and from a [fun] or a [fix] at the
+head of the body ([:= fun {n : nat} ..], also after a [let .. in]). Then
+the extracted definition has more parameters than the words of the binding
+show, the written N is too small, and a use that gives the function all
+its parameters would pass. THE TOOL IS NO ELABORATOR. It counts the head of
+the binding as it is written, and accepts nothing that Rocq could have
+completed: a use of a function of the file is REFUSED unless all of this
+holds, as words.
+- Neither the binding nor the use stands inside a [Section] (any).
+- THE WHOLE HEAD of the binding, from its name to the [:=] of its body, is
+  read: binders that are groups in round brackets [(names : type)], plain
+  names and [{struct x}]; then, if a colon follows, the type of the result.
+  Each type is made of names, round brackets, [->], [*], commas and colons,
+  and of nothing else. A brace that is no [{struct x}], a square bracket, a
+  backquote, a quote, a number or any other sign anywhere in the head; a
+  group that is not [(names : type)]; no [:=] before the full stop (a
+  definition by proof): the head is not read, and the use is refused.
+- The head WRITES AT LEAST N + 1 PARAMETERS (the names of its groups and
+  its plain names). The N arguments of the use, and the parameter after
+  them, are then parameters that the head writes in round brackets or as
+  plain names: none of them is one that Rocq fills in, whatever the type of
+  the result and the body are. A parameter that only the type or the body
+  has is not counted.
+- The body is no function whose binders the head does not write: after the
+  words of the family of [let] that it begins with, each up to its [in],
+  its first word is no [fun], [fix] or [cofix]. A body that begins with a
+  bracket or another sign, or with a [let] whose [in] is not found, is not
+  read. (With N + 1 parameters written this adds nothing that is known to
+  matter; it is kept so that a head that the tool counts is the whole list
+  of the parameters.)
+- EVERY SENTENCE OF THE FILE begins with a word that is known to leave the
+  arguments of the function as they are written: [From], [Require],
+  [Import], [Module], [Declare Module], [End], [Section], [Variable],
+  [Context], [Definition], [Fixpoint], [Inductive], [Record], [Parameter],
+  [Extract], [Open Scope] (also after [Local]), and [Arguments] of another
+  name. Any other sentence, wherever it stands in the file, refuses the
+  use: [Set Implicit Arguments], [Generalizable], [Existing Instance], an
+  [Arguments] of the function, a [Notation] or an [Abbreviation] (the name
+  of the function, or pappN, may then be another thing), a [Coercion], an
+  attribute [#[..]], [Local], [Program], a proof. A sentence is read as
+  Rocq reads it, up to a full stop that white space follows, and not line
+  by line: a command that follows another on its line is seen.
+The bound holds ONLY under these conditions, and there it is stricter than
+needed by what is erased: when this was written the 15 such uses were all
+[papp1 f fuel], which in OCaml is the bare name f and runs nothing.
 
 For a DECLARED function (and so for a function of another ported file,
 which the use reaches by its declared name) the arguments of the OCaml use
 are those that are written: a declaration of decl/ is a [Parameter], which
 no section changes, and its only implicit parameters are types, which the
-extraction erases. The lint checks that of decl/ (each [{..}] of a
-[Parameter] is [{names : Type}]; no [Arguments] names a declared value) and
-says so if it is not.
+extraction erases. The lint checks that of decl/, sentence by sentence:
+each sentence begins with [From], [Module], [End], [Parameter],
+[Definition], [Inductive], [Record], [Extract] or [Arguments]; a
+[Parameter] or a [Definition] has no brace but [{names : Type}], no square
+bracket and no backquote; an [Arguments] names a constructor (a name with
+a capital). The lint says so if it is not.
 
 A NAME THAT IS ALSO A VARIABLE. The tool does not follow Rocq's scopes: if
 the name f of a function of the file also stands, anywhere in the file,
 where a variable may be bound, the use is refused, for a nearer variable f
 may be what the use reaches. Where a variable may be bound, as words: from
 [fun] to its [=>]; from [forall] or [exists] to the comma; from [let] (and
-any word that ends with [!], [*] or [&]: [let!], [let*], [let&],
-[let_fuel!], [recursive!]) to its [:=] or [in]; from [fix] to its [:=];
-from [with] or a bar to the next [=>] or [:=] (the patterns of a [match],
-the binders of a [with]); the word after [as]; in the head of a [match]
-after [in] or [return]; after an opening brace up to its [:], bar or [&];
-and from the first word of a command (a sentence that begins with a
-capital) to its [:=] or its end. The one binding of f itself is not
-counted. A use of f elsewhere (after [=>], after [:=], an argument) is no
-binder. This reads more as a binder than Rocq does, never less, as far as
-the forms above are all the forms that bind.
+any word that begins with [let] or ends with [!], [*] or [&]: [let!],
+[let*], [let&], [let_fuel!], [recursive!]) to its [:=] or [in]; from [fix]
+to its [:=]; from [with] or a bar to the next [=>] or [:=] (the patterns of
+a [match], the binders of a [with]); the word after [as]; in the head of a
+[match] after [in] or [return]; after an opening brace, and after each
+[;] that stands directly inside braces (the fields of a record), up to its
+[:], bar or [&]; from the first word of a [Definition] or a [Fixpoint] to
+its [:=]; and the whole of every other sentence (the constructors of an
+[Inductive], a [Parameter], an [Arguments], an [Extract]). The one binding
+of f itself is not counted. A use of f elsewhere
+(after [=>], after [:=], an argument) is no binder. This reads more as a
+binder than Rocq does, never less, as far as the forms above are all the
+forms that bind. The lint asks the same of a DECLARED name that the use
+writes without a module (one that is found under an import): if it stands
+anywhere in the file where a variable may be bound, which is also where
+the file would bind it, the use does not pass.
+
+WHERE THE USE STANDS. The name at the use is the binding only where the
+binding is in sight and nothing nearer has the name. As words: the use
+stands in the sentence of the binding or after it; no sentence between
+them begins with [From], [Require] or [Import] (a module that is imported
+later may have the name); and the modules that are open at the use begin
+with those in which the name as it is written is in sight (for [f], the
+modules of the binding; for [X.f], the modules around X). Else the use is
+refused.
 
 THE MODULE of a function of the file is that of its binding in FILE.v by
 Definition, Fixpoint or [with f (]: the modules that are open there
-([Module M.] .. [End M.], as words; a [Section] is no module). For [f]
-there must be ONE such binding of f in the whole file. For a name that the
-use writes with modules, [X.f], Rocq takes the nearest thing whose name
-ENDS with X.f, which need not stand at the root of the file (inside a
-module Y it may be Y.X.f). The tool does not follow Rocq's scopes: there
-must be ONE binding of f in the whole file whose modules end with X, and
-that one is taken, wherever the use stands; if there are several (X.f at
-the root and Y.X.f), the use is refused. The use FAILS, closed, for:
+([Module M.] .. [End M.], as sentences; a [Section] is no module; an [End]
+that closes nothing that is open, or a [Module] sentence with both [:=]
+and [with], and what is open is not known). For [f] there must be ONE such
+binding of f in the whole file. For a name that the use writes with
+modules, [X.f], Rocq takes the nearest thing whose name ENDS with X.f,
+which need not stand at the root of the file (inside a module Y it may be
+Y.X.f). The tool does not follow Rocq's scopes: there must be ONE binding
+of f in the whole file whose modules end with X, and that one is taken; if
+there are several (X.f at the root and Y.X.f), the use is refused. The use
+FAILS, closed, for:
 - a local function (bound by Rocq's own [let]): the tool does not look
   inside a definition;
 - a name that the file binds more than once, or both ways; a name with
@@ -205,14 +262,60 @@ the root and Y.X.f), the use is refused. The use FAILS, closed, for:
 - a binding inside a functor or a module type of the file, or under a
   module that is no structure in the extracted text (the application of a
   functor);
-- a section, an implicit binder or one of the commands above (elaboration
-  may add an argument); the name standing where a variable may be bound;
+- a use that stands before the binding, after an import that follows the
+  binding, or outside the modules where the name is in sight;
+- a section; a head of the binding that is not read whole, or that writes
+  no more than N parameters; a body that begins with a function; a
+  sentence of the file that is not known (elaboration may add an
+  argument); the name standing where a variable may be bound;
 - no extracted file, no definition found there, parameters that cannot be
   counted, or no more parameters than N (a definition that is another name
   or an application has 0).
 A use that fails and has no mark is an error; one that fails and has the
 mark is printed ("keeps its mark"); one that passes and has the mark is an
-error (the mark is not needed)."""
+error (the mark is not needed).
+
+WHAT THE TOOL DOES NOT ESTABLISH. It is NO RESOLVER OF ROCQ'S SCOPES AND NO
+ELABORATOR: it reads words. A use that it passes has been checked ONLY
+under the shapes that are stated above: pappN in its one written form;
+for a function of the file, one binding of the name in the file, the use
+after it and in sight of it with no import between, the first N + 1
+parameters written in a head that is read whole, no section, no sentence
+that is not known, the name nowhere a binder; for a function of another
+ported file, one module for the place of its definition. Everything else
+it refuses, or does not see. In particular:
+- which binding a name reaches, and which words are binders, is decided by
+  the words, not by Rocq's resolution of names. For a declared name that
+  is written with a module, nothing checks that a nearer module of the
+  same name does not hide it (when the lint's rule was written, Rocq's
+  [Locate], asked at the end of each file and not at the place of the use,
+  gave the same names for its 121 uses; the tool does not repeat that);
+- the term that Rocq elaborates for the function is not looked at, and
+  nothing is proved about it. The conditions above are those under which
+  the mechanisms that are KNOWN to add an argument (a section, an implicit
+  parameter, the commands that make one) cannot have added one among the
+  first N + 1 parameters. A COERCION, a canonical structure, a class, or
+  any other mechanism of elaboration that the tool does not know is NOT
+  implied safe; one that the kit or another library declares is not seen,
+  for only the ported file is read;
+- a notation of the kit or of another library that gives pappN, or the
+  name of the function, another meaning is not seen;
+- that pappN of the kit is the plain application of the function to its
+  N arguments, which the extraction puts in the place of pappN, is what
+  the kit says; the kit is not read here;
+- only the one written form of pappN is read. A partial application
+  without pappN and without a mark is not found. Where the extraction
+  itself changes the shape of a function (it adds or takes away a [fun]),
+  only the parameters of the extracted definition are read, as they
+  stand; the extracted use is not read;
+- a local function is not looked up, and needs the mark;
+- a definition of the standard library, or of any file whose typed tree
+  was not read, keeps its mark: nothing is known of it;
+- the extracted definition is found as words, in the layout that
+  ocamlformat gives the extracted files; what the extraction erases (the
+  fuel) makes the rule stricter, not exact;
+- a function that is bound by anything but Definition, Fixpoint or [with]
+  fails closed."""
 import collections
 import os
 import re
@@ -228,33 +331,37 @@ EXTRACTED = os.path.join(TOOLS, "..", "extracted")
 SIMPLIFY = "middle_end/flambda2/simplify/"
 
 
+SPECIAL = re.compile(r'"|\(\*|\*\)')
+
+
 def blank(s, strings):
     """Rocq text with its comments made blank, in the same length. A string
     is made blank too; or, if [strings], keeps its quotes and has x inside."""
     out = []
     depth = 0
-    i = 0
     in_str = False
-    while i < len(s):
-        if depth == 0 and s[i] == '"':
-            in_str = not in_str
-            out.append('"' if strings else " ")
-            i += 1
-        elif in_str:
-            out.append("\n" if s[i] == "\n" else "x" if strings else " ")
-            i += 1
-        elif s.startswith("(*", i):
+    i = 0
+    for m in SPECIAL.finditer(s + '"'):
+        # what stands before this quote or comment sign
+        if in_str or depth:
+            out.append(re.sub(r"[^\n]", "x" if in_str and strings else " ", s[i:m.start()]))
+        else:
+            out.append(s[i:m.start()])
+        i = m.end()
+        t = m.group(0)
+        if in_str:
+            in_str = t != '"'
+            out.append(('"' if strings else " ") if t == '"' else "xx" if strings else "  ")
+        elif t == "(*":
             depth += 1
             out.append("  ")
-            i += 2
-        elif depth and s.startswith("*)", i):
-            depth -= 1
-            out.append("  ")
-            i += 2
+        elif depth:
+            depth -= t == "*)"
+            out.append(" " * len(t))
         else:
-            out.append(s[i] if depth == 0 or s[i] == "\n" else " ")
-            i += 1
-    return "".join(out)
+            in_str = t == '"'
+            out.append(('"' if strings else " ") if t == '"' else t)
+    return "".join(out)[:len(s)]
 
 
 def read_table():
@@ -276,46 +383,58 @@ def read_table():
 # argument that is not written: the places, if any.
 DECL_IMPLICIT = []
 TYPES_ONLY = re.compile(r"\{\s*(?:%s\s+)*%s\s*:\s*Type\s*\}" % (PNAME, PNAME))
+DECL_KNOWN = re.compile(
+    r"(?:From|Module|End|Parameter|Definition|Inductive|Record|Extract|Arguments)"
+    r"(?![A-Za-z_0-9'])"
+)
+
+
+def decl_sentence(text, a, b):
+    """Whether the sentence of decl/ from a to b is known to give no
+    declared value an argument that is not written: it begins with a word
+    of DECL_KNOWN; a [Parameter] or a [Definition] has no brace but
+    [{names : Type}], no square bracket and no backquote; an [Arguments]
+    names a name with a capital (a constructor)."""
+    m = DECL_KNOWN.match(text, a, b)
+    if not m:
+        return False
+    s = text[a:b]
+    if m.group(0) in ("Parameter", "Definition"):
+        braces = re.findall(r"\{[^}]*\}?", s)
+        return all(TYPES_ONLY.fullmatch(x) for x in braces) and "[" not in s and "`" not in s
+    if m.group(0) == "Arguments":
+        named = ARGUMENTS_OF.match(text, a, b)
+        return bool(named) and named.group(1)[0].isupper()
+    return True
 
 
 def decl_abbreviations():
     """[Module A := P.] of decl/, under the whole name of A. Also fills
-    DECL_IMPLICIT: a [Parameter] with a [{..}] that is not [{names :
-    Type}], or with a square bracket or a backquote before its text; a
-    command [Set Implicit Arguments], [Generalizable], [Existing Instance];
-    an [Arguments] that names a lower-case name (a value)."""
+    DECL_IMPLICIT with the place of each sentence of decl/ that
+    [decl_sentence] does not know. The sentences are read whole, up to
+    their full stops, with comments and strings blank."""
     out = {}
     for name in sorted(os.listdir(DECL)):
         if not name.endswith(".v"):
             continue
+        text = blank(open(os.path.join(DECL, name)).read(), False)
         stack = [name[:-2]]
-        for number, line in enumerate(open(os.path.join(DECL, name)).read().split("\n")):
-            s = line.strip()
-            if re.match(r"Parameter\s", s):
-                braces = re.findall(r"\{[^}]*\}", s)
-                if any(not TYPES_ONLY.fullmatch(b) for b in braces) or "`" in s:
-                    DECL_IMPLICIT.append("decl/%s:%d" % (name, number + 1))
-            elif re.match(
-                r"(?:(?:Global|Local|#\[[^\]]*\])\s+)*"
-                r"(?:Set\s+Implicit\s+Arguments|Generalizable|Existing\s+Instance"
-                r"|Arguments\s+(?:%s\.)*[a-z_])" % PNAME,
-                s,
-            ):
-                DECL_IMPLICIT.append("decl/%s:%d" % (name, number + 1))
-            m = re.match(r"Module\s+(?:Type\s+)?(%s)(.*)$" % PNAME, s)
-            if m:
-                rest = m.group(2).strip()
-                a = re.fullmatch(r":=\s*(%s)\." % PPATH, rest)
-                if a:
-                    out[".".join(stack + [m.group(1)])] = a.group(1)
-                elif not re.search(r"\.\s*End\s+%s\.$" % re.escape(m.group(1)), s) and not (
-                    ":=" in rest and rest.endswith(".")
-                ):
-                    stack.append(m.group(1))
+        for a, b in sentences(text):
+            if not decl_sentence(text, a, b):
+                DECL_IMPLICIT.append("decl/%s:%d" % (name, text.count("\n", 0, a) + 1))
+            m = STRUCTURE.match(text, a, b)
+            if not m or m.group(1) == "Section":
                 continue
-            m = re.match(r"End\s+(%s)\.$" % PNAME, s)
-            if m and len(stack) > 1 and stack[-1] == m.group(1):
-                stack.pop()
+            rest = text[m.end():b]
+            if m.group(1) == "End":
+                if len(stack) > 1 and stack[-1] == m.group(2):
+                    stack.pop()
+            elif ":=" not in rest:
+                stack.append(m.group(2))
+            else:
+                target = re.fullmatch(r"\s*:=\s*(%s)\s*" % PPATH, rest)
+                if target:
+                    out[".".join(stack + [m.group(2)])] = target.group(1)
     return out
 
 
@@ -397,6 +516,13 @@ IN_DECL = None
 Use = collections.namedtuple("Use", "pos shown plain n name verdict marked")
 
 PAPP = re.compile(r"(?<![A-Za-z_0-9'])papp([1-4])(?![A-Za-z_0-9'])")
+ABBREVIATION = re.compile(r"Module\s+(%s)\s*:=\s*(%s)\s*" % (PNAME, PPATH))
+FROM_ABBREV = re.compile(
+    r"From\s+SimplifyPort\.abbrev\.(%s)\s+Require\s+Import\s+Port_abbreviations\s*" % PNAME
+)
+IMPORT_OF_DECL = re.compile(
+    r"From\s+SimplifyPort\.decl\s+Require\s+Import\s+([^.]+)|Import\s+(%s)\s*" % PPATH
+)
 FUNCTION = re.compile(r"\s+(%s)(?![A-Za-z_0-9'.])" % PPATH)
 
 
@@ -447,30 +573,34 @@ def analyse(path, raw):
             % (path, " ".join(DECL_IMPLICIT[:5]))
         )
         bad += 1
-    # the abbreviations of the file, and what it imports
+    # the abbreviations of the file, what it imports and the modules
+    # that it defines, sentence by sentence
     own = collections.defaultdict(set)
-    for m in re.finditer(r"(?m)^\s*Module\s+(%s)\s*:=\s*(%s)\.\s*$" % (PNAME, PPATH), text):
-        own[m.group(1)].add(m.group(2))
-    for m in re.finditer(
-        r"(?m)^\s*From\s+SimplifyPort\.abbrev\.(%s)\s+Require\s+Import\s+Port_abbreviations\s*\.\s*$"
-        % PNAME,
-        text,
-    ):
-        lib = open(os.path.join(ABBREV, m.group(1), "Port_abbreviations.v")).read()
-        for a in re.finditer(
-            r"(?m)^Module\s+(%s)\s*:=\s*(%s)\.\s*$" % (PNAME, PPATH), blank(lib, False)
-        ):
-            if a.group(1) not in own:
-                own[a.group(1)].add(a.group(2))
     imports = []
-    for m in re.finditer(
-        r"(?m)^\s*(?:From\s+SimplifyPort\.decl\s+Require\s+Import\s+([^.]+)\.|Import\s+(%s)\.)\s*$"
-        % PPATH,
-        text,
-    ):
-        imports.extend(m.group(1).split() if m.group(1) else [m.group(2)])
-    # the modules that the file defines, and the functions that it binds
-    defined = set(re.findall(r"(?m)^\s*Module\s+(?:Type\s+)?(%s)" % PNAME, text)) - set(own)
+    defined = set()
+    for a, b in sentences(text):
+        s = text[a:b]
+        m = ABBREVIATION.fullmatch(s)
+        if m:
+            own[m.group(1)].add(m.group(2))
+            continue
+        m = FROM_ABBREV.fullmatch(s)
+        if m:
+            lib = blank(open(os.path.join(ABBREV, m.group(1), "Port_abbreviations.v")).read(), False)
+            for c, d in sentences(lib):
+                x = ABBREVIATION.fullmatch(lib[c:d])
+                if x:
+                    own[x.group(1)].add(x.group(2))
+            continue
+        m = IMPORT_OF_DECL.fullmatch(s)
+        if m:
+            imports.extend(m.group(1).split() if m.group(1) else [m.group(2)])
+            continue
+        m = STRUCTURE.match(s)
+        if m and m.group(1).startswith("Module"):
+            defined.add(m.group(2))
+    defined -= set(own)
+    # the functions that the file binds
     bound = set(
         re.findall(
             r"(?<![A-Za-z_0-9'.])(?:Definition|Fixpoint|let)\s+(%s)(?![A-Za-z_0-9'.])" % PNAME,
@@ -524,6 +654,17 @@ def analyse(path, raw):
             if f.split(".")[0] in defined:
                 return None
             return False, "%s is not among the declared values of decl/ARITIES.tsv" % f, None
+        if "." not in f:
+            # a declared name that is found under an import: a nearer
+            # binding of the file may be what the use reaches
+            places = may_be_bound(text, f, -1)
+            if places:
+                why = (
+                    "%s is a declared value under an import, and also stands where the file "
+                    "may bind it (line %s): the words do not say which the use reaches"
+                    % (f, ", ".join(str(k) for k in places[:5]))
+                )
+                return False, why, found
         wrapper, definition, where, _ = TABLE[found]
         if wrapper:
             why = "the realisation of %s in decl/ is a function of %d parameters" % (found, wrapper)
@@ -767,78 +908,261 @@ def extracted_definitions(text, modules, name):
     return out
 
 
-SENTENCE = re.compile(r"(?m)^[ \t]*(Module\s+Type|Module|Section|End)\s+(%s)([^.]*)\." % PNAME)
+END = re.compile(r"\.(?=\s|$)")
 
 
-def rocq_modules(text, pos):
-    """The modules of FILE.v that are open at pos, from the outermost, as
-    words; None if one of them is a functor or a module type."""
-    stack = []
-    for m in SENTENCE.finditer(text, 0, pos):
-        kind = " ".join(m.group(1).split())
-        if kind == "End":
-            if stack and stack[-1][0] == m.group(2):
-                stack.pop()
-        elif kind == "Section":
-            stack.append((m.group(2), "section"))
-        elif ":=" in m.group(3):
-            pass  # [Module A := P.] is one sentence
-        elif kind == "Module Type" or "(" in m.group(3):
-            stack.append((m.group(2), None))
+def sentences(text):
+    """The sentences of a Rocq text whose comments and strings are blank,
+    in order: (where the first word is, where the full stop is). A sentence
+    ends at a full stop that white space or the end of the text follows,
+    wherever on a line it stands."""
+    out = []
+    i = 0
+    for m in END.finditer(text):
+        while i < m.start() and text[i].isspace():
+            i += 1
+        out.append((i, m.start()))
+        i = m.end()
+    return out
+
+
+def sentence_at(spans, pos):
+    """The number of the sentence that pos stands in (the number of
+    sentences, if no full stop follows pos)."""
+    lo, hi = 0, len(spans)
+    while lo < hi:
+        mid = (lo + hi) // 2
+        if spans[mid][1] < pos:
+            lo = mid + 1
         else:
-            stack.append((m.group(2), "module"))
-    if any(kind is None for _, kind in stack):
+            hi = mid
+    return lo
+
+
+STRUCTURE = re.compile(
+    r"(Module\s+Type|Module|Section|End)\s+(?:(?:Import|Export)\s+)?(%s)(?![A-Za-z_0-9'])" % PNAME
+)
+WITH = re.compile(r"(?<![A-Za-z_0-9'.])with(?![A-Za-z_0-9'])")
+
+
+def open_at(text, spans, pos):
+    """What is open at pos, from the outermost, as words: (name, kind), the
+    kind "module", "section", or None for a functor, a module type or a
+    module of which the words do not say whether it is open. None if the
+    words do not say what is open: an [End] that closes nothing."""
+    stack = []
+    for a, b in spans:
+        if a >= pos:
+            break
+        m = STRUCTURE.match(text, a, b)
+        if not m:
+            continue
+        kind = " ".join(m.group(1).split())
+        name = m.group(2)
+        rest = text[m.end():b]
+        if kind == "End":
+            if not stack or stack[-1][0] != name:
+                return None
+            stack.pop()
+        elif kind == "Section":
+            stack.append((name, "section"))
+        elif ":=" in rest and not WITH.search(rest):
+            pass  # [Module A := P.] is one sentence
+        elif kind == "Module Type" or "(" in rest or ":=" in rest:
+            stack.append((name, None))
+        else:
+            stack.append((name, "module"))
+    return stack
+
+
+def rocq_modules(text, spans, pos):
+    """The modules of FILE.v that are open at pos, from the outermost, as
+    words; None if one of them is a functor or a module type, or if the
+    words do not say what is open."""
+    stack = open_at(text, spans, pos)
+    if stack is None or any(kind is None for _, kind in stack):
         return None
     return [name for name, kind in stack if kind == "module"]
 
 
-def in_section(text, pos):
-    """Whether a [Section] is open at pos, as words."""
-    open_sections = []
-    for m in SENTENCE.finditer(text, 0, pos):
-        kind = " ".join(m.group(1).split())
-        if kind == "Section":
-            open_sections.append(m.group(2))
-        elif kind == "End" and open_sections and open_sections[-1] == m.group(2):
-            open_sections.pop()
-    return bool(open_sections)
+def in_section(text, spans, pos):
+    """Whether a [Section] is open at pos, as words (true also if the words
+    do not say what is open)."""
+    stack = open_at(text, spans, pos)
+    return stack is None or any(kind == "section" for _, kind in stack)
 
 
-def binders_all_written(text, pos):
-    """Whether the binders that follow pos, up to [:] or [:=] outside
-    brackets, are only groups in round brackets, plain names and [{struct
-    x}]: nothing that Rocq may fill in, and no shape that is not known."""
+HEAD_TOKEN = re.compile(r":=|->|(?P<word>%s)|\S" % PPATH)
+GROUP = re.compile(r"\(\s*((?:%s\s+)*%s)\s*:(?!=)(.*)\)" % (PNAME, PNAME), re.S)
+STRUCT = re.compile(r"\{\s*struct\s+%s\s*\}" % PNAME)
+BODY = re.compile(":=")
+
+
+def plain_type(text, i, end):
+    """Whether the text from i to end is a type of which the tool reads
+    every word: names, round brackets that close, [->], [*], commas and
+    colons, and nothing else (no brace, no square bracket, no backquote)."""
+    depth = 0
+    while True:
+        m = HEAD_TOKEN.search(text, i, end)
+        if not m:
+            return depth == 0
+        t = m.group(0)
+        if t == "(":
+            depth += 1
+        elif t == ")":
+            depth -= 1
+            if depth < 0:
+                return False
+        elif not (m.group("word") or t in ("->", "*", ",", ":")):
+            return False
+        i = m.end()
+
+
+def written_head(text, pos, end):
+    """The head of a binding, from the end of its name at pos to the [:=]
+    of its body, in the sentence whose full stop is at [end]: (the number
+    of parameters that it writes, where the body begins); or (None, why)
+    if it is not read whole. What is read: binders that are groups [(names
+    : type)], plain names and [{struct x}]; then, after a colon, the type
+    of the result; each type as [plain_type] reads it."""
+    n = 0
     i = pos
-    while i < len(text):
-        c = text[i]
-        if c.isspace():
-            i += 1
-        elif c == ":":
-            return True
-        elif c == "(":
-            i = close_of(text, i, len(text))
-            if i is None:
-                return False
-        elif c == "{":
-            j = close_of(text, i, len(text))
-            if j is None or not re.fullmatch(r"\{\s*struct\s+%s\s*\}" % PNAME, text[i:j]):
-                return False
+    while True:
+        m = HEAD_TOKEN.search(text, i, end)
+        if not m:
+            return None, "no [:=] before the full stop"
+        t = m.group(0)
+        i = m.end()
+        if t == ":=":
+            return n, i
+        if t == ":":
+            break
+        if t == "(":
+            j = close_of(text, m.start(), end)
+            g = GROUP.fullmatch(text, m.start(), j) if j else None
+            if not g or not plain_type(text, g.start(2), g.end(2)):
+                return None, "a binder in brackets that is not [(names : type)] with a type that is read"
+            n += len(g.group(1).split())
             i = j
+        elif t == "{":
+            j = close_of(text, m.start(), end)
+            if not j or not STRUCT.fullmatch(text, m.start(), j):
+                return None, "a binder in braces"
+            i = j
+        elif m.group("word") and "." not in t:
+            n += 1
         else:
-            m = re.compile(PNAME).match(text, i)
-            if not m:
-                return False
-            i = m.end()
-    return False
+            return None, "[%s] among the binders" % t
+    m = BODY.search(text, i, end)
+    if not m:
+        return None, "no [:=] before the full stop"
+    if not plain_type(text, i, m.start()):
+        return None, "a type of the result that is not read"
+    return n, m.end()
 
 
-ADDS_ARGUMENTS = re.compile(
-    r"(?m)^[ \t]*(?:(?:Global|Local|#\[[^\]]*\])\s+)*"
-    r"(Set\s+Implicit\s+Arguments|Generalizable|Existing\s+Instances?)(?![A-Za-z_0-9'])"
-)
 TOKEN = re.compile(
     r"\{\||\|\}|\|\||:=|=>|(?P<word>%s[!*&]?)|(?P<end>\.(?=\s|$))|[(){}\[\]]|\S" % PPATH
 )
+
+
+def of_let(t):
+    """Whether the word t is [let] or of its family in the kit: it begins
+    with [let] or ends with [!], [*] or [&] ([let!], [let*], [let&],
+    [let_fuel!], [recursive!])."""
+    return t.startswith("let") or t[-1] in "!*&"
+
+
+def after_in(text, i, end):
+    """After the [in] of a word of the family of [let] whose text begins at
+    i; None if it is not found before [end]. Outside brackets, each word
+    of the family wants one [in]; the [in]s between a [match] and its
+    [with] are not counted; a [return] elsewhere is not read."""
+    depth = 0
+    wanted = 1
+    heads = 0
+    for m in TOKEN.finditer(text, i, end):
+        t = m.group(0)
+        if t in ("(", "[", "{"):
+            depth += 1
+        elif t in (")", "]", "}"):
+            depth -= 1
+            if depth < 0:
+                return None
+        elif depth or not m.group("word"):
+            continue
+        elif t == "match":
+            heads += 1
+        elif t == "with":
+            heads = max(0, heads - 1)
+        elif t == "in":
+            if not heads:
+                wanted -= 1
+                if wanted == 0:
+                    return m.end()
+        elif t == "return":
+            if not heads:
+                return None
+        elif of_let(t):
+            wanted += 1
+    return None
+
+
+def function_at_the_head(text, i, end):
+    """Why the body from i to [end] may be a function whose binders the
+    head of the binding does not write; None if it is none: after the
+    words of the family of [let] that it begins with, each up to its [in],
+    its first word is a name or a word that is no [fun], [fix] or [cofix].
+    A body that begins with a bracket or another sign is not read; nor is
+    Rocq's own [let] when a pattern follows it, not a name (it may have a
+    second [in], after [return])."""
+    for _ in range(1000):
+        m = TOKEN.search(text, i, end)
+        if not m:
+            return "it has no word"
+        t = m.group(0)
+        if not m.group("word"):
+            return "it begins with [%s], which the tool does not read" % t
+        if t in ("fun", "fix", "cofix"):
+            return "it begins with [%s], whose binders the head does not write" % t
+        if not of_let(t):
+            return None
+        bound = TOKEN.search(text, m.end(), end)
+        if t == "let" and not (bound and bound.group("word")):
+            return "its [let] binds a pattern, which the tool does not follow"
+        i = after_in(text, m.end(), end)
+        if i is None:
+            return "the [in] of its [%s] is not found" % t
+    return "it is too long"
+
+
+KNOWN = re.compile(
+    r"(?:From|Require|Import|Module|Declare\s+Module|End|Section|Variable|Context|Definition"
+    r"|Fixpoint|Inductive|Record|Parameter|Extract|(?:Local\s+)?Open\s+Scope|Arguments)"
+    r"(?![A-Za-z_0-9'])"
+)
+IMPORTS = re.compile(r"(?:From|Require|Import)(?![A-Za-z_0-9'])")
+ARGUMENTS_OF = re.compile(r"Arguments\s+(?:%s\.)*(%s)(?![A-Za-z_0-9'.])" % (PNAME, PNAME))
+
+
+def not_known(text, spans, f):
+    """The first sentence of the file that the tool does not know to leave
+    the arguments of f as they are written: (its line, its first words);
+    None if there is none. Known: a sentence that begins with one of the
+    words of KNOWN, but an [Arguments] only if it names another name than
+    f. (So not known: [Set ..], [Generalizable], [Existing Instance],
+    [Notation], [Abbreviation], [Coercion], [Local ..] but [Local Open
+    Scope], an attribute [#[..]], a proof, and every other.)"""
+    for a, b in spans:
+        m = KNOWN.match(text, a, b)
+        if m and m.group(0) == "Arguments":
+            m = ARGUMENTS_OF.match(text, a, b)
+            if m and m.group(1) == f:
+                m = None
+        if not m:
+            return text.count("\n", 0, a) + 1, " ".join(text[a:b].split()[:3])
+    return None
 
 
 def may_be_bound(text, f, binding):
@@ -846,18 +1170,26 @@ def may_be_bound(text, f, binding):
     bound, as words; the name of the binding at [binding] is not counted."""
     out = []
     depth = 0
+    kinds = []  # the brackets that are open
     regions = []  # (the tokens that end it, the depth where it began)
     heads = []  # the depths of the [match]es whose [with] has not come
     start = True  # at the first word of a sentence
     after_as = False
     for m in TOKEN.finditer(text):
         t = m.group(0)
-        if t in "([{":
+        if start:
+            # a sentence: up to its [:=] if it is a Definition or a
+            # Fixpoint (a body follows), else to its end
+            regions.append(((":=",) if t in ("Definition", "Fixpoint") else (), depth))
+            start = False
+        if t in ("(", "[", "{"):
             depth += 1
+            kinds.append(t)
             if t == "{":
                 regions.append(((":", "|", "&"), depth))
-        elif t in ")]}":
+        elif t in (")", "]", "}"):
             depth -= 1
+            kinds = kinds[:-1]
             regions = [r for r in regions if r[1] <= depth]
             heads = [d for d in heads if d <= depth]
         elif m.group("end") and depth == 0:
@@ -869,17 +1201,20 @@ def may_be_bound(text, f, binding):
             regions = [r for r in regions if not (t in r[0] and r[1] == depth)]
         word = m.group("word")
         if word and t == f and (regions or after_as) and m.start() != binding:
-            out.append(text.count("\n", 0, m.start()) + 1)
+            line = text.count("\n", 0, m.start()) + 1
+            if line not in out:
+                out.append(line)
         after_as = False
+        if t == ";" and kinds and kinds[-1] == "{":
+            # the next field of a record
+            regions.append(((":", "|", "&"), depth))
         if not word and t != "|":
             continue
-        if start and t[0].isupper():
-            regions.append(((":=",), depth))
-        elif t == "fun":
+        if t == "fun":
             regions.append((("=>",), depth))
         elif t in ("forall", "exists", "exists2"):
             regions.append(((",",), depth))
-        elif t.startswith("let") or t[-1] in "!*&":
+        elif of_let(t):
             regions.append(((":=", "in"), depth))
         elif t in ("fix", "cofix"):
             regions.append(((":=",), depth))
@@ -895,7 +1230,6 @@ def may_be_bound(text, f, binding):
             after_as = True
         elif t in ("in", "return") and heads and heads[-1] == depth:
             regions.append((("with",), depth))
-        start = False
     return out
 
 
@@ -904,8 +1238,10 @@ def of_the_file(path, text, u):
     the file's own extracted text."""
     if u.n is None:
         return False, "its arguments could not be counted"
+    spans = sentences(text)
     parts = u.name.split(".")
     f = parts[-1]
+    written = parts[:-1]
     ahead = r"(?<![A-Za-z_0-9'.])"
     behind = r"(?![A-Za-z_0-9'.])"
     # where the file binds f by Definition, Fixpoint or with: the places
@@ -918,19 +1254,19 @@ def of_the_file(path, text, u):
             text,
         )
     ]
-    if len(parts) > 1:
+    here = rocq_modules(text, spans, u.pos)
+    if written:
         # the bindings of f that the name can be: their modules end with
         # the modules that the use writes (a binding inside a functor has
         # modules that are not known: it can be any)
-        written = parts[:-1]
-        if rocq_modules(text, u.pos) is None:
+        if here is None:
             return False, (
                 "the use stands inside a functor or a module type of the file: "
                 "the words do not say what %s is there" % u.name
             )
         can_be = [
-            ms
-            for ms in (rocq_modules(text, pos) for pos in margin)
+            (pos, ms)
+            for pos, ms in ((pos, rocq_modules(text, spans, pos)) for pos in margin)
             if ms is None or ms[-len(written):] == written
         ]
         if len(can_be) != 1:
@@ -938,14 +1274,9 @@ def of_the_file(path, text, u):
                 len(can_be),
                 u.name,
             )
-        modules = can_be[0]
+        binding, modules = can_be[0]
         if modules is None:
             return False, "%s is bound inside a functor or a module type of the file" % f
-        binding = [
-            pos
-            for pos in margin
-            if (rocq_modules(text, pos) or [None])[-len(written):] == written
-        ][0]
     else:
         local = re.findall(r"%slet\s+%s%s" % (ahead, re.escape(f), behind), text)
         if local and not margin:
@@ -958,7 +1289,7 @@ def of_the_file(path, text, u):
                 len(margin) + len(local),
             )
         binding = margin[0]
-        modules = rocq_modules(text, binding)
+        modules = rocq_modules(text, spans, binding)
         if modules is None:
             return False, "%s is bound inside a functor or a module type of the file" % f
         places = may_be_bound(text, f, binding)
@@ -968,23 +1299,52 @@ def of_the_file(path, text, u):
                 "the words do not say which the use reaches"
                 % (f, ", ".join(str(n) for n in places[:5]))
             )
-    # Rocq's N bounds the arguments of the OCaml use only if elaboration
-    # adds none
-    added = (
-        "a [Section]"
-        if in_section(text, binding) or in_section(text, u.pos)
-        else "a binder of %s that is not written at each use, or that the tool does not know" % f
-        if not binders_all_written(text, binding + len(f))
-        else "the command [%s]" % " ".join(ADDS_ARGUMENTS.search(text).group(1).split())
-        if ADDS_ARGUMENTS.search(text)
-        else "an [Arguments] of %s" % f
-        if re.search(
-            r"(?m)^[ \t]*(?:(?:Global|Local|#\[[^\]]*\])\s+)*Arguments\s+(?:%s\.)*%s(?![A-Za-z_0-9'])"
-            % (PNAME, re.escape(f)),
-            text,
-        )
+    # the name at the use is the binding only if the use comes after it (or
+    # stands in its sentence), nothing is imported between them, and the
+    # use stands where the name as it is written is in sight
+    first = sentence_at(spans, binding)
+    last = sentence_at(spans, u.pos)
+    if first == len(spans):
+        return False, "no full stop ends the binding of %s" % f
+    imported = [a for a, b in spans[first + 1:last] if IMPORTS.match(text, a, b)]
+    sight = modules[:len(modules) - len(written)]
+    lost = (
+        "the use stands before the binding of %s" % f
+        if last < first
+        else "line %d, between the binding of %s and the use, imports"
+        % (text.count("\n", 0, imported[0]) + 1, f)
+        if imported
+        else "the use stands inside a functor or a module type of the file"
+        if here is None
+        else "the use stands outside the module of the file where %s is bound" % f
+        if here[:len(sight)] != sight
         else None
     )
+    if lost:
+        return False, "%s: the words do not say what %s is there" % (lost, u.name)
+    # Rocq's N bounds the arguments of the OCaml use only if elaboration
+    # adds none: no section, no sentence that the tool does not know, and
+    # the first N + 1 parameters written in the head of the binding
+    end = spans[first][1]
+    head = written_head(text, binding + len(f), end)
+    other = not_known(text, spans, f)
+    added = (
+        "a [Section]"
+        if in_section(text, spans, binding) or in_section(text, spans, u.pos)
+        else "line %d begins with [%s], a sentence that the tool does not know to add none" % other
+        if other
+        else "the head of the binding of %s, from its name to [:=], is not read: %s" % (f, head[1])
+        if head[0] is None
+        else "the head of the binding of %s writes %d parameter%s and the use gives %d argument%s: "
+        "a parameter that the head does not write is not counted"
+        % (f, head[0], "" if head[0] == 1 else "s", u.n, "" if u.n == 1 else "s")
+        if head[0] <= u.n
+        else None
+    )
+    if not added:
+        added = function_at_the_head(text, head[1], end)
+        if added:
+            added = "the body of %s: %s" % (f, added)
     if added:
         return False, "Rocq may give %s an argument that is not written (%s)" % (f, added)
     rel = os.path.relpath(os.path.abspath(path), os.path.abspath(PORT))

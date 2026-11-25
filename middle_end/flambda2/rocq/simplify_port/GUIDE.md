@@ -116,7 +116,10 @@ number for each declared value, read from the compiler's typed trees, and
 `tools/lint.py` checks each `pappN F` against it (`tools/papp.py` says how,
 and what it does not see). Write `pappN` plain and the function as a name
 (`papp1 M.f a`): the lint refuses `Port_monad.papp1`, `@papp1`, and a
-function that is not a name. A use that passes has NO mark. A use that does
+function that is not a name. Write a declared function with its module: a
+name without a module that the lint finds under an `Import` does not pass
+if the name also stands anywhere in the file where a variable may be bound.
+A use that passes has NO mark. A use that does
 not pass (the first group has no more parameters than the use gives
 arguments; or no definition was read: the standard library; or the
 function is a variable, of which nothing is known) has, before it in the
@@ -145,13 +148,37 @@ A use that `make papp` cannot pass has the mark, which says what the
 extracted text has: a local function (Rocq's own `let`), which the tool
 does not look up; a definition that is another name or an application; a
 function inside a functor; a function with no more parameters than it is
-given. `make papp` also refuses the use, so that it needs the mark, where
-the words do not show that the OCaml use gives no more arguments than are
-written, or which function is meant: keep the function and its use out of a
-`Section` (after a section Rocq gives the function the section's variables
-as arguments), give it no implicit binder (`{n : nat}`), no `Arguments`,
-and do not use its name for a variable anywhere in the file (a parameter, a
-`let`, a pattern). `make papp` prints each such mark that stays, and a mark
+given. `make papp` IS NO ELABORATOR AND NO RESOLVER OF ROCQ'S NAMES: it
+reads words, counts the head of the binding as it is written, and accepts
+nothing that Rocq could have completed. So it also refuses the use, so
+that it needs the mark, unless the words show that the OCaml use gives no
+more arguments than are written, and which function is meant. Write such
+a function so:
+- it and its use stand outside any `Section` (after a section Rocq gives
+  the function the section's variables as arguments);
+- the head of its binding, from the name to `:=`, writes every parameter
+  that the use gives and at least one more, each as `(names : type)` or a
+  plain name, and has no brace but `{struct x}`, no square bracket, no
+  backquote and no number anywhere; its types, and the type of the result
+  if it writes one, are made of names, round brackets, `->`, `*`, commas
+  and colons (an implicit parameter can hide in the type of the result:
+  `: forall {n : nat}, ..`);
+- its body is no `fun` and no `fix`, also after `let`s (a `fun {n : nat}`
+  there is an implicit parameter too);
+- every sentence of the file begins with one of the words that
+  `tools/papp.py` lists (`Definition`, `Fixpoint`, `Inductive`, `Record`,
+  `Parameter`, `Module`, `End`, `From`, `Import`, `Extract`, `Local Open
+  Scope`, and a few more): no `Set Implicit Arguments`, no `Arguments` of
+  the function, no `Notation`, no attribute, no proof;
+- the use stands after the binding, or in its sentence, with no `Import`
+  or `Require` between them, and not outside the module of the binding;
+- its name is not used for a variable anywhere in the file (a parameter, a
+  `let`, a pattern, a field of a record).
+A use that `make papp` passes has been checked only under these shapes;
+`tools/papp.py` lists what it does NOT establish (the term that Rocq
+elaborates is not looked at; a coercion, a notation of the kit, or any
+mechanism that the tool does not know is not implied safe). `make papp`
+prints each such mark that stays, and a mark
 that is not needed is an error there. The mark of a function of the file
 stands before a `pappN` of it: without `pappN` a function of the file that
 is given its first arguments is a `let&` value with no mark (above), and
