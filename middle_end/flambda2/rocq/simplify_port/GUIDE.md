@@ -75,9 +75,17 @@ files beside the donors first. Points marked HUMAN are the human's to judge.
   counts); the nine notes inside definitions that it does not judge;
   the lines that each mark names first, and the further numbers of
   lines in the words of marks and notes that a search of the text
-  found. NOT read as a whole: the notes BEFORE the definitions that the
-  tool does not judge (in a functor or a module type of the file; with
-  no item of that name in the donor). Nothing repeats that reading.
+  found. Read once by hand after that: the notes BEFORE the definitions
+  that the tool does not judge (in a functor or a module type of the
+  file; with no item of that name in the donor), each against all the
+  lines that it names. Nothing repeats these readings.
+- A definition that `make lines` does not judge has a note all the same
+  if the donor has it at lines of its own (in a functor; a member of
+  the module that the donor writes as the argument of an application).
+  It has none if the donor has no lines for it alone: what the donor
+  makes by `include` or by applying a functor, and the file writes out
+  (the note or the mark before the first of them, or before their
+  module, names that line), and what the file adds of its own.
 - The donor's COMMENTS stay at their places, in the donor's words (one
   that begins `CR` may be left out): `make comments` lists the ones that
   are missing and the headers that differ.

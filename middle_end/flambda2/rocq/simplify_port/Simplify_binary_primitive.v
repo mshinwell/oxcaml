@@ -409,6 +409,7 @@ Module Binary_arith_like (N : Binary_arith_like_sig).
     Definition print (_ : Format.formatter) (_ : t) : M unit :=
       fatal_error "Not implemented".
 
+    (* 99-129 *)
     Module Set_.
       (* 100 *)
       Definition elt : Type := t.
@@ -726,8 +727,9 @@ Module Int_ops_for_binary_arith (I : A.Int_number_kind)
   (* 286 *)
   Definition op_ : Type := P.binary_int_arith_op.
 
-  (* 288-290: There are never any restrictions on the constant propagation
+  (* 288-289: There are never any restrictions on the constant propagation
      of integers, unlike for floats. *)
+  (* 290 *)
   Definition ok_to_evaluate (_env : DE.t) : M bool := ret true.
 
   (* 292 *)
@@ -1397,7 +1399,7 @@ Module Binary_int_comp_int64 :=
 Module Binary_int_comp_nativeint :=
   Binary_arith_like (Int_ops_for_binary_comp_nativeint).
 
-(* 702-813 *)
+(* 702-718 *)
 (* PORT-GAP(loose): 702-720, the module type of the functor's argument,
    which the compiler writes in place, has a name; the signature of the
    functor is checked by Rocq ([<:]) and not printed. *)
@@ -1558,22 +1560,30 @@ End Float_ops_for_binary_arith_gen.
 (* PORT-GAP(loose): 815-849, the argument of each application, which the
    compiler writes in place, is a module with a name. *)
 Module Float_ops_for_binary_arith_FP.
+  (* 816 *)
   Module F := Numeric_types.Float_by_bit_pattern.
 
+  (* 818 *)
   Definition width : Flambda_primitive.float_bitwidth :=
     Flambda_primitive.Float64.
 
+  (* 820 *)
   Definition arg_kind : K.Standard_int_or_float.t :=
     K.Standard_int_or_float.Naked_float.
 
+  (* 822 *)
   Definition result_kind : Flambda_kind.t := K.naked_float.
 
+  (* 824 *)
   Definition prover := T.meet_naked_floats.
 
+  (* 826 *)
   Definition unknown : T.t := T.any_naked_float.
 
+  (* 828 *)
   Definition these := T.these_naked_floats.
 
+  (* 830 *)
   Definition const := Reg_width_const.naked_float.
 End Float_ops_for_binary_arith_FP.
 
@@ -1583,22 +1593,30 @@ Module Float_ops_for_binary_arith :=
 
 (* 833-849 *)
 Module Float32_ops_for_binary_arith_FP.
+  (* 834 *)
   Module F := Numeric_types.Float32_by_bit_pattern.
 
+  (* 836 *)
   Definition width : Flambda_primitive.float_bitwidth :=
     Flambda_primitive.Float32.
 
+  (* 838 *)
   Definition arg_kind : K.Standard_int_or_float.t :=
     K.Standard_int_or_float.Naked_float32.
 
+  (* 840 *)
   Definition result_kind : Flambda_kind.t := K.naked_float32.
 
+  (* 842 *)
   Definition prover := T.meet_naked_float32s.
 
+  (* 844 *)
   Definition unknown : T.t := T.any_naked_float32.
 
+  (* 846 *)
   Definition these := T.these_naked_float32s.
 
+  (* 848 *)
   Definition const := Reg_width_const.naked_float32.
 End Float32_ops_for_binary_arith_FP.
 
@@ -1610,7 +1628,7 @@ Module Float32_ops_for_binary_arith :=
 Module Binary_float_arith := Binary_arith_like (Float_ops_for_binary_arith).
 Module Binary_float32_arith := Binary_arith_like (Float32_ops_for_binary_arith).
 
-(* 854-960 *)
+(* 854-860 *)
 (* PORT-GAP(loose): 854-862, the module type of the functor's argument,
    which the compiler writes in place, has a name; the signature of the
    functor is checked by Rocq ([<:]) and not printed. *)
@@ -1810,11 +1828,14 @@ End Float_ops_for_binary_comp_gen.
 (* PORT-GAP(loose): 962-976, the argument of each application, which the
    compiler writes in place, is a module with a name. *)
 Module Float_ops_for_binary_comp_FP.
+  (* 963 *)
   Module F := Numeric_types.Float_by_bit_pattern.
 
+  (* 965 *)
   Definition arg_kind : K.Standard_int_or_float.t :=
     K.Standard_int_or_float.Naked_float.
 
+  (* 967 *)
   Definition prover := T.meet_naked_floats.
 End Float_ops_for_binary_comp_FP.
 
@@ -1824,11 +1845,14 @@ Module Float_ops_for_binary_comp :=
 
 (* 970-976 *)
 Module Float32_ops_for_binary_comp_FP.
+  (* 971 *)
   Module F := Numeric_types.Float32_by_bit_pattern.
 
+  (* 973 *)
   Definition arg_kind : K.Standard_int_or_float.t :=
     K.Standard_int_or_float.Naked_float32.
 
+  (* 975 *)
   Definition prover := T.meet_naked_float32s.
 End Float32_ops_for_binary_comp_FP.
 
