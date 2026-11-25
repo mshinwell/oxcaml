@@ -297,7 +297,7 @@ Definition print (ppf : Format.formatter)
 
 (* 177-185 *)
 Module Decisions.
-  (* PORT-GAP(verbatim): 179-183, the compiler defines the record again,
+  (* PORT-GAP(verbatim): 178-182, the compiler defines the record again,
      equal to [decisions]: the OCaml text is that of the directive. *)
   Definition t : Type := decisions_.
   Extract Constant t =>

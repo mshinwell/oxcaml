@@ -87,10 +87,32 @@ THE RULE.
   goes from the first line of the first member's item to the last line
   of the last member's, and between two members the donor has NOTHING
   ELSE: blank lines and comments only. A run of one is the rule above.
+- A CLAUSE [with NAME ..] of a Fixpoint defines NAME, as the donor's
+  [and NAME ..] does. The tool takes for a clause a line of the Fixpoint
+  that begins AT THE MARGIN of the Fixpoint (the column of the word
+  [Fixpoint]) with [with NAME] and then [(], [{] or [:]. ITS ITEM is the
+  donor's value NAME in the modules of the Fixpoint (a [_] at the end of
+  either name left out, as for a definition); if the note of the
+  Fixpoint is right, it is one that the donor defines TOGETHER with the
+  Fixpoint's item (in one [let rec .. and ..]). ITS NOTE is, of the
+  comments that stand directly before the clause (only blanks between
+  them and the clause; a mark or another comment may stand among them),
+  the last one that is a note of lines. The note is ONE RANGE, and its
+  tokens are the tokens of the lines of the item's OWN definition (the
+  lines of [and NAME ..]): the lines of the whole item are wrong here,
+  and a clause that has an item and no note is an error. THE TOOL FAILS
+  CLOSED: each of these is an error, and nothing more is judged of the
+  line. A line at the margin of the Fixpoint that begins with [with] and
+  is not of that shape. A line that begins at another column with [with
+  NAME] and then [(], [{] or [:]: a clause is written at the margin (the
+  [with] of a [match] does not look so). A clause for which more than
+  one item is left (the donor defines NAME twice there). A clause whose
+  item the donor does not define together with the Fixpoint's.
 - A NOTE INSIDE a Definition or a Fixpoint whose own note is right names
   lines inside the whole item of the donor. So does a comment inside it
   that begins with lines and then a colon, a semicolon or a comma
-  ([12-13: words]). That is ALL that is checked of them.
+  ([12-13: words]). That is ALL that is checked of them. The note of a
+  clause is no note inside.
 
 NOT JUDGED, and counted in the line of numbers:
 - GIVEN: a [Definition NAME] that the directive [Extract Constant NAME] or
@@ -105,10 +127,13 @@ NOT JUDGED, and counted in the line of numbers:
 - IN A FUNCTOR OR A MODULE TYPE of the ported file: the words do not say
   which module of the donor that is. These definitions are LISTED AND NOT
   CHECKED: their notes are compared with nothing;
+- A CLAUSE [with NAME ..] whose name the donor has under no value in
+  those modules, or whose Fixpoint is in a functor or a module type of
+  the file: counted with the clauses, apart from the definitions;
 - every other sentence ([Parameter], a directive, [End]): no definition
   for this tool.
 With LINES_ALL in the environment the tool first prints one line for each
-definition: its note, and its class or what is wrong.
+definition and for each clause: its note, and its class or what is wrong.
 
 The tool prints the errors and then one line of numbers; its exit status
 is 1 if there is an error. If the donor is not read (tools/given.py: the
@@ -138,9 +163,14 @@ WHAT THE TOOL DOES NOT ESTABLISH.
   and just outside them. The notes that scans of the layout of the
   donor's text doubted (the scans are not kept in the tree) were read
   in full. Nothing repeats that reading.
-- The clauses [with NAME ..] of a Fixpoint: such a clause is no
-  definition for this tool, though the donor has an item for NAME, and
-  the note before it is a note inside the Fixpoint.
+- Of a CLAUSE [with NAME ..]: that its body is a port of those lines,
+  as for a definition. A clause whose line does not begin with [with]
+  (one that follows the end of another function on one line) is not
+  found, and no error is said. A note inside the body of a clause is
+  checked to lie inside the whole item of the Fixpoint, not inside the
+  lines of the clause. The [with NAME] of an [Inductive] (types that
+  are defined together) is not read: the note of the Inductive is all
+  that is judged of them.
 - The lines that a mark names ([PORT-GAP(sort): 12-13, words]), but for
   the mark that begins a group: they are compared with nothing. They
   were read once by hand, as the notes inside were.
@@ -172,6 +202,12 @@ KINDS = {
 HEAD = re.compile(
     r"(Definition|Fixpoint|Inductive|Record|Module\s+Type|Module)\s+(%s)(?![A-Za-z_0-9'.])"
     % papp.PNAME
+)
+
+# A line of a Fixpoint whose first word is [with]: its blanks, the name
+# after it, and the sign after the name, if they are there.
+WITH = re.compile(
+    r"(?m)^([ \t]*)with(?![A-Za-z_0-9'.])[ \t]*(?:(%s)(?![A-Za-z_0-9'.])[ \t]*([({:]?))?" % papp.PNAME
 )
 
 # A comment that begins with lines of the donor and is no note: the lines,
@@ -244,9 +280,29 @@ class Definition(object):
         self.verdict = None  # the class, for the line of numbers
         self.said = None  # the words of the listing
         self.error = None
+        self.clauses = []  # of a Fixpoint: its clauses [with NAME ..]
 
     def shown(self):
         return "%s %s" % (self.word, self.name)
+
+
+class Clause(object):
+    """A clause [with NAME ..] of a Fixpoint of a ported file."""
+
+    def __init__(self, line, name, fix, note, note_pos, colon):
+        self.line = line
+        self.name = name
+        self.fix = fix  # the Fixpoint
+        self.note = note  # the lines of the note directly before it, or None
+        self.note_pos = note_pos  # where that note begins
+        self.colon = colon  # a comment with lines and a colon stands there
+        self.item = None
+        self.verdict = None
+        self.said = None
+        self.error = None
+
+    def shown(self):
+        return "with %s (a clause of Fixpoint %s)" % (self.name, self.fix.name)
 
 
 def lines_of(item):
@@ -329,9 +385,125 @@ def judge_run(run, donor):
     )
 
 
+def clauses_of(rd, d, whole, errors):
+    """The clauses [with NAME ..] of a Fixpoint, each with the note that
+    stands directly before it; a line that begins with [with] and that
+    the tool does not read is an error."""
+    a, b = d.pos, d.end
+    margin = a - (rd.text.rfind("\n", 0, a) + 1)
+    inside = [c for c in whole if a < c[0] < b]
+    out = []
+    for m in WITH.finditer(rd.text, a, b):
+        at = m.start()
+        line = rd.raw.count("\n", 0, at) + 1
+        column = len(m.group(1))
+        name, sign = m.group(2), m.group(3)
+        if column != margin:
+            if name and sign:
+                errors.append(
+                    (
+                        line,
+                        "a line of %s begins with [with %s %s] at column %d, and the Fixpoint is at column %d: "
+                        "a clause is written at the margin of its Fixpoint, and the tool does not read this line"
+                        % (d.shown(), name, sign, column, margin),
+                    )
+                )
+            continue
+        if not name or not sign:
+            errors.append(
+                (
+                    line,
+                    "a line of %s begins with [with] at the margin of the Fixpoint and is not [with NAME (..]: "
+                    "the tool does not read it" % d.shown(),
+                )
+            )
+            continue
+        note = None
+        note_pos = None
+        colon = False
+        end = at
+        for ca, cb in reversed([c for c in inside if c[1] <= at]):
+            if rd.raw[cb:end].strip():
+                break
+            n = given.NOTE.fullmatch(rd.raw[ca:cb])
+            if n:
+                note, note_pos = given.ranges_of(n.group(1)), ca
+                break
+            colon = colon or bool(LINES_AND_WORDS.match(rd.raw[ca:cb]))
+            end = ca
+        out.append(Clause(line, name, d, note, note_pos, colon))
+    return out
+
+
+def judge_clause(c, donor, rows, why):
+    """The verdict of a clause [with NAME ..] of a Fixpoint."""
+    d = c.fix
+    if d.modules is None:
+        c.verdict = "functor"
+        c.said = "its Fixpoint is in a functor or a module type of the file: not looked up"
+        return
+    if why:
+        c.verdict = "not read"
+        c.said = "the donor is not read"
+        return
+    modules = tuple(plain(x) for x in d.modules)
+    named = [i for i in rows if i.kind == "value" and plain(i.name) == plain(c.name) and i.modules == modules]
+    if not named:
+        c.verdict = "no item"
+        c.said = "the donor has no value of that name %s" % ("in %s" % ".".join(modules) if modules else "at its top")
+        return
+    left = named
+    if d.item is not None:
+        whole = (d.item.whole_first, d.item.whole_last)
+        left = [i for i in named if (i.whole_first, i.whole_last) == whole]
+        if not left:
+            c.verdict = "wrong"
+            c.error = "the donor defines the value %s at %s, not together with %s (the item of lines %d-%d)" % (
+                c.name,
+                " and ".join(lines_of(i) for i in named),
+                d.name,
+                whole[0],
+                whole[1],
+            )
+            return
+    if len(left) > 1:
+        c.verdict = "wrong"
+        c.error = "the donor has %d values %s there (%s): the tool cannot tell which one the clause follows" % (
+            len(left),
+            c.name,
+            ", ".join(lines_of(i) for i in left),
+        )
+        return
+    i = left[0]
+    if c.note is None:
+        c.verdict = "no note"
+        c.error = "no note of lines stands directly before it: the donor's definition of %s is %s%s" % (
+            i.name,
+            lines_of(i),
+            " (the comment before it has a colon after its lines: a full stop makes it a note)" if c.colon else "",
+        )
+        return
+    if len(c.note) == 1 and donor.at(c.note) == donor.at([(i.first, i.last)]):
+        c.item = i
+        c.verdict = "the item"
+        c.said = "the lines of the donor's definition of %s" % i.name
+        return
+    c.verdict = "wrong"
+    c.error = "the note names %s, and the donor's definition of %s is %s%s" % (
+        given.show(c.note),
+        i.name,
+        lines_of(i),
+        " (the whole item is %d-%d: the note of a clause is the lines of its own definition)"
+        % (i.whole_first, i.whole_last)
+        if (i.whole_first, i.whole_last) != (i.first, i.last)
+        else "",
+    )
+
+
 def check(path, raw=None):
-    """The definitions of a ported file, each with its verdict; the notes
-    inside them; the errors."""
+    """The definitions of a ported file, each with its verdict; the
+    clauses of its Fixpoints; the notes inside the definitions; the
+    errors."""
     global ITEMS
     raw = open(path).read() if raw is None else raw
     rd = given.Reading(path, raw)
@@ -366,6 +538,8 @@ def check(path, raw=None):
         definitions.append(d)
         d.k = k
         d.one = word == "Module" and ":=" in s
+        if word == "Fixpoint":
+            d.clauses = clauses_of(rd, d, whole, errors)
         if word == "Definition" and rd.bodiless(rd.raw[a:b], k):
             d.verdict = "given"
             d.said = "its OCaml text is given by a directive: make given"
@@ -400,8 +574,9 @@ def check(path, raw=None):
             continue
         # the notes inside it
         low, high = d.item.whole_first, d.item.whole_last
+        of_clauses = set(c.note_pos for c in d.clauses)
         for ca, cb in whole:
-            if a < ca < b:
+            if a < ca < b and ca not in of_clauses:
                 n = given.NOTE.fullmatch(rd.raw[ca:cb]) or LINES_AND_WORDS.match(rd.raw[ca:cb])
                 if n:
                     ranges = given.ranges_of(n.group(1))
@@ -440,7 +615,16 @@ def check(path, raw=None):
                 d.verdict = "wrong"
                 d.error = "the donor has %d modules of that name there" % len(d.items)
                 errors.append((d.line, "%s: %s" % (d.shown(), d.error)))
+    # the clauses of the Fixpoints, after the Fixpoints themselves
+    clauses = []
+    for d in definitions:
+        for c in d.clauses:
+            judge_clause(c, donor, items.get(donor.rel, []), why)
+            if c.error:
+                errors.append((c.line, "%s: %s" % (c.shown(), c.error)))
+            clauses.append(c)
     rd.definitions = definitions
+    rd.clauses = clauses
     rd.inner = inner
     rd.line_errors = errors
     return rd
@@ -448,6 +632,7 @@ def check(path, raw=None):
 
 def main(files):
     count = collections.Counter()
+    clauses = collections.Counter()
     inside = 0
     errors = 0
     listing = os.environ.get("LINES_ALL")
@@ -455,15 +640,18 @@ def main(files):
         rd = check(path)
         for d in rd.definitions:
             count[d.verdict] += 1
-            if listing:
+        for c in rd.clauses:
+            clauses[c.verdict] += 1
+        if listing:
+            for x in sorted(rd.definitions + rd.clauses, key=lambda x: x.line):
                 print(
                     "%s:%d\t%s\t%s\t%s"
                     % (
                         path,
-                        d.line,
-                        d.shown(),
-                        given.show(d.note) if d.note else "no note",
-                        d.said or "WRONG: %s" % d.error,
+                        x.line,
+                        x.shown(),
+                        given.show(x.note) if x.note else "no note",
+                        x.said or "WRONG: %s" % x.error,
                     )
                 )
         inside += len([x for x in rd.inner if x[3]])
@@ -475,8 +663,9 @@ def main(files):
         "lines: %d definitions in %d files: %d have the note of the lines of the donor's item (%d of them "
         "of the whole item that defines it with others, %d in runs of [Module X := ..]); not judged: %d "
         "whose text a directive gives (make given), %d that the donor has under no such name, %d in a "
-        "functor or a module type of the file; %d notes inside a definition, each inside the lines of "
-        "its item; %s"
+        "functor or a module type of the file; %d clauses [with NAME] of a Fixpoint: %d have the note of "
+        "the lines of the donor's definition of NAME, %d are not judged; %d notes inside a definition, "
+        "each inside the lines of its item; %s"
         % (
             sum(count.values()),
             len(files),
@@ -486,6 +675,9 @@ def main(files):
             count["given"],
             count["no item"],
             count["functor"],
+            sum(clauses.values()),
+            clauses["the item"],
+            clauses["no item"] + clauses["functor"] + clauses["not read"],
             inside,
             "%d wrong" % errors if errors else "nothing wrong",
         )

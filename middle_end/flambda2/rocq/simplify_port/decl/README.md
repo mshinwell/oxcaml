@@ -372,8 +372,9 @@ for each name, with the lines of the binding. An item that binds no name
 of a source. A donor whose typed tree was not made from the text of the
 tree has one row, with `-` for the kind and the lines and the reason in
 the fourth column. `tools/lines.py` compares the note of lines before
-each definition of a ported file with these lines (its header says how,
-and which definitions it does not judge). Today: 2024 rows (1472 values,
+each definition of a ported file, and before each clause `with f` of a
+`Fixpoint`, with these lines (its header says how, and which definitions
+it does not judge). Today: 2024 rows (1472 values,
 178 types, 358 modules, 11 module types, 5 exceptions), of 78 donors; 108
 of them in the body of a functor; no donor is "not read".
 

@@ -931,6 +931,7 @@ Module Matching_for_unique_handler.
       fail tt
     end
 
+  (* 583-597 *)
   with match_let_expr (fuel : fuel) (env : matching_env)
       (let_expr1 let_expr2 : Let.t) {struct fuel} : M unit :=
     recursive! fuel in
@@ -958,6 +959,7 @@ Module Matching_for_unique_handler.
               fail tt
             end))
 
+  (* 599-612 *)
   with match_apply_cont (fuel : fuel) (env : matching_env)
       (apply_cont1 apply_cont2 : Apply_cont.t) {struct fuel} : M unit :=
     recursive! fuel in

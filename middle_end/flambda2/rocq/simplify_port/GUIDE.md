@@ -48,21 +48,25 @@ files beside the donors first. Points marked HUMAN are the human's to judge.
   an error. The note counts for all the sentences of its group (an
   `Inductive t_` and the `Definition t` after it). `Module X := ..`
   sentences that follow one another may have one note, the lines of all
-  of them (the donor has nothing else between them). NOT JUDGED, and
-  listed by `LINES_ALL=1 make lines`: a definition in a functor or a
-  module type of the file; a name that the donor does not have (a
-  helper); a `Definition` whose text a directive gives (`make given`).
+  of them (the donor has nothing else between them). A CLAUSE of a
+  `Fixpoint`, `with f (..`, is written AT THE MARGIN of its `Fixpoint`
+  and has its own note directly before it (a mark may stand between):
+  the lines of the donor's `and f ..`, not those of the whole `let rec`.
+  `make lines` compares it as it does the note of a definition, and a
+  clause without a note is an error. NOT JUDGED, and listed by
+  `LINES_ALL=1 make lines`: a definition in a functor or a module type
+  of the file; a name that the donor does not have (a helper); a
+  `Definition` whose text a directive gives (`make given`).
 - A note INSIDE a definition names WHOLE LINES of the part that the Rocq
   text after it follows, from the line where the part begins to the line
   where it ends (parts that follow one another: from the first line of
   the first to the last line of the last). A `let .. in` goes from the
   line of its `let` to the line of its `in`, also when the `in` stands
   alone on its line; an arm of a match is named with the lines of its
-  pattern, or its body alone; the note before a `with f` clause of a
-  `Fixpoint` is the lines of the donor's `and f ..`. A comment that
-  speaks of one piece of the text (`(* 12: words *)`: a pattern, the
-  parameters of a function, one argument) names the lines where that
-  piece stands. `make lines` checks a note inside a definition ONLY to
+  pattern, or its body alone. A comment that speaks of one piece of the
+  text (`(* 12: words *)`: a pattern, the parameters of a function, one
+  argument) names the lines where that piece stands. `make lines` checks
+  a note inside a definition (the note of a clause is not one) ONLY to
   lie inside the lines of its item. Whether it begins and ends where a
   part does is checked by NO TOOL: when `tools/lines.py` was written,
   every note inside was read once by hand against the donor (the Rocq

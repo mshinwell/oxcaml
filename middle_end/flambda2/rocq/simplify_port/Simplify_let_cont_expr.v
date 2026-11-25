@@ -2075,7 +2075,7 @@ with simplify_handler (fuel : fuel)
       in
       k dacc simplified_handler cont_uses_env_in_handler)
 
-(* 1464-1520: the last parameter but one is the pattern [({ params; handler;
+(* 1464-1520. The last parameter but one is the pattern [({ params; handler;
    is_cold } as original : One_recursive_handler.t)]. *)
 with simplify_single_recursive_handler (fuel : fuel)
     (simplify_expr : Simplify_common.expr_simplifier Expr.t)
@@ -2153,7 +2153,7 @@ with simplify_single_recursive_handler (fuel : fuel)
            extra_params_and_args := EPA.empty |}
         cont_uses_env_so_far)
 
-(* 1522-1588: the function returns its local function [loop], given its
+(* 1522-1588. The function returns its local function [loop], given its
    first argument. *)
 with simplify_recursive_handlers (fuel : fuel)
     (down_to_up : Simplify_common.down_to_up SE.t)

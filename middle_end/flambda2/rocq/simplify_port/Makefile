@@ -209,7 +209,8 @@ $(B)/check/port_%.cmi: runtime/port_%.ml tools/check.sh
 given:
 	$(PYTHON) tools/given.py $(addsuffix .v,$(PORTED))
 
-# The note of lines before each definition of a ported file: the lines
+# The note of lines before each definition of a ported file, and before
+# each clause [with f] of a Fixpoint: the lines
 # where the compiler's file defines the thing of that name, which
 # decl/DONOR-ITEMS.tsv has from the typed tree. tools/lines.py says how,
 # which definitions it does not judge, and what it does not establish. It
