@@ -28,7 +28,8 @@
 
 # run.sh [TEST.fl ...] : the tests of this folder (all of them if none is
 # named). Each is a term in Flambda's text form that the translation from
-# Lambda never makes. It follows no file of the compiler.
+# Lambda does not make where Simplify runs on x86-64 (README.md names the
+# two shapes that are made elsewhere). It follows no file of the compiler.
 #
 # The compiler's test tool fexprc reads such a file and runs Simplify on the
 # term. This script runs each test through two copies of fexprc, one built
@@ -55,9 +56,17 @@
 # ENTERS-EXPERT, for the run with the expert flags) are looked for among
 # the names entered.
 #
+# A RUN IN WHICH A COPY DOES NOT COME TO AN END OF ITS OWN is never "the
+# same": the program is not found or cannot be run (status 126, 127), the
+# limit of time (124, 125), a signal (above 128), or the work folder cannot
+# be made. Such a run is counted apart. An exit status 1 or 2 of fexprc
+# itself (a text that is not read, a fatal error) is a result and is
+# compared.
+#
 # Prints one line a run, then the counts. Exit status 1 if a run differs,
-# or if a name that a test is meant to enter is not entered; 2 if a copy of
-# fexprc is not given.
+# if a copy did not come to its end in a run, or if a name that a test is
+# meant to enter is not entered; 2 if a copy of fexprc is not given or the
+# program timeout is not found.
 here=$(cd "$(dirname "$0")" && pwd)
 for v in FEXPRC_BASE FEXPRC_PORT; do
   if [ ! -x "${!v}" ]; then
@@ -67,6 +76,8 @@ done
 if [ -n "$FEXPRC_COV" ] && [ ! -x "$FEXPRC_COV" ]; then
   echo "run.sh: FEXPRC_COV is not a program"; exit 2
 fi
+command -v timeout > /dev/null \
+  || { echo "run.sh: the program timeout is not found"; exit 2; }
 expert="-flambda2-expert-cont-lifting-budget 200"
 expert="$expert -flambda2-expert-cont-specialization-threshold 200"
 expert="$expert -flambda2-match-in-match"
@@ -88,11 +99,23 @@ fi
 # in a folder of its own; leaves TEST.MODE.COPY.{status,out,err} in $out
 one_run() {
   local copy=$1 prog=$2 t=$3 m=$4 w=$out/work
-  rm -rf "$w"; mkdir -p "$w"; cp "$here/$t.fl" "$w/"
+  rm -f "$out/$t.$m.$copy.status" "$out/$t.$m.$copy.out" "$out/$t.$m.$copy.err"
+  if ! { rm -rf "$w" && mkdir -p "$w" && cp "$here/$t.fl" "$w/"; }; then
+    echo "no work folder" > "$out/$t.$m.$copy.status"; return
+  fi
   ( cd "$w" && timeout 300 "$prog" $(flags_of $m) -dfexpr -dflambda "$t.fl" \
       > "$out/$t.$m.$copy.out" 2> "$out/$t.$m.$copy.err" )
   echo $? > "$out/$t.$m.$copy.status"
   rm -rf "$w"
+}
+# ended COPY TEST MODE : did the copy come to an end of its own (any exit
+# status below 124)
+ended() {
+  local s; s=$(cat "$out/$2.$3.$1.status" 2> /dev/null)
+  case $s in
+    ''|*[!0-9]*) return 1;;
+  esac
+  [ "$s" -lt 124 ]
 }
 # same TEST MODE COPY1 COPY2 : are the status, the output and the messages
 # of the two copies the same
@@ -104,7 +127,7 @@ same() {
 if [ $# = 0 ]; then
   set -- $(cd "$here" && ls *.fl | LC_ALL=C sort)
 fi
-runs=0; differ=0; cov_differ=0; wanted=0; entered=0
+runs=0; differ=0; cov_differ=0; wanted=0; entered=0; notrun=0
 for f in "$@"; do
   t=$(basename "$f" .fl)
   [ -e "$here/$t.fl" ] || { echo "run.sh: no test $t.fl"; exit 2; }
@@ -112,13 +135,22 @@ for f in "$@"; do
     runs=$((runs+1))
     one_run base "$FEXPRC_BASE" $t $m
     one_run port "$FEXPRC_PORT" $t $m
+    if ! ended base $t $m || ! ended port $t $m; then
+      notrun=$((notrun+1))
+      echo "$t, $m: A COPY DID NOT COME TO ITS END (base:" \
+        "$(cat "$out/$t.$m.base.status" 2> /dev/null); port:" \
+        "$(cat "$out/$t.$m.port.status" 2> /dev/null)): not compared"
+      continue
+    fi
     line="$t, $m: exit status $(cat "$out/$t.$m.port.status"); base and port:"
     if same $t $m base port; then line="$line the same"
     else line="$line DIFFER"; differ=$((differ+1)); fi
     if [ -n "$FEXPRC_COV" ]; then
       hits=$out/$t.$m.hits; rm -f "$hits"
       PORT_COV_FILE=$hits one_run cov "$FEXPRC_COV" $t $m
-      if same $t $m cov port; then line="$line; cov and port: the same"
+      if ! ended cov $t $m; then
+        line="$line; cov: DID NOT COME TO ITS END"; cov_differ=$((cov_differ+1))
+      elif same $t $m cov port; then line="$line; cov and port: the same"
       else line="$line; cov and port: DIFFER"; cov_differ=$((cov_differ+1)); fi
       names=$(sed -n 's/^ *ENTERS \([^ ]*\).*$/\1/p' "$here/$t.fl")
       if [ $m = expert ]; then
@@ -137,9 +169,10 @@ for f in "$@"; do
     echo "$line"
   done
 done
-last="$runs runs; base and port the same: $((runs-differ)); differ: $differ"
+last="$runs runs; base and port the same: $((runs-differ-notrun)); differ: $differ"
+last="$last; a copy did not come to its end: $notrun"
 if [ -n "$FEXPRC_COV" ]; then
   last="$last; cov and port differ: $cov_differ; names entered: $entered of $wanted"
 fi
 echo "$last"
-[ $differ = 0 ] && [ $cov_differ = 0 ] && [ $entered = $wanted ]
+[ $differ = 0 ] && [ $cov_differ = 0 ] && [ $entered = $wanted ] && [ $notrun = 0 ]

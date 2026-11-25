@@ -1,8 +1,11 @@
 # Tests in Flambda's text form
 
 Six terms written in Flambda's text form (`.fl` files). Each has a shape
-that the translation from Lambda never makes, so no OCaml source brings
-Simplify to the code that treats it. The compiler's test tool `fexprc`
+that the translation from Lambda does not make where Simplify runs on
+x86-64, so no OCaml source brings Simplify to the code that treats it
+there. (Two of the shapes are made elsewhere: a set of closures that is a
+static constant in classic mode, in which Simplify does not run; and
+`%reinterpret_boxed_vector` on arm64.) The compiler's test tool `fexprc`
 reads such a file and runs Simplify on the term. `run.sh` runs each test
 through a copy of `fexprc` built with the compiler's own Simplify and a
 copy built with the extracted files, and says whether the two give the
@@ -36,7 +39,12 @@ the flags that turn on the lifting and the specialization of continuations.
 Every run has `-dfexpr -dflambda`: the standard output is then the term
 that Simplify gives, printed in the text form and in the full form.
 Compared between the two copies: the exit status, the standard output, the
-messages (the standard error). `fexprc` writes no file.
+messages (the standard error). `fexprc` writes no file. A run in which a
+copy does not come to an end of its own (it is not found or cannot be
+run, the limit of time, a signal, the work folder cannot be made) is
+counted apart, is never "the same", and makes the exit status 1. An exit
+status 1 or 2 of `fexprc` itself (a text that is not read, a fatal error)
+is a result, and is compared.
 
 ## The tests
 

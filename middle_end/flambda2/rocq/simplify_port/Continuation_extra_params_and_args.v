@@ -94,8 +94,9 @@ Extract Inlined Constant Extra_arg_List_print => "Extra_arg.List.print".
 
 (* 46-51 *)
 (* The type has an inline record; the fields are by place, as in decl/. (The
-   strings do not name the type [t]: Rocq writes [open Apply_cont_rewrite_id]
-   after the verbatim text, and that module has a type [t] too.) *)
+   strings do not name the type [t]. When they were written, Rocq wrote
+   [open Apply_cont_rewrite_id] after the verbatim text, and that module has
+   a type [t] too; the extracted file has that line no more.) *)
 Inductive t : Type :=
 | Empty : t
 | Non_empty :
