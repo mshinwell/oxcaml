@@ -21,6 +21,7 @@ comes from outside this repository.
 | `decl/*.v` | written by `tools/declgen` from the compiled interface of the compiler's module of the same name; each begins with the header of that interface (`decl/README.md`) | generated |
 | `decl/INDEX.tsv`, `decl/NOT-DECLARED.tsv`, `decl/FUNCTOR-ARGUMENTS.tsv`, `decl/VARIANTS.tsv` | written by `tools/declgen` with the `.v` files, from the compiled interfaces and the typed trees of the compiler (`decl/README.md` says what each holds) | generated |
 | `decl/ARITIES.tsv` | written by `tools/declgen` from the typed trees of the implementations of the compiler's modules (`decl/README.md`, last section) | generated |
+| `decl/UPDATES.tsv`, `decl/DONOR-TOKENS.tsv` | written by `tools/declgen` (`donors.ml`) about the 78 files of `middle_end/flambda2/simplify/`: the first from their typed trees (names and numbers of lines, no text), the second from their text as the compiler's lexer reads it (for each file a number and a digest, no text) (`decl/README.md`, the section before the last) | generated |
 | `decl/README.md` | none | original |
 | `extracted/.ocamlformat`, `runtime/.ocamlformat` | `middle_end/flambda2/.ocamlformat` | copy |
 | `Simplify_import.v` | `middle_end/flambda2/simplify/simplify_import.ml` | transcribed |

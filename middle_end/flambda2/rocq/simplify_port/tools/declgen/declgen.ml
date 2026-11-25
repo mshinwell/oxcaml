@@ -29,14 +29,22 @@
 
    Writes, into OUT_DIR, one file of Rocq for each compilation unit that
    the given files of Simplify use, and for each of those files itself: the
-   declarations of decl/README.md. Also INDEX.tsv, ARITIES.tsv and
-   NOT-DECLARED.tsv.
+   declarations of decl/README.md. Also INDEX.tsv, ARITIES.tsv,
+   NOT-DECLARED.tsv, and the two tables of donors.ml about the given files
+   themselves, UPDATES.tsv and DONOR-TOKENS.tsv.
 
    declgen --parameters FILE.cmt
 
    For a test of the count of ARITIES.tsv: prints each value that the
    implementation FILE.cmt binds at its top, and the number of its
    parameters by the rule of arities.ml. It writes no file.
+
+   declgen --updates FILE.cmt
+   declgen --tokens FILE.ml
+
+   For a test of the two tables of donors.ml: prints the rows of the
+   record updates of one typed tree, or the row of the tokens of one file.
+   They write no file.
    This file follows no file of the compiler. *)
 
 open Common
@@ -201,6 +209,14 @@ let () =
   then (
     Arities.print_parameters Sys.argv.(2);
     exit 0);
+  if Array.length Sys.argv = 3 && Sys.argv.(1) = "--updates"
+  then (
+    Donors.print_updates Sys.argv.(2);
+    exit 0);
+  if Array.length Sys.argv = 3 && Sys.argv.(1) = "--tokens"
+  then (
+    Donors.print_tokens Sys.argv.(2);
+    exit 0);
   build_root := Sys.argv.(1);
   source_root := Sys.argv.(2);
   let out_dir = Sys.argv.(3) in
@@ -309,6 +325,11 @@ let () =
          let definition, where = Arities.row comps in
          Printf.sprintf "%s\t%s\t%d\t%s\t%s" ocaml rocq wrapper definition where)
        !Decl_out.values);
+  (* the given files themselves: their record updates and their tokens *)
+  let donors = List.map Donors.read cmts in
+  tsv "UPDATES.tsv" (List.concat_map snd donors);
+  tsv "DONOR-TOKENS.tsv"
+    (List.filter_map (fun (source, _) -> Option.bind source Donors.tokens) donors);
   (* the modules that the files give to their functors, where a module
      type with a name is wanted: in OCaml and in Rocq *)
   let rocq_module comps =
