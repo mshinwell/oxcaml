@@ -35,7 +35,12 @@ library's) and 5 in `Rebuilt_expr__local.v` (an application of
 `Hashtbl.Make`). The header of each of the 18 files is that of the tree's
 own `stdlib/NAME.mli` (as is that of `Lazy.v`, which declares nothing);
 the two other files are of the compiler's modules and keep their own
-headers. The comment before such a declaration (one for a whole family
+headers. The comment GENERATED of each of these 19 files says it: that
+the module is the standard library's, that its names and types are read
+from the compiled interface of that module in the library of the OCaml
+that built the compiler, and that the header above the comment is that of
+the tree's file of the same name. The comment before such a declaration
+(one for a whole family
 of a function of formats) names the library's file, without a line; the
 words of the comment are not that file's text: they are the name and the
 type as the generator prints them from the compiled interface (for a

@@ -14,7 +14,11 @@
 (**************************************************************************)
 
 (* GENERATED, not written by hand: the declarations of what the port of
-   Simplify uses of the compiler's module [Int32], after its interface
+   Simplify uses of the standard library's module [Int32]. Its names and
+   types are read from the compiled interface of that module in the
+   standard library of the OCaml that built the compiler, not from this
+   tree's stdlib/ (PROVENANCE.md, last section). The header above is that
+   of this tree's file of the same name,
    stdlib/int32.mli
    at commit ecc5c0d968c892b4312065caef0f19ffffa042a9. Made by tools/declgen (see decl/README.md): a
    change is made there, not here. *)

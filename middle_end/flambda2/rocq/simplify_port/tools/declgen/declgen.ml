@@ -49,6 +49,11 @@
 open Common
 module SS = Set.Make (String)
 
+(* Where the interface of a unit is in the sources of the tree, and whether that
+   file is the one from which the build compiled the interface that is read. It
+   is not for a unit of the standard library: the build read the library of the
+   OCaml that built the compiler, and the file is the tree's own of the same
+   name (Src.source_path). *)
 let source_of_unit u =
   let find ext =
     try Some (Load_path.find_normalized (u ^ ext)) with Not_found -> None
@@ -73,12 +78,11 @@ let source_of_unit u =
         | _ -> None
       in
       match Option.bind cmt.cmt_sourcefile found with
-      | Some rel -> Some rel
+      | Some rel -> Some (rel, true)
       | None -> (
         match Option.bind inside found with
-        | Some rel -> Some rel
-        | None ->
-          Option.map fst (Option.bind cmt.cmt_sourcefile Src.source_path))))
+        | Some rel -> Some (rel, true)
+        | None -> Option.bind cmt.cmt_sourcefile Src.source_path)))
 
 let no_source =
   [ "(* This file follows an interface whose source was not found: see the";
@@ -243,6 +247,16 @@ let () =
     if (!Tr.changed || not same) && n < 12 then loop (n + 1) else results, n
   in
   let results, passes = loop 1 in
+  (* the file whose header the file of a unit carries, and whether it is the
+     file from which the build compiled the interface that is read *)
+  let source_of u =
+    match Hashtbl.find_opt Sigs.locals u with
+    | Some (_, file) -> Some file, true
+    | None -> (
+      match source_of_unit u with
+      | Some (rel, compiled) -> Some rel, compiled
+      | None -> None, true)
+  in
   let names = Hashtbl.create 97 in
   List.iter
     (fun (u, body, deps) ->
@@ -251,11 +265,28 @@ let () =
       | Some u' ->
         failwith (Printf.sprintf "two units for %s.v: %s and %s" rocq u u')
       | None -> Hashtbl.replace names rocq u);
-      let source =
-        match Hashtbl.find_opt Sigs.locals u with
-        | Some (_, file) -> Some file
-        | None -> source_of_unit u
+      let source, compiled = source_of u in
+      (* a unit of the standard library, and no other, has a file that the build
+         did not compile *)
+      let of_library =
+        is_stdlib_unit u || starts_with ~prefix:"Camlinternal" u
       in
+      if of_library && compiled
+      then
+        failwith
+          (Printf.sprintf
+             "%s is a unit of the standard library, and the tree's stdlib/ \
+              file of the same name does not stand for its interface (%s)"
+             u
+             (Option.value ~default:"no source found" source));
+      if (not of_library) && not compiled
+      then
+        failwith
+          (Printf.sprintf
+             "%s is no unit of the standard library, and its interface was not \
+              compiled from a file of the tree (%s)"
+             u
+             (Option.value ~default:"no source found" source));
       let header =
         match source with
         | Some rel -> ( match Src.header rel with [] -> no_header | h -> h)
@@ -279,6 +310,28 @@ let () =
              \   realisations name them as the file does. Made by \
               tools/declgen (see\n\
              \   decl/README.md): a change is made there, not here. *)\n\n"
+             (Option.value ~default:"(source not found)" source)
+             commit)
+      else if not compiled
+      then
+        Buffer.add_string b
+          (Printf.sprintf
+             "\n\
+              (* GENERATED, not written by hand: the declarations of what the \
+              port of\n\
+             \   Simplify uses of the standard library's module [%s]. Its \
+              names and\n\
+             \   types are read from the compiled interface of that module in \
+              the\n\
+             \   standard library of the OCaml that built the compiler, not \
+              from this\n\
+             \   tree's stdlib/ (PROVENANCE.md, last section). The header \
+              above is that\n\
+             \   of this tree's file of the same name,\n\
+             \   %s\n\
+             \   at commit %s. Made by tools/declgen (see decl/README.md): a\n\
+             \   change is made there, not here. *)\n\n"
+             (short_unit u)
              (Option.value ~default:"(source not found)" source)
              commit)
       else
