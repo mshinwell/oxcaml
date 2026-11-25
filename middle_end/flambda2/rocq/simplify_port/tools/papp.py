@@ -108,8 +108,11 @@ definition under middle_end/flambda2/simplify/, when extracted/ has that
 file:
 - THE MODULE of the definition inside its file is read from the table: the
   rows of the file's own unit (the OCaml name begins with Foo.) that have
-  the same place say it (Foo.M.f: the module M of foo.ml). No such row is
-  an error.
+  the same place say it (Foo.M.f: the module M of foo.ml). There must be
+  exactly ONE such module. No such row is an error; so are rows that give
+  several modules for the place (Foo.A.f and Foo.B.f: the words do not say
+  which of them the use reaches, and a definition that is found in one
+  does not stand for the other).
 - THE DEFINITION is looked for in that module of the extracted file and
   nowhere else, AS WORDS: a line [let f ..] or [and f ..] (with [rec],
   with attributes) among the items of the module, outside comments and
@@ -687,9 +690,24 @@ def main(files):
                 )
                 bad += 1
                 continue
+            if len(modules) > 1:
+                print(
+                    "%s: the declared names of %s give %d modules for the place %s (%s): the module of %s in %s is not known"
+                    % (
+                        here,
+                        unit,
+                        len(modules),
+                        where,
+                        ", ".join(".".join((unit,) + ms) for ms in modules),
+                        name,
+                        shown,
+                    )
+                )
+                bad += 1
+                continue
             text = open(extracted).read()
-            found = [k for ms in modules for k in extracted_definitions(text, ms, name)]
-            inside = " or ".join(".".join((unit,) + ms) for ms in modules)
+            found = extracted_definitions(text, modules[0], name)
+            inside = ".".join((unit,) + modules[0])
             if not found:
                 print(
                     "%s: no definition of %s is found among the items of %s in %s"
