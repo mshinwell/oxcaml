@@ -125,20 +125,32 @@ $(B)/real/%.v: %.v
 $(B)/id/%.v: %.v
 	@mkdir -p $(dir $@) && cp $< $@
 
+# What each file depends on, as Rocq says it, with the directory of the
+# build before each name. A FAILURE OF [rocq dep] STOPS MAKE. So the
+# recipe is three commands, each run only if the one before it ended well,
+# and not a pipe (a pipe ends well when [rocq dep] fails and sed does
+# not); the list has the name depend only when it is whole (until then it
+# is depend.rocq and depend.tmp); and the lists are taken by [include],
+# not [-include] (with [-include] make goes on without a list that could
+# not be made, and says nothing). The five targets that need no list
+# (clean, list, given, lines, shells), each asked alone, do not ask for
+# one.
 $(B)/real/depend: $(REAL_V)
-	@cd $(B)/real && $(ROCQ) dep -Q . SimplifyPort $(patsubst $(B)/real/%,%,$(REAL_V)) \
-	  | sed -E 's#(^| )([^ /][^ ]*)#\1$(B)/real/\2#g' > depend
+	@cd $(B)/real && $(ROCQ) dep -Q . SimplifyPort $(patsubst $(B)/real/%,%,$(REAL_V)) > depend.rocq \
+	  && sed -E 's#(^| )([^ /][^ ]*)#\1$(B)/real/\2#g' depend.rocq > depend.tmp \
+	  && mv depend.tmp depend
 $(B)/id/depend: $(ID_V)
-	@cd $(B)/id && $(ROCQ) dep -Q . SimplifyPort $(patsubst $(B)/id/%,%,$(ID_V)) \
-	  | sed -E 's#(^| )([^ /][^ ]*)#\1$(B)/id/\2#g' > depend
+	@cd $(B)/id && $(ROCQ) dep -Q . SimplifyPort $(patsubst $(B)/id/%,%,$(ID_V)) > depend.rocq \
+	  && sed -E 's#(^| )([^ /][^ ]*)#\1$(B)/id/\2#g' depend.rocq > depend.tmp \
+	  && mv depend.tmp depend
 
 ifneq ($(MAKECMDGOALS),clean)
 ifneq ($(MAKECMDGOALS),list)
 ifneq ($(MAKECMDGOALS),given)
 ifneq ($(MAKECMDGOALS),lines)
 ifneq ($(MAKECMDGOALS),shells)
--include $(B)/real/depend
--include $(B)/id/depend
+include $(B)/real/depend
+include $(B)/id/depend
 endif
 endif
 endif
