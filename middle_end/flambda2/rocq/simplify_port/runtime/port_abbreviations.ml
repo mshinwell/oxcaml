@@ -25,13 +25,13 @@
  * DEALINGS IN THE SOFTWARE.                                                  *
  ******************************************************************************)
 
-(* This module is EMPTY. A ported file takes the abbreviations of modules
-   that the compiler's file makes itself ([module DE = Downwards_env]) from a
-   Rocq library of its own, named Port_abbreviations (abbrev/FILE/ in the
-   port's folder). Where Rocq prints a name through that library by its own
-   name (a type that takes a parameter, a field of a record), it first writes
-   [open Port_abbreviations] in the extracted file, and then the name as the
-   compiler writes it ([T.Join_analysis.t]). The abbreviations themselves
-   are the compiler's own lines at the head of the extracted file; this
-   module only makes that [open] line legal. Written for the port; it
-   follows no file of the compiler. *)
+(* This module is EMPTY. A ported file takes the abbreviations of modules that
+   the compiler's file makes itself ([module DE = Downwards_env]) from a Rocq
+   library of its own, named Port_abbreviations (abbrev/FILE/ in the port's
+   folder). Where Rocq prints a name through that library by its own name (a
+   type that takes a parameter, a field of a record), it first writes [open
+   Port_abbreviations] in the extracted file, and then the name as the compiler
+   writes it ([T.Join_analysis.t]). The abbreviations themselves are the
+   compiler's own lines at the head of the extracted file; this module only
+   makes that [open] line legal. Written for the port; it follows no file of the
+   compiler. *)
