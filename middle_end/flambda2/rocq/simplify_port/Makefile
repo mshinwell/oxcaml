@@ -34,12 +34,17 @@
 # compiler. Read GUIDE.md.
 #
 #   make            everything below, one process at a time
-#   make real       Rocq compiles everything against monad/real
+#   make real       Rocq compiles everything against monad/real: the
+#                   declarations, the ported files, the laws of the kit
+#                   (monad/real/Kit_laws.v), the contracts (contracts/) and
+#                   the first lemmas (proofs/)
 #   make id         Rocq compiles everything against monad/id
 #   make extract    extracted/DIR/foo.ml for every ported file
-#   make check      the types of every extracted file, make given and
-#                   make papp
+#   make check      the types of every extracted file, make given, make
+#                   lines and make papp
 #   make given      the OCaml text that the ported files give, against the
+#                   compiler's files
+#   make lines      the notes of lines of the ported files, against the
 #                   compiler's files
 #   make papp       the partial applications of functions of the ported
 #                   files, against the definitions in extracted/
@@ -92,8 +97,18 @@ donor = $(SIMPLIFY)/$(call reldir,$(1))$(call lc,$(notdir $(1))).ml
 extracted = extracted/$(call reldir,$(1))$(call lc,$(notdir $(1))).ml
 checked = $(B)/check/$(call reldir,$(1))$(call lc,$(notdir $(1))).status
 
+# The contracts of the parameters (contracts/README.md) and the first
+# lemmas about the ported files (proofs/README.md). Files of the real build
+# only: the identity build never compiles them, and nothing of them is
+# extracted.
+CONTRACTS := $(patsubst %.v,%,$(sort $(wildcard contracts/*.v \
+  contracts/ported/*.v contracts/ported/*/*.v)))
+PROOFS := $(patsubst %.v,%,$(sort $(wildcard proofs/*.v proofs/*/*.v)))
+
 SRC := $(addsuffix .v,$(DECL) $(ABBREV) $(PORTED))
-REAL_V := $(B)/real/Port_monad.v $(B)/real/Kit_refuses.v $(addprefix $(B)/real/,$(SRC))
+REAL_V := $(B)/real/Port_monad.v $(B)/real/Kit_refuses.v \
+  $(B)/real/Kit_laws.v $(addprefix $(B)/real/,$(SRC)) \
+  $(addprefix $(B)/real/,$(addsuffix .v,$(CONTRACTS) $(PROOFS)))
 ID_V := $(B)/id/Port_monad.v $(addprefix $(B)/id/,$(SRC))
 EXTRACTED := $(foreach p,$(PORTED),$(call extracted,$(p)))
 CHECKED := $(foreach p,$(PORTED),$(call checked,$(p)))
@@ -117,6 +132,10 @@ $(B)/real/Port_monad.v: monad/real/Port_monad.v
 	@mkdir -p $(dir $@) && cp $< $@
 # What the types of the real monad must refuse.
 $(B)/real/Kit_refuses.v: monad/real/Kit_refuses.v
+	@mkdir -p $(dir $@) && cp $< $@
+# The laws of the real monad, and the rules for a proof about a ported
+# function.
+$(B)/real/Kit_laws.v: monad/real/Kit_laws.v
 	@mkdir -p $(dir $@) && cp $< $@
 $(B)/id/Port_monad.v: monad/id/Port_monad.v
 	@mkdir -p $(dir $@) && cp $< $@
