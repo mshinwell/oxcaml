@@ -102,8 +102,6 @@ Definition dacc_inside_function (context : C.t) (outer_dacc : DA.t)
             closure_bound_names_inside_function)
         Not_found
         (fun _ =>
-          (* PORT-GAP(papp): [Function_slot.Map.print] is given its first
-             argument only. *)
           let! tmp1 := papp1 Function_slot.Map.print Bound_name.print in
           fatal_errorf4
             "No closure name for function slot %a.@ closure_bound_names_inside_function = %a."
@@ -361,9 +359,7 @@ Definition simplify_function_body (context : C.t) (outer_dacc : DA.t)
     (fun _ =>
       (* 301-313 *)
       let* bt := Printexc.get_raw_backtrace tt in
-      ((* PORT-GAP(papp): [Format.pp_print_option] is given its first two
-          arguments only. *)
-       let! tmp1 := papp2 Format.pp_print_option None Function_slot.print in
+      (let! tmp1 := papp2 Format.pp_print_option None Function_slot.print in
        Format.eprintf16
          "
 %tContext is:%t simplifying function with function slot %a,@ params %a,@ return continuation %a,@ exn continuation %a,@ my_closure %a,@ body:@ %a@ with downwards accumulator:@ %a
@@ -421,7 +417,6 @@ Definition simplify_function_body (context : C.t) (outer_dacc : DA.t)
        if negb tmp2
        then
          let! tmp3 := UA.are_rebuilding_terms uacc in
-         (* PORT-GAP(papp): [RE.print] is given its first argument only. *)
          let! tmp4 := papp1 RE.print tmp3 in
          fatal_errorf14
            "Unexpected free name(s):@ %a@ in:@ 
@@ -1188,8 +1183,6 @@ Definition simplify_and_lift_set_of_closures (dacc : DA.t)
   (* 869-872: [DE.map_specialization_cost denv ~f], the arguments in the
      order of the interface. *)
   let* denv :=
-    (* PORT-GAP(papp): [Specialization_cost.add_lifted_set_of_closures] is
-       given its first argument only. *)
     let! tmp1 :=
       papp1 Specialization_cost.add_lifted_set_of_closures set_of_closures
     in
@@ -1340,8 +1333,6 @@ Definition simplify_non_lifted_set_of_closures0 (dacc : DA.t)
   in
   (* 970-975 *)
   let* dacc :=
-    (* PORT-GAP(papp): [Specialization_cost.add_set_of_closures] and
-       [DE.map_specialization_cost] are given their first argument only. *)
     let! tmp1 :=
       papp1 Specialization_cost.add_set_of_closures set_of_closures
     in
@@ -1583,8 +1574,6 @@ Definition simplify_lifted_set_of_closures0 (dacc : DA.t) (context : C.t)
   in
   (* 1143-1148 *)
   let* dacc :=
-    (* PORT-GAP(papp): [Specialization_cost.add_lifted_set_of_closures] and
-       [DE.map_specialization_cost] are given their first argument only. *)
     let! tmp1 :=
       papp1 Specialization_cost.add_lifted_set_of_closures set_of_closures
     in

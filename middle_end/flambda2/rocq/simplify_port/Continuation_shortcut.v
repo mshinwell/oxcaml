@@ -39,8 +39,7 @@ Record t : Type := {
 Definition print (ppf : Format.formatter)
     '({| params := params; continuation := continuation; args := args |} : t)
     : M unit :=
-  (* PORT-GAP(papp): 30-32, [Format.pp_print_list] is given its first two
-     arguments only. *)
+  (* 30-32 *)
   let! tmp1 :=
     papp2 Format.pp_print_list
       (Some (fun (ppf : Format.formatter) (_ : unit) =>

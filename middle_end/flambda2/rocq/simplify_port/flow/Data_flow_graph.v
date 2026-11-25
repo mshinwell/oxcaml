@@ -277,8 +277,7 @@ Definition print (ppf : Format.formatter) (t : Data_flow_graph.t) : M unit :=
         |} :=
     ret t
   in
-  (* PORT-GAP(papp): 176-182, four partial applications of declared
-     printers, the last argument first. *)
+  (* 176-182 *)
   let! tmp1 := papp1 Code_id.Map.print Code_id.Set_.print in
   let! tmp2 := papp1 Code_id.Map.print Name.Set_.print in
   let! tmp3 := papp1 Name.Map.print Code_id.Set_.print in
@@ -540,8 +539,6 @@ Definition add_continuation_info
     match used_value_slots with
     | Or_unknown.Unknown => ret (fun (_ : Value_slot.t) => ret true)
     | Or_unknown.Known used_value_slots =>
-      (* PORT-GAP(papp): [Name_occurrences.value_slot_is_used_or_imported]
-         is given its first argument only. *)
       papp1 Name_occurrences.value_slot_is_used_or_imported used_value_slots
     end
   in

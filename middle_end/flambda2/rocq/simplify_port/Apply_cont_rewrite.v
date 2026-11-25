@@ -69,8 +69,6 @@ Definition print_params_used (ppf : Format.formatter)
     '((params, usage) : Bound_parameters.t * list used) : M unit :=
   let! tmp1 := Bound_parameters.to_list params in
   let! tmp2 := List.combine tmp1 usage in
-  (* PORT-GAP(papp): [Format.pp_print_list] is given its first two
-     arguments only. *)
   let! tmp3 :=
     papp2 Format.pp_print_list (Some Format.pp_print_space)
       ((fun ppf '(param, used) =>
@@ -89,8 +87,6 @@ Definition print (ppf : Format.formatter)
          extra_args := extra_args;
          original_params := original_params;
          extra_params := extra_params |} : t) : M unit :=
-  (* PORT-GAP(papp): [Format.pp_print_list] is given its first two
-     arguments only, [Or_invalid.print] and [Id.Map.print] their first. *)
   let! tmp1 :=
     papp2 Format.pp_print_list (Some Format.pp_print_space) EA.print
   in

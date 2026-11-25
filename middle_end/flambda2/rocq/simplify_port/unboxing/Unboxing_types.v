@@ -219,8 +219,6 @@ Fixpoint print_decision (fuel : fuel) (ppf : Format.formatter)
       "@[<v 1>(unique_tag_and_size@ @[<h>(static_tag %a)@]@ @[<h>(shape %a)@]@ @[<hv 2>(fields@ %a)@])@]"
       Tag.print tag K.Block_shape.print shape tmp1 fields
   | Unbox (Variant tag const_ctors fields_by_tag) =>
-    (* PORT-GAP(papp): [Tag.Scannable.Map.print] is given its first argument
-       only. *)
     let! tmp1 :=
       papp1 Tag.Scannable.Map.print
         (fun (ppf : Format.formatter)
@@ -232,8 +230,6 @@ Fixpoint print_decision (fuel : fuel) (ppf : Format.formatter)
       "@[<v 2>(variant@ @[<hov>(tag %a)@]@ @[<hv 2>(const_ctors@ %a)@]@ @[<v 2>(fields_by_tag@ %a)@])@]"
       Extra_param_and_args.print tag tmp2 const_ctors tmp1 fields_by_tag
   | Unbox (Closure_single_entry function_slot vars_within_closure) =>
-    (* PORT-GAP(papp): [Value_slot.Map.print] is given its first argument
-       only. *)
     let! tmp1 := papp1 print_field_decision fuel in
     let! tmp2 := papp1 Value_slot.Map.print tmp1 in
     Format.fprintf4 ppf
@@ -261,8 +257,6 @@ with print_fields_decisions (fuel : fuel) (ppf : Format.formatter)
     (l : list field_decision) {struct fuel} : M unit :=
   recursive! fuel in
   let& pp_sep := Format.pp_print_space in
-  (* PORT-GAP(papp): [Format.pp_print_list] is given its first two arguments
-     only. *)
   let! tmp1 := papp1 print_field_decision fuel in
   let! tmp2 := papp2 Format.pp_print_list (Some pp_sep) tmp1 in
   Format.fprintf2 ppf "%a" tmp2 l
@@ -294,8 +288,6 @@ Definition print (ppf : Format.formatter)
     let! tmp1 := papp1 print_decision fuel in
     Format.fprintf4 ppf "@[<hov 1>(%a@ %a)@]" BP.print param tmp1 decision
   in
-  (* PORT-GAP(papp): [Format.pp_print_list] is given its first two arguments
-     only. *)
   let! tmp1 := papp2 Format.pp_print_list (Some pp_sep) aux in
   Format.fprintf6 ppf
     "@[<hov 1>(@[<hov 1>(decisions@ %a)@]@ @[<hov 1>(rewrite_ids_seen@ %a)@]@ @[<hov 1>(rewrites_ids_known_as_invalid@ %a)@])@]"

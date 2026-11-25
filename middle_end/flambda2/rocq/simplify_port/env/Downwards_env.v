@@ -246,8 +246,6 @@ Definition print (ppf : Format.formatter) (t : Downwards_env.t) : M unit :=
       Misc.Sexp.d None "cost_of_lifting_continuations_out_of_current_one"
         cost_of_lifting_continuations_out_of_current_one
     in
-    (* PORT-GAP(papp): [Format.pp_print_list] is given its first two
-       arguments only. *)
     let! tmp4 :=
       papp2 Format.pp_print_list (Some Format.pp_print_space)
         Lifted_cont_params.print
@@ -256,8 +254,6 @@ Definition print (ppf : Format.formatter) (t : Downwards_env.t) : M unit :=
       Misc.Sexp.a None "defined_variables_by_scope"
         defined_variables_by_scope tmp4
     in
-    (* PORT-GAP(papp): [Format.pp_print_option] is given its first two
-       arguments only. *)
     let! tmp6 :=
       papp2 Format.pp_print_option
         (Some
@@ -276,8 +272,6 @@ Definition print (ppf : Format.formatter) (t : Downwards_env.t) : M unit :=
     let! tmp10 :=
       Misc.Sexp.a None "loopify_state" loopify_state Loopify_state.print
     in
-    (* PORT-GAP(papp): [Code_id.Map.print] is given its first argument
-       only. *)
     let! tmp11 := papp1 Code_id.Map.print Code.print in
     let! tmp12 := Misc.Sexp.a None "all_code" all_code tmp11 in
     let! tmp13 :=
@@ -287,8 +281,6 @@ Definition print (ppf : Format.formatter) (t : Downwards_env.t) : M unit :=
       Misc.Sexp.a None "are_rebuilding_terms" are_rebuilding_terms
         Are_rebuilding_terms.print
     in
-    (* PORT-GAP(papp): [Variable.Map.print] is given its first argument
-       only. *)
     let! tmp15 := papp1 Variable_.Map.print Comparison_result.print in
     let! tmp16 :=
       Misc.Sexp.a None "comparison_results" comparison_results tmp15
@@ -558,7 +550,11 @@ Definition create (round : int)
     |}.
 
 (* 282 *)
-(* PORT-GAP(papp): [TE.resolver] is given its first argument only. *)
+(* PORT-GAP(papp): [TE.resolver] is given its first argument only, and its
+   definition has ONE parameter
+   (middle_end/flambda2/types/env/typing_env.ml:337, `let resolver t =
+   t.resolver`): the use runs the definition, which reads a field, as the
+   compiler's own use at this place does. *)
 Definition resolver (t : Downwards_env.t) : M resolver_ :=
   papp1 TE.resolver t.(Downwards_env.typing_env).
 
@@ -1037,8 +1033,6 @@ Definition add_parameters (extra : bool) (name_mode : option Name_mode.t)
   (let! tmp1 := List.compare_lengths params param_types in
    if tmp1 <>? 0
    then
-     (* PORT-GAP(papp): [Format.pp_print_list] is given its first two
-        arguments only. *)
      let! tmp2 :=
        papp2 Format.pp_print_list (Some Format.pp_print_space) T.print
      in

@@ -751,8 +751,7 @@ Module Group.
      parameter is the reading of the field [consts]. *)
   Definition print (ppf : Format.formatter) (t : Group.t) : M unit :=
     let& consts := consts t in
-    (* PORT-GAP(papp): 425, [Format.pp_print_list] is given its first two
-       arguments only; [print] is the function of 377. *)
+    (* 425: [print] is the function of 377. *)
     let! tmp1 :=
       papp2 Format.pp_print_list (Some Format.pp_print_space) print
     in

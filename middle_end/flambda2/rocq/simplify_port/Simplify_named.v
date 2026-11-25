@@ -169,9 +169,7 @@ Definition simplify_named0 (dacc : DA.t) (bound_pattern : Bound_pattern.t)
       ok tmp2
     else
       let* bound_var := Bound_pattern.must_be_singleton bound_pattern in
-      (* PORT-GAP(papp): 126-131, [Specialization_cost.add_prim] is given its
-         first two arguments only, and [DE.map_specialization_cost] its
-         first. *)
+      (* 126-131 *)
       let* dacc :=
         let! tmp1 := papp2 Specialization_cost.add_prim bound_var prim in
         let! tmp2 := papp1 DE.map_specialization_cost tmp1 in

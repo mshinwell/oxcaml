@@ -394,8 +394,7 @@ Definition simplify_direct_full_application
         ret (Do_not_inline erase_attribute_if_ignored)
       | Call_site_inlining_decision_type.Inline unroll_to was_inline_always =>
         let* dacc :=
-          (* PORT-GAP(papp): 264, [DE.record_inlining_decision] is given its
-             first two arguments only. *)
+          (* 264 *)
           let! tmp1 := papp2 DE.record_inlining_decision apply decision in
           DA.map_denv dacc tmp1
         in
@@ -1295,8 +1294,7 @@ Definition simplify_direct_function_call
       ret (Or_bottom.Ok tmp1)
     | Or_unknown.Known callee's_code_ids_from_call_kind =>
       let* typing_env := DA.typing_env dacc in
-      (* PORT-GAP(papp): 997, [TE.code_age_relation_resolver] is given its
-         first argument only. *)
+      (* 997 *)
       let! tmp1 := Code_id.Set_.singleton callee's_code_id_from_type in
       let! tmp2 := papp1 TE.code_age_relation_resolver typing_env in
       let! tmp3 := TE.code_age_relation typing_env in

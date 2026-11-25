@@ -214,8 +214,6 @@ Definition rebuild_let (arg : Simplified_expr.simplified_defining_expr * RE.t)
             (if mismatched_modes
              then
                let! tmp1 := UA.are_rebuilding_terms uacc in
-               (* PORT-GAP(papp): [RE.print] is given its first argument
-                  only. *)
                let! tmp2 := papp1 RE.print tmp1 in
                fatal_errorf12
                  "[Let]-binding declares variable(s) %a (mode %a) to be bound to@ %a,@ but there exist occurrences for such variable(s) at incompatible mode(s)@ (compared to %a)@ in the body (free names %a):@ %a"

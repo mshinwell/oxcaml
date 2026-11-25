@@ -114,8 +114,12 @@ Definition analyze (speculative : option bool) (print_name : option string)
     (let! tmp1 := Flambda_features.dump_flow tt in
      if tmp1
      then
-       (* PORT-GAP(papp): [Continuation_callsite_map.print] is given its
-          first argument only. *)
+       (* PORT-GAP(papp): [Continuation_callsite_map.print] is given its first
+          argument only, and its definition has ONE parameter
+          (middle_end/flambda2/identifiers/continuation_callsite_map.ml:18, `let
+          print pp = Continuation.Map.print (Apply_cont_rewrite_id.Map.print
+          pp)`): the use runs the definition, which makes two partial
+          applications, as the compiler's own use at this place does. *)
        let! tmp2 := papp1 Continuation_callsite_map.print Continuation.print in
        Format.eprintf4 "PRESOURCE:@
 spec:%a@
@@ -188,8 +192,7 @@ spec:%a@
         dead_variable_result.(Flow_types.Data_flow_result.required_names)
         return_continuation exn_continuation machine_width
     in
-    (* PORT-GAP(papp): 107, [Mutable_unboxing.pp_node] is given its first
-       argument only. *)
+    (* 107 *)
     let* pp_node := papp1 Mutable_unboxing.pp_node reference_analysis in
     let* '(reference_result, unboxed_blocks) :=
       Mutable_unboxing.make_result reference_analysis

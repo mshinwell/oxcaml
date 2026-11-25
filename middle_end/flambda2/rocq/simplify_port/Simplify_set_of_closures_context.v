@@ -288,8 +288,6 @@ Definition bind_closure_types_inside_functions (denv_inside_functions : DE.t)
                 closure_bound_names_inside_functions_one_set)
             Not_found
             (fun _ =>
-              (* PORT-GAP(papp): [Function_slot.Map.print] is given its
-                 first argument only. *)
               let! tmp1 := papp1 Function_slot.Map.print Bound_name.print in
               fatal_errorf4
                 "No closure name for function slot %a.@ closure_bound_names_inside_functions_one_set = %a."

@@ -2054,8 +2054,7 @@ with simplify_handler (fuel : fuel)
   in
   let* dacc :=
     let! tmp1 := Bound_parameters.append invariant_params params in
-    (* PORT-GAP(papp): 1449-1451, [Flow.Acc.enter_continuation] is given its
-       first four arguments only. *)
+    (* 1449-1451 *)
     let! tmp2 :=
       papp4 Flow.Acc.enter_continuation cont is_recursive is_exn_handler tmp1
     in
@@ -2064,8 +2063,7 @@ with simplify_handler (fuel : fuel)
   simplify_expr dacc handler
     (fun dacc simplified_handler =>
       let* dacc :=
-        (* PORT-GAP(papp): 1455, [Flow.Acc.exit_continuation] is given its
-           first argument only. *)
+        (* 1455 *)
         let! tmp1 := papp1 Flow.Acc.exit_continuation cont in
         DA.map_flow_acc dacc tmp1
       in
@@ -2410,8 +2408,7 @@ with simplify_handlers (fuel : fuel)
     in
     let* all_uses :=
       let! tmp1 := Continuation.Set_.elements all_conts_set in
-      (* PORT-GAP(papp): 1744, [CUE.get_continuation_uses] is given its
-         first argument only. *)
+      (* 1744 *)
       let! tmp2 := papp1 CUE.get_continuation_uses body_continuation_uses_env in
       List.filter_map tmp2 tmp1
     in
@@ -2583,8 +2580,7 @@ Definition simplify_let_cont0
     in
     let! tmp2 := DE.add_lifting_cost lifting_cost tmp1 in
     let! tmp3 := Original_handlers.can_be_lifted data.(handlers_) in
-    (* PORT-GAP(papp): 1878-1879, [Specialization_cost.add_continuations] is
-       given its first two arguments only. *)
+    (* 1878-1879 *)
     let! tmp4 :=
       papp2 Specialization_cost.add_continuations tmp3 data.(handlers_)
     in

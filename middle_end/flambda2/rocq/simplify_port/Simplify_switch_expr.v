@@ -552,8 +552,6 @@ Definition let_op_dollar (expr : named) (k : Simple.t -> M rebuilder)
           in
           let* fields :=
             let! tmp1 := KS.kind element_kind in
-            (* PORT-GAP(papp): [T.alias_type_of] is given its first argument
-               only. *)
             let! tmp2 := papp1 T.alias_type_of tmp1 in
             List.map tmp2 simples
           in
@@ -1299,7 +1297,6 @@ Definition rebuild_switch (pat : Simplified_expr.simplified_switch_)
          if tmp2
          then
            let! tmp3 := UA.are_rebuilding_terms uacc in
-           (* PORT-GAP(papp): [RE.print] is given its first argument only. *)
            let! tmp4 := papp1 RE.print tmp3 in
            fatal_errorf4
              "[Switch] with constant scrutinee (type: %a) should have been simplified away:@ %a"
@@ -1403,8 +1400,6 @@ Definition simplify_arm (arm : TI.t) (pat : Switch_arm.t * TE.t)
   (* 877-883 *)
   let* dacc :=
     let! tmp1 := Apply_cont.continuation action in
-    (* PORT-GAP(papp): [Flow.Acc.add_apply_cont_args] is given its first
-       three arguments only. *)
     let! tmp2 := papp3 Flow.Acc.add_apply_cont_args rewrite_id tmp1 args in
     DA.map_flow_acc dacc tmp2
   in
@@ -1702,8 +1697,6 @@ Definition simplify_switch (dacc : DA.t) (switch : Switch.t)
       then ret dacc
       else
         let! tmp2 := Simple.free_names scrutinee in
-        (* PORT-GAP(papp): [Flow.Acc.add_used_in_current_handler] is given
-           its first argument only. *)
         let! tmp3 := papp1 Flow.Acc.add_used_in_current_handler tmp2 in
         DA.map_flow_acc dacc tmp3
     in

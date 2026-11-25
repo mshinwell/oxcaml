@@ -69,8 +69,7 @@ Module T0.
      kept. *)
   Definition print (ppf : Format.formatter)
       '({| by_scope := by_scope; combined := combined |} : t) : M unit :=
-    (* PORT-GAP(papp): 55-56, [EP.Map.print] and [Scope.Map.print] are given
-       their first argument only. *)
+    (* 55-56 *)
     let! tmp1 := papp1 EP.Map.print Simple.print in
     let! tmp2 := papp1 EP.Map.print Simple.print in
     let! tmp3 := papp1 Scope.Map.print tmp2 in
@@ -448,8 +447,7 @@ Definition cut_cse_environment '({| T0.by_scope := by_scope |} as t)
         (fun _ => EP.Map.disjoint_union None None equations result)
         Stdlib_.Invalid_argument
         (fun exn =>
-          (* PORT-GAP(papp): 314-317, [EP.Map.print] is given its first
-             argument only. *)
+          (* 314-317 *)
           (let! tmp1 := papp1 EP.Map.print Simple.print in
            let! tmp2 := papp1 EP.Map.print Simple.print in
            Format.eprintf10
@@ -525,8 +523,7 @@ Definition join0 (typing_env_at_fork : TE.t) (cse_at_fork : T0.t)
           let* '(prim2, _) := ret pat2 in
           let! tmp1 := EP.to_primitive prim2 in
           let! tmp2 := EP.to_primitive prim1 in
-          (* PORT-GAP(papp): 366-367, [TE.stable_compare_simples] is given
-             its first argument only. *)
+          (* 366-367 *)
           let! tmp3 :=
             papp1 TE.stable_compare_simples typing_env_with_extra_params
           in

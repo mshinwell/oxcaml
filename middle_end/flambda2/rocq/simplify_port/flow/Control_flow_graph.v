@@ -617,8 +617,6 @@ Module Dot.
           let! tmp2 :=
             Bound_parameters.vars elt.(Flow_types.Continuation_info.params)
           in
-          (* PORT-GAP(papp): [Format.pp_print_list] is given its first two
-             arguments only. *)
           let! tmp3 :=
             papp2 Format.pp_print_list
               (Some (fun ppf (_ : unit) => Format.fprintf0 ppf ", "))

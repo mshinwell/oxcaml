@@ -66,8 +66,7 @@ Definition run (cmx_loader : Flambda_cmx.loader)
   let* exn_continuation := FU.exn_continuation unit in
   let* toplevel_my_alloc_region := FU.toplevel_my_alloc_region unit in
   let* module_symbol := FU.module_symbol unit in
-  (* PORT-GAP(papp): 32-33, [Flambda_cmx.load_cmx_file_contents] and
-     [Flambda_cmx.get_imported_code] are given their first argument only. *)
+  (* 32-33 *)
   let* resolver := papp1 Flambda_cmx.load_cmx_file_contents cmx_loader in
   let* get_imported_code := papp1 Flambda_cmx.get_imported_code cmx_loader in
   (* 34-39: the arguments are in the order of the interface (the exception

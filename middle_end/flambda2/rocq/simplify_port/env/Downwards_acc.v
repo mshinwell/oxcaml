@@ -98,8 +98,6 @@ Definition print (ppf : Format.formatter) (t : Downwards_acc.t) : M unit :=
        continuations_to_specialize := continuations_to_specialize;
        specialization_map := specialization_map
     |} =>
-    (* PORT-GAP(papp): the printers of the maps and of the list are given
-       their first arguments only (six places). *)
     let! tmp1 := papp1 Apply_cont_rewrite_id.Map.print Continuation.print in
     let! tmp2 := papp1 Continuation.Map.print tmp1 in
     let! tmp3 :=

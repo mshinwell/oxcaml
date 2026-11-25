@@ -97,9 +97,6 @@ Extract Constant t => "| First_pass of { history : Action.t list } | Replaying o
 Definition print (ppf : Format.formatter) (t : Replay_history.t) : M unit :=
   match t with
   | First_pass history =>
-    (* PORT-GAP(papp): [Format.pp_print_list] is given its first two
-       arguments only, here and in the next case; so are [Variable.Map.print]
-       and [Continuation.Map.print] their first argument. *)
     let! tmp1 :=
       papp2 Format.pp_print_list (Some Format.pp_print_space) Action.print
     in

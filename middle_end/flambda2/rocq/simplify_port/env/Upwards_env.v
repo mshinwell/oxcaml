@@ -74,8 +74,6 @@ Definition print (ppf : Format.formatter) (t : Upwards_env.t) : M unit :=
        are_rebuilding_terms := are_rebuilding_terms;
        machine_width := _
     |} =>
-    (* PORT-GAP(papp): [Continuation.Map.print] is given its first argument
-       only, three times, and [Continuation_in_env.print] once. *)
     let! tmp1 := papp1 Continuation.Map.print Apply_cont_rewrite.print in
     let! tmp2 := papp1 Continuation.Map.print Continuation_shortcut.print in
     let! tmp3 := papp1 Continuation_in_env.print are_rebuilding_terms in

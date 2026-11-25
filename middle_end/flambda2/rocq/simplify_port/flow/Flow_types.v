@@ -157,8 +157,6 @@ Module Mutable_let_prim.
     Definition print_rev (ppf : Format.formatter) (l : Mutable_let_prim.List.t)
         : M unit :=
       let! tmp1 := decl.List.rev l in
-      (* PORT-GAP(papp): [Format.pp_print_list] is given its first two
-         arguments only. *)
       let! tmp2 :=
         papp2 Format.pp_print_list (Some Format.pp_print_space) print
       in
@@ -224,8 +222,7 @@ Module Continuation_info.
           |} :=
       ret t
     in
-    (* PORT-GAP(papp): 171-184, nine partial applications of declared
-       printers, the last argument first. *)
+    (* 171-184 *)
     let! tmp1 := papp1 Numeric_types.Int.Map.print Cont_arg.print in
     let! tmp2 := papp1 Apply_cont_rewrite_id.Map.print tmp1 in
     let! tmp3 := papp1 Continuation.Map.print tmp2 in
@@ -277,8 +274,6 @@ Module Acc.
   (* 200-204 *)
   Definition print_stack (ppf : Format.formatter)
       (stack : list Continuation_info.t) : M unit :=
-    (* PORT-GAP(papp): [Format.pp_print_list] is given its first two
-       arguments only. *)
     let! tmp1 :=
       papp2 Format.pp_print_list (Some Format.pp_print_space)
         Continuation_info.print
@@ -365,8 +360,6 @@ Module Data_flow_result.
           |} :=
       ret t
     in
-    (* PORT-GAP(papp): [Or_unknown.print] is given its first argument
-       only. *)
     let! tmp1 := papp1 Or_unknown.print Reachable_code_ids.print in
     Format.fprintf4 ppf
       "@[<hov 1>(@[<hov 1>(required_names@ %a)@]@ @[<hov 1>(reachable_code_ids@ %a)@]@ )@]"
@@ -425,8 +418,6 @@ Module Continuation_param_aliases.
           "@ @[<hov 1>(recursive_continuation_wrapper needed)@]"
       end
     in
-    (* PORT-GAP(papp): [Variable.Lmap.print] is given its first argument
-       only. *)
     let! tmp1 := papp1 Variable_.Lmap.print Simple.print in
     Format.fprintf8 ppf
       "@[<hov 1>(@[<hov 1>(removed_aliased_params_and_extra_params %a)@]@ @[<hov 1>(lets_to_introduce %a)@]@[<hov 1>(extra_args_for_aliases %a)@]%a)@]"
@@ -457,8 +448,6 @@ Module Alias_result.
           |} :=
       ret t
     in
-    (* PORT-GAP(papp): two partial applications of declared printers, the
-       last argument first. *)
     let! tmp1 :=
       papp1 Continuation.Map.print Continuation_param_aliases.print
     in
@@ -494,8 +483,6 @@ Module Mutable_unboxing_result.
           |} :=
       ret t
     in
-    (* PORT-GAP(papp): two partial applications of declared printers, the
-       last argument first. *)
     let! tmp1 := papp1 Named_rewrite_id.Map.print Named_rewrite.print in
     let! tmp2 :=
       papp1 Continuation.Map.print Continuation_extra_params_and_args.print

@@ -930,10 +930,8 @@ Definition create (dom : Dominator_graph.alias_map)
    let! tmp2 := and_then (negb tmp1) (Flambda_features.dump_flow tt) in
    if tmp2
    then
-     (* PORT-GAP(papp): 589-593, [Simple.Map.print] is given its first
-        argument only, and [Format.pp_print_list] its first two; the
-        argument of the function is the pattern [{ tag; fields_kinds; mut
-        }]. *)
+     (* 589-593: the argument of the function is the pattern [{ tag;
+        fields_kinds; mut }]. *)
      let! tmp3 :=
        papp1 Simple.Map.print (fun ppf pat =>
          let* '{| Mutable_unboxing.tag := tag;

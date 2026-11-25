@@ -130,8 +130,6 @@ Module Definition_.
         let! tmp1 := Function_slot.Lmap.data closure_symbols_with_types in
         List.map Stdlib_.fst tmp1
       in
-      (* PORT-GAP(papp): [Format.pp_print_list] is given its first two
-         arguments only. *)
       let! tmp1 :=
         papp2 Format.pp_print_list (Some Format.pp_print_space) Symbol.print
       in
@@ -278,8 +276,6 @@ Definition print (ppf : Format.formatter)
          symbol_projections := _;
          is_fully_static := _
       |} : Lifted_constant.t) : M unit :=
-  (* PORT-GAP(papp): [Format.pp_print_list] is given its first two arguments
-     only. *)
   let! tmp1 :=
     papp2 Format.pp_print_list (Some Format.pp_print_space) Definition_.print
   in

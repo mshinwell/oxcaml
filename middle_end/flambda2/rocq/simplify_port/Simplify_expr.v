@@ -143,8 +143,6 @@ Definition simplify_toplevel_common (dacc : DA.t)
   (* 86-150 *)
   let* '(expr, uacc) :=
     let* dacc :=
-      (* PORT-GAP(papp): [Flow.Acc.exit_continuation] is given its first
-         argument only. *)
       let! tmp1 := papp1 Flow.Acc.exit_continuation dummy_toplevel_cont in
       DA.map_flow_acc dacc tmp1
     in
@@ -250,7 +248,6 @@ Definition simplify_toplevel_common (dacc : DA.t)
        if tmp2
        then
          let! tmp3 := UA.are_rebuilding_terms uacc in
-         (* PORT-GAP(papp): [RE.print] is given its first argument only. *)
          let! tmp4 := papp1 RE.print tmp3 in
          fatal_errorf8
            "Continuation %a should not be free in toplevel expression after simplification (return continuation %a, exn continuation %a):@ %a"

@@ -89,8 +89,6 @@ Definition print (ppf : Format.formatter) (t : Specialization_cost.t)
       {| primitives := primitives;
          non_lifted_continuations := non_lifted_continuations
       |} =>
-    (* PORT-GAP(papp): [Format.pp_print_list] is given its first two
-       arguments only (twice). *)
     let! tmp1 := papp2 Format.pp_print_list None Original_handlers.print in
     let! tmp2 := papp2 Format.pp_print_list None print_prim in
     Format.fprintf4 ppf
@@ -222,8 +220,6 @@ Definition cost_metrics (typing_env : Flambda2_types.Typing_env.t)
   (* 133-137. Cost metrics for specialized call sites *)
   let* metrics :=
     (* Each specialized handler eliminates the switch *)
-    (* PORT-GAP(papp): [Cost_metrics.notify_removed] is given its first
-       argument only. *)
     let_fuel! fuel in
     let! tmp1 := papp1 Cost_metrics.notify_removed Removed_operations.branch in
     repeat fuel n_specialized metrics tmp1
@@ -269,8 +265,6 @@ Definition cost_metrics (typing_env : Flambda2_types.Typing_env.t)
         in
         (* 163-168 *)
         let* metrics :=
-          (* PORT-GAP(papp): [Cost_metrics.notify_removed] is given its first
-             argument only. *)
           let_fuel! fuel in
           let! tmp1 := Removed_operations.prim prim in
           let! tmp2 := papp1 Cost_metrics.notify_removed tmp1 in
@@ -278,8 +272,6 @@ Definition cost_metrics (typing_env : Flambda2_types.Typing_env.t)
         in
         (* 169-174 *)
         let* metrics :=
-          (* PORT-GAP(papp): [Cost_metrics.notify_added] is given its first
-             argument only. *)
           let_fuel! fuel in
           let! tmp1 := Code_size.prim machine_width prim in
           let! tmp2 := papp1 Cost_metrics.notify_added tmp1 in

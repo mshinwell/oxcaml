@@ -56,8 +56,6 @@ Definition print (ppf : Format.formatter) (t : One_continuation_use.t)
     : M unit :=
   match t with
   | {| id := id; kind := _; arg_types := arg_types; env := _ |} =>
-    (* PORT-GAP(papp): [Format.pp_print_list] is given its first two
-       arguments only. *)
     let! tmp1 :=
       papp2 Format.pp_print_list (Some Format.pp_print_space)
         Flambda2_types.print

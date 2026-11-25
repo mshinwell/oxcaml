@@ -100,8 +100,6 @@ Definition speculative_inlining (dacc : DA.t) (apply : Apply.t)
   let* '(_, uacc) :=
     let* exn_continuation := Apply.exn_continuation apply in
     let* dacc :=
-      (* PORT-GAP(papp): [Flow.Acc.exit_continuation] is given its first
-         argument only. *)
       let! tmp1 := papp1 Flow.Acc.exit_continuation dummy_toplevel_cont in
       DA.map_flow_acc dacc tmp1
     in

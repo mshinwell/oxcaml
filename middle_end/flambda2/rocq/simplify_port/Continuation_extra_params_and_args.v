@@ -115,9 +115,7 @@ Definition print (ppf : Format.formatter) (t : t) : M unit :=
   match t with
   | Empty => Format.fprintf0 ppf "(empty)"
   | Non_empty extra_params extra_args =>
-    (* PORT-GAP(papp): 61, [Or_invalid.print] and
-       [Apply_cont_rewrite_id.Map.print] are given their first argument
-       only. *)
+    (* 61 *)
     let! tmp1 := papp1 Or_invalid.print Extra_arg_List_print in
     let! tmp2 := papp1 Apply_cont_rewrite_id.Map.print tmp1 in
     Format.fprintf4 ppf
@@ -172,8 +170,7 @@ Definition add (t : t) (invalids : Apply_cont_rewrite_id.Set_.t)
           match already_extra_args, extra_arg with
           | None, None => ret None
           | None, Some _ =>
-            (* PORT-GAP(papp): 111, [Apply_cont_rewrite_id.Map.print] is
-               given its first argument only. *)
+            (* 111 *)
             let! tmp1 := papp1 Apply_cont_rewrite_id.Map.print Extra_arg_print in
             fatal_errorf10
               "[Extra Params and Args] Unexpected New Apply_cont_rewrite_id (%a) for:
@@ -188,7 +185,7 @@ existing epa: %a"
             if tmp1
             then ret (Some Or_invalid.Invalid)
             else
-              (* PORT-GAP(papp): 125, as at 111. *)
+              (* 125 *)
               let! tmp2 :=
                 papp1 Apply_cont_rewrite_id.Map.print Extra_arg_print
               in

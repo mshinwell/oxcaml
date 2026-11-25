@@ -95,8 +95,6 @@ Definition print (ppf : Format.formatter) (t : Lifted_constant_state.t)
     to_list t []
   in
   let! tmp1 := to_list t in
-  (* PORT-GAP(papp): [Format.pp_print_list] is given its first two arguments
-     only. *)
   let! tmp2 :=
     papp2 Format.pp_print_list (Some Format.pp_print_space) LC.print
   in

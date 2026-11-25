@@ -47,28 +47,20 @@ include Code_metadata.Code_metadata_accessors [@inlined hint] (Metadata_view)
 OCAML-END*)
 
 (* 29-31 *)
-(* PORT-GAP(papp): [Code0.create_with_metadata] is given its first two
-   arguments only, as in the compiler. *)
 Definition create_with_metadata
     : Name_occurrences.t -> Code_metadata.t -> M t :=
   Code0.create_with_metadata Unit.print tt.
 
 (* 33-34 *)
-(* PORT-GAP(papp): [Code0.create] is given its first two arguments only, as
-   in the compiler. *)
 Definition create : Name_occurrences.t -> Code_metadata.create_type t :=
   Code0.create Unit.print tt.
 
 (* 36 *)
-(* PORT-GAP(papp): [Code0.print] is given its first argument only, as in the
-   compiler. *)
 Definition print : Format.formatter -> t -> M unit := Code0.print Unit.print.
 
 (* 38 *)
 Definition free_names : t -> M Name_occurrences.t := Code0.free_names.
 
 (* 40-41 *)
-(* PORT-GAP(papp): [Code0.apply_renaming] is given its first argument only,
-   as in the compiler. *)
 Definition apply_renaming : t -> Renaming.t -> M t :=
   Code0.apply_renaming (fun (_ : unit) (_ : Renaming.t) => ret tt).

@@ -55,8 +55,6 @@ Definition print (ppf : Format.formatter) (t : Continuation_uses_env.t)
   | {| continuation_uses := continuation_uses;
        continuation_arities := continuation_arities
     |} =>
-    (* PORT-GAP(papp): [Continuation.Map.print] is given its first argument
-       only, twice. *)
     let! tmp1 := papp1 Continuation.Map.print Flambda_arity.print in
     let! tmp2 := papp1 Continuation.Map.print Continuation_uses.print in
     Format.fprintf4 ppf
@@ -270,7 +268,9 @@ Definition delete_continuation_uses
 (* 152-158 *)
 Definition clear_continuation_uses (t : Continuation_uses_env.t)
     (cont : Continuation.t) : M Continuation_uses_env.t :=
-  (* PORT-GAP(papp): [Option.map] is given its first argument only. *)
+  (* PORT-GAP(papp): [Option.map] is given its first argument only. Its
+     definition is in the standard library, which is not read
+     (decl/ARITIES.tsv). *)
   let! tmp1 := papp1 Option.map Continuation_uses.clear_uses in
   let! tmp2 := Continuation.Map.update cont tmp1 t.(continuation_uses) in
   ret (update_continuation_uses t tmp2).

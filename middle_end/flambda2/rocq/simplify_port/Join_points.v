@@ -374,8 +374,7 @@ Definition add_equations_on_params (typing_env : TE.t) (is_recursive : bool)
      of the result, and at 274 its result is ignored. *)
   let& number_of_parameters_mismatch :=
     fun (_ : unit) =>
-    (* PORT-GAP(papp): 264, [Format.pp_print_list] is given its first two
-       arguments only. *)
+    (* 264 *)
     let! tmp1 :=
       papp2 Format.pp_print_list (Some Format.pp_print_space) T.print
     in

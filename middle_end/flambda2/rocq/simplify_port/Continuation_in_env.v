@@ -65,16 +65,12 @@ Definition print (are_rebuilding_terms : Are_rebuilding_terms.t)
   match t with
   | Linearly_used_and_inlinable params handler free_names_of_handler
       cost_metrics_of_handler =>
-    (* PORT-GAP(papp): [Rebuilt_expr.print] is given its first argument
-       only, here and in the next case. *)
     let! tmp1 := papp1 Rebuilt_expr.print are_rebuilding_terms in
     Format.fprintf8 ppf
       "@[<hov 1>(Linearly_used_and_inlinable@ @[<hov 1>(params@ %a)@]@ @[<hov 1>(handler@ %a)@]@ @[<hov 1>(free_names_of_handler@ %a)@]@ @[<hov 1>(cost_metrics_of_handler@ %a)@])@]"
       Bound_parameters.print params tmp1 handler Name_occurrences.print
       free_names_of_handler Cost_metrics.print cost_metrics_of_handler
   | Non_inlinable_zero_arity handler =>
-    (* PORT-GAP(papp): [Or_unknown.print] is given its first argument
-       only. *)
     let! tmp1 := papp1 Rebuilt_expr.print are_rebuilding_terms in
     let! tmp2 := papp1 Or_unknown.print tmp1 in
     Format.fprintf2 ppf

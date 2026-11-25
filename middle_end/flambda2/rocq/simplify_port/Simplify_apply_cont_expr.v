@@ -59,7 +59,6 @@ Definition inline_linearly_used_continuation (uacc : UA.t)
    if tmp1 <>? 0
    then
      let! tmp2 := UA.are_rebuilding_terms uacc in
-     (* PORT-GAP(papp): [RE.print] is given its first argument only. *)
      let! tmp3 := papp1 RE.print tmp2 in
      fatal_errorf8
        "Parameter list@ [%a]@ does not match argument list@ [%a]@ when inlining at [Apply_cont]:@ %a@ Handler to inline:@ %a"

@@ -45,7 +45,6 @@ Record t : Type :=
 Definition print (ppf : Format.formatter) (t : Lifted_cont_params.t) : M unit :=
   match t with
   | {| len := _; new_params_indexed := new_params_indexed |} =>
-    (* PORT-GAP(papp): [BP.Map.print] is given its first argument only. *)
     let! tmp1 := papp1 BP.Map.print BP.print in
     Format.fprintf2 ppf "@[<hov 1>(@[<hov 1>(new_params_indexed@ %a)@])@]"
       tmp1 new_params_indexed

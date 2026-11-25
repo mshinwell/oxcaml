@@ -70,8 +70,6 @@ Definition print (ppf : Format.formatter) (t : Upwards_acc.t) : M unit :=
        flow_result := flow_result;
        resimplify := resimplify
     |} =>
-    (* PORT-GAP(papp): [Or_unknown.print] is given its first argument
-       only. *)
     let! tmp1 := papp1 Or_unknown.print Slot_offsets.print in
     Format.fprintf14 ppf
       "@[<hov 1>(@[<hov 1>(uenv@ %a)@]@ @[<hov 1>(lifted_constants@ %a)@]@ @[<hov 1>(name_occurrences@ %a)@]@ @[<hov 1>(cost_metrics@ %a)@]@ @[<hov 1>(slot_offsets@ %a@)@]@ @[<hov 1>(flow_result@ %a)@]%a)@]"

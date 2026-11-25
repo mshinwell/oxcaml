@@ -56,8 +56,6 @@ Definition create (continuation : Continuation.t) (arity : Flambda_arity.t_Unari
 Definition print (ppf : Format.formatter) (t : Continuation_uses.t) : M unit :=
   match t with
   | {| continuation := continuation; arity := arity; uses := uses |} =>
-    (* PORT-GAP(papp): [Format.pp_print_list] is given its first two
-       arguments only. *)
     let! tmp1 :=
       papp2 Format.pp_print_list (Some Format.pp_print_space) U.print
     in
@@ -103,8 +101,6 @@ Definition add_use (t : Continuation_uses.t) (use : U.t)
       let* bt := Printexc.get_raw_backtrace tt in
       (let! tmp1 := U.env_at_use use in
        let! tmp2 := U.arg_types use in
-       (* PORT-GAP(papp): [Format.pp_print_list] is given its first two
-          arguments only. *)
        let! tmp3 :=
          papp2 Format.pp_print_list (Some Format.pp_print_space) T.print
        in

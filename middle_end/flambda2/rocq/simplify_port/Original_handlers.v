@@ -61,8 +61,7 @@ Definition print (ppf : Format.formatter) (t : Original_handlers.t)
     Non_recursive_handler.print ppf non_rec_handler
   | Recursive invariant_params lifted_params continuation_handlers
       can_be_lifted =>
-    (* PORT-GAP(papp): 39, [Continuation.Lmap.print] is given its first
-       argument only. *)
+    (* 39 *)
     let! tmp1 := papp1 Continuation.Lmap.print One_recursive_handler.print in
     Format.fprintf7 ppf
       "@[<hov 1>(

@@ -1166,8 +1166,9 @@ Module Unique_continuation_handlers.
     | Or_null.This hash =>
       (* 737-752: [List.find_map f |> Option.bind o] is [Option.bind o
          (List.find_map f)]. *)
-      (* PORT-GAP(papp): 737, [List.find_map] is given its first argument
-         only. *)
+      (* PORT-GAP(papp): 737, [List.find_map] is given its first argument only.
+         Its definition is in the standard library, which is not read
+         (decl/ARITIES.tsv). *)
       let! tmp3 :=
         papp1 List.find_map
           (fun (entry : Unique_continuation_handlers.entry A) =>
