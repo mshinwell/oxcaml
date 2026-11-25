@@ -521,6 +521,14 @@ gap now to a long fight: the first version is for the structure.
     make CMI_ROOT=ROOT extracted/DIR/foo.ml          # one file
     make CMI_ROOT=ROOT _build/check/DIR/foo.status   # its types
 
+A SHELL SCRIPT OF THE FOLDER BEGINS WITH `set -eu`, after its comment and
+before its first command: it then stops at a command that fails and at a
+variable that is not set. So a command that may fail on purpose stands in
+a test (`if`, or `||`), and a variable that may be left out is given a
+default or read as `${X:-}`. `make` asks for the line before it compiles
+a file (`make shells`); that the script is right under it is read, and
+the script run.
+
 One process; no `-j`. A file is committed when both builds of Rocq compile
 it AND `extracted/DIR/foo.ml` type-checks (`overlay` is enough: the
 compiler's module with your definitions in the place of its own has the
@@ -596,6 +604,8 @@ answer is yes:
   no other file of dune or of opam is in the folder;
 - every `.ml` and `.mli` file for which ocamlformat is not disabled is as
   ocamlformat leaves it;
+- every shell script has the line `set -eu` before its first command
+  (`tools/shells.py`; `make` asks it too, before it compiles a file);
 - `make` from nothing exits 0, and `git status --porcelain` is empty
   after it: the extracted files and `PROGRESS.md` are made again as they
   are committed.

@@ -65,13 +65,17 @@
 #  (8) every .ml and .mli file of the folder for which ocamlformat is not
 #      disabled (ocamlformat --print-config) is as ocamlformat leaves it
 #      (ocamlformat --check);
-#  (9) make, from nothing, exits 0 (it says how long the make took);
-# (10) after the make, git status --porcelain of the folder is empty: the
+#  (9) every tracked file of the folder that is a shell script (by its
+#      name *.sh, or by its first line) has the line `set -eu` before its
+#      first command (tools/shells.py);
+# (10) make, from nothing, exits 0 (it says how long the make took);
+# (11) after the make, git status --porcelain of the folder is empty: the
 #      extracted files and PROGRESS.md are made again as they are committed;
-# (11) after the make, the files on the disk under extracted/ and runtime/
+# (12) after the make, the files on the disk under extracted/ and runtime/
 #      are the tracked ones, and (7) holds on the disk.
 # The make is the long part (about 25 minutes). It is NOT RUN if an answer
-# before it is NO, and the gate has then failed: (9) to (11) say "not asked".
+# before it is NO, and the gate has then failed: (10) to (12) say "not
+# asked".
 #
 # WHAT IT DOES NOT ASK: whether a range of commits changes a path outside
 # the folder; who made the commits and how their subjects read; which words
@@ -200,24 +204,31 @@ if [ $bad = 0 ] && [ $on -gt 0 ]; then a=yes; found="$on of the $all .ml and .ml
 else a=NO; found="$bad of the $on for which it is not disabled ($all .ml and .mli files):$(echo "$which" | cut -d' ' -f1-6)"; fi
 answer 8 "every .ml and .mli file of the folder for which ocamlformat is not disabled is as ocamlformat leaves it" $a "$found"
 
-# (9) to (11)
+# (9)
+rc=0
+git ls-files -z | xargs -0 "$PYTHON" tools/shells.py > "$logs/shells.log" 2>&1 || rc=$?
+found=$(one_line < "$logs/shells.log")
+if [ $rc = 0 ] && [ -n "$found" ]; then a=yes; else a=NO; fi
+answer 9 "every tracked file of the folder that is a shell script has the line set -eu before its first command" $a "${found#shells: }"
+
+# (10) to (12)
 if [ $no != 0 ]; then
-  for n in 9 10 11; do echo "gate: ($n) not asked: the make is not run, an answer above is NO"; done
+  for n in 10 11 12; do echo "gate: ($n) not asked: the make is not run, an answer above is NO"; done
 elif [ -e _build ]; then
-  answer 9 "make, from nothing, exits 0" NO "a _build is there: not run"
+  answer 10 "make, from nothing, exits 0" NO "a _build is there: not run"
 else
   start=$(date +%s); rc=0
   make -j1 CMI_ROOT="$build" > "$logs/make.log" 2>&1 || rc=$?
   took=$(( $(date +%s) - start ))
   if [ $rc = 0 ]; then a=yes; found="$took seconds"; else a=NO; found="exit status $rc after $took seconds: $(tail -1 "$logs/make.log" | cut -c1-200)"; fi
-  answer 9 "make, from nothing, exits 0" $a "$found"
+  answer 10 "make, from nothing, exits 0" $a "$found"
   found=$(git status --porcelain -- . | one_line)
   if [ -z "$found" ]; then a=yes; else a=NO; fi
-  answer 10 "after the make, git status --porcelain of the folder is empty" $a "$found"
+  answer 11 "after the make, git status --porcelain of the folder is empty" $a "$found"
   disk=$(find . -type f | sed 's|^\./||' | of_dune)
   if on_disk extracted && on_disk runtime && [ "$disk" = dune ]; then a=yes; found=""
   else a=NO; found="not tracked, or not on the disk: $( { find extracted runtime -type f; git ls-files extracted runtime; } | LC_ALL=C sort | uniq -u | one_line); files of dune on the disk: ${disk:-none}"; fi
-  answer 11 "after the make, the files on the disk under extracted/ and runtime/ are the tracked ones, and the folder's dune file is the only file of dune on the disk" $a "$found"
+  answer 12 "after the make, the files on the disk under extracted/ and runtime/ are the tracked ones, and the folder's dune file is the only file of dune on the disk" $a "$found"
 fi
 if [ $no = 0 ]; then echo "gate: PASSED: every answer is yes"; else echo "gate: FAILED: $no of the answers are NO, or the make was not run"; fi
 [ $no = 0 ]

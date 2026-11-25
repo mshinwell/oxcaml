@@ -39,7 +39,7 @@ reads). It needs Rocq, OCaml, ocamlformat and Python on the path. Use one
 build job. It builds the port against both monads of `monad/` and extracts
 OCaml from the identity-monad build. OCaml checks each extracted file
 against the compiler's interfaces. The default target also runs the text
-checks (`make given`, `make lines` and `make papp`), regenerates
+checks (`make shells`, `make given`, `make lines` and `make papp`), regenerates
 `PROGRESS.md` and checks the comments. Build copies, compiled Rocq files
 and type-checking outputs are under `_build/` here. The head of the
 `Makefile` lists the targets.
@@ -68,7 +68,8 @@ compares it with the tree's; asks that the files under `extracted/` and
 `runtime/` are the ones that `make` makes and the kit, and no other; that
 the folder's `dune` file is the one stanza that the section above names,
 and the only file of dune in the folder; that ocamlformat leaves every
-`.ml` and `.mli` file as it is; then runs `make` from nothing and asks
+`.ml` and `.mli` file as it is; that every shell script begins with `set
+-eu`; then runs `make` from nothing and asks
 that `git status --porcelain` is empty after it. It prints each thing
 that it asks with the answer, one line each, and exits 0 only if every
 answer is yes. The make is the long part (about 25 minutes, one process).

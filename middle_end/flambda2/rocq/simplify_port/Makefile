@@ -43,6 +43,8 @@
 #                   compiler's files
 #   make papp       the partial applications of functions of the ported
 #                   files, against the definitions in extracted/
+#   make shells     every shell script of the folder has `set -eu` before
+#                   its first command
 #   make table      PROGRESS.md
 #   make list       the ported files and their donors
 #   make clean
@@ -91,13 +93,13 @@ ID_V := $(B)/id/Port_monad.v $(addprefix $(B)/id/,$(SRC))
 EXTRACTED := $(foreach p,$(PORTED),$(call extracted,$(p)))
 CHECKED := $(foreach p,$(PORTED),$(call checked,$(p)))
 
-.PHONY: all real id extract check given lines papp table comments list clean
-all: real id extract check table comments
+.PHONY: all real id extract check given lines shells papp table comments list clean
+all: shells real id extract check table comments
 
 real: $(REAL_V:.v=.vo)
 id: $(ID_V:.v=.vo)
 extract: $(EXTRACTED)
-check: given lines $(CHECKED) papp
+check: shells given lines $(CHECKED) papp
 
 list:
 	@$(foreach p,$(PORTED),echo '$(p).v	$(call donor,$(p))	$(call extracted,$(p))';)
@@ -129,8 +131,10 @@ ifneq ($(MAKECMDGOALS),clean)
 ifneq ($(MAKECMDGOALS),list)
 ifneq ($(MAKECMDGOALS),given)
 ifneq ($(MAKECMDGOALS),lines)
+ifneq ($(MAKECMDGOALS),shells)
 -include $(B)/real/depend
 -include $(B)/id/depend
+endif
 endif
 endif
 endif
@@ -219,6 +223,16 @@ given:
 # of the files.
 lines:
 	$(PYTHON) tools/lines.py $(addsuffix .v,$(PORTED))
+
+# Every shell script of the folder begins with `set -eu`: it stops at a
+# command that fails and at a variable that is not set. tools/shells.py
+# says what a shell script is, and what the check does not say. It is the
+# first target of [make], so a make stops there before Rocq compiles a file
+# (make asks Rocq for the dependencies of the files before any target). It
+# reads nothing that Rocq or OCaml makes: [make shells] alone does not ask
+# Rocq for the dependencies of the files.
+shells:
+	$(PYTHON) tools/shells.py
 
 # A function that is given its first arguments only (pappN) runs nothing
 # if its definition has more parameters. tools/lint.py checks that against
