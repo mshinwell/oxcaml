@@ -157,6 +157,13 @@ compiler whose result depends on another order than right to left, or on
 the order of the fields of a record: tell the lead (it is a suspected bug
 of the compiler, for the human).
 
+Each place marked `PORT-GAP(record-order)` has a VERDICT, from a reading of
+the compiler's code of the functions called, by the one sense of
+`record_order/README.md`: COMMUTE; COMMUTE, FAILURES ORDERED; or REPORT. The
+mark says the verdict. A new place gets its row there and its verdict in its
+mark. A place whose call makes a fresh name, or where the order can change a
+result, is REPORT and goes to the human.
+
 A function OF THE FILE applied to its first arguments only (`let simplifier
 = simplify_x a b in`) is a value in both builds: `let&`, no mark.
 
