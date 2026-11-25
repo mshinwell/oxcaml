@@ -37,7 +37,10 @@
 #   make real       Rocq compiles everything against monad/real
 #   make id         Rocq compiles everything against monad/id
 #   make extract    extracted/DIR/foo.ml for every ported file
-#   make check      the types of every extracted file, and make papp
+#   make check      the types of every extracted file, make given and
+#                   make papp
+#   make given      the OCaml text that the ported files give, against the
+#                   compiler's files
 #   make papp       the partial applications of functions of the ported
 #                   files, against the definitions in extracted/
 #   make table      PROGRESS.md
@@ -88,13 +91,13 @@ ID_V := $(B)/id/Port_monad.v $(addprefix $(B)/id/,$(SRC))
 EXTRACTED := $(foreach p,$(PORTED),$(call extracted,$(p)))
 CHECKED := $(foreach p,$(PORTED),$(call checked,$(p)))
 
-.PHONY: all real id extract check papp table comments list clean
+.PHONY: all real id extract check given papp table comments list clean
 all: real id extract check table comments
 
 real: $(REAL_V:.v=.vo)
 id: $(ID_V:.v=.vo)
 extract: $(EXTRACTED)
-check: $(CHECKED) papp
+check: given $(CHECKED) papp
 
 list:
 	@$(foreach p,$(PORTED),echo '$(p).v	$(call donor,$(p))	$(call extracted,$(p))';)
@@ -124,8 +127,10 @@ $(B)/id/depend: $(ID_V)
 
 ifneq ($(MAKECMDGOALS),clean)
 ifneq ($(MAKECMDGOALS),list)
+ifneq ($(MAKECMDGOALS),given)
 -include $(B)/real/depend
 -include $(B)/id/depend
+endif
 endif
 endif
 
@@ -188,6 +193,18 @@ $(foreach p,$(PORTED),$(eval $(call PORT_RULES,$(p))))
 $(B)/check/port_%.cmi: runtime/port_%.ml tools/check.sh
 	@mkdir -p $(B)/check
 	@CMI_ROOT='$(CMI_ROOT)' OCAMLC='$(OCAMLC)' RUNTIME='$(B)/check' tools/check.sh --runtime $<
+
+# The OCaml text that a ported file gives and Rocq copies without reading
+# it (a block of OCaml, the strings of a directive of the extraction):
+# each text is the lines of the compiler's file that the note before it
+# names, or the setter of a record update, or the form of a type whose
+# definition the file gives, or stands under a mark; a mark over text that
+# can be checked is an error. tools/given.py says how, and what it does
+# not establish. It reads decl/UPDATES.tsv and decl/DONOR-TOKENS.tsv, and
+# nothing that Rocq or OCaml makes: [make given] alone does not ask Rocq
+# for the dependencies of the files.
+given:
+	$(PYTHON) tools/given.py $(addsuffix .v,$(PORTED))
 
 # A function that is given its first arguments only (pappN) runs nothing
 # if its definition has more parameters. tools/lint.py checks that against

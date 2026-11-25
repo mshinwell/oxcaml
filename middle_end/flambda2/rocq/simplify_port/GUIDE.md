@@ -245,7 +245,7 @@ fuel was enough, and that it holds of the OCAML code is NOT established now
 - A RECORD UPDATE `{ t with f = v }` is a SETTER of the file, defined once
   for each set of fields that the file updates, before its first use:
 
-      (* PORT-GAP(update): [{ t with typing_env }] *)
+      (* 12, 40 and 57-59. [{ t with typing_env }] *)
       Definition update_typing_env (t : Downwards_env.t)
           (typing_env : TE.t) : Downwards_env.t :=
         {| round := t.(round); typing_env := typing_env; ... |}.
@@ -259,9 +259,15 @@ fuel was enough, and that it holds of the OCAML code is NOT established now
   name, in the order of the compiler's text; `update_f_g` for two
   fields). Rocq does not compare the two:
   `tools/lint.py` does, as words (each field of the text is given its
-  parameter, every other field is `g := t.(g)`). A field whose new value is
-  a call: `let!` before the setter if it is the only one, else `let*` each
-  (section 2, records).
+  parameter, every other field is `g := t.(g)`). THE NOTE before the
+  Definition names EVERY place of the compiler's file where a record
+  update of that type gives exactly these fields, in this order: the line
+  where the update begins, or its lines (`57-59`). `make given` checks the
+  note both ways against `decl/UPDATES.tsv` (each place that is named is
+  such an update, and each such update is named), and that the record of
+  the Definition has the fields of the compiler's type in the order of
+  the type. A field whose new value is a call: `let!` before the setter if
+  it is the only one, else `let*` each (section 2, records).
 - What `decl/` marks `PORT-GAP(type)` (a GADT, a few records): its makers
   `mk_C` and its eliminator `match_T`, as `decl/` says.
 - A type that the file itself DEFINES: a Rocq `Inductive` or `Record` with
@@ -270,18 +276,55 @@ fuel was enough, and that it holds of the OCAML code is NOT established now
   of the file that only reads the field of its name IS that projection;
   mark it `PORT-GAP(loose)`). Else (inline record, GADT, mutable field,
   polymorphic variant, a field named `unit` or another name that the
-  extraction changes): mark `PORT-GAP(type)` and either the OCaml
-  definition verbatim (below) with, in Rocq, what `decl/` has for it copied
-  into the file; or, to keep the definition at its place (inside a module
+  extraction changes): either the OCaml definition verbatim (below) with,
+  in Rocq, what `decl/` has for it copied into the file; or, to keep the
+  definition at its place (inside a module
   of the file), the Rocq type under the name `t_` with its `Extract
   Inductive t_ => "t" [...]`, then `Definition t : Type := t_.` and `Extract
   Constant t => "| A | B of { x : int }".`: Rocq prints `type t = ` and
-  that text.
+  that text. Before it, the note of the lines of the compiler's
+  definition. The strings of `Extract Inductive` are THE FORM of `decl/`
+  for that definition, and no other text (`x__1 ..` for the arguments,
+  `f__1 ..` for the cases, `x__0` for the value; the header of
+  `tools/given.py`, R3, has it in full): `make given` makes the form again
+  from the OCaml definition that the file gives, compares, and counts the
+  arguments of the Rocq constructors. Mark `PORT-GAP(type)` only what it
+  cannot check, and say why: a type that is written out in the directive
+  (polymorphic variants, a tuple with labels); a definition that is not
+  the compiler's text as it stands (the types of a recursive group in
+  another order); functions that are written for the file (the maker and
+  the accessors of a record with a mutable field).
 - OCaml text that must be in the extracted file as it is (`open!`, such a
   type, `exception E`, a functor application, a wrapper with an optional
   argument) goes between a line `(*OCAML` and a line `OCAML*)` (copied to
   the head of the extracted file) or `(*OCAML-END` and `OCAML-END*)` (to its
-  end). Mark it `PORT-GAP(verbatim)` unless it is an `open`.
+  end). Before it, the note of the compiler's lines that it is: `(* 17 *)`,
+  `(* 18-23 and 43 *)`; with words after a full stop if it does not stand
+  where the compiler has it (`(* 120. The exception stands at the head of
+  the extracted file. *)`). Mark it `PORT-GAP(verbatim)` only if it is NOT
+  the compiler's lines (a wrapper, text that the port itself needs), and
+  say why.
+- GIVEN TEXT. A block and the strings of a directive (`Extract Constant`,
+  `Extract Inlined Constant`, `Extract Inductive`; write no other
+  directive) are OCaml that Rocq copies and does not read. `make given`
+  (`tools/given.py`, a part of `make check`) compares each of them with
+  the compiler's file, as tokens. A text is the compiler's LINES that the
+  note before it names (a block; the text of `Extract Constant`, which
+  holds what follows `type t =` or `let x =`); or a SETTER (above); or THE
+  FORM of a type whose definition the file gives (above); or the
+  constant's own name, the pair of an exception, a number (that of the
+  Rocq `Definition`; for a `Parameter`, a literal of the compiler's lines
+  that the note names). A NOTE OF LINES is a comment that begins with the
+  lines, `(* 12-20 *)`, `(* 12-20 and 43. Words. *)`; it stands before the
+  text, and only comments and sentences without a body (`Parameter`,
+  `Inductive`, `Record`, the `Definition` of the directive) stand
+  between. A text that is none of these needs a mark (section 5); a mark
+  over text that `make given` can check is an error. `GIVEN_ALL=1 make
+  given` prints one line for each text: what holds, and by which of the
+  differences that are allowed. The header of the tool says what it does
+  NOT establish: above all, that the ported code USES the setter, the
+  maker or the number where the compiler has the update, the construction
+  or the number.
 - An exception of the file: `exception E` verbatim, `Parameter E : exception
   unit.` and `Extract Inlined Constant E => "((fun () -> E), (function E ->
   Some () | _ -> None))".`
@@ -335,9 +378,11 @@ M r.` and `Extract Constant f => "fun _ -> Misc.fatal_error
 ""PORT-GAP(unported): f""".`); `partial` (part of a body replaced by
 `fatal_error "PORT-GAP(partial): ..."`); `loose` (ported, but not line
 beside line: say what differs; an attribute such as `[@inline]` that is not
-kept); `order` (you are not sure of the order of evaluation); `type`;
-`verbatim`; `papp`; `record-order` (section 2); `update` (the setter of a
-record update, section 4); `init` (a top-level value
+kept); `order` (you are not sure of the order of evaluation); `type`,
+`verbatim` and `update` (OCaml text of the file, or a setter, that `make
+given` cannot check: section 4; over text that it can check the mark is
+an error, and the note of lines is enough); `papp`; `record-order`
+(section 2); `init` (a top-level value
 that the compiler computes with effects when the module starts: a
 `Parameter`, its OCaml text verbatim, and `Extract Inlined Constant x =>
 "x".`); `decl`. Prefer a marked
