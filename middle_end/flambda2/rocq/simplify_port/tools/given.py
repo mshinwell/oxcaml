@@ -202,11 +202,14 @@ THE NAMED CLASSES, each an Extract Inlined Constant NAME => "TEXT":
   path M.f where NAME is M_f (D5);
 - THE PAIR OF AN EXCEPTION: ((fun () -> NAME), (function NAME -> Some () |
   _ -> None));
-- A NUMBER: a literal (an integer, a negative one in brackets, or a float
-  that ends with its point). If the file has [Definition NAME : .. :=
-  N.], the two numbers are equal. If it has none (NAME is a Parameter),
-  the note names lines of the donor and the literal stands on each of
-  them.
+- A NUMBER: TEXT is one number of OCaml as the tool's tokens read one (an
+  integer in base ten, sixteen, eight or two, with or without the letter
+  of its size; a float, with or without digits after its point and an
+  exponent), or such a number with [-] before it, in brackets. If the
+  file has [Definition NAME : .. := N.], TEXT is an integer and the two
+  numbers are equal (a float is equal to none). If it has none (NAME is a
+  Parameter), the note names lines of the donor and the literal stands
+  on each of them, as the same token.
 
 THE DIFFERENCES, which the listing names at each text: D1 the directive
 holds what follows [type NAME =] or [let NAME =]; D2 an item after [()];
@@ -1338,7 +1341,7 @@ def check_inlined(rd, donor, t):
     if m and m.group(1) == m.group(2) == t.name:
         t.holds = "the pair of an exception"
         return
-    if re.fullmatch(r"\(-[0-9][0-9a-fA-FxX_]*[lLn]?\)|[0-9][0-9a-fA-FxXoObB_]*[lLn]?\.?", s):
+    if NUMBER.fullmatch(s[2:-1] if s.startswith("(-") and s.endswith(")") else s):
         d = re.search(
             r"(?<![A-Za-z_0-9'.])Definition\s+%s\s*:[^:=]*:=\s*\(?(-?\d+)\)?(?:%%[A-Za-z_]+)?\s*\.(?=\s)"
             % re.escape(t.name),

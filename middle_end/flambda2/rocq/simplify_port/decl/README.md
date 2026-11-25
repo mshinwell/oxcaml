@@ -359,7 +359,9 @@ another name, an application, a `let` before the `fun`, as for
 
 `tools/lint.py` reads it (its last check, `tools/papp.py`): `pappN f` needs
 no mark when N is smaller than column 3, or column 3 is 0 and N is smaller
-than column 4. No file of decl/ depends on it.
+than column 4. A row of the standard library has no number: the lint
+leaves such a use to `make papp` ("What is not read", below). No file of
+decl/ depends on it.
 
 The table reads the COMPILER'S files. Where a file of Simplify is ported,
 the program that is linked runs the definition of `extracted/` in its
@@ -415,9 +417,22 @@ What is not read; the row says why.
 - The standard library: 2946 rows (`Format`, `List`, ..; and what a functor
   of the compiler takes from `Map.Make`, `Set.Make` or `Hashtbl.Make`). The
   standard library of the tree is compiled by the tree's own compiler, and
-  the OCaml that builds `tools/declgen` does not read those typed trees. A
-  function of it that is given its first arguments only keeps the mark
-  `PORT-GAP(papp)`, unless its realisation is a function (column 3).
+  the OCaml that builds `tools/declgen` does not read those typed trees:
+  the table has no number for these rows. For a function of it that a use
+  gives its first arguments (`pappN`), `make papp` reads the tree's own
+  `stdlib/` AS WORDS, and only for a value of a unit of the library itself
+  (`List.map` in `stdlib/list.ml`; not what a functor makes, which is most
+  of these rows). The use needs no mark when the definition there has
+  more parameters than the use gives arguments, or when its realisation
+  is a function (column 3); else it keeps the mark `PORT-GAP(papp)`.
+  No DEFINITION is read of the standard library of the compiler that
+  BUILDS the tree, with which a compiler of the first stage is linked:
+  that library is not of this repository (`tools/papp.py`, THE STANDARD
+  LIBRARY, says what the reading of words does not establish). Its
+  compiled interfaces are read, as before: they are the interfaces of the
+  standard library that the build read, and the types of what decl/
+  declares of `List`, `Option`, .. are theirs; such a declaration names
+  the tree's own file of the same name (`stdlib/list.mli`).
 - A module that is made from a value (a first-class module), and whatever
   else could not be followed: no row today.
 

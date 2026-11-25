@@ -121,7 +121,7 @@ name without a module that the lint finds under an `Import` does not pass
 if the name also stands anywhere in the file where a variable may be bound.
 A use that passes has NO mark. A use that does
 not pass (the first group has no more parameters than the use gives
-arguments; or no definition was read: the standard library; or the
+arguments; or no definition was read; or the
 function is a variable, of which nothing is known) has, before it in the
 same definition, the mark `(* PORT-GAP(papp): [F] ... *)`: the function in
 square brackets as the use writes it, nothing else in square brackets, and
@@ -137,6 +137,17 @@ step after the lint, and no check by itself: for each use that the lint
 passes of a function of a ported file of Simplify, it looks for the
 definition in `extracted/`, in the module where the compiler has it, and
 wants more parameters there too; what it does not find there is an error.
+A FUNCTION OF THE STANDARD LIBRARY (`papp1 Option.map f`): `decl/ARITIES.tsv`
+has no number for it. The lint leaves such a use to `make papp`, which
+reads the tree's own `stdlib/`, as words, and wants more parameters in the
+definition there than the use gives arguments: then the use has no mark.
+It looks only for a value of a unit of the library itself (`List.map` in
+`stdlib/list.ml`; not for what `Set.Make` or `Map.Make` makes), and counts
+only parameters that are plain names; any other use keeps the mark, with
+what `make papp` says of it. THE LIMIT: a compiler of the first stage is
+linked with the standard library of the compiler that builds it. That
+library is not of this repository, and no tool here reads a definition of
+it: such a mark goes on the reading of the tree's own library only.
 A FUNCTION OF THE FILE that is given its first arguments by `pappN` (a
 ported recursive function passed as a value, `~simplify_expr`, is `papp1
 simplify_expr fuel`) is checked by `make papp`, not by the lint: the
@@ -144,9 +155,17 @@ definition in the file's own extracted text, in the module where the file
 binds the name by `Definition`, `Fixpoint` or `with`, must have more
 parameters than the use gives arguments. The fuel counts as an argument
 here, though the extraction erases it: that only makes the rule stricter.
+A LOCAL FUNCTION (a local `let rec`, section 3) that is given its first
+arguments by `pappN` is checked by `make papp` too, in ONE shape and by
+uniqueness, since the tool follows no scope: the file has one `let f`, it
+is `let f := fix f (binders) .. := .. in`, no other thing of the file has
+the name f, and the use stands in the same `Definition` or `Fixpoint` D,
+inside the `fix` or after its `in`; the extracted definition of D has one
+line `let rec f` inside it, with more parameters than the use gives
+arguments. The rules below hold for it with the head of the `fix`.
 A use that `make papp` cannot pass has the mark, which says what the
-extracted text has: a local function (Rocq's own `let`), which the tool
-does not look up; a definition that is another name or an application; a
+extracted text has: a local function that is not read so (bound by `fun`,
+or twice); a definition that is another name or an application; a
 function inside a functor; a function with no more parameters than it is
 given. `make papp` IS NO ELABORATOR AND NO RESOLVER OF ROCQ'S NAMES: it
 reads words, counts the head of the binding as it is written, and accepts
@@ -270,6 +289,11 @@ fuel was enough, and that it holds of the OCAML code is NOT established now
   it is the only one, else `let*` each (section 2, records).
 - What `decl/` marks `PORT-GAP(type)` (a GADT, a few records): its makers
   `mk_C` and its eliminator `match_T`, as `decl/` says.
+- A COERCION of a private abbreviation (`(x :> int)`, where `x` is a name
+  of the type `M.t`, which is `private int`): the pure function that
+  `decl/` declares after the type, `M.coerce_t_to_int x`. `decl/` has one
+  for each such coercion that the files of Simplify write of a name; do
+  not declare it in the file.
 - A type that the file itself DEFINES: a Rocq `Inductive` or `Record` with
   the compiler's names, if it is a plain variant or record (Rocq prints the
   OCaml definition, and one function for each field of a record: a function
@@ -312,9 +336,10 @@ fuel was enough, and that it holds of the OCAML code is NOT established now
   note before it names (a block; the text of `Extract Constant`, which
   holds what follows `type t =` or `let x =`); or a SETTER (above); or THE
   FORM of a type whose definition the file gives (above); or the
-  constant's own name, the pair of an exception, a number (that of the
-  Rocq `Definition`; for a `Parameter`, a literal of the compiler's lines
-  that the note names). A NOTE OF LINES is a comment that begins with the
+  constant's own name, the pair of an exception, a number (any one
+  number of OCaml: `32`, `0x1F`, `0.`, `1e3`, `(-1)`; an integer is that of
+  the Rocq `Definition`; for a `Parameter`, as for every float, a literal
+  of the compiler's lines that the note names). A NOTE OF LINES is a comment that begins with the
   lines, `(* 12-20 *)`, `(* 12-20 and 43. Words. *)`; it stands before the
   text, and only comments and sentences without a body (`Parameter`,
   `Inductive`, `Record`, the `Definition` of the directive) stand

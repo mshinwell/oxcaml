@@ -42,7 +42,9 @@ decl/ writes as its realisation (0 if the realisation is the name) and the
 number of parameters of its definition (- if no definition was read), with
 the place. A use PASSES if N is smaller than the first number, or the first
 number is 0 and N is smaller than the second. A use that does not pass must
-have the mark PORT-GAP(papp); a use that passes must not.
+have the mark PORT-GAP(papp); a use that passes must not. (For a function
+of the standard library the table has no number: the lint does not judge
+such a use, the second step does. THE STANDARD LIBRARY, below.)
 
 Two callers.
 - tools/lint.py FILE.v, its fourth check: check(path, raw). With
@@ -106,7 +108,8 @@ known.
 
 THE EXTRACTED DEFINITIONS (--extracted). This is a SECOND STEP after the
 lint and no check by itself: it looks only at the uses that the lint
-passes, it does not print the lint's errors again (for a file in which the
+passes or leaves to it (a function of the file, of the standard library),
+it does not print the lint's errors again (for a file in which the
 lint has one it says so, and that is an error here too), and the Makefile
 runs it after the lint has passed for every file. The table reads the
 compiler's files. For a function of a file of Simplify that is ported, the
@@ -253,8 +256,8 @@ Y.X.f). The tool does not follow Rocq's scopes: there must be ONE binding
 of f in the whole file whose modules end with X, and that one is taken; if
 there are several (X.f at the root and Y.X.f), the use is refused. The use
 FAILS, closed, for:
-- a local function (bound by Rocq's own [let]): the tool does not look
-  inside a definition;
+- a local function (bound by Rocq's own [let]) that is not read as A LOCAL
+  FUNCTION, below, says;
 - a name that the file binds more than once, or both ways; a name with
   modules that several bindings of the file can be, or none;
 - a use with modules that stands inside a functor or a module type of the
@@ -275,6 +278,76 @@ A use that fails and has no mark is an error; one that fails and has the
 mark is printed ("keeps its mark"); one that passes and has the mark is an
 error (the mark is not needed).
 
+A LOCAL FUNCTION is a name without a module that FILE.v binds by Rocq's
+own [let] and in no other way. The second step reads it in ONE shape, and
+BY UNIQUENESS, NOT BY SCOPES:
+- the file has ONE [let f], and no [Definition f], [Fixpoint f] or [with f
+  (]. The binding is written [let f := fix f BINDERS .. := BODY in ..] (a
+  local [let rec]: GUIDE.md, section 3). It stands in a sentence that
+  begins with [Definition D] or [Fixpoint D], after the first [:=] of that
+  sentence that is outside brackets. The name f stands nowhere else in
+  the file where a variable may be bound (A NAME THAT IS ALSO A VARIABLE;
+  the two names of the binding itself are not counted).
+- THE USE stands in the same sentence, where the words say that the
+  binding is in sight: in BODY, or in what follows the [in] of the [let].
+  As words, that is from the beginning of BODY up to the first of: a
+  bracket that closes one that is open there; a bar, [with], [end], [as],
+  [return] or comma that is of no [match] that begins after it; an [in]
+  that is neither the one of the [let] itself nor of a [let], [let!],
+  [let*], [let&], [let_fuel!] or [recursive!] that begins after it; a
+  [then] or [else] of no [if] that begins after it; a semicolon that is
+  not doubled; the full stop. Only what stands outside the brackets that
+  open after the beginning of BODY is read for that. (It may be sooner
+  than where Rocq ends the scope; not later, as far as these are all the
+  words that end a term.)
+- THE CONDITIONS ON ELABORATION are those of a function of the file, with
+  the head of the [fix] in the place of the head of the binding: no
+  [Section]; every sentence of the file known; the head, from the name
+  after [fix] to its [:=], read whole and writing at least N + 1
+  parameters; BODY no function.
+- IN THE EXTRACTED TEXT there is ONE definition of D among the items of
+  the module where FILE.v has the sentence. On the lines of that
+  definition (those after its first that are indented more than it) ONE
+  line begins [let f] or [and f] (with [rec], with attributes). That
+  definition of f has more parameters than N, counted as above.
+Anything else fails closed: a local function that is bound by [let f :=
+fun ..] or in any other form, or twice, or beside a function of the same
+name that the file binds by Definition, Fixpoint or [with]; a use outside
+the stretch above; no definition of D, or several; no definition of f
+inside it, or several.
+
+THE STANDARD LIBRARY. The table has no number for a value of the standard
+library: its row says that the definition is not read (decl/README.md,
+the section of ARITIES.tsv). The lint does not judge a use of such a
+value: its listing says "of the standard library: for make papp", and it
+leaves a mark that names the function alone. The second step reads THE
+TREE'S OWN stdlib/, AS WORDS, by the lookup and the count of THE EXTRACTED
+DEFINITIONS:
+- only for a value of a unit of the library itself: the OCaml name of the
+  row is Unit.f; decl/INDEX.tsv says that the value is declared after the
+  interface stdlib/unit.mli; and the file is stdlib/unit.ml of the tree.
+  A value of a module inside a unit; of the result of a functor (most
+  rows: the sets and the maps); under a name that a file of the compiler
+  gives a module of the library; an operator: fails closed (the name is
+  not Unit.f, or it is declared after another interface, or there is no
+  such file).
+- stdlib/unit.ml has a line [let f ..] or [and f ..] among the items of
+  the file, and EACH such definition has more parameters than N. A value
+  that the unit takes from another ([include]) and an [external] have no
+  such line, which fails closed. The parameters are plain names, [_] or
+  [()]: a label, an optional parameter, a pattern or a type among them is
+  not counted, which fails closed.
+A use that fails keeps its mark, or wants one; a use that passes has none.
+THE LIMIT OF THIS READING. A compiler of the first stage (the one that the
+compiler which builds the tree makes of these sources) is linked with the
+standard library OF THE COMPILER THAT BUILDS IT. That library is not of
+this repository, and NO TOOL HERE READS A DEFINITION OF IT. (Its compiled
+interfaces are read, by tools/declgen: the types of what decl/ declares
+of the standard library are theirs. decl/README.md, the section of
+ARITIES.tsv.) A mark that goes for a function of the standard library
+goes on the reading of the tree's own library only: the standard library
+of the compiler that this repository makes.
+
 WHAT THE TOOL DOES NOT ESTABLISH. It is NO RESOLVER OF ROCQ'S SCOPES AND NO
 ELABORATOR: it reads words. A use that it passes has been checked ONLY
 under the shapes that are stated above: pappN in its one written form;
@@ -282,8 +355,9 @@ for a function of the file, one binding of the name in the file, the use
 after it and in sight of it with no import between, the first N + 1
 parameters written in a head that is read whole, no section, no sentence
 that is not known, the name nowhere a binder; for a function of another
-ported file, one module for the place of its definition. Everything else
-it refuses, or does not see. In particular:
+ported file, one module for the place of its definition; for a local
+function and for the standard library, the shapes of their two sections.
+Everything else it refuses, or does not see. In particular:
 - which binding a name reaches, and which words are binders, is decided by
   the words, not by Rocq's resolution of names. For a declared name that
   is written with a module, nothing checks that a nearer module of the
@@ -308,9 +382,26 @@ it refuses, or does not see. In particular:
   itself changes the shape of a function (it adds or takes away a [fun]),
   only the parameters of the extracted definition are read, as they
   stand; the extracted use is not read;
-- a local function is not looked up, and needs the mark;
-- a definition of the standard library, or of any file whose typed tree
-  was not read, keeps its mark: nothing is known of it;
+- for a local function NO SCOPE IS FOLLOWED, of Rocq or of OCaml. In
+  their place stand: one binding of the name in the whole file, one
+  definition of the name inside the extracted definition, and the place
+  of the use as the words give it. A second binding that the words do not
+  show (in OCaml, one that does not begin its line) is not seen;
+- for a local function THE EXTRACTED USE IS NOT READ. That the extracted
+  definition which is found is the one that the use reaches in OCaml
+  rests on what the extraction does, which the tool does not check: it
+  prints a local function under its name in Rocq, or under another name
+  when that one is taken, and then nothing is found;
+- the tree's own standard library is read as words, like the extracted
+  files, but in a layout that nothing makes uniform (its files are
+  written by hand): a definition that is made in another way than by a
+  line [let f] or [and f] among the items of its file (by [include], by a
+  preprocessor) is not seen, and no typed tree says the count again;
+- no definition is read of the standard library of the compiler that
+  builds the tree, with which a compiler of the first stage is linked
+  (THE LIMIT OF THIS READING, above);
+- a definition of any other file whose typed tree was not read keeps its
+  mark: nothing is known of it;
 - the extracted definition is found as words, in the layout that
   ocamlformat gives the extracted files; what the extraction erases (the
   fuel) makes the rule stricter, not exact;
@@ -329,6 +420,11 @@ ABBREV = os.path.join(TOOLS, "..", "abbrev")
 PORT = os.path.join(TOOLS, "..")
 EXTRACTED = os.path.join(TOOLS, "..", "extracted")
 SIMPLIFY = "middle_end/flambda2/simplify/"
+# the tree's own standard library, and the reason by which a row of the
+# table says that a definition is of the standard library, and not read
+# (tools/declgen/arities.ml)
+STDLIB = os.path.join(TOOLS, "..", "..", "..", "..", "..", "stdlib")
+STDLIB_ROW = "not read: the standard library of the tree is compiled by the tree's own compiler"
 
 
 SPECIAL = re.compile(r'"|\(\*|\*\)')
@@ -512,7 +608,9 @@ IN_DECL = None
 # A use: where it is, how the listing shows it, whether it is written
 # without pappN, the arguments it gives (None: not counted), the function
 # as written, the verdict (None for a function of the file; else whether it
-# passes, why, the Rocq name in the table), and whether a mark names it.
+# passes, why, the Rocq name in the table; whether it passes is None for a
+# function of the standard library, of which the table has no number: the
+# second step says), and whether a mark names it.
 Use = collections.namedtuple("Use", "pos shown plain n name verdict marked")
 
 PAPP = re.compile(r"(?<![A-Za-z_0-9'])papp([1-4])(?![A-Za-z_0-9'])")
@@ -670,7 +768,8 @@ def analyse(path, raw):
             why = "the realisation of %s in decl/ is a function of %d parameters" % (found, wrapper)
             return n < wrapper, why, found
         if definition == "-":
-            return False, "%s: %s" % (found, where), found
+            # (None: the standard library, which the second step reads)
+            return None if where == STDLIB_ROW else False, "%s: %s" % (found, where), found
         why = "the definition of %s has %s parameter%s (%s)" % (
             found,
             definition,
@@ -744,7 +843,8 @@ def analyse(path, raw):
                 mine = [Use(m.start(), shown, True, n, name, v, False)]
                 uses.append(mine[0])
             # a mark stays for a use that does not pass, and for a function
-            # of the file (the second step judges that one)
+            # of the file or of the standard library (the second step judges
+            # those)
             staying = [u for u in mine if u.verdict is None or not u.verdict[0]]
             for u in staying:
                 covered.add(u.pos)
@@ -763,12 +863,14 @@ def analyse(path, raw):
                 if u.verdict is None
                 else "not counted"
                 if u.n is None
+                else "of the standard library: for make papp"
+                if u.verdict[0] is None
                 else ("passes" if u.verdict[0] else "does not pass")
                 + (" (arguments counted as words)" if u.plain else "")
             )
             why = "" if u.verdict is None else u.verdict[1]
             print("%s:%d\t%s\t%s\t%s" % (path, line_of(u.pos), u.shown, word, why))
-        if u.verdict is None or u.verdict[0]:
+        if u.verdict is None or u.verdict[0] is not False:
             continue
         here = "%s:%d: %s" % (path, line_of(u.pos), u.shown)
         if u.pos in covered:
@@ -867,14 +969,27 @@ MODULE_STRUCT = re.compile(r"module\s+(%s)\s*(?::[^=()]*)?=\s*struct$" % UNAME)
 MODULE_SIG = re.compile(r"module\s+(%s)\s*:\s*sig$" % UNAME)
 
 
-def extracted_definitions(text, modules, name):
-    """The numbers of parameters (None: not known) of the definitions of
-    [name] among the items of the module [modules] (a list of names; empty
-    for the file itself) of an extracted file."""
-    definition = re.compile(
+def definition_of(name):
+    """A line on which a definition of [name] begins: what follows the
+    name on it."""
+    return re.compile(
         r"(?:let|and)(?:\s*\[@[^\]]*\])*(?:\s+rec(?![A-Za-z0-9_']))?(?:\s*\[@[^\]]*\])*"
         r"\s+%s(?![A-Za-z0-9_'])(.*)$" % re.escape(name)
     )
+
+
+def parameters_at(lines, k, rest):
+    """The parameters of the definition that begins on the line k, [rest]
+    being what follows its name there."""
+    return count_parameters(" ".join([rest] + lines[k + 1:k + 8]))
+
+
+def definition_lines(text, modules, name):
+    """The lines of an OCaml text, its comments blank; and the definitions
+    of [name] among the items of the module [modules] (a list of names;
+    empty for the file itself): (the number of the line, what follows the
+    name on it)."""
+    definition = definition_of(name)
     out = []
     lines = blank_ocaml(text).split("\n")
     # the structures and signatures that are open: [name or None, the
@@ -904,7 +1019,40 @@ def extracted_definitions(text, modules, name):
             continue
         m = definition.match(s)
         if m:
-            out.append(count_parameters(" ".join([m.group(1)] + lines[k + 1:k + 8])))
+            out.append((k, m.group(1)))
+    return lines, out
+
+
+def extracted_definitions(text, modules, name):
+    """The numbers of parameters (None: not known) of the definitions of
+    [name] among the items of the module [modules] (a list of names; empty
+    for the file itself) of an extracted file."""
+    lines, found = definition_lines(text, modules, name)
+    return [parameters_at(lines, k, rest) for k, rest in found]
+
+
+def extracted_local(text, modules, outer, name):
+    """The numbers of parameters (None: not known) of the definitions of
+    [name] that stand inside the ONE definition of [outer] among the items
+    of the module [modules] of an extracted file: on the lines after its
+    first that are indented more than it, each line that begins [let name]
+    or [and name]. None if [outer] has not exactly one definition there."""
+    lines, found = definition_lines(text, modules, outer)
+    if len(found) != 1:
+        return None
+    k = found[0][0]
+    margin = len(lines[k]) - len(lines[k].lstrip())
+    definition = definition_of(name)
+    out = []
+    for j in range(k + 1, len(lines)):
+        s = lines[j].strip()
+        if not s:
+            continue
+        if len(lines[j]) - len(lines[j].lstrip()) <= margin:
+            break
+        m = definition.match(s)
+        if m:
+            out.append(parameters_at(lines, j, m.group(1)))
     return out
 
 
@@ -1137,6 +1285,83 @@ def function_at_the_head(text, i, end):
     return "it is too long"
 
 
+FAMILY = ("let", "let!", "let*", "let&", "let_fuel!", "recursive!")
+
+
+def after_first_define(text, a, end):
+    """After the first [:=] of the text from a to [end] that stands outside
+    brackets; None if there is none."""
+    depth = 0
+    for m in TOKEN.finditer(text, a, end):
+        t = m.group(0)
+        if t in ("(", "[", "{", "{|"):
+            depth += 1
+        elif t in (")", "]", "}", "|}"):
+            depth -= 1
+        elif t == ":=" and depth == 0:
+            return m.end()
+    return None
+
+
+def end_of_scope(text, i, end):
+    """Where the name of a local function [let f := fix f .. := BODY in ..]
+    is no longer known to be in sight, as words, from the beginning i of
+    BODY: [end]; or before it the first bracket that closes one that is
+    open at i; the first bar, [with], [end], [as], [return] or comma that
+    is of no [match] that begins after i; the first [in] that is neither
+    the one of the [let] itself (the first that is of no word of FAMILY
+    after i) nor of a word of FAMILY after i; the first [then] or [else] of
+    no [if] that begins after i; the first semicolon that is not doubled.
+    Only what stands outside the brackets that open after i is read. This
+    may be sooner than where Rocq ends the scope; not later, as far as
+    these are all the words that end a term."""
+    depth = 0
+    matches = 0
+    thens = 0
+    elses = 0
+    lets = 1  # the [in] of the [let] itself is still to come
+    for m in TOKEN.finditer(text, i, end):
+        t = m.group(0)
+        if t in ("(", "[", "{", "{|"):
+            depth += 1
+        elif t in (")", "]", "}", "|}"):
+            depth -= 1
+            if depth < 0:
+                return m.start()
+        elif depth:
+            continue
+        elif t == "match":
+            matches += 1
+        elif t == "end":
+            if not matches:
+                return m.start()
+            matches -= 1
+        elif t in ("|", "with", "as", "return", ","):
+            if not matches:
+                return m.start()
+        elif t in FAMILY:
+            lets += 1
+        elif t == "in":
+            if not lets:
+                return m.start()
+            lets -= 1
+        elif t == "if":
+            thens += 1
+        elif t == "then":
+            if not thens:
+                return m.start()
+            thens -= 1
+            elses += 1
+        elif t == "else":
+            if not elses:
+                return m.start()
+            elses -= 1
+        elif t == ";":
+            if text[m.start() - 1] != ";" and text[m.end():m.end() + 1] != ";":
+                return m.start()
+    return end
+
+
 KNOWN = re.compile(
     r"(?:From|Require|Import|Module|Declare\s+Module|End|Section|Variable|Context|Definition"
     r"|Fixpoint|Inductive|Record|Parameter|Extract|(?:Local\s+)?Open\s+Scope|Arguments)"
@@ -1165,9 +1390,10 @@ def not_known(text, spans, f):
     return None
 
 
-def may_be_bound(text, f, binding):
+def may_be_bound(text, f, binding, also=()):
     """The places (lines) where the word f stands and a variable may be
-    bound, as words; the name of the binding at [binding] is not counted."""
+    bound, as words; the name of the binding at [binding] is not counted,
+    nor one at a place of [also] (the [fix f] of a local [let f])."""
     out = []
     depth = 0
     kinds = []  # the brackets that are open
@@ -1200,7 +1426,13 @@ def may_be_bound(text, f, binding):
         else:
             regions = [r for r in regions if not (t in r[0] and r[1] == depth)]
         word = m.group("word")
-        if word and t == f and (regions or after_as) and m.start() != binding:
+        if (
+            word
+            and t == f
+            and (regions or after_as)
+            and m.start() != binding
+            and m.start() not in also
+        ):
             line = text.count("\n", 0, m.start()) + 1
             if line not in out:
                 out.append(line)
@@ -1231,6 +1463,175 @@ def may_be_bound(text, f, binding):
         elif t in ("in", "return") and heads and heads[-1] == depth:
             regions.append((("with",), depth))
     return out
+
+
+def extracted_of(path):
+    """The extracted file of FILE.v: (how it is shown, its text or None)."""
+    rel = os.path.relpath(os.path.abspath(path), os.path.abspath(PORT))
+    rel = os.path.join(os.path.dirname(rel), os.path.basename(rel)[:-2].lower() + ".ml")
+    try:
+        return "extracted/" + rel, open(os.path.join(EXTRACTED, rel)).read()
+    except IOError:
+        return "extracted/" + rel, None
+
+
+LOCAL = r"let\s+(%s)\s*:=\s*fix\s+(%s)(?![A-Za-z_0-9'.])"
+OUTER = re.compile(r"(?:Definition|Fixpoint)\s+(%s)(?![A-Za-z_0-9'.])" % PNAME)
+
+
+def of_a_local(path, text, spans, u, f, at):
+    """(whether it passes, why) for a use of a local function of the file,
+    whose one [let f] stands at [at]: A LOCAL FUNCTION, above."""
+    m = re.compile(LOCAL % (re.escape(f), re.escape(f))).match(text, at)
+    if not m:
+        return False, (
+            "%s is a local function that is not written [let %s := fix %s ..]: "
+            "the tool reads no other" % (f, f, f)
+        )
+    first = sentence_at(spans, at)
+    if first == len(spans):
+        return False, "no full stop ends the binding of %s" % f
+    a, end = spans[first]
+    outer = OUTER.match(text, a, end)
+    body = after_first_define(text, a, end)
+    if not outer or body is None or at < body:
+        return False, (
+            "the local function %s does not stand in the body of a Definition or a Fixpoint" % f
+        )
+    modules = rocq_modules(text, spans, a)
+    if modules is None:
+        return False, "%s is bound inside a functor or a module type of the file" % f
+    places = may_be_bound(text, f, m.start(1), (m.start(2),))
+    if places:
+        return False, (
+            "%s also stands where a variable may be bound (line %s): "
+            "the words do not say which the use reaches"
+            % (f, ", ".join(str(n) for n in places[:5]))
+        )
+    # as for a function of the margin, with the head of the [fix]
+    head = written_head(text, m.end(2), end)
+    other = not_known(text, spans, f)
+    added = (
+        "a [Section]"
+        if in_section(text, spans, a)
+        else "line %d begins with [%s], a sentence that the tool does not know to add none" % other
+        if other
+        else "the head of the [fix] of %s, from its name to [:=], is not read: %s" % (f, head[1])
+        if head[0] is None
+        else "the head of the [fix] of %s writes %d parameter%s and the use gives %d argument%s: "
+        "a parameter that the head does not write is not counted"
+        % (f, head[0], "" if head[0] == 1 else "s", u.n, "" if u.n == 1 else "s")
+        if head[0] <= u.n
+        else None
+    )
+    if not added:
+        added = function_at_the_head(text, head[1], end)
+        if added:
+            added = "the body of %s: %s" % (f, added)
+    if added:
+        return False, "Rocq may give %s an argument that is not written (%s)" % (f, added)
+    # the use stands where the words say that the binding is in sight
+    limit = end_of_scope(text, head[1], end)
+    if not head[1] <= u.pos < limit:
+        return False, (
+            "the use does not stand where the words say that the local function %s is in sight "
+            "(the body of its [fix], and what follows the [in] of its [let], up to line %d): "
+            "the words do not say what %s is there" % (f, text.count("\n", 0, limit) + 1, f)
+        )
+    shown, ml = extracted_of(path)
+    if ml is None:
+        return False, "%s is not there" % shown
+    d = outer.group(1)
+    found = extracted_local(ml, modules, d, f)
+    inside = ".".join(modules) if modules else "the file"
+    if found is None:
+        return False, "%s has not one definition among the items of %s in %s" % (d, inside, shown)
+    if len(found) != 1:
+        return False, "%d lines begin a definition of %s inside the definition of %s in %s" % (
+            len(found),
+            f,
+            d,
+            shown,
+        )
+    if found[0] is None:
+        return False, "the parameters of the local function %s in %s could not be counted" % (
+            f,
+            shown,
+        )
+    why = "the local function %s has %d parameter%s inside %s in %s, and is given %d argument%s" % (
+        f,
+        found[0],
+        "" if found[0] == 1 else "s",
+        d,
+        shown,
+        u.n,
+        "" if u.n == 1 else "s",
+    )
+    return found[0] > u.n, why
+
+
+INTERFACES = None
+
+
+def interface_of(rocq):
+    """The interface after which decl/ declares the value of that Rocq
+    name: the last column of its row of decl/INDEX.tsv; None if it has no
+    row there."""
+    global INTERFACES
+    if INTERFACES is None:
+        INTERFACES = {}
+        try:
+            rows = open(os.path.join(DECL, "INDEX.tsv")).read().split("\n")
+        except IOError:
+            rows = []
+        for row in rows:
+            f = row.split("\t")
+            if len(f) == 5 and f[2] == "value":
+                INTERFACES[f[1]] = f[4]
+    return INTERFACES.get(rocq)
+
+
+def of_the_stdlib(u):
+    """(whether it passes, why) for a use of a function of the standard
+    library, of which the table has no number: by the tree's own stdlib/,
+    read as words. THE STANDARD LIBRARY, above."""
+    ocaml = TABLE[u.verdict[2]][3]
+    parts = ocaml.split(".")
+    if len(parts) != 2 or not re.fullmatch(UNAME, parts[0]) or not PLAIN.fullmatch(parts[1]):
+        return False, (
+            "%s is not written Unit.f, a value of a unit of the standard library itself (it is "
+            "of a module inside a unit, or of the result of a functor, or an operator): "
+            "the tool does not look for it in stdlib/" % ocaml
+        )
+    unit, name = parts
+    source = unit[0].lower() + unit[1:] + ".ml"
+    shown = "stdlib/" + source
+    declared = interface_of(u.verdict[2])
+    if declared != shown + "i":
+        return False, (
+            "decl/INDEX.tsv does not say that %s is declared after %si (it says %s): "
+            "the tool does not take %s for a unit of the standard library"
+            % (ocaml, shown, declared or "nothing", unit)
+        )
+    try:
+        text = open(os.path.join(STDLIB, source)).read()
+    except IOError:
+        return False, "%s is not there" % shown
+    found = extracted_definitions(text, [], name)
+    if not found:
+        return False, "no definition of %s is found among the items of %s" % (name, shown)
+    if None in found:
+        return False, "the parameters of %s in %s could not be counted" % (name, shown)
+    k = min(found)
+    why = "%s has %d parameter%s in %s of the tree, and is given %d argument%s" % (
+        name,
+        k,
+        "" if k == 1 else "s",
+        shown,
+        u.n,
+        "" if u.n == 1 else "s",
+    )
+    return k > u.n, why
 
 
 def of_the_file(path, text, u):
@@ -1278,16 +1679,17 @@ def of_the_file(path, text, u):
         if modules is None:
             return False, "%s is bound inside a functor or a module type of the file" % f
     else:
-        local = re.findall(r"%slet\s+%s%s" % (ahead, re.escape(f), behind), text)
-        if local and not margin:
-            return False, (
-                "%s is a local function (Rocq's own let), which the tool does not look up" % f
-            )
+        local = [
+            m.start()
+            for m in re.finditer(r"%slet\s+%s%s" % (ahead, re.escape(f), behind), text)
+        ]
         if len(margin) + len(local) != 1:
             return False, "the file binds %s %d times: the words do not say which the use reaches" % (
                 f,
                 len(margin) + len(local),
             )
+        if local:
+            return of_a_local(path, text, spans, u, f, local[0])
         binding = margin[0]
         modules = rocq_modules(text, spans, binding)
         if modules is None:
@@ -1347,12 +1749,8 @@ def of_the_file(path, text, u):
             added = "the body of %s: %s" % (f, added)
     if added:
         return False, "Rocq may give %s an argument that is not written (%s)" % (f, added)
-    rel = os.path.relpath(os.path.abspath(path), os.path.abspath(PORT))
-    rel = os.path.join(os.path.dirname(rel), os.path.basename(rel)[:-2].lower() + ".ml")
-    shown = "extracted/" + rel
-    try:
-        ml = open(os.path.join(EXTRACTED, rel)).read()
-    except IOError:
+    shown, ml = extracted_of(path)
+    if ml is None:
         return False, "%s is not there" % shown
     found = extracted_definitions(ml, modules, f)
     inside = ".".join(modules) if modules else "the file"
@@ -1376,6 +1774,7 @@ def main(files):
     bad = 0
     checked = 0
     own = 0
+    std = 0
     kept = 0
     by_place = None
     for path in files:
@@ -1386,11 +1785,16 @@ def main(files):
                 path, errors, "" if errors == 1 else "s", path))
             bad += 1
         for line, u in uses:
-            if u.verdict is None:
-                # a function of the file: the use and its mark
-                own += 1
+            if u.verdict is None or u.verdict[0] is None:
+                # a function of the file, or of the standard library: the
+                # use and its mark
                 here = "%s:%d: %s" % (path, line, u.shown)
-                passes, why = of_the_file(path, blank(raw, False), u)
+                if u.verdict is None:
+                    own += 1
+                    passes, why = of_the_file(path, blank(raw, False), u)
+                else:
+                    std += 1
+                    passes, why = of_the_stdlib(u)
                 if passes and u.marked:
                     print("%s has the mark PORT-GAP(papp) and needs none: %s" % (here, why))
                     bad += 1
@@ -1474,17 +1878,19 @@ def main(files):
                     bad += 1
     print(
         "papp: %d use%s of functions of other ported files of Simplify and %d of functions of the file itself, "
-        "compared with the definitions in extracted/: %s"
+        "compared with the definitions in extracted/, and %d of functions of the standard library, "
+        "compared with the definitions in stdlib/: %s"
         % (
             checked,
             "" if checked == 1 else "s",
             own,
+            std,
             "%d wrong" % bad
             if bad
             else "each has more parameters than it is given"
             if not kept
             else "%d have more parameters than they are given, %d keep%s the mark"
-            % (checked + own - kept, kept, "s" if kept == 1 else ""),
+            % (checked + own + std - kept, kept, "s" if kept == 1 else ""),
         )
     )
     return 1 if bad else 0

@@ -212,8 +212,9 @@ given:
 # the compiler's definitions (decl/ARITIES.tsv). For a function of a ported
 # file the definition that is linked is the extracted one: this compares
 # each such use with it; and each use of a function of the file itself,
-# which the lint leaves to it, with the file's own extracted text
-# (tools/papp.py says how).
+# which the lint leaves to it, with the file's own extracted text; and
+# each use of a function of the standard library, for which the table has
+# no number, with the tree's own stdlib/. tools/papp.py says how.
 papp: $(EXTRACTED)
 	$(PYTHON) tools/papp.py --extracted $(addsuffix .v,$(PORTED))
 
