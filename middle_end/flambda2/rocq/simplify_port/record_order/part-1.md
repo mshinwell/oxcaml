@@ -828,7 +828,8 @@ pairs:
   `Inlining_history.Tracker.empty`: the first reads thirteen references of flags
   (`driver/oxcaml_flags.ml` 480-502) and writes nothing; the second reads the
   reference of the current unit (`typing/current_unit.ml` 18) and writes
-  nothing. They commute.
+  nothing when it succeeds (when it fails it prints its message first: the
+  verdict below). They commute.
 - `Specialization_cost.cannot_specialize` and each of the others: it is pure.
   They commute.
 verdict: COMMUTE, FAILURES ORDERED: one call can fail, `Current_unit.get_cu_exn`

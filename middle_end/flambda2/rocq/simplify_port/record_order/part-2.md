@@ -618,7 +618,9 @@ defined: `middle_end/flambda2/types/env/typing_env_extension.ml`:124-139
 calls: `Renaming.apply_variable`, `Renaming.apply_name` (entry below);
 `Type_grammar.apply_renaming` (entry below); `Name.Map.fold`, `Name.Map.add`.
 W, R, F: those of the functions called.
-A: none
+A: through `Type_grammar.apply_renaming` (entry below): for a type that the
+renaming changes, a fresh record with a mutable cell for the cache of free
+names, and fresh arrays. No fresh name.
 read: `middle_end/flambda2/types/env/typing_env_extension.ml`:124-139.
 
 ### F: Type_grammar.apply_renaming
@@ -646,7 +648,12 @@ F: `middle_end/flambda2/types/grammar/type_grammar.ml`:1118-1119 (a fatal error,
 when the renaming of the closures of a type gives an "other" case; not reachable
 by this reading, because the "other" case passed at 1114 is always bottom and
 1074-1076 returns it unchanged); those of `Renaming` (below).
-A: none
+A: for a type that the renaming changes: a fresh record with a mutable cell for
+the cache of free names, already filled
+(`middle_end/flambda2/types/grammar/with_cached_free_names.ml`:39-54, through
+`middle_end/flambda2/types/grammar/type_descr.ml`:216-228); fresh arrays
+(`middle_end/flambda2/types/grammar/type_grammar.ml`:954-974, 1175-1178). No
+fresh name.
 read: `middle_end/flambda2/types/grammar/type_grammar.ml`:737-1211.
 
 ### F: functions of Renaming used on this path
@@ -797,7 +804,8 @@ facts of this place (189-197):
   constant is `Normal` or `Set_of_closures_not_rebuilt`, and its free names are
   a stored field.
 pairs: as at P7. Every pair commutes: one read of a flag, one allocation, no
-write.
+write by a call that succeeds (`compute_bound_static` prints its message before
+it fails: the entry of `Bound_static.create`).
 failures:
 - `compute_bound_static` can fail, at
   `middle_end/flambda2/bound_identifiers/bound_static.ml`:131-134, when the

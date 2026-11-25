@@ -302,8 +302,12 @@ W: none
 R: the table of Simples, only for an argument that is a Simple with a coercion
 F: those of Simple.pattern_match; and the assertion on counters of
 Name_occurrences (middle_end/flambda2/nominal/name_occurrences.ml:106), when one
-name occurs more than 1 048 575 times in the arguments of one primitive. That
-needs a variadic primitive with more than a million arguments.
+name occurs more than 1 048 575 times in the arguments of one primitive. The
+count is of occurrences, not of arguments: an argument with a coercion can count
+one name more than once (a coercion between a depth variable and its successor
+counts that variable twice), so a variadic primitive can reach it with fewer
+arguments than that number. The primitives of place 22 have one or two
+arguments and cannot.
 A: none
 read: middle_end/flambda2/terms/flambda_primitive.ml:1150-1154, 1703-1729,
 2150-2157, 2514-2523, 2648-2654, 2678-2685, 2819-2847
@@ -971,9 +975,14 @@ identifier made before a replacement is not in the new table.
 
 ### T8. What this gives for a call met at another place (facts, not verdicts)
 - No table, no counter, cannot fail: Simple.var, Simple.symbol, Simple.const,
-  Simple.name, Name.var, Name.symbol; compare, equal, hash of every identifier;
-  Value_slot.kind and the other projections of a slot; Bound_var.create;
-  Bound_pattern.singleton; Named.create_simple; Named.create_prim.
+  Simple.name, Name.var, Name.symbol; compare, equal, hash of every identifier
+  that is an integer (a variable, a symbol, a name, a constant, a Simple, a code
+  identifier, a continuation); Value_slot.kind and the other projections of a
+  slot; Bound_var.create; Bound_pattern.singleton; Named.create_simple;
+  Named.create_prim. NOT in this list: the comparison and the hash of a slot
+  (middle_end/flambda2/identifiers/slot.ml:61-83), which call those of its
+  compilation unit; whether those can fail is not decided (README.md, section
+  8).
 - No state at all, but the result depends on the integers of the keys: Map.add,
   Map.update, Map.remove, Map.singleton, Map.union and the like on Variable,
   Symbol, Name, Simple, Const, Code_id, Continuation. Two of them on two

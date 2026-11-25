@@ -358,9 +358,10 @@ Definition create_set_of_closures (denv : Flambda2_types.Typing_env.t)
      each is bound before the record, in the order of the type, the last
      field first.
      VERDICT (record_order/README.md, place 8): COMMUTE, FAILURES ORDERED. No
-     call writes state (one allocates). One call alone can fail
-     ([compute_bound_static]: the heavy checks on, and one symbol given to two
-     function slots), so the order chooses nothing. *)
+     call writes state when it succeeds (one allocates). One call alone can
+     fail ([compute_bound_static]: the heavy checks on, and one symbol given
+     to two function slots; it prints its message before it fails), so the
+     order chooses nothing. *)
   let* is_fully_static :=
     Rebuilt_static_const.is_fully_static defining_expr
   in

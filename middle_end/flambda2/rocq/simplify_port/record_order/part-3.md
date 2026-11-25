@@ -638,7 +638,9 @@ Type_grammar.apply_renaming (D7); List.map (E)
 W: those of D5 and D7
 R: those of D5 and D7
 F: those of D5, D7, D9; `Assert_failure` on a count
-A: fresh immutable values
+A: fresh immutable values; and, through D7, for a type that the renaming
+changes, fresh records with a mutable cell for the cache of free names, and
+fresh arrays. No fresh name.
 read: middle_end/flambda2/types/env/typing_env_extension.ml:15-157
 
 ### D5: Type_grammar.free_names ..
@@ -701,7 +703,9 @@ R: the same
 F: fatal error at middle_end/flambda2/types/grammar/type_grammar.ml:1119, for a
 case that its own call excludes (it passes "no other case" and so gets "no other
 case" back); the failures of D8 and D9
-A: fresh immutable values, or the argument itself when nothing changes
+A: the argument itself when nothing changes; else fresh values: immutable ones;
+through D8 a fresh record with a mutable cell for the cache of free names,
+already filled; fresh arrays (954-974, 1175-1178). No fresh name.
 read: middle_end/flambda2/types/grammar/type_grammar.ml:400-437, 737-1212
 
 ### D8: Type_descr.apply_renaming and With_cached_free_names.apply_renaming

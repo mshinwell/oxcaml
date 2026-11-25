@@ -513,8 +513,9 @@ Definition create (round : int)
      call: [specialization_cost], the last of them in the type, first; then
      [inlining_history_tracker]; then [inlining_state].
      VERDICT (record_order/README.md, place 3): COMMUTE, FAILURES ORDERED. No
-     call writes. One call alone can fail ([Current_unit.get_cu_exn], when no
-     unit is set), so the order chooses nothing. *)
+     call writes when it succeeds. One call alone can fail
+     ([Current_unit.get_cu_exn], when no unit is set; it prints its message
+     before it fails), so the order chooses nothing. *)
   let* specialization_cost :=
     Specialization_cost.cannot_specialize Specialization_cost.At_toplevel
   in

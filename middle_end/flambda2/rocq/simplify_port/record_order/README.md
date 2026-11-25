@@ -166,12 +166,12 @@ applied to the result of `g`.
 |---|---|---|---|---|---|---|
 | 1 | `remove` in `env/Continuation_uses_env.v` | `middle_end/flambda2/simplify/env/continuation_uses_env.ml` 145-148 | `continuation_uses`: `Continuation.Map.remove`; `continuation_arities`: `Continuation.Map.remove` | COMMUTE | Both calls are `Continuation.Map.remove`, on two maps: no write, no read of state, no failure. | `part-1.md` |
 | 2 | `create` in `env/Downwards_acc.v` | `middle_end/flambda2/simplify/env/downwards_acc.ml` 94-112 | `flow_acc`: `Flow.Acc.empty`; `are_lifting_conts`: `Are_lifting_conts.no_lifting`; `continuation_lifting_budget`: `Flambda_features.Expert.cont_lifting_budget` | REPORT | `Flow.Acc.empty` makes a fresh continuation: it writes a counter and a table. It is the only call of the three that writes or that can fail; the two others read flags or nothing. Nothing was found that the order can change. Reported to the human, as the rule for a fresh name asks. | `part-1.md` |
-| 3 | `create` in `env/Downwards_env.v` | `middle_end/flambda2/simplify/env/downwards_env.ml` 245-276 | `inlining_state`: `Inlining_state.default`; `inlining_history_tracker`: `Inlining_history.Tracker.empty` on `Current_unit.get_cu_exn`; `specialization_cost`: `Specialization_cost.cannot_specialize` | COMMUTE, FAILURES ORDERED | No call writes. One call alone can fail (`Current_unit.get_cu_exn`, when no unit is set), so the order chooses nothing. | `part-1.md` |
+| 3 | `create` in `env/Downwards_env.v` | `middle_end/flambda2/simplify/env/downwards_env.ml` 245-276 | `inlining_state`: `Inlining_state.default`; `inlining_history_tracker`: `Inlining_history.Tracker.empty` on `Current_unit.get_cu_exn`; `specialization_cost`: `Specialization_cost.cannot_specialize` | COMMUTE, FAILURES ORDERED | No call writes when it succeeds. One call alone can fail (`Current_unit.get_cu_exn`, when no unit is set; it prints its message before it fails), so the order chooses nothing. | `part-1.md` |
 | 4 | `enter_set_of_closures` in `env/Downwards_env.v` | `middle_end/flambda2/simplify/env/downwards_env.ml` 372-402 | `typing_env`: `Flambda2_types.Typing_env.closure_env`; `specialization_cost`: `Specialization_cost.cannot_specialize` | COMMUTE | `TE.closure_env` and `Specialization_cost.cannot_specialize`: no write, no read of state, no failure. | `part-1.md` |
 | 5 | `apply_prim` in `flow/Mutable_unboxing.v` | `middle_end/flambda2/simplify/flow/mutable_unboxing.ml` 450-452 | `bindings`: `Simple.Map.add`; `rewrites`: `Named_rewrite_id.Map.add` | COMMUTE | Two additions to two immutable maps: no write, no read of state, no failure. | `part-2.md` |
 | 6 | `apply_prim` in `flow/Mutable_unboxing.v` | `middle_end/flambda2/simplify/flow/mutable_unboxing.ml` 463-465 | `bindings`: `Simple.Map.add` on `Simple.var`; `rewrites`: `Named_rewrite_id.Map.add` | COMMUTE | As place 5; `Simple.var` returns its argument. | `part-2.md` |
 | 7 | `create_block_like` in `lifting/Lifted_constant.v` | `middle_end/flambda2/simplify/lifting/lifted_constant.ml` 180-185 | `bound_static`: `compute_bound_static`; `defining_exprs`: `compute_defining_exprs`; `symbol_projections`: `Definition.symbol_projections`; `is_fully_static`: `Rebuilt_static_const.is_fully_static` | COMMUTE | No call writes state (one allocates). The constant is a block here, so its free names are stored, and no call can fail. | `part-2.md` |
-| 8 | `create_set_of_closures` in `lifting/Lifted_constant.v` | `middle_end/flambda2/simplify/lifting/lifted_constant.ml` 198-203 | as place 7 | COMMUTE, FAILURES ORDERED | No call writes state (one allocates). One call alone can fail (`compute_bound_static`: the heavy checks on, and one symbol given to two function slots), so the order chooses nothing. | `part-2.md` |
+| 8 | `create_set_of_closures` in `lifting/Lifted_constant.v` | `middle_end/flambda2/simplify/lifting/lifted_constant.ml` 198-203 | as place 7 | COMMUTE, FAILURES ORDERED | No call writes state when it succeeds (one allocates). One call alone can fail (`compute_bound_static`: the heavy checks on, and one symbol given to two function slots; it prints its message before it fails), so the order chooses nothing. | `part-2.md` |
 | 9 | `create_code` in `lifting/Lifted_constant.v` | `middle_end/flambda2/simplify/lifting/lifted_constant.ml` 212-217 | as place 7 | COMMUTE, FAILURES ORDERED | `is_fully_static` alone writes (for code that is not rebuilt: caches of free names in its result types, a waiting renaming, entries of tables that intern) and alone can fail. The other calls read none of that. The order chooses nothing. | `part-2.md` |
 | 10 | `create_definition` in `lifting/Lifted_constant.v` | `middle_end/flambda2/simplify/lifting/lifted_constant.ml` 221-227 | as place 7, with `Rebuilt_static_const.is_fully_static` on `Definition.defining_expr` | COMMUTE, FAILURES ORDERED | As place 9, but `compute_bound_static` can fail too. The order chooses which of the two failures is seen (here `is_fully_static` runs first), and whether the writes of `is_fully_static` come before a failure of `compute_bound_static`. | `part-2.md` |
 | 11 | `create` in `Rebuilt_expr.v` | `middle_end/flambda2/simplify/rebuilt_expr.ml` 432 | `params1`: `create_mapping`; `params2`: `create_mapping` | COMMUTE | Each call of `create_mapping` fills a table that it has just made: two allocations. | `part-3.md` |
@@ -331,11 +331,14 @@ the tables that intern) and `part-3.md` (B9).
 
 NO PLACE OF THE 23 HAS TWO CALLS THAT MAY ADD TO THE SAME TABLE. Part 1: none of
 its six places has two calls that add to the same table (last section, item 12).
-Part 2: at places 5 to 8 no call writes state; at places 9 and 10 one call only
-can add an entry to a table. Part 3: in none of its eight places can two calls
-of different fields both add to a table (last section, item 7). Part 4: only
-place 23 touches a table that interns, and with one call only. So the rule of
-section 2 for two additions to one table is used at no place.
+Part 2: at places 5 to 8 no call writes state (at place 8: no call that
+succeeds; `compute_bound_static` prints its message before it fails); at places
+9 and 10 one call only can add an entry to a table. Part 3: in none of its eight
+places can two calls of different fields both add to a table (last section, item
+7). Part 4: of its three places only place 23 may add to a table that interns,
+and with one call only; place 22 may read the table of simples with a coercion,
+and adds to none. So the rule of section 2 for two additions to one table is
+used at no place.
 
 `Code.free_names` IS COMPUTED, AND WRITES CACHES. It is not a stored field. The
 record of a piece of code stores the free names of the parameters and of the
@@ -375,8 +378,9 @@ T8 of `part-4.md`; T3 there names functions that call these (among them
 of them in a field is REPORT. T8 also lists: the calls that touch no table and
 no counter and cannot fail (`Simple.var`, `Simple.symbol`, `Simple.const`,
 `Simple.name`, `Name.var`, `Name.symbol`; the comparison, equality and hash of
-every identifier; `Value_slot.kind` and the other projections of a slot;
-`Bound_var.create`; `Bound_pattern.singleton`; `Named.create_simple`;
+every identifier that is an integer (not those of a slot, which call those of
+its compilation unit: section 8); `Value_slot.kind` and the other projections of
+a slot; `Bound_var.create`; `Bound_pattern.singleton`; `Named.create_simple`;
 `Named.create_prim`); the calls that read a table and write none; and the calls
 that may add to a table, with no counter (every maker of a constant;
 `Symbol.create` and its kin; `Simple.with_coercion` and
