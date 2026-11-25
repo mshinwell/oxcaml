@@ -1,0 +1,2024 @@
+middle_end/flambda2/simplify/apply_cont_rewrite.ml	module		EA	18	18	18	18
+middle_end/flambda2/simplify/apply_cont_rewrite.ml	module		EPA	17	17	17	17
+middle_end/flambda2/simplify/apply_cont_rewrite.ml	module		Id	19	19	19	19
+middle_end/flambda2/simplify/apply_cont_rewrite.ml	type		rewrite_apply_cont_ctx	140	142	140	142
+middle_end/flambda2/simplify/apply_cont_rewrite.ml	type		t	26	32	26	32
+middle_end/flambda2/simplify/apply_cont_rewrite.ml	type		used	21	24	21	24
+middle_end/flambda2/simplify/apply_cont_rewrite.ml	value		create	69	85	69	85
+middle_end/flambda2/simplify/apply_cont_rewrite.ml	value		does_nothing	61	67	61	67
+middle_end/flambda2/simplify/apply_cont_rewrite.ml	value		extra_args_list	144	153	144	153
+middle_end/flambda2/simplify/apply_cont_rewrite.ml	value		get_unused	104	111	104	111
+middle_end/flambda2/simplify/apply_cont_rewrite.ml	value		get_unused_params	127	138	127	138
+middle_end/flambda2/simplify/apply_cont_rewrite.ml	value		get_used_params	113	125	113	125
+middle_end/flambda2/simplify/apply_cont_rewrite.ml	value		make_rewrite	155	240	155	240
+middle_end/flambda2/simplify/apply_cont_rewrite.ml	value		original_params_arity	87	87	87	87
+middle_end/flambda2/simplify/apply_cont_rewrite.ml	value		partition_used	89	102	89	102
+middle_end/flambda2/simplify/apply_cont_rewrite.ml	value		print	47	59	47	59
+middle_end/flambda2/simplify/apply_cont_rewrite.ml	value		print_params_used	39	45	39	45
+middle_end/flambda2/simplify/apply_cont_rewrite.ml	value		print_used	34	37	34	37
+middle_end/flambda2/simplify/apply_cont_rewrite.ml	value		rewrite_exn_continuation	242	307	242	307
+middle_end/flambda2/simplify/are_lifting_conts.ml	type		reason	16	21	16	21
+middle_end/flambda2/simplify/are_lifting_conts.ml	type		t	23	30	23	30
+middle_end/flambda2/simplify/are_lifting_conts.ml	value		lift_continuations_out_of	37	37	37	37
+middle_end/flambda2/simplify/are_lifting_conts.ml	value		no_lifting	32	32	32	32
+middle_end/flambda2/simplify/are_lifting_conts.ml	value		print	51	68	51	68
+middle_end/flambda2/simplify/are_lifting_conts.ml	value		print_reason	39	49	39	49
+middle_end/flambda2/simplify/are_lifting_conts.ml	value		think_about_lifting_out_of	34	35	34	35
+middle_end/flambda2/simplify/common_subexpression_elimination.ml	module		BP	22	22	22	22
+middle_end/flambda2/simplify/common_subexpression_elimination.ml	module		EA	18	18	18	18
+middle_end/flambda2/simplify/common_subexpression_elimination.ml	module		EP	19	19	19	19
+middle_end/flambda2/simplify/common_subexpression_elimination.ml	module		EPA	20	20	20	20
+middle_end/flambda2/simplify/common_subexpression_elimination.ml	module		Join_result	322	329	322	329
+middle_end/flambda2/simplify/common_subexpression_elimination.ml	module		K	21	21	21	21
+middle_end/flambda2/simplify/common_subexpression_elimination.ml	module		List	29	29	29	29
+middle_end/flambda2/simplify/common_subexpression_elimination.ml	module		NM	23	23	23	23
+middle_end/flambda2/simplify/common_subexpression_elimination.ml	module		P	24	24	24	24
+middle_end/flambda2/simplify/common_subexpression_elimination.ml	module		RI	25	25	25	25
+middle_end/flambda2/simplify/common_subexpression_elimination.ml	module		Rhs_kind	78	122	78	122
+middle_end/flambda2/simplify/common_subexpression_elimination.ml	module		T	26	26	26	26
+middle_end/flambda2/simplify/common_subexpression_elimination.ml	module		T0	31	74	31	74
+middle_end/flambda2/simplify/common_subexpression_elimination.ml	module		TE	27	27	27	27
+middle_end/flambda2/simplify/common_subexpression_elimination.ml	module		TEE	28	28	28	28
+middle_end/flambda2/simplify/common_subexpression_elimination.ml	type		extra_binding	247	250	247	250
+middle_end/flambda2/simplify/common_subexpression_elimination.ml	type	Join_result	t	323	328	323	328
+middle_end/flambda2/simplify/common_subexpression_elimination.ml	type	Rhs_kind	t	87	89	87	89
+middle_end/flambda2/simplify/common_subexpression_elimination.ml	type	T0	t	45	48	45	48
+middle_end/flambda2/simplify/common_subexpression_elimination.ml	value		cse_with_eligible_lhs	124	245	124	245
+middle_end/flambda2/simplify/common_subexpression_elimination.ml	value		cut_cse_environment	299	320	299	320
+middle_end/flambda2/simplify/common_subexpression_elimination.ml	value		join	464	481	464	481
+middle_end/flambda2/simplify/common_subexpression_elimination.ml	value		join0	331	462	331	462
+middle_end/flambda2/simplify/common_subexpression_elimination.ml	value		join_one_cse_equation	252	297	252	297
+middle_end/flambda2/simplify/common_subexpression_elimination.ml	value	Rhs_kind	bound_to	91	93	91	93
+middle_end/flambda2/simplify/common_subexpression_elimination.ml	value	T0	add	60	71	60	71
+middle_end/flambda2/simplify/common_subexpression_elimination.ml	value	T0	empty	58	58	58	58
+middle_end/flambda2/simplify/common_subexpression_elimination.ml	value	T0	find	73	73	73	73
+middle_end/flambda2/simplify/common_subexpression_elimination.ml	value	T0	print	50	56	50	56
+middle_end/flambda2/simplify/comparison_result.ml	module		P	15	15	15	15
+middle_end/flambda2/simplify/comparison_result.ml	type		t	21	27	21	27
+middle_end/flambda2/simplify/comparison_result.ml	type		tagged_or_untagged	17	19	17	19
+middle_end/flambda2/simplify/comparison_result.ml	value		convert_result_compared_to_tagged_zero	64	86	64	86
+middle_end/flambda2/simplify/comparison_result.ml	value		create	29	45	29	45
+middle_end/flambda2/simplify/comparison_result.ml	value		print	47	62	47	62
+middle_end/flambda2/simplify/continuation_extra_params_and_args.ml	module		Extra_arg	17	44	17	44
+middle_end/flambda2/simplify/continuation_extra_params_and_args.ml	module	Extra_arg	List	37	43	37	43
+middle_end/flambda2/simplify/continuation_extra_params_and_args.ml	type		t	46	51	46	51
+middle_end/flambda2/simplify/continuation_extra_params_and_args.ml	type	Extra_arg	t	18	22	18	22
+middle_end/flambda2/simplify/continuation_extra_params_and_args.ml	type	Extra_arg.List	t	38	38	38	38
+middle_end/flambda2/simplify/continuation_extra_params_and_args.ml	value		add	70	134	70	134
+middle_end/flambda2/simplify/continuation_extra_params_and_args.ml	value		add_args_for_all_params	181	198	181	198
+middle_end/flambda2/simplify/continuation_extra_params_and_args.ml	value		concat	141	168	141	168
+middle_end/flambda2/simplify/continuation_extra_params_and_args.ml	value		empty	63	63	63	63
+middle_end/flambda2/simplify/continuation_extra_params_and_args.ml	value		extra_args	174	176	174	176
+middle_end/flambda2/simplify/continuation_extra_params_and_args.ml	value		extra_params	170	172	170	172
+middle_end/flambda2/simplify/continuation_extra_params_and_args.ml	value		init_with_params_only	178	179	178	179
+middle_end/flambda2/simplify/continuation_extra_params_and_args.ml	value		is_empty	65	68	65	68
+middle_end/flambda2/simplify/continuation_extra_params_and_args.ml	value		print	53	61	53	61
+middle_end/flambda2/simplify/continuation_extra_params_and_args.ml	value		replace_extra_args	136	139	136	139
+middle_end/flambda2/simplify/continuation_extra_params_and_args.ml	value	Extra_arg	print	24	35	24	35
+middle_end/flambda2/simplify/continuation_extra_params_and_args.ml	value	Extra_arg.List	print	40	42	40	42
+middle_end/flambda2/simplify/continuation_in_env.ml	type		t	17	28	17	28
+middle_end/flambda2/simplify/continuation_in_env.ml	value		arity	66	79	66	79
+middle_end/flambda2/simplify/continuation_in_env.ml	value		print	30	64	30	64
+middle_end/flambda2/simplify/continuation_shortcut.ml	type		t	16	20	16	20
+middle_end/flambda2/simplify/continuation_shortcut.ml	value		apply	39	57	39	57
+middle_end/flambda2/simplify/continuation_shortcut.ml	value		continuation	37	37	37	37
+middle_end/flambda2/simplify/continuation_shortcut.ml	value		create	35	35	35	35
+middle_end/flambda2/simplify/continuation_shortcut.ml	value		print	22	33	22	33
+middle_end/flambda2/simplify/continuation_shortcut.ml	value		to_alias	59	63	59	63
+middle_end/flambda2/simplify/env/closure_info.ml	type		in_or_out_of_closure	65	67	65	67
+middle_end/flambda2/simplify/env/closure_info.ml	type		t	16	25	16	25
+middle_end/flambda2/simplify/env/closure_info.ml	value		in_a_closure	55	63	55	63
+middle_end/flambda2/simplify/env/closure_info.ml	value		in_a_set_of_closures	52	53	52	53
+middle_end/flambda2/simplify/env/closure_info.ml	value		in_or_out_of_closure	69	76	69	76
+middle_end/flambda2/simplify/env/closure_info.ml	value		not_in_a_closure	50	50	50	50
+middle_end/flambda2/simplify/env/closure_info.ml	value		print	27	48	27	48
+middle_end/flambda2/simplify/env/continuation_uses.ml	module		DE	17	17	17	17
+middle_end/flambda2/simplify/env/continuation_uses.ml	module		T	18	18	18	18
+middle_end/flambda2/simplify/env/continuation_uses.ml	module		U	19	19	19	19
+middle_end/flambda2/simplify/env/continuation_uses.ml	type		arg_at_use	86	89	86	89
+middle_end/flambda2/simplify/env/continuation_uses.ml	type		arg_types_by_use_id	91	91	91	91
+middle_end/flambda2/simplify/env/continuation_uses.ml	type		t	21	25	21	25
+middle_end/flambda2/simplify/env/continuation_uses.ml	value		add_use	39	59	39	59
+middle_end/flambda2/simplify/env/continuation_uses.ml	value		add_uses_to_arg_maps	102	110	102	110
+middle_end/flambda2/simplify/env/continuation_uses.ml	value		add_value_to_arg_map	96	100	96	100
+middle_end/flambda2/simplify/env/continuation_uses.ml	value		arity	82	82	82	82
+middle_end/flambda2/simplify/env/continuation_uses.ml	value		clear_uses	158	158	158	158
+middle_end/flambda2/simplify/env/continuation_uses.ml	value		create	27	27	27	27
+middle_end/flambda2/simplify/env/continuation_uses.ml	value		empty_arg_maps	112	115	112	115
+middle_end/flambda2/simplify/env/continuation_uses.ml	value		get_arg_types_by_use_id	117	118	117	118
+middle_end/flambda2/simplify/env/continuation_uses.ml	value		get_arg_types_by_use_id_for_invariant_params	123	140	123	140
+middle_end/flambda2/simplify/env/continuation_uses.ml	value		get_typing_env_no_more_than_one_use	147	153	147	153
+middle_end/flambda2/simplify/env/continuation_uses.ml	value		get_use_ids	142	145	142	145
+middle_end/flambda2/simplify/env/continuation_uses.ml	value		get_uses	84	84	84	84
+middle_end/flambda2/simplify/env/continuation_uses.ml	value		mark_non_inlinable	155	156	155	156
+middle_end/flambda2/simplify/env/continuation_uses.ml	value		number_of_uses	80	80	80	80
+middle_end/flambda2/simplify/env/continuation_uses.ml	value		print	29	37	29	37
+middle_end/flambda2/simplify/env/continuation_uses.ml	value		print_arg_type_at_use	93	94	93	94
+middle_end/flambda2/simplify/env/continuation_uses.ml	value		union	61	78	61	78
+middle_end/flambda2/simplify/env/continuation_uses_env.ml	module		DE	17	17	17	17
+middle_end/flambda2/simplify/env/continuation_uses_env.ml	module		T	18	18	18	18
+middle_end/flambda2/simplify/env/continuation_uses_env.ml	type		t	20	23	20	23
+middle_end/flambda2/simplify/env/continuation_uses_env.ml	value		add_continuation_use	65	104	65	104
+middle_end/flambda2/simplify/env/continuation_uses_env.ml	value		all_continuations_used	125	125	125	125
+middle_end/flambda2/simplify/env/continuation_uses_env.ml	value		clear_continuation_uses	152	158	152	158
+middle_end/flambda2/simplify/env/continuation_uses_env.ml	value		delete_continuation_uses	150	150	150	150
+middle_end/flambda2/simplify/env/continuation_uses_env.ml	value		empty	33	36	33	36
+middle_end/flambda2/simplify/env/continuation_uses_env.ml	value		get_continuation_uses	117	118	117	118
+middle_end/flambda2/simplify/env/continuation_uses_env.ml	value		get_typing_env_no_more_than_one_use	111	115	111	115
+middle_end/flambda2/simplify/env/continuation_uses_env.ml	value		mark_non_inlinable	160	164	160	164
+middle_end/flambda2/simplify/env/continuation_uses_env.ml	value		num_continuation_uses	120	123	120	123
+middle_end/flambda2/simplify/env/continuation_uses_env.ml	value		print	25	31	25	31
+middle_end/flambda2/simplify/env/continuation_uses_env.ml	value		record_continuation	38	50	38	50
+middle_end/flambda2/simplify/env/continuation_uses_env.ml	value		record_continuation_arity	52	63	52	63
+middle_end/flambda2/simplify/env/continuation_uses_env.ml	value		record_continuation_use	106	109	106	109
+middle_end/flambda2/simplify/env/continuation_uses_env.ml	value		remove	145	148	145	148
+middle_end/flambda2/simplify/env/continuation_uses_env.ml	value		reset_uses	166	167	166	167
+middle_end/flambda2/simplify/env/continuation_uses_env.ml	value		union	127	143	127	143
+middle_end/flambda2/simplify/env/continuation_uses_env_intf.ml	module type		S	17	39	17	39
+middle_end/flambda2/simplify/env/downwards_acc.ml	module		CUE	17	17	17	17
+middle_end/flambda2/simplify/env/downwards_acc.ml	module		DE	18	18	18	18
+middle_end/flambda2/simplify/env/downwards_acc.ml	module		LCS	19	19	19	19
+middle_end/flambda2/simplify/env/downwards_acc.ml	module		TE	20	20	20	20
+middle_end/flambda2/simplify/env/downwards_acc.ml	type		t	22	43	22	43
+middle_end/flambda2/simplify/env/downwards_acc.ml	value		add_code_ids_never_simplified	248	252	248	252
+middle_end/flambda2/simplify/env/downwards_acc.ml	value		add_code_ids_to_never_delete	237	241	237	241
+middle_end/flambda2/simplify/env/downwards_acc.ml	value		add_code_ids_to_remember	224	230	224	230
+middle_end/flambda2/simplify/env/downwards_acc.ml	value		add_continuation_to_specialize	330	334	330	334
+middle_end/flambda2/simplify/env/downwards_acc.ml	value		add_lifted_continuation	293	296	293	296
+middle_end/flambda2/simplify/env/downwards_acc.ml	value		add_specialization	336	340	336	340
+middle_end/flambda2/simplify/env/downwards_acc.ml	value		add_to_lifted_constant_accumulator	168	178	168	178
+middle_end/flambda2/simplify/env/downwards_acc.ml	value		add_use_of_value_slot	210	215	210	215
+middle_end/flambda2/simplify/env/downwards_acc.ml	value		add_variable	163	163	163	163
+middle_end/flambda2/simplify/env/downwards_acc.ml	value		all_continuations_used	219	220	219	220
+middle_end/flambda2/simplify/env/downwards_acc.ml	value		are_lifting_conts	286	286	286	286
+middle_end/flambda2/simplify/env/downwards_acc.ml	value		are_rebuilding_terms	259	259	259	259
+middle_end/flambda2/simplify/env/downwards_acc.ml	value		clear_lifted_constants	182	182	182	182
+middle_end/flambda2/simplify/env/downwards_acc.ml	value		code_age_relation	153	153	153	153
+middle_end/flambda2/simplify/env/downwards_acc.ml	value		code_ids_never_simplified	254	254	254	254
+middle_end/flambda2/simplify/env/downwards_acc.ml	value		code_ids_to_never_delete	243	243	243	243
+middle_end/flambda2/simplify/env/downwards_acc.ml	value		code_ids_to_remember	232	232	232	232
+middle_end/flambda2/simplify/env/downwards_acc.ml	value		consider_constant_for_sharing	196	203	196	203
+middle_end/flambda2/simplify/env/downwards_acc.ml	value		continuation_uses_env	151	151	151	151
+middle_end/flambda2/simplify/env/downwards_acc.ml	value		continuations_to_specialize	328	328	328	328
+middle_end/flambda2/simplify/env/downwards_acc.ml	value		create	94	112	94	112
+middle_end/flambda2/simplify/env/downwards_acc.ml	value		decrease_continuation_lifting_budget	310	315	310	315
+middle_end/flambda2/simplify/env/downwards_acc.ml	value		delete_continuation_uses	142	146	142	146
+middle_end/flambda2/simplify/env/downwards_acc.ml	value		demote_exn_handler	261	264	261	264
+middle_end/flambda2/simplify/env/downwards_acc.ml	value		demoted_exn_handlers	266	266	266	266
+middle_end/flambda2/simplify/env/downwards_acc.ml	value		denv	114	114	114	114
+middle_end/flambda2/simplify/env/downwards_acc.ml	value		find_debuginfo_rewrite	272	273	272	273
+middle_end/flambda2/simplify/env/downwards_acc.ml	value		find_shareable_constant	193	194	193	194
+middle_end/flambda2/simplify/env/downwards_acc.ml	value		flow_acc	116	116	116	116
+middle_end/flambda2/simplify/env/downwards_acc.ml	value		get_and_clear_lifted_constants	186	189	186	189
+middle_end/flambda2/simplify/env/downwards_acc.ml	value		get_and_clear_lifted_continuations	290	291	290	291
+middle_end/flambda2/simplify/env/downwards_acc.ml	value		get_continuation_lifting_budget	299	301	299	301
+middle_end/flambda2/simplify/env/downwards_acc.ml	value		get_lifted_constants	180	180	180	180
+middle_end/flambda2/simplify/env/downwards_acc.ml	value		get_typing_env_no_more_than_one_use	165	166	165	166
+middle_end/flambda2/simplify/env/downwards_acc.ml	value		map_denv	122	122	122	122
+middle_end/flambda2/simplify/env/downwards_acc.ml	value		map_flow_acc	120	120	120	120
+middle_end/flambda2/simplify/env/downwards_acc.ml	value		merge_debuginfo_rewrite	275	284	275	284
+middle_end/flambda2/simplify/env/downwards_acc.ml	value		no_lifted_constants	184	184	184	184
+middle_end/flambda2/simplify/env/downwards_acc.ml	value		num_continuation_uses	148	149	148	149
+middle_end/flambda2/simplify/env/downwards_acc.ml	value		prepare_for_speculative_inlining	317	326	317	326
+middle_end/flambda2/simplify/env/downwards_acc.ml	value		print	50	92	50	92
+middle_end/flambda2/simplify/env/downwards_acc.ml	value		print_lifted_cont	45	48	45	48
+middle_end/flambda2/simplify/env/downwards_acc.ml	value		record_continuation	129	133	129	133
+middle_end/flambda2/simplify/env/downwards_acc.ml	value		record_continuation_use	135	140	135	140
+middle_end/flambda2/simplify/env/downwards_acc.ml	value		reset_continuation_lifting_budget	306	308	306	308
+middle_end/flambda2/simplify/env/downwards_acc.ml	value		set_lifted_constants	191	191	191	191
+middle_end/flambda2/simplify/env/downwards_acc.ml	value		shareable_constants	208	208	208	208
+middle_end/flambda2/simplify/env/downwards_acc.ml	value		slot_offsets	268	268	268	268
+middle_end/flambda2/simplify/env/downwards_acc.ml	value		specialization_map	342	342	342	342
+middle_end/flambda2/simplify/env/downwards_acc.ml	value		typing_env	161	161	161	161
+middle_end/flambda2/simplify/env/downwards_acc.ml	value		used_value_slots	217	217	217	217
+middle_end/flambda2/simplify/env/downwards_acc.ml	value		with_are_lifting_conts	288	288	288	288
+middle_end/flambda2/simplify/env/downwards_acc.ml	value		with_code_age_relation	155	159	155	159
+middle_end/flambda2/simplify/env/downwards_acc.ml	value		with_code_ids_never_simplified	256	257	256	257
+middle_end/flambda2/simplify/env/downwards_acc.ml	value		with_code_ids_to_never_delete	245	246	245	246
+middle_end/flambda2/simplify/env/downwards_acc.ml	value		with_code_ids_to_remember	234	235	234	235
+middle_end/flambda2/simplify/env/downwards_acc.ml	value		with_continuation_lifting_budget	303	304	303	304
+middle_end/flambda2/simplify/env/downwards_acc.ml	value		with_continuation_uses_env	126	127	126	127
+middle_end/flambda2/simplify/env/downwards_acc.ml	value		with_denv	124	124	124	124
+middle_end/flambda2/simplify/env/downwards_acc.ml	value		with_flow_acc	118	118	118	118
+middle_end/flambda2/simplify/env/downwards_acc.ml	value		with_shareable_constants	205	206	205	206
+middle_end/flambda2/simplify/env/downwards_acc.ml	value		with_slot_offsets	270	270	270	270
+middle_end/flambda2/simplify/env/downwards_acc.ml	value		with_used_value_slots	222	222	222	222
+middle_end/flambda2/simplify/env/downwards_env.ml	module		BP	20	20	20	20
+middle_end/flambda2/simplify/env/downwards_env.ml	module		CSE	18	18	18	18
+middle_end/flambda2/simplify/env/downwards_env.ml	module		Disable_inlining	41	51	41	51
+middle_end/flambda2/simplify/env/downwards_env.ml	module		Disable_inlining_reason	31	39	31	39
+middle_end/flambda2/simplify/env/downwards_env.ml	module		K	19	19	19	19
+middle_end/flambda2/simplify/env/downwards_env.ml	module		LC	24	24	24	24
+middle_end/flambda2/simplify/env/downwards_env.ml	module		LCS	23	23	23	23
+middle_end/flambda2/simplify/env/downwards_env.ml	module		T	21	21	21	21
+middle_end/flambda2/simplify/env/downwards_env.ml	module		TE	22	22	22	22
+middle_end/flambda2/simplify/env/downwards_env.ml	type		get_imported_code	29	29	29	29
+middle_end/flambda2/simplify/env/downwards_env.ml	type		resolver	26	27	26	27
+middle_end/flambda2/simplify/env/downwards_env.ml	type		t	53	112	53	112
+middle_end/flambda2/simplify/env/downwards_env.ml	type	Disable_inlining	t	42	44	42	44
+middle_end/flambda2/simplify/env/downwards_env.ml	type	Disable_inlining_reason	t	32	34	32	34
+middle_end/flambda2/simplify/env/downwards_env.ml	value		add_cse	610	626	610	626
+middle_end/flambda2/simplify/env/downwards_env.ml	value		add_equation_on_name	475	477	475	477
+middle_end/flambda2/simplify/env/downwards_env.ml	value		add_equation_on_symbol	454	459	454	459
+middle_end/flambda2/simplify/env/downwards_env.ml	value		add_equation_on_variable	446	448	446	448
+middle_end/flambda2/simplify/env/downwards_env.ml	value		add_inlined_debuginfo	699	700	699	700
+middle_end/flambda2/simplify/env/downwards_env.ml	value		add_lifted_constant_state	803	851	803	851
+middle_end/flambda2/simplify/env/downwards_env.ml	value		add_lifting_cost	861	868	861	868
+middle_end/flambda2/simplify/env/downwards_env.ml	value		add_name	435	444	435	444
+middle_end/flambda2/simplify/env/downwards_env.ml	value		add_parameters	488	504	488	504
+middle_end/flambda2/simplify/env/downwards_env.ml	value		add_parameters_with_unknown_types	506	524	506	524
+middle_end/flambda2/simplify/env/downwards_env.ml	value		add_symbol	431	433	431	433
+middle_end/flambda2/simplify/env/downwards_env.ml	value		add_symbol_projection	465	466	465	466
+middle_end/flambda2/simplify/env/downwards_env.ml	value		add_variable	428	429	428	429
+middle_end/flambda2/simplify/env/downwards_env.ml	value		add_variable0	422	426	422	426
+middle_end/flambda2/simplify/env/downwards_env.ml	value		all_code	278	278	278	278
+middle_end/flambda2/simplify/env/downwards_env.ml	value		are_rebuilding_terms	647	647	647	647
+middle_end/flambda2/simplify/env/downwards_env.ml	value		at_unit_toplevel	305	305	305	305
+middle_end/flambda2/simplify/env/downwards_env.ml	value		bump_current_level_scope	329	330	329	330
+middle_end/flambda2/simplify/env/downwards_env.ml	value		check_name_is_bound	546	550	546	550
+middle_end/flambda2/simplify/env/downwards_env.ml	value		check_simple_is_bound	552	555	552	555
+middle_end/flambda2/simplify/env/downwards_env.ml	value		closure_info	657	657	657	657
+middle_end/flambda2/simplify/env/downwards_env.ml	value		comparison_results	608	608	608	608
+middle_end/flambda2/simplify/env/downwards_env.ml	value		cost_of_lifting_continuations_out_of_current_one	858	859	858	859
+middle_end/flambda2/simplify/env/downwards_env.ml	value		create	240	276	240	276
+middle_end/flambda2/simplify/env/downwards_env.ml	value		cse	606	606	606	606
+middle_end/flambda2/simplify/env/downwards_env.ml	value		define_code	590	604	590	604
+middle_end/flambda2/simplify/env/downwards_env.ml	value		define_continuations	190	194	190	194
+middle_end/flambda2/simplify/env/downwards_env.ml	value		define_extra_variable	237	238	237	238
+middle_end/flambda2/simplify/env/downwards_env.ml	value		define_name	411	420	411	420
+middle_end/flambda2/simplify/env/downwards_env.ml	value		define_name_if_undefined	470	473	470	473
+middle_end/flambda2/simplify/env/downwards_env.ml	value		define_parameters	479	486	479	486
+middle_end/flambda2/simplify/env/downwards_env.ml	value		define_symbol	404	409	404	409
+middle_end/flambda2/simplify/env/downwards_env.ml	value		define_variable	234	235	234	235
+middle_end/flambda2/simplify/env/downwards_env.ml	value		define_variable0	196	232	196	232
+middle_end/flambda2/simplify/env/downwards_env.ml	value		defined_variables_by_scope	312	312	312	312
+middle_end/flambda2/simplify/env/downwards_env.ml	value		denv_for_lifted_continuation	898	945	898	945
+middle_end/flambda2/simplify/env/downwards_env.ml	value		disable_inlining	290	290	290	290
+middle_end/flambda2/simplify/env/downwards_env.ml	value		disable_partial_application_stub_generation	292	293	292	293
+middle_end/flambda2/simplify/env/downwards_env.ml	value		enter_closure	649	655	649	655
+middle_end/flambda2/simplify/env/downwards_env.ml	value		enter_continuation_handler	784	801	784	801
+middle_end/flambda2/simplify/env/downwards_env.ml	value		enter_inlined_apply	702	751	702	751
+middle_end/flambda2/simplify/env/downwards_env.ml	value		enter_set_of_closures	340	402	340	402
+middle_end/flambda2/simplify/env/downwards_env.ml	value		enter_stub_function	332	338	332	338
+middle_end/flambda2/simplify/env/downwards_env.ml	value		extend_typing_environment	533	540	533	540
+middle_end/flambda2/simplify/env/downwards_env.ml	value		find_code_exn	577	588	577	588
+middle_end/flambda2/simplify/env/downwards_env.ml	value		find_code_metadata_exn	560	575	560	575
+middle_end/flambda2/simplify/env/downwards_env.ml	value		find_comparison_result	630	631	630	631
+middle_end/flambda2/simplify/env/downwards_env.ml	value		find_cse	628	628	628	628
+middle_end/flambda2/simplify/env/downwards_env.ml	value		find_symbol	463	463	463	463
+middle_end/flambda2/simplify/env/downwards_env.ml	value		find_symbol_projection	468	468	468	468
+middle_end/flambda2/simplify/env/downwards_env.ml	value		generate_phantom_lets	753	758	753	758
+middle_end/flambda2/simplify/env/downwards_env.ml	value		get_continuation_scope	288	288	288	288
+middle_end/flambda2/simplify/env/downwards_env.ml	value		get_inlining_state	314	314	314	314
+middle_end/flambda2/simplify/env/downwards_env.ml	value		has_seen_a_non_liftable_continuation	870	871	870	871
+middle_end/flambda2/simplify/env/downwards_env.ml	value		increment_continuation_scope	326	327	326	327
+middle_end/flambda2/simplify/env/downwards_env.ml	value		inlined_attribute_to_forward	295	295	295	295
+middle_end/flambda2/simplify/env/downwards_env.ml	value		inlined_attribute_to_forward_through_inlined_apply	673	685	673	685
+middle_end/flambda2/simplify/env/downwards_env.ml	value		inlining_arguments	659	660	659	660
+middle_end/flambda2/simplify/env/downwards_env.ml	value		inlining_history_tracker	318	318	318	318
+middle_end/flambda2/simplify/env/downwards_env.ml	value		is_cold	878	878	878	878
+middle_end/flambda2/simplify/env/downwards_env.ml	value		is_defined_at_toplevel	309	310	309	310
+middle_end/flambda2/simplify/env/downwards_env.ml	value		join_analysis	771	771	771	771
+middle_end/flambda2/simplify/env/downwards_env.ml	value		loopify_state	760	760	760	760
+middle_end/flambda2/simplify/env/downwards_env.ml	value		machine_width	280	280	280	280
+middle_end/flambda2/simplify/env/downwards_env.ml	value		map_specialization_cost	892	894	892	894
+middle_end/flambda2/simplify/env/downwards_env.ml	value		map_typing_env	544	544	544	544
+middle_end/flambda2/simplify/env/downwards_env.ml	value		mark_as_cold	880	880	880	880
+middle_end/flambda2/simplify/env/downwards_env.ml	value		mark_parameters_as_toplevel	526	531	526	531
+middle_end/flambda2/simplify/env/downwards_env.ml	value		mem_code	557	558	557	558
+middle_end/flambda2/simplify/env/downwards_env.ml	value		mem_name	450	450	450	450
+middle_end/flambda2/simplify/env/downwards_env.ml	value		mem_symbol	461	461	461	461
+middle_end/flambda2/simplify/env/downwards_env.ml	value		mem_variable	452	452	452	452
+middle_end/flambda2/simplify/env/downwards_env.ml	value		merge_inlined_debuginfo_and_forward_inlined_attribute	687	697	687	697
+middle_end/flambda2/simplify/env/downwards_env.ml	value		must_inline	882	882	882	882
+middle_end/flambda2/simplify/env/downwards_env.ml	value		print	114	188	114	188
+middle_end/flambda2/simplify/env/downwards_env.ml	value		propagating_float_consts	297	297	297	297
+middle_end/flambda2/simplify/env/downwards_env.ml	value		record_inlining_decision	886	890	886	890
+middle_end/flambda2/simplify/env/downwards_env.ml	value		relative_history	320	321	320	321
+middle_end/flambda2/simplify/env/downwards_env.ml	value		replay_history	884	884	884	884
+middle_end/flambda2/simplify/env/downwards_env.ml	value		resolver	282	282	282	282
+middle_end/flambda2/simplify/env/downwards_env.ml	value		round	286	286	286	286
+middle_end/flambda2/simplify/env/downwards_env.ml	value		set_at_unit_toplevel_state	307	307	307	307
+middle_end/flambda2/simplify/env/downwards_env.ml	value		set_disable_inlining	641	642	641	642
+middle_end/flambda2/simplify/env/downwards_env.ml	value		set_do_not_rebuild_terms_and_disable_inlining	635	639	635	639
+middle_end/flambda2/simplify/env/downwards_env.ml	value		set_has_seen_a_non_liftable_continuation	873	876	873	876
+middle_end/flambda2/simplify/env/downwards_env.ml	value		set_inlined_debuginfo	670	671	670	671
+middle_end/flambda2/simplify/env/downwards_env.ml	value		set_inlining_arguments	662	665	662	665
+middle_end/flambda2/simplify/env/downwards_env.ml	value		set_inlining_history_tracker	323	324	323	324
+middle_end/flambda2/simplify/env/downwards_env.ml	value		set_inlining_state	316	316	316	316
+middle_end/flambda2/simplify/env/downwards_env.ml	value		set_loopify_state	762	762	762	762
+middle_end/flambda2/simplify/env/downwards_env.ml	value		set_rebuild_terms	644	645	644	645
+middle_end/flambda2/simplify/env/downwards_env.ml	value		specialization_cost	896	896	896	896
+middle_end/flambda2/simplify/env/downwards_env.ml	value		typing_env	284	284	284	284
+middle_end/flambda2/simplify/env/downwards_env.ml	value		unit_toplevel_alloc_region	303	303	303	303
+middle_end/flambda2/simplify/env/downwards_env.ml	value		unit_toplevel_exn_continuation	299	299	299	299
+middle_end/flambda2/simplify/env/downwards_env.ml	value		unit_toplevel_return_continuation	301	301	301	301
+middle_end/flambda2/simplify/env/downwards_env.ml	value		variables_defined_in_current_continuation	853	856	853	856
+middle_end/flambda2/simplify/env/downwards_env.ml	value		with_code_age_relation	764	767	764	767
+middle_end/flambda2/simplify/env/downwards_env.ml	value		with_cse	633	633	633	633
+middle_end/flambda2/simplify/env/downwards_env.ml	value		with_join_analysis	769	769	769	769
+middle_end/flambda2/simplify/env/downwards_env.ml	value		with_replay_history	773	782	773	782
+middle_end/flambda2/simplify/env/downwards_env.ml	value		with_typing_env	542	542	542	542
+middle_end/flambda2/simplify/env/downwards_env.ml	value	Disable_inlining	print	46	50	46	50
+middle_end/flambda2/simplify/env/downwards_env.ml	value	Disable_inlining_reason	print	36	38	36	38
+middle_end/flambda2/simplify/env/one_continuation_use.ml	module		DE	17	17	17	17
+middle_end/flambda2/simplify/env/one_continuation_use.ml	module		T	18	18	18	18
+middle_end/flambda2/simplify/env/one_continuation_use.ml	type		t	20	25	20	25
+middle_end/flambda2/simplify/env/one_continuation_use.ml	value		arg_types	42	42	42	42
+middle_end/flambda2/simplify/env/one_continuation_use.ml	value		create	27	27	27	27
+middle_end/flambda2/simplify/env/one_continuation_use.ml	value		env_at_use	44	44	44	44
+middle_end/flambda2/simplify/env/one_continuation_use.ml	value		id	38	38	38	38
+middle_end/flambda2/simplify/env/one_continuation_use.ml	value		mark_non_inlinable	46	49	46	49
+middle_end/flambda2/simplify/env/one_continuation_use.ml	value		print	29	36	29	36
+middle_end/flambda2/simplify/env/one_continuation_use.ml	value		use_kind	40	40	40	40
+middle_end/flambda2/simplify/env/replay_history.ml	module		Action	21	39	21	39
+middle_end/flambda2/simplify/env/replay_history.ml	type		replay_result	202	204	202	204
+middle_end/flambda2/simplify/env/replay_history.ml	type		t	44	63	44	63
+middle_end/flambda2/simplify/env/replay_history.ml	type	Action	t	22	25	22	25
+middle_end/flambda2/simplify/env/replay_history.ml	value		check_coherent_inlining_decisions	121	121	121	121
+middle_end/flambda2/simplify/env/replay_history.ml	value		define_continuations	144	175	144	175
+middle_end/flambda2/simplify/env/replay_history.ml	value		define_variable	123	142	123	142
+middle_end/flambda2/simplify/env/replay_history.ml	value		error_empty_history	103	107	103	107
+middle_end/flambda2/simplify/env/replay_history.ml	value		error_mismatched_action	109	113	109	113
+middle_end/flambda2/simplify/env/replay_history.ml	value		error_not_renamed_version_of	115	119	115	119
+middle_end/flambda2/simplify/env/replay_history.ml	value		first_pass	86	86	86	86
+middle_end/flambda2/simplify/env/replay_history.ml	value		must_inline	198	200	198	200
+middle_end/flambda2/simplify/env/replay_history.ml	value		print	65	81	65	81
+middle_end/flambda2/simplify/env/replay_history.ml	value		record_inlining_decision	177	193	177	193
+middle_end/flambda2/simplify/env/replay_history.ml	value		replay	88	101	88	101
+middle_end/flambda2/simplify/env/replay_history.ml	value		replay_continuation_mapping	213	218	213	218
+middle_end/flambda2/simplify/env/replay_history.ml	value		replay_inlining_decision	220	230	220	230
+middle_end/flambda2/simplify/env/replay_history.ml	value		replay_variable_mapping	206	211	206	211
+middle_end/flambda2/simplify/env/replay_history.ml	value	Action	print	28	38	28	38
+middle_end/flambda2/simplify/env/upwards_acc.ml	module		ART	17	17	17	17
+middle_end/flambda2/simplify/env/upwards_acc.ml	module		DA	18	18	18	18
+middle_end/flambda2/simplify/env/upwards_acc.ml	module		DE	19	19	19	19
+middle_end/flambda2/simplify/env/upwards_acc.ml	module		LCS	20	20	20	20
+middle_end/flambda2/simplify/env/upwards_acc.ml	module		TE	21	21	21	21
+middle_end/flambda2/simplify/env/upwards_acc.ml	module		UE	22	22	22	22
+middle_end/flambda2/simplify/env/upwards_acc.ml	type		t	24	34	24	34
+middle_end/flambda2/simplify/env/upwards_acc.ml	value		add_cost_metrics	153	154	153	154
+middle_end/flambda2/simplify/env/upwards_acc.ml	value		add_cost_metrics_and_with_name_occurrences	156	160	156	160
+middle_end/flambda2/simplify/env/upwards_acc.ml	value		add_free_names	127	129	127	129
+middle_end/flambda2/simplify/env/upwards_acc.ml	value		add_lifted_constant	90	91	90	91
+middle_end/flambda2/simplify/env/upwards_acc.ml	value		all_code	115	115	115	115
+middle_end/flambda2/simplify/env/upwards_acc.ml	value		are_rebuilding_terms	95	95	95	95
+middle_end/flambda2/simplify/env/upwards_acc.ml	value		clear_cost_metrics	141	141	141	141
+middle_end/flambda2/simplify/env/upwards_acc.ml	value		clear_name_occurrences	124	125	124	125
+middle_end/flambda2/simplify/env/upwards_acc.ml	value		code_age_relation	83	83	83	83
+middle_end/flambda2/simplify/env/upwards_acc.ml	value		continuation_param_aliases	175	175	175	175
+middle_end/flambda2/simplify/env/upwards_acc.ml	value		cost_metrics	93	93	93	93
+middle_end/flambda2/simplify/env/upwards_acc.ml	value		create	60	77	60	77
+middle_end/flambda2/simplify/env/upwards_acc.ml	value		creation_dacc	79	79	79	79
+middle_end/flambda2/simplify/env/upwards_acc.ml	value		generate_phantom_lets	162	162	162	162
+middle_end/flambda2/simplify/env/upwards_acc.ml	value		get_and_clear_lifted_constants	87	88	87	88
+middle_end/flambda2/simplify/env/upwards_acc.ml	value		is_demoted_exn_handler	164	165	164	165
+middle_end/flambda2/simplify/env/upwards_acc.ml	value		lifted_constants	85	85	85	85
+middle_end/flambda2/simplify/env/upwards_acc.ml	value		map_uenv	101	101	101	101
+middle_end/flambda2/simplify/env/upwards_acc.ml	value		mutable_unboxing_result	177	177	177	177
+middle_end/flambda2/simplify/env/upwards_acc.ml	value		name_occurrences	117	117	117	117
+middle_end/flambda2/simplify/env/upwards_acc.ml	value		no_lifted_constants	99	99	99	99
+middle_end/flambda2/simplify/env/upwards_acc.ml	value		notify_added	145	146	145	146
+middle_end/flambda2/simplify/env/upwards_acc.ml	value		notify_removed	148	151	148	151
+middle_end/flambda2/simplify/env/upwards_acc.ml	value		print	36	58	36	58
+middle_end/flambda2/simplify/env/upwards_acc.ml	value		reachable_code_ids	173	173	173	173
+middle_end/flambda2/simplify/env/upwards_acc.ml	value		remember_code_for_cmx	105	113	105	113
+middle_end/flambda2/simplify/env/upwards_acc.ml	value		remove_all_occurrences_of_free_names	135	139	135	139
+middle_end/flambda2/simplify/env/upwards_acc.ml	value		required_names	171	171	171	171
+middle_end/flambda2/simplify/env/upwards_acc.ml	value		resimplify	181	181	181	181
+middle_end/flambda2/simplify/env/upwards_acc.ml	value		set_resimplify	179	179	179	179
+middle_end/flambda2/simplify/env/upwards_acc.ml	value		shareable_constants	133	133	133	133
+middle_end/flambda2/simplify/env/upwards_acc.ml	value		slot_offsets	167	167	167	167
+middle_end/flambda2/simplify/env/upwards_acc.ml	value		specialization_map	183	183	183	183
+middle_end/flambda2/simplify/env/upwards_acc.ml	value		uenv	81	81	81	81
+middle_end/flambda2/simplify/env/upwards_acc.ml	value		used_value_slots	131	131	131	131
+middle_end/flambda2/simplify/env/upwards_acc.ml	value		with_cost_metrics	143	143	143	143
+middle_end/flambda2/simplify/env/upwards_acc.ml	value		with_lifted_constants	97	97	97	97
+middle_end/flambda2/simplify/env/upwards_acc.ml	value		with_name_occurrences	119	122	119	122
+middle_end/flambda2/simplify/env/upwards_acc.ml	value		with_slot_offsets	169	169	169	169
+middle_end/flambda2/simplify/env/upwards_acc.ml	value		with_uenv	103	103	103	103
+middle_end/flambda2/simplify/env/upwards_env.ml	type		t	17	27	17	27
+middle_end/flambda2/simplify/env/upwards_env.ml	value		add_apply_cont_rewrite	190	198	190	198
+middle_end/flambda2/simplify/env/upwards_env.ml	value		add_cold_continuation	110	112	110	112
+middle_end/flambda2/simplify/env/upwards_env.ml	value		add_continuation0	94	96	94	96
+middle_end/flambda2/simplify/env/upwards_env.ml	value		add_continuation_shortcut	142	177	142	177
+middle_end/flambda2/simplify/env/upwards_env.ml	value		add_function_return_or_exn_continuation	185	188	185	188
+middle_end/flambda2/simplify/env/upwards_env.ml	value		add_invalid_continuation	136	137	136	137
+middle_end/flambda2/simplify/env/upwards_env.ml	value		add_linearly_used_inlinable_continuation	179	183	179	183
+middle_end/flambda2/simplify/env/upwards_env.ml	value		add_non_inlinable_continuation	114	134	114	134
+middle_end/flambda2/simplify/env/upwards_env.ml	value		add_unique_continuation_handler	98	108	98	108
+middle_end/flambda2/simplify/env/upwards_env.ml	value		check_shortcut_transitivity	70	79	70	79
+middle_end/flambda2/simplify/env/upwards_env.ml	value		continuation_arity	139	140	139	140
+middle_end/flambda2/simplify/env/upwards_env.ml	value		create	29	37	29	37
+middle_end/flambda2/simplify/env/upwards_env.ml	value		find_apply_cont_rewrite	210	211	210	211
+middle_end/flambda2/simplify/env/upwards_env.ml	value		find_continuation	59	64	59	64
+middle_end/flambda2/simplify/env/upwards_env.ml	value		find_continuation_shortcut	81	87	81	87
+middle_end/flambda2/simplify/env/upwards_env.ml	value		find_unique_continuation_handler	89	92	89	92
+middle_end/flambda2/simplify/env/upwards_env.ml	value		is_cold_continuation	68	68	68	68
+middle_end/flambda2/simplify/env/upwards_env.ml	value		machine_width	39	39	39	39
+middle_end/flambda2/simplify/env/upwards_env.ml	value		mem_continuation	66	66	66	66
+middle_end/flambda2/simplify/env/upwards_env.ml	value		print	41	57	41	57
+middle_end/flambda2/simplify/env/upwards_env.ml	value		replace_apply_cont_rewrite	200	208	200	208
+middle_end/flambda2/simplify/expr_builder.ml	module		BP	18	18	18	18
+middle_end/flambda2/simplify/expr_builder.ml	module		DA	25	25	25	25
+middle_end/flambda2/simplify/expr_builder.ml	module		LC	19	19	19	19
+middle_end/flambda2/simplify/expr_builder.ml	module		LCS	20	20	20	20
+middle_end/flambda2/simplify/expr_builder.ml	module		P	21	21	21	21
+middle_end/flambda2/simplify/expr_builder.ml	module		RE	22	22	22	22
+middle_end/flambda2/simplify/expr_builder.ml	module		UA	23	23	23	23
+middle_end/flambda2/simplify/expr_builder.ml	module		UE	24	24	24	24
+middle_end/flambda2/simplify/expr_builder.ml	module		VB	26	26	26	26
+middle_end/flambda2/simplify/expr_builder.ml	type		cont_or_apply_cont	615	617	615	617
+middle_end/flambda2/simplify/expr_builder.ml	type		new_let_cont	505	510	505	510
+middle_end/flambda2/simplify/expr_builder.ml	type		rewrite_apply_cont_result	540	546	540	546
+middle_end/flambda2/simplify/expr_builder.ml	type		rewrite_fixed_arity_continuation0_result	609	613	609	613
+middle_end/flambda2/simplify/expr_builder.ml	type		rewrite_switch_arm_result	743	746	743	746
+middle_end/flambda2/simplify/expr_builder.ml	value		add_set_of_closures_offsets	28	58	28	58
+middle_end/flambda2/simplify/expr_builder.ml	value		apply_continuation_aliases	563	569	563	569
+middle_end/flambda2/simplify/expr_builder.ml	value		apply_continuation_shortcuts	548	561	548	561
+middle_end/flambda2/simplify/expr_builder.ml	value		apply_exn_continuation_aliases	571	578	571	578
+middle_end/flambda2/simplify/expr_builder.ml	value		bind_let_cont	512	531	512	531
+middle_end/flambda2/simplify/expr_builder.ml	value		bind_let_conts	533	535	533	535
+middle_end/flambda2/simplify/expr_builder.ml	value		create_coerced_singleton_let	106	162	106	162
+middle_end/flambda2/simplify/expr_builder.ml	value		create_let	60	96	60	96
+middle_end/flambda2/simplify/expr_builder.ml	value		create_let_binding	98	104	98	104
+middle_end/flambda2/simplify/expr_builder.ml	value		create_let_symbol0	253	290	253	290
+middle_end/flambda2/simplify/expr_builder.ml	value		create_let_symbols	315	434	315	434
+middle_end/flambda2/simplify/expr_builder.ml	value		create_raw_let_symbol	204	251	204	251
+middle_end/flambda2/simplify/expr_builder.ml	value		create_switch	458	503	458	503
+middle_end/flambda2/simplify/expr_builder.ml	value		make_new_let_bindings	164	202	164	202
+middle_end/flambda2/simplify/expr_builder.ml	value		no_rewrite_apply_cont	580	582	580	582
+middle_end/flambda2/simplify/expr_builder.ml	value		place_lifted_constants	436	456	436	456
+middle_end/flambda2/simplify/expr_builder.ml	value		rebuild_invalid	537	538	537	538
+middle_end/flambda2/simplify/expr_builder.ml	value		remove_unused_value_slots	292	313	292	313
+middle_end/flambda2/simplify/expr_builder.ml	value		rewrite_apply_cont	606	607	606	607
+middle_end/flambda2/simplify/expr_builder.ml	value		rewrite_apply_cont0	584	604	584	604
+middle_end/flambda2/simplify/expr_builder.ml	value		rewrite_exn_continuation	619	619	619	619
+middle_end/flambda2/simplify/expr_builder.ml	value		rewrite_fixed_arity_apply	775	800	775	800
+middle_end/flambda2/simplify/expr_builder.ml	value		rewrite_fixed_arity_continuation	759	773	759	773
+middle_end/flambda2/simplify/expr_builder.ml	value		rewrite_fixed_arity_continuation0	621	741	621	741
+middle_end/flambda2/simplify/expr_builder.ml	value		rewrite_switch_arm	748	757	748	757
+middle_end/flambda2/simplify/flow/control_flow_graph.ml	module		Dot	383	476	383	476
+middle_end/flambda2/simplify/flow/control_flow_graph.ml	module		G	16	16	16	16
+middle_end/flambda2/simplify/flow/control_flow_graph.ml	module		T	15	15	15	15
+middle_end/flambda2/simplify/flow/control_flow_graph.ml	type		exn_param_alias	25	32	25	32
+middle_end/flambda2/simplify/flow/control_flow_graph.ml	type		t	18	23	18	23
+middle_end/flambda2/simplify/flow/control_flow_graph.ml	value		compute_added_extra_args	110	115	110	115
+middle_end/flambda2/simplify/flow/control_flow_graph.ml	value		compute_available_variables	91	108	91	108
+middle_end/flambda2/simplify/flow/control_flow_graph.ml	value		compute_continuation_extra_args_for_aliases	349	381	349	381
+middle_end/flambda2/simplify/flow/control_flow_graph.ml	value		create	34	74	34	74
+middle_end/flambda2/simplify/flow/control_flow_graph.ml	value		extra_args_for_aliases_overapproximation	178	237	178	237
+middle_end/flambda2/simplify/flow/control_flow_graph.ml	value		fixpoint	117	176	117	176
+middle_end/flambda2/simplify/flow/control_flow_graph.ml	value		map_fold_on_children	78	89	78	89
+middle_end/flambda2/simplify/flow/control_flow_graph.ml	value		minimize_extra_args_for_aliases	339	347	339	347
+middle_end/flambda2/simplify/flow/control_flow_graph.ml	value		minimize_extra_args_for_one_continuation	239	337	239	337
+middle_end/flambda2/simplify/flow/control_flow_graph.ml	value	Dot	edge	434	436	434	436
+middle_end/flambda2/simplify/flow/control_flow_graph.ml	value	Dot	edges	438	442	438	442
+middle_end/flambda2/simplify/flow/control_flow_graph.ml	value	Dot	edges'	444	445	444	445
+middle_end/flambda2/simplify/flow/control_flow_graph.ml	value	Dot	node	387	411	387	411
+middle_end/flambda2/simplify/flow/control_flow_graph.ml	value	Dot	node_id	384	385	384	385
+middle_end/flambda2/simplify/flow/control_flow_graph.ml	value	Dot	nodes	413	432	413	432
+middle_end/flambda2/simplify/flow/control_flow_graph.ml	value	Dot	print	447	475	447	475
+middle_end/flambda2/simplify/flow/data_flow_graph.ml	module		Reachable	28	146	28	146
+middle_end/flambda2/simplify/flow/data_flow_graph.ml	module		T	15	15	15	15
+middle_end/flambda2/simplify/flow/data_flow_graph.ml	module	Reachable	Code_id_Code_id_Edge	52	52	52	52
+middle_end/flambda2/simplify/flow/data_flow_graph.ml	module	Reachable	Code_id_Name_Edge	51	51	51	51
+middle_end/flambda2/simplify/flow/data_flow_graph.ml	module	Reachable	Edge	29	46	29	46
+middle_end/flambda2/simplify/flow/data_flow_graph.ml	module	Reachable	Name_Code_id_Edge	50	50	50	50
+middle_end/flambda2/simplify/flow/data_flow_graph.ml	module	Reachable	Name_Name_Edge	49	49	49	49
+middle_end/flambda2/simplify/flow/data_flow_graph.ml	type		t	17	26	17	26
+middle_end/flambda2/simplify/flow/data_flow_graph.ml	type	Reachable.Edge()	dst	33	33	33	33
+middle_end/flambda2/simplify/flow/data_flow_graph.ml	type	Reachable.Edge()	src	31	31	31	31
+middle_end/flambda2/simplify/flow/data_flow_graph.ml	value		add_code_id_dep	192	202	192	202
+middle_end/flambda2/simplify/flow/data_flow_graph.ml	value		add_code_id_dependency	214	222	214	222
+middle_end/flambda2/simplify/flow/data_flow_graph.ml	value		add_code_id_to_code_id	224	234	224	234
+middle_end/flambda2/simplify/flow/data_flow_graph.ml	value		add_continuation_info	250	412	250	412
+middle_end/flambda2/simplify/flow/data_flow_graph.ml	value		add_dependency	204	212	204	212
+middle_end/flambda2/simplify/flow/data_flow_graph.ml	value		add_name_occurrences	236	248	236	248
+middle_end/flambda2/simplify/flow/data_flow_graph.ml	value		create	414	430	414	430
+middle_end/flambda2/simplify/flow/data_flow_graph.ml	value		empty	148	157	148	157
+middle_end/flambda2/simplify/flow/data_flow_graph.ml	value		fold_name_occurrences	187	189	187	189
+middle_end/flambda2/simplify/flow/data_flow_graph.ml	value		print	159	184	159	184
+middle_end/flambda2/simplify/flow/data_flow_graph.ml	value		required_names	432	451	432	451
+middle_end/flambda2/simplify/flow/data_flow_graph.ml	value	Reachable	reachable_code_ids	89	116	55	145
+middle_end/flambda2/simplify/flow/data_flow_graph.ml	value	Reachable	reachable_names	55	87	55	145
+middle_end/flambda2/simplify/flow/data_flow_graph.ml	value	Reachable	reachable_older_code_ids	118	145	55	145
+middle_end/flambda2/simplify/flow/data_flow_graph.ml	value	Reachable.Edge()	push	35	44	35	44
+middle_end/flambda2/simplify/flow/dominator_graph.ml	module		Dot	310	359	310	359
+middle_end/flambda2/simplify/flow/dominator_graph.ml	module		G	16	16	16	16
+middle_end/flambda2/simplify/flow/dominator_graph.ml	module		T	15	15	15	15
+middle_end/flambda2/simplify/flow/dominator_graph.ml	type		alias_map	27	27	27	27
+middle_end/flambda2/simplify/flow/dominator_graph.ml	type		t	18	25	18	25
+middle_end/flambda2/simplify/flow/dominator_graph.ml	value		add_continuation_info	78	131	78	131
+middle_end/flambda2/simplify/flow/dominator_graph.ml	value		add_edge	63	74	63	74
+middle_end/flambda2/simplify/flow/dominator_graph.ml	value		add_node	45	49	45	49
+middle_end/flambda2/simplify/flow/dominator_graph.ml	value		add_node_aux	37	43	37	43
+middle_end/flambda2/simplify/flow/dominator_graph.ml	value		add_root	53	59	53	59
+middle_end/flambda2/simplify/flow/dominator_graph.ml	value		aliases_kind	287	308	287	308
+middle_end/flambda2/simplify/flow/dominator_graph.ml	value		create	133	158	133	158
+middle_end/flambda2/simplify/flow/dominator_graph.ml	value		dom_fixpoint	220	243	220	243
+middle_end/flambda2/simplify/flow/dominator_graph.ml	value		dominator_analysis	267	285	267	285
+middle_end/flambda2/simplify/flow/dominator_graph.ml	value		empty	29	33	29	33
+middle_end/flambda2/simplify/flow/dominator_graph.ml	value		extract_doms	245	265	245	265
+middle_end/flambda2/simplify/flow/dominator_graph.ml	value		find_dom	160	175	160	175
+middle_end/flambda2/simplify/flow/dominator_graph.ml	value		initialize_doms_for_fixpoint	195	218	195	218
+middle_end/flambda2/simplify/flow/dominator_graph.ml	value		update_doms_for_one_var	177	193	177	193
+middle_end/flambda2/simplify/flow/dominator_graph.ml	value	Dot	edge	335	337	335	337
+middle_end/flambda2/simplify/flow/dominator_graph.ml	value	Dot	edges	339	343	339	343
+middle_end/flambda2/simplify/flow/dominator_graph.ml	value	Dot	edges'	345	348	345	348
+middle_end/flambda2/simplify/flow/dominator_graph.ml	value	Dot	node	314	321	314	321
+middle_end/flambda2/simplify/flow/dominator_graph.ml	value	Dot	node_id	311	312	311	312
+middle_end/flambda2/simplify/flow/dominator_graph.ml	value	Dot	nodes	323	333	323	333
+middle_end/flambda2/simplify/flow/dominator_graph.ml	value	Dot	print	350	358	350	358
+middle_end/flambda2/simplify/flow/flow.ml	module		Acc	15	15	15	15
+middle_end/flambda2/simplify/flow/flow.ml	module		Analysis	16	16	16	16
+middle_end/flambda2/simplify/flow/flow_acc.ml	module		EPA	16	16	16	16
+middle_end/flambda2/simplify/flow/flow_acc.ml	module		T	15	15	15	15
+middle_end/flambda2/simplify/flow/flow_acc.ml	type		cont_info	20	20	20	20
+middle_end/flambda2/simplify/flow/flow_acc.ml	type		t	18	18	18	18
+middle_end/flambda2/simplify/flow/flow_acc.ml	value		add_apply_cont_args	295	331	295	331
+middle_end/flambda2/simplify/flow/flow_acc.ml	value		add_apply_conts	236	293	236	293
+middle_end/flambda2/simplify/flow/flow_acc.ml	value		add_extra_args_to_call	497	525	497	525
+middle_end/flambda2/simplify/flow/flow_acc.ml	value		add_extra_params_and_args	46	54	46	54
+middle_end/flambda2/simplify/flow/flow_acc.ml	value		add_used_in_current_handler	229	234	229	234
+middle_end/flambda2/simplify/flow/flow_acc.ml	value		empty	29	41	29	41
+middle_end/flambda2/simplify/flow/flow_acc.ml	value		enter_continuation	56	86	56	86
+middle_end/flambda2/simplify/flow/flow_acc.ml	value		exit_continuation	93	99	93	99
+middle_end/flambda2/simplify/flow/flow_acc.ml	value		get_block_and_constant_field	333	339	333	339
+middle_end/flambda2/simplify/flow/flow_acc.ml	value		init_toplevel	88	91	88	91
+middle_end/flambda2/simplify/flow/flow_acc.ml	value		normalize_acc	527	638	527	638
+middle_end/flambda2/simplify/flow/flow_acc.ml	value		normalize_lifted_constant_aux	454	481	454	481
+middle_end/flambda2/simplify/flow/flow_acc.ml	value		normalize_lifted_constants_aux	483	486	483	486
+middle_end/flambda2/simplify/flow/flow_acc.ml	value		print	22	22	22	22
+middle_end/flambda2/simplify/flow/flow_acc.ml	value		record_code_id_binding	206	208	206	208
+middle_end/flambda2/simplify/flow/flow_acc.ml	value		record_code_id_binding_aux	194	204	194	204
+middle_end/flambda2/simplify/flow/flow_acc.ml	value		record_defined_var	106	109	106	109
+middle_end/flambda2/simplify/flow/flow_acc.ml	value		record_let_binding	341	407	341	407
+middle_end/flambda2/simplify/flow/flow_acc.ml	value		record_lifted_constant_definition_aux	419	452	419	452
+middle_end/flambda2/simplify/flow/flow_acc.ml	value		record_lifted_constants	488	492	488	492
+middle_end/flambda2/simplify/flow/flow_acc.ml	value		record_lifted_function_slot_aux	411	417	411	417
+middle_end/flambda2/simplify/flow/flow_acc.ml	value		record_ref_named	148	156	148	156
+middle_end/flambda2/simplify/flow/flow_acc.ml	value		record_symbol_binding	191	192	191	192
+middle_end/flambda2/simplify/flow/flow_acc.ml	value		record_symbol_binding_aux	179	189	179	189
+middle_end/flambda2/simplify/flow/flow_acc.ml	value		record_symbol_projection	176	177	176	177
+middle_end/flambda2/simplify/flow/flow_acc.ml	value		record_symbol_projection_aux	158	174	158	174
+middle_end/flambda2/simplify/flow/flow_acc.ml	value		record_value_slot	226	227	226	227
+middle_end/flambda2/simplify/flow/flow_acc.ml	value		record_value_slot_aux	210	224	210	224
+middle_end/flambda2/simplify/flow/flow_acc.ml	value		record_var_alias	133	146	133	146
+middle_end/flambda2/simplify/flow/flow_acc.ml	value		record_var_binding	111	131	111	131
+middle_end/flambda2/simplify/flow/flow_acc.ml	value		update_top_of_stack	101	104	101	104
+middle_end/flambda2/simplify/flow/flow_acc.ml	value		wrong_dummy_toplevel_cont_name	27	27	27	27
+middle_end/flambda2/simplify/flow/flow_analysis.ml	module		T	15	15	15	15
+middle_end/flambda2/simplify/flow/flow_analysis.ml	value		added_useful_alias_in_loop	184	211	184	211
+middle_end/flambda2/simplify/flow/flow_analysis.ml	value		analyze	53	149	53	149
+middle_end/flambda2/simplify/flow/flow_analysis.ml	value		control_flow_graph_ppf	30	39	30	39
+middle_end/flambda2/simplify/flow/flow_analysis.ml	value		did_perform_mutable_unboxing	151	182	151	182
+middle_end/flambda2/simplify/flow/flow_analysis.ml	value		dominator_graph_ppf	19	28	19	28
+middle_end/flambda2/simplify/flow/flow_analysis.ml	value		dot_count	41	41	41	41
+middle_end/flambda2/simplify/flow/flow_analysis.ml	value		print_graph	43	49	43	49
+middle_end/flambda2/simplify/flow/flow_types.ml	module		Acc	191	224	191	224
+middle_end/flambda2/simplify/flow/flow_types.ml	module		Alias_result	303	318	303	318
+middle_end/flambda2/simplify/flow/flow_types.ml	module		Cont_arg	26	37	26	37
+middle_end/flambda2/simplify/flow/flow_types.ml	module		Continuation_info	105	186	105	186
+middle_end/flambda2/simplify/flow/flow_types.ml	module		Continuation_param_aliases	267	298	267	298
+middle_end/flambda2/simplify/flow/flow_types.ml	module		Data_flow_result	247	262	247	262
+middle_end/flambda2/simplify/flow/flow_types.ml	module		Flow_result	345	363	345	363
+middle_end/flambda2/simplify/flow/flow_types.ml	module		Mutable_let_prim	80	100	80	100
+middle_end/flambda2/simplify/flow/flow_types.ml	module		Mutable_prim	42	75	42	75
+middle_end/flambda2/simplify/flow/flow_types.ml	module		Mutable_unboxing_result	323	340	323	340
+middle_end/flambda2/simplify/flow/flow_types.ml	module		Reachable_code_ids	229	242	229	242
+middle_end/flambda2/simplify/flow/flow_types.ml	module	Mutable_let_prim	List	92	99	92	99
+middle_end/flambda2/simplify/flow/flow_types.ml	type	Acc	t	192	198	192	198
+middle_end/flambda2/simplify/flow/flow_types.ml	type	Alias_result	t	304	307	304	307
+middle_end/flambda2/simplify/flow/flow_types.ml	type	Cont_arg	t	27	30	27	30
+middle_end/flambda2/simplify/flow/flow_types.ml	type	Continuation_info	t	120	135	120	135
+middle_end/flambda2/simplify/flow/flow_types.ml	type	Continuation_param_aliases	recursive_continuation_wrapper	268	270	268	270
+middle_end/flambda2/simplify/flow/flow_types.ml	type	Continuation_param_aliases	t	272	277	272	277
+middle_end/flambda2/simplify/flow/flow_types.ml	type	Data_flow_result	t	248	251	248	251
+middle_end/flambda2/simplify/flow/flow_types.ml	type	Flow_result	t	346	350	346	350
+middle_end/flambda2/simplify/flow/flow_types.ml	type	Mutable_let_prim	t	81	86	81	86
+middle_end/flambda2/simplify/flow/flow_types.ml	type	Mutable_let_prim.List	t	93	93	93	93
+middle_end/flambda2/simplify/flow/flow_types.ml	type	Mutable_prim	t	43	63	43	63
+middle_end/flambda2/simplify/flow/flow_types.ml	type	Mutable_unboxing_result	t	324	328	324	328
+middle_end/flambda2/simplify/flow/flow_types.ml	type	Reachable_code_ids	t	230	233	230	233
+middle_end/flambda2/simplify/flow/flow_types.ml	value	Acc	print	211	223	211	223
+middle_end/flambda2/simplify/flow/flow_types.ml	value	Acc	print_extra	208	209	208	209
+middle_end/flambda2/simplify/flow/flow_types.ml	value	Acc	print_map	206	206	206	206
+middle_end/flambda2/simplify/flow/flow_types.ml	value	Acc	print_stack	200	204	200	204
+middle_end/flambda2/simplify/flow/flow_types.ml	value	Alias_result	print	309	317	309	317
+middle_end/flambda2/simplify/flow/flow_types.ml	value	Cont_arg	print	32	36	32	36
+middle_end/flambda2/simplify/flow/flow_types.ml	value	Continuation_info	print	137	185	137	185
+middle_end/flambda2/simplify/flow/flow_types.ml	value	Continuation_param_aliases	print	279	297	279	297
+middle_end/flambda2/simplify/flow/flow_types.ml	value	Data_flow_result	print	253	261	253	261
+middle_end/flambda2/simplify/flow/flow_types.ml	value	Flow_result	print	352	362	352	362
+middle_end/flambda2/simplify/flow/flow_types.ml	value	Mutable_let_prim	print	88	90	88	90
+middle_end/flambda2/simplify/flow/flow_types.ml	value	Mutable_let_prim.List	print_rev	95	98	95	98
+middle_end/flambda2/simplify/flow/flow_types.ml	value	Mutable_prim	print	65	74	65	74
+middle_end/flambda2/simplify/flow/flow_types.ml	value	Mutable_unboxing_result	print	330	339	330	339
+middle_end/flambda2/simplify/flow/flow_types.ml	value	Reachable_code_ids	print	235	241	235	241
+middle_end/flambda2/simplify/flow/mutable_unboxing.ml	module		EPA	16	16	16	16
+middle_end/flambda2/simplify/flow/mutable_unboxing.ml	module		Fold_prims	355	573	355	573
+middle_end/flambda2/simplify/flow/mutable_unboxing.ml	module		T	15	15	15	15
+middle_end/flambda2/simplify/flow/mutable_unboxing.ml	type		block_to_unbox	20	24	20	24
+middle_end/flambda2/simplify/flow/mutable_unboxing.ml	type		extra_args	28	30	28	30
+middle_end/flambda2/simplify/flow/mutable_unboxing.ml	type		extra_params	26	26	26	26
+middle_end/flambda2/simplify/flow/mutable_unboxing.ml	type		t	32	37	32	37
+middle_end/flambda2/simplify/flow/mutable_unboxing.ml	type	Fold_prims	env	356	360	356	360
+middle_end/flambda2/simplify/flow/mutable_unboxing.ml	value		add_to_extra_params_and_args	623	700	623	700
+middle_end/flambda2/simplify/flow/mutable_unboxing.ml	value		blocks_to_unbox	211	252	211	252
+middle_end/flambda2/simplify/flow/mutable_unboxing.ml	value		continuations_defining_blocks	287	303	287	303
+middle_end/flambda2/simplify/flow/mutable_unboxing.ml	value		continuations_using_blocks	270	285	270	285
+middle_end/flambda2/simplify/flow/mutable_unboxing.ml	value		continuations_with_live_block	305	340	305	340
+middle_end/flambda2/simplify/flow/mutable_unboxing.ml	value		create	575	616	575	616
+middle_end/flambda2/simplify/flow/mutable_unboxing.ml	value		did_unbox_a_mutable_block	702	708	702	708
+middle_end/flambda2/simplify/flow/mutable_unboxing.ml	value		escaping	198	207	198	207
+middle_end/flambda2/simplify/flow/mutable_unboxing.ml	value		escaping_by_alias	69	83	69	83
+middle_end/flambda2/simplify/flow/mutable_unboxing.ml	value		escaping_by_return	175	196	175	196
+middle_end/flambda2/simplify/flow/mutable_unboxing.ml	value		escaping_by_use	166	173	166	173
+middle_end/flambda2/simplify/flow/mutable_unboxing.ml	value		escaping_by_use_for_one_continuation	111	164	111	164
+middle_end/flambda2/simplify/flow/mutable_unboxing.ml	value		find_alias	60	67	60	67
+middle_end/flambda2/simplify/flow/mutable_unboxing.ml	value		free_names_of_apply_cont_args	41	58	41	58
+middle_end/flambda2/simplify/flow/mutable_unboxing.ml	value		int_map_to_list	353	353	353	353
+middle_end/flambda2/simplify/flow/mutable_unboxing.ml	value		list_to_int_map	342	351	342	351
+middle_end/flambda2/simplify/flow/mutable_unboxing.ml	value		make_result	710	716	710	716
+middle_end/flambda2/simplify/flow/mutable_unboxing.ml	value		names_escaping_from_mutable_prim	85	93	85	93
+middle_end/flambda2/simplify/flow/mutable_unboxing.ml	value		names_used_in_new_let_binding	95	109	95	109
+middle_end/flambda2/simplify/flow/mutable_unboxing.ml	value		pp_node	618	621	618	621
+middle_end/flambda2/simplify/flow/mutable_unboxing.ml	value		prims_using_block	254	268	254	268
+middle_end/flambda2/simplify/flow/mutable_unboxing.ml	value	Fold_prims	append_int_map	515	523	515	523
+middle_end/flambda2/simplify/flow/mutable_unboxing.ml	value	Fold_prims	apply_prim	382	465	382	465
+middle_end/flambda2/simplify/flow/mutable_unboxing.ml	value	Fold_prims	compute_rewrites	525	572	525	572
+middle_end/flambda2/simplify/flow/mutable_unboxing.ml	value	Fold_prims	init_env	467	513	467	513
+middle_end/flambda2/simplify/flow/mutable_unboxing.ml	value	Fold_prims	with_unboxed_block	362	370	362	370
+middle_end/flambda2/simplify/flow/mutable_unboxing.ml	value	Fold_prims	with_unboxed_fields	372	380	372	380
+middle_end/flambda2/simplify/inlining/call_site_inlining_decision.ml	module		DA	19	19	19	19
+middle_end/flambda2/simplify/inlining/call_site_inlining_decision.ml	module		DE	18	18	18	18
+middle_end/flambda2/simplify/inlining/call_site_inlining_decision.ml	module		FT	43	43	43	43
+middle_end/flambda2/simplify/inlining/call_site_inlining_decision.ml	module		T	20	20	20	20
+middle_end/flambda2/simplify/inlining/call_site_inlining_decision.ml	module		TE	21	21	21	21
+middle_end/flambda2/simplify/inlining/call_site_inlining_decision.ml	module		UA	22	22	22	22
+middle_end/flambda2/simplify/inlining/call_site_inlining_decision.ml	module		UE	23	23	23	23
+middle_end/flambda2/simplify/inlining/call_site_inlining_decision.ml	type		argument_types_useful	160	162	160	162
+middle_end/flambda2/simplify/inlining/call_site_inlining_decision.ml	value		argument_types_useful	164	166	164	166
+middle_end/flambda2/simplify/inlining/call_site_inlining_decision.ml	value		argument_types_useful	168	209	168	209
+middle_end/flambda2/simplify/inlining/call_site_inlining_decision.ml	value		get_rec_info	311	316	311	316
+middle_end/flambda2/simplify/inlining/call_site_inlining_decision.ml	value		inlining_does_decrease_code_size	211	216	211	216
+middle_end/flambda2/simplify/inlining/call_site_inlining_decision.ml	value		make_decision	458	464	458	464
+middle_end/flambda2/simplify/inlining/call_site_inlining_decision.ml	value		make_decision0	318	456	318	456
+middle_end/flambda2/simplify/inlining/call_site_inlining_decision.ml	value		might_inline	218	309	218	309
+middle_end/flambda2/simplify/inlining/call_site_inlining_decision.ml	value		speculative_inlining	45	158	45	158
+middle_end/flambda2/simplify/inlining/inlining_transforms.ml	module		DA	18	18	18	18
+middle_end/flambda2/simplify/inlining/inlining_transforms.ml	module		DE	19	19	19	19
+middle_end/flambda2/simplify/inlining/inlining_transforms.ml	module		FT	20	20	20	20
+middle_end/flambda2/simplify/inlining/inlining_transforms.ml	module		VB	21	21	21	21
+middle_end/flambda2/simplify/inlining/inlining_transforms.ml	value		inline	104	181	104	181
+middle_end/flambda2/simplify/inlining/inlining_transforms.ml	value		make_inlined_body	23	84	23	84
+middle_end/flambda2/simplify/inlining/inlining_transforms.ml	value		wrap_inlined_body_for_exn_extra_args	86	102	86	102
+middle_end/flambda2/simplify/join_points.ml	module		U	18	18	18	18
+middle_end/flambda2/simplify/join_points.ml	type		result	20	25	20	25
+middle_end/flambda2/simplify/join_points.ml	value		add_equations_on_params	256	303	256	303
+middle_end/flambda2/simplify/join_points.ml	value		add_extra_params_from_join_analysis	76	130	76	130
+middle_end/flambda2/simplify/join_points.ml	value		compute_handler_env	317	442	317	442
+middle_end/flambda2/simplify/join_points.ml	value		compute_use_env_with_ids	305	315	305	315
+middle_end/flambda2/simplify/join_points.ml	value		introduce_extra_params_for_join	55	74	55	74
+middle_end/flambda2/simplify/join_points.ml	value		introduce_extra_params_in_use_env	27	53	27	53
+middle_end/flambda2/simplify/join_points.ml	value		join	132	254	132	254
+middle_end/flambda2/simplify/lifted_cont_params.ml	module		BP	16	16	16	16
+middle_end/flambda2/simplify/lifted_cont_params.ml	type		t	18	21	18	21
+middle_end/flambda2/simplify/lifted_cont_params.ml	value		args	82	84	82	84
+middle_end/flambda2/simplify/lifted_cont_params.ml	value		bound_parameters	86	88	86	88
+middle_end/flambda2/simplify/lifted_cont_params.ml	value		empty	27	27	27	27
+middle_end/flambda2/simplify/lifted_cont_params.ml	value		find_arg	64	72	64	72
+middle_end/flambda2/simplify/lifted_cont_params.ml	value		fold	62	62	62	62
+middle_end/flambda2/simplify/lifted_cont_params.ml	value		fold_aux	59	60	59	60
+middle_end/flambda2/simplify/lifted_cont_params.ml	value		is_empty	29	29	29	29
+middle_end/flambda2/simplify/lifted_cont_params.ml	value		length	31	31	31	31
+middle_end/flambda2/simplify/lifted_cont_params.ml	value		new_param	33	43	33	43
+middle_end/flambda2/simplify/lifted_cont_params.ml	value		print	23	25	23	25
+middle_end/flambda2/simplify/lifted_cont_params.ml	value		rename	45	57	45	57
+middle_end/flambda2/simplify/lifting/lifted_constant.ml	module		Definition	19	137	19	137
+middle_end/flambda2/simplify/lifting/lifted_constant.ml	module		T	17	17	17	17
+middle_end/flambda2/simplify/lifting/lifted_constant.ml	type		t	139	145	139	145
+middle_end/flambda2/simplify/lifting/lifted_constant.ml	type	Definition	descr	20	33	20	33
+middle_end/flambda2/simplify/lifting/lifted_constant.ml	type	Definition	t	35	38	35	38
+middle_end/flambda2/simplify/lifting/lifted_constant.ml	value		all_defined_symbols	277	277	277	277
+middle_end/flambda2/simplify/lifting/lifted_constant.ml	value		apply_projection	279	324	279	324
+middle_end/flambda2/simplify/lifting/lifted_constant.ml	value		bound_static	267	268	267	268
+middle_end/flambda2/simplify/lifting/lifted_constant.ml	value		compute_bound_static	163	165	163	165
+middle_end/flambda2/simplify/lifting/lifted_constant.ml	value		compute_defining_exprs	167	169	167	169
+middle_end/flambda2/simplify/lifting/lifted_constant.ml	value		concat	229	261	229	261
+middle_end/flambda2/simplify/lifting/lifted_constant.ml	value		create_block_like	171	185	171	185
+middle_end/flambda2/simplify/lifting/lifted_constant.ml	value		create_code	205	217	205	217
+middle_end/flambda2/simplify/lifting/lifted_constant.ml	value		create_definition	219	227	219	227
+middle_end/flambda2/simplify/lifting/lifted_constant.ml	value		create_set_of_closures	187	203	187	203
+middle_end/flambda2/simplify/lifting/lifted_constant.ml	value		defining_exprs	263	265	263	265
+middle_end/flambda2/simplify/lifting/lifted_constant.ml	value		definitions	147	147	147	147
+middle_end/flambda2/simplify/lifting/lifted_constant.ml	value		free_names_of_defining_exprs	151	152	151	152
+middle_end/flambda2/simplify/lifting/lifted_constant.ml	value		is_fully_static	154	154	154	154
+middle_end/flambda2/simplify/lifting/lifted_constant.ml	value		print	156	161	156	161
+middle_end/flambda2/simplify/lifting/lifted_constant.ml	value		symbol_projections	149	149	149	149
+middle_end/flambda2/simplify/lifting/lifted_constant.ml	value		types_of_symbols	270	275	270	275
+middle_end/flambda2/simplify/lifting/lifted_constant.ml	value	Definition	binds_symbol	40	47	40	47
+middle_end/flambda2/simplify/lifting/lifted_constant.ml	value	Definition	block_like	106	109	106	109
+middle_end/flambda2/simplify/lifting/lifted_constant.ml	value	Definition	bound_static	125	125	125	125
+middle_end/flambda2/simplify/lifting/lifted_constant.ml	value	Definition	bound_static_pattern	117	123	117	123
+middle_end/flambda2/simplify/lifting/lifted_constant.ml	value	Definition	code	96	96	96	96
+middle_end/flambda2/simplify/lifting/lifted_constant.ml	value	Definition	defining_expr	87	87	87	87
+middle_end/flambda2/simplify/lifting/lifted_constant.ml	value	Definition	descr	85	85	85	85
+middle_end/flambda2/simplify/lifting/lifted_constant.ml	value	Definition	free_names	49	63	49	63
+middle_end/flambda2/simplify/lifting/lifted_constant.ml	value	Definition	print	77	83	77	83
+middle_end/flambda2/simplify/lifting/lifted_constant.ml	value	Definition	print_descr	65	75	65	75
+middle_end/flambda2/simplify/lifting/lifted_constant.ml	value	Definition	set_of_closures	98	104	98	104
+middle_end/flambda2/simplify/lifting/lifted_constant.ml	value	Definition	symbol_projections	89	94	89	94
+middle_end/flambda2/simplify/lifting/lifted_constant.ml	value	Definition	types_of_symbols	127	136	127	136
+middle_end/flambda2/simplify/lifting/lifted_constant.ml	value	Definition	typing_env	111	115	111	115
+middle_end/flambda2/simplify/lifting/lifted_constant_state.ml	module		CIS	81	81	81	81
+middle_end/flambda2/simplify/lifting/lifted_constant_state.ml	module		LC	17	17	17	17
+middle_end/flambda2/simplify/lifting/lifted_constant_state.ml	module		SCC_lifted_constants	82	82	82	82
+middle_end/flambda2/simplify/lifting/lifted_constant_state.ml	type		sort_result	144	144	144	144
+middle_end/flambda2/simplify/lifting/lifted_constant_state.ml	type		t	19	26	19	26
+middle_end/flambda2/simplify/lifting/lifted_constant_state.ml	value		add	56	57	56	57
+middle_end/flambda2/simplify/lifting/lifted_constant_state.ml	value		all_defined_symbols	77	79	77	79
+middle_end/flambda2/simplify/lifting/lifted_constant_state.ml	value		build_dep_graph	84	129	84	129
+middle_end/flambda2/simplify/lifting/lifted_constant_state.ml	value		empty	43	43	43	43
+middle_end/flambda2/simplify/lifting/lifted_constant_state.ml	value		fold	66	75	66	75
+middle_end/flambda2/simplify/lifting/lifted_constant_state.ml	value		is_empty	45	46	45	46
+middle_end/flambda2/simplify/lifting/lifted_constant_state.ml	value		print	28	41	28	41
+middle_end/flambda2/simplify/lifting/lifted_constant_state.ml	value		remove_values_not_in_domain	131	142	131	142
+middle_end/flambda2/simplify/lifting/lifted_constant_state.ml	value		singleton	48	48	48	48
+middle_end/flambda2/simplify/lifting/lifted_constant_state.ml	value		singleton_list_of_constants	50	54	50	54
+middle_end/flambda2/simplify/lifting/lifted_constant_state.ml	value		sort	199	203	199	203
+middle_end/flambda2/simplify/lifting/lifted_constant_state.ml	value		sort0	146	197	146	197
+middle_end/flambda2/simplify/lifting/lifted_constant_state.ml	value		union	59	64	59	64
+middle_end/flambda2/simplify/lifting/reification.ml	value		create_static_const	19	93	19	93
+middle_end/flambda2/simplify/lifting/reification.ml	value		lift	95	154	95	154
+middle_end/flambda2/simplify/lifting/reification.ml	value		try_to_reify	156	199	156	199
+middle_end/flambda2/simplify/loopify_state.ml	type		t	15	17	15	17
+middle_end/flambda2/simplify/loopify_state.ml	value		do_not_loopify	24	24	24	24
+middle_end/flambda2/simplify/loopify_state.ml	value		loopify	26	26	26	26
+middle_end/flambda2/simplify/loopify_state.ml	value		print	19	22	19	22
+middle_end/flambda2/simplify/named_rewrite.ml	module		Prim_rewrite	19	40	19	40
+middle_end/flambda2/simplify/named_rewrite.ml	type		t	43	43	43	43
+middle_end/flambda2/simplify/named_rewrite.ml	type	Prim_rewrite	t	20	26	20	26
+middle_end/flambda2/simplify/named_rewrite.ml	value		prim_rewrite	48	48	48	48
+middle_end/flambda2/simplify/named_rewrite.ml	value		print	45	46	45	46
+middle_end/flambda2/simplify/named_rewrite.ml	value	Prim_rewrite	invalid	35	35	35	35
+middle_end/flambda2/simplify/named_rewrite.ml	value	Prim_rewrite	print	28	33	28	33
+middle_end/flambda2/simplify/named_rewrite.ml	value	Prim_rewrite	remove_prim	37	37	37	37
+middle_end/flambda2/simplify/named_rewrite.ml	value	Prim_rewrite	replace_by_binding	39	39	39	39
+middle_end/flambda2/simplify/non_constructed_code.ml	module		Metadata_view	21	25	21	25
+middle_end/flambda2/simplify/non_constructed_code.ml	type		t	17	17	17	17
+middle_end/flambda2/simplify/non_constructed_code.ml	type	Metadata_view	t	22	22	22	22
+middle_end/flambda2/simplify/non_constructed_code.ml	value		apply_renaming	40	41	40	41
+middle_end/flambda2/simplify/non_constructed_code.ml	value		code_metadata	19	19	19	19
+middle_end/flambda2/simplify/non_constructed_code.ml	value		create	33	34	33	34
+middle_end/flambda2/simplify/non_constructed_code.ml	value		create_with_metadata	29	31	29	31
+middle_end/flambda2/simplify/non_constructed_code.ml	value		free_names	38	38	38	38
+middle_end/flambda2/simplify/non_constructed_code.ml	value		print	36	36	36	36
+middle_end/flambda2/simplify/non_constructed_code.ml	value	Metadata_view	metadata	24	24	24	24
+middle_end/flambda2/simplify/non_recursive_handler.ml	type		t	16	24	16	24
+middle_end/flambda2/simplify/non_recursive_handler.ml	value		create	26	35	26	35
+middle_end/flambda2/simplify/non_recursive_handler.ml	value		print	39	57	39	57
+middle_end/flambda2/simplify/non_recursive_handler.ml	value		rename_params	61	75	61	75
+middle_end/flambda2/simplify/non_recursive_handler.ml	value		with_can_be_lifted	37	37	37	37
+middle_end/flambda2/simplify/non_recursive_handler.ml	value		with_handler	59	59	59	59
+middle_end/flambda2/simplify/number_adjuncts.ml	module		Float32_by_bit_pattern	20	20	20	20
+middle_end/flambda2/simplify/number_adjuncts.ml	module		Float_by_bit_pattern	21	21	21	21
+middle_end/flambda2/simplify/number_adjuncts.ml	module		For_float32s	386	445	386	445
+middle_end/flambda2/simplify/number_adjuncts.ml	module		For_floats	447	506	447	506
+middle_end/flambda2/simplify/number_adjuncts.ml	module		For_int16s	634	762	634	762
+middle_end/flambda2/simplify/number_adjuncts.ml	module		For_int32s	764	853	764	853
+middle_end/flambda2/simplify/number_adjuncts.ml	module		For_int64s	855	944	855	944
+middle_end/flambda2/simplify/number_adjuncts.ml	module		For_int8s	508	632	508	632
+middle_end/flambda2/simplify/number_adjuncts.ml	module		For_naked_immediates	292	384	292	384
+middle_end/flambda2/simplify/number_adjuncts.ml	module		For_nativeints	946	1035	946	1035
+middle_end/flambda2/simplify/number_adjuncts.ml	module		For_tagged_immediates	197	290	197	290
+middle_end/flambda2/simplify/number_adjuncts.ml	module		Int16	23	23	23	23
+middle_end/flambda2/simplify/number_adjuncts.ml	module		Int32	24	24	24	24
+middle_end/flambda2/simplify/number_adjuncts.ml	module		Int64	25	25	25	25
+middle_end/flambda2/simplify/number_adjuncts.ml	module		Int8	22	22	22	22
+middle_end/flambda2/simplify/number_adjuncts.ml	module		K	18	18	18	18
+middle_end/flambda2/simplify/number_adjuncts.ml	module		T	19	19	19	19
+middle_end/flambda2/simplify/number_adjuncts.ml	module	For_float32s	Num	387	425	387	425
+middle_end/flambda2/simplify/number_adjuncts.ml	module	For_floats	Num	448	486	448	486
+middle_end/flambda2/simplify/number_adjuncts.ml	module	For_int16s	Num	635	748	635	748
+middle_end/flambda2/simplify/number_adjuncts.ml	module	For_int16s.Num	Pair	735	739	735	739
+middle_end/flambda2/simplify/number_adjuncts.ml	module	For_int32s	Num	765	831	765	831
+middle_end/flambda2/simplify/number_adjuncts.ml	module	For_int64s	Num	856	922	856	922
+middle_end/flambda2/simplify/number_adjuncts.ml	module	For_int8s	Num	509	618	509	618
+middle_end/flambda2/simplify/number_adjuncts.ml	module	For_int8s.Num	Pair	609	613	609	613
+middle_end/flambda2/simplify/number_adjuncts.ml	module	For_naked_immediates	Num	293	370	293	370
+middle_end/flambda2/simplify/number_adjuncts.ml	module	For_nativeints	Num	947	1013	947	1013
+middle_end/flambda2/simplify/number_adjuncts.ml	module	For_tagged_immediates	Num	198	276	198	276
+middle_end/flambda2/simplify/number_adjuncts.ml	module type		Boxable	154	164	154	164
+middle_end/flambda2/simplify/number_adjuncts.ml	module type		Boxable_int_number_kind	172	176	172	176
+middle_end/flambda2/simplify/number_adjuncts.ml	module type		Boxable_number_kind	166	170	166	170
+middle_end/flambda2/simplify/number_adjuncts.ml	module type		Int_number_kind	120	152	120	152
+middle_end/flambda2/simplify/number_adjuncts.ml	module type		Num_common	50	95	50	95
+middle_end/flambda2/simplify/number_adjuncts.ml	module type		Number_kind	114	118	114	118
+middle_end/flambda2/simplify/number_adjuncts.ml	module type		Number_kind_common	97	112	97	112
+middle_end/flambda2/simplify/number_adjuncts.ml	type	For_int16s.Num.Pair	t	736	736	736	736
+middle_end/flambda2/simplify/number_adjuncts.ml	type	For_int8s.Num.Pair	t	610	610	610	610
+middle_end/flambda2/simplify/number_adjuncts.ml	value		compare_unsigned_generic	187	195	187	195
+middle_end/flambda2/simplify/number_adjuncts.ml	value		with_shift	178	185	178	185
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_float32s	box	441	441	441	441
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_float32s	boxable_number_kind	429	429	429	429
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_float32s	standard_int_or_float_kind	427	427	427	427
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_float32s	term_unboxed	443	444	443	444
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_float32s	these_boxed	439	439	439	439
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_float32s	these_unboxed	435	435	435	435
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_float32s	this_boxed	437	437	437	437
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_float32s	this_unboxed	433	433	433	433
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_float32s	unboxed_prover	431	431	431	431
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_float32s.Num	add	396	396	396	396
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_float32s.Num	div	402	402	402	402
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_float32s.Num	minus_one	394	394	394	394
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_float32s.Num	mod_	404	404	404	404
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_float32s.Num	mul	400	400	400	400
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_float32s.Num	one	392	392	392	392
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_float32s.Num	sub	398	398	398	398
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_float32s.Num	to_const	406	406	406	406
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_float32s.Num	to_immediate	408	409	408	409
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_float32s.Num	to_naked_float	413	413	413	413
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_float32s.Num	to_naked_float32	411	411	411	411
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_float32s.Num	to_naked_int16	417	417	417	417
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_float32s.Num	to_naked_int32	419	419	419	419
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_float32s.Num	to_naked_int64	421	421	421	421
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_float32s.Num	to_naked_int8	415	415	415	415
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_float32s.Num	to_naked_nativeint	423	424	423	424
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_float32s.Num	zero	390	390	390	390
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_floats	box	502	502	502	502
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_floats	boxable_number_kind	490	490	490	490
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_floats	standard_int_or_float_kind	488	488	488	488
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_floats	term_unboxed	504	505	504	505
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_floats	these_boxed	500	500	500	500
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_floats	these_unboxed	496	496	496	496
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_floats	this_boxed	498	498	498	498
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_floats	this_unboxed	494	494	494	494
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_floats	unboxed_prover	492	492	492	492
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_floats.Num	add	457	457	457	457
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_floats.Num	div	463	463	463	463
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_floats.Num	minus_one	455	455	455	455
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_floats.Num	mod_	465	465	465	465
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_floats.Num	mul	461	461	461	461
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_floats.Num	one	453	453	453	453
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_floats.Num	sub	459	459	459	459
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_floats.Num	to_const	467	467	467	467
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_floats.Num	to_immediate	469	470	469	470
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_floats.Num	to_naked_float	474	474	474	474
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_floats.Num	to_naked_float32	472	472	472	472
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_floats.Num	to_naked_int16	478	478	478	478
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_floats.Num	to_naked_int32	480	480	480	480
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_floats.Num	to_naked_int64	482	482	482	482
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_floats.Num	to_naked_int8	476	476	476	476
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_floats.Num	to_naked_nativeint	484	485	484	485
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_floats.Num	zero	451	451	451	451
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int16s	standard_int_kind	752	752	752	752
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int16s	standard_int_or_float_kind	750	750	750	750
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int16s	term_unboxed	760	761	760	761
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int16s	these_unboxed	758	758	758	758
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int16s	this_unboxed	756	756	756	756
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int16s	unboxed_prover	754	754	754	754
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int16s.Num	add	651	651	651	651
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int16s.Num	and_	684	684	684	684
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int16s.Num	checked_div	688	689	688	689
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int16s.Num	compare_unsigned	640	641	640	641
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int16s.Num	cross_product	741	741	741	741
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int16s.Num	div	657	657	657	657
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int16s.Num	div	691	691	691	691
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int16s.Num	logand	667	667	667	667
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int16s.Num	logor	669	669	669	669
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int16s.Num	logxor	671	671	671	671
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int16s.Num	minus_one	647	647	647	647
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int16s.Num	mod_	695	695	695	695
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int16s.Num	mul	655	655	655	655
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int16s.Num	neg	649	649	649	649
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int16s.Num	not_	686	686	686	686
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int16s.Num	one	645	645	645	645
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int16s.Num	or_	682	682	682	682
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int16s.Num	rem	662	662	662	662
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int16s.Num	shift_left	673	673	673	673
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int16s.Num	shift_left	699	702	699	702
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int16s.Num	shift_right	675	675	675	675
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int16s.Num	shift_right	704	707	704	707
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int16s.Num	shift_right_logical	677	678	677	678
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int16s.Num	shift_right_logical	709	712	709	712
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int16s.Num	strictly_negative	638	638	638	638
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int16s.Num	sub	653	653	653	653
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int16s.Num	swap_byte_endianness	743	747	743	747
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int16s.Num	to_const	714	714	714	714
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int16s.Num	to_immediate	716	717	716	717
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int16s.Num	to_naked_float	722	722	722	722
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int16s.Num	to_naked_float32	719	720	719	720
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int16s.Num	to_naked_int16	726	726	726	726
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int16s.Num	to_naked_int32	728	728	728	728
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int16s.Num	to_naked_int64	730	730	730	730
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int16s.Num	to_naked_int8	724	724	724	724
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int16s.Num	to_naked_nativeint	732	733	732	733
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int16s.Num	unsigned_div	659	660	659	660
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int16s.Num	unsigned_div	693	693	693	693
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int16s.Num	unsigned_mod	697	697	697	697
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int16s.Num	unsigned_rem	664	665	664	665
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int16s.Num	xor	680	680	680	680
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int16s.Num	zero	643	643	643	643
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int32s	box	849	849	849	849
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int32s	boxable_number_kind	837	837	837	837
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int32s	standard_int_kind	835	835	835	835
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int32s	standard_int_or_float_kind	833	833	833	833
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int32s	term_unboxed	851	852	851	852
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int32s	these_boxed	847	847	847	847
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int32s	these_unboxed	843	843	843	843
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int32s	this_boxed	845	845	845	845
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int32s	this_unboxed	841	841	841	841
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int32s	unboxed_prover	839	839	839	839
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int32s.Num	and_	783	783	783	783
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int32s.Num	checked_div	787	788	787	788
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int32s.Num	compare_unsigned	770	771	770	771
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int32s.Num	div	790	790	790	790
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int32s.Num	minus_one	777	777	777	777
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int32s.Num	mod_	794	794	794	794
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int32s.Num	not_	785	785	785	785
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int32s.Num	one	775	775	775	775
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int32s.Num	or_	781	781	781	781
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int32s.Num	shift_left	798	801	798	801
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int32s.Num	shift_right	803	806	803	806
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int32s.Num	shift_right_logical	808	811	808	811
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int32s.Num	strictly_negative	768	768	768	768
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int32s.Num	to_const	813	813	813	813
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int32s.Num	to_immediate	815	815	815	815
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int32s.Num	to_naked_float	819	819	819	819
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int32s.Num	to_naked_float32	817	817	817	817
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int32s.Num	to_naked_int16	823	823	823	823
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int32s.Num	to_naked_int32	825	825	825	825
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int32s.Num	to_naked_int64	827	827	827	827
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int32s.Num	to_naked_int8	821	821	821	821
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int32s.Num	to_naked_nativeint	829	830	829	830
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int32s.Num	unsigned_div	792	792	792	792
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int32s.Num	unsigned_mod	796	796	796	796
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int32s.Num	xor	779	779	779	779
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int32s.Num	zero	773	773	773	773
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int64s	box	940	940	940	940
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int64s	boxable_number_kind	928	928	928	928
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int64s	standard_int_kind	926	926	926	926
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int64s	standard_int_or_float_kind	924	924	924	924
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int64s	term_unboxed	942	943	942	943
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int64s	these_boxed	938	938	938	938
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int64s	these_unboxed	934	934	934	934
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int64s	this_boxed	936	936	936	936
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int64s	this_unboxed	932	932	932	932
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int64s	unboxed_prover	930	930	930	930
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int64s.Num	and_	874	874	874	874
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int64s.Num	checked_div	878	879	878	879
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int64s.Num	compare_unsigned	861	862	861	862
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int64s.Num	div	881	881	881	881
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int64s.Num	minus_one	868	868	868	868
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int64s.Num	mod_	885	885	885	885
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int64s.Num	not_	876	876	876	876
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int64s.Num	one	866	866	866	866
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int64s.Num	or_	872	872	872	872
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int64s.Num	shift_left	889	892	889	892
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int64s.Num	shift_right	894	897	894	897
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int64s.Num	shift_right_logical	899	902	899	902
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int64s.Num	strictly_negative	859	859	859	859
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int64s.Num	to_const	904	904	904	904
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int64s.Num	to_immediate	906	906	906	906
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int64s.Num	to_naked_float	910	910	910	910
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int64s.Num	to_naked_float32	908	908	908	908
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int64s.Num	to_naked_int16	914	914	914	914
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int64s.Num	to_naked_int32	916	916	916	916
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int64s.Num	to_naked_int64	918	918	918	918
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int64s.Num	to_naked_int8	912	912	912	912
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int64s.Num	to_naked_nativeint	920	921	920	921
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int64s.Num	unsigned_div	883	883	883	883
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int64s.Num	unsigned_mod	887	887	887	887
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int64s.Num	xor	870	870	870	870
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int64s.Num	zero	864	864	864	864
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int8s	standard_int_kind	622	622	622	622
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int8s	standard_int_or_float_kind	620	620	620	620
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int8s	term_unboxed	630	631	630	631
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int8s	these_unboxed	628	628	628	628
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int8s	this_unboxed	626	626	626	626
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int8s	unboxed_prover	624	624	624	624
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int8s.Num	add	525	525	525	525
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int8s.Num	and_	558	558	558	558
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int8s.Num	checked_div	562	563	562	563
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int8s.Num	compare_unsigned	514	515	514	515
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int8s.Num	cross_product	615	615	615	615
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int8s.Num	div	531	531	531	531
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int8s.Num	div	565	565	565	565
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int8s.Num	logand	541	541	541	541
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int8s.Num	logor	543	543	543	543
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int8s.Num	logxor	545	545	545	545
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int8s.Num	minus_one	521	521	521	521
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int8s.Num	mod_	569	569	569	569
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int8s.Num	mul	529	529	529	529
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int8s.Num	neg	523	523	523	523
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int8s.Num	not_	560	560	560	560
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int8s.Num	one	519	519	519	519
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int8s.Num	or_	556	556	556	556
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int8s.Num	rem	536	536	536	536
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int8s.Num	shift_left	547	547	547	547
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int8s.Num	shift_left	573	576	573	576
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int8s.Num	shift_right	549	549	549	549
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int8s.Num	shift_right	578	581	578	581
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int8s.Num	shift_right_logical	551	552	551	552
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int8s.Num	shift_right_logical	583	586	583	586
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int8s.Num	strictly_negative	512	512	512	512
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int8s.Num	sub	527	527	527	527
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int8s.Num	swap_byte_endianness	617	617	617	617
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int8s.Num	to_const	588	588	588	588
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int8s.Num	to_immediate	590	591	590	591
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int8s.Num	to_naked_float	596	596	596	596
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int8s.Num	to_naked_float32	593	594	593	594
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int8s.Num	to_naked_int16	600	600	600	600
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int8s.Num	to_naked_int32	602	602	602	602
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int8s.Num	to_naked_int64	604	604	604	604
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int8s.Num	to_naked_int8	598	598	598	598
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int8s.Num	to_naked_nativeint	606	607	606	607
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int8s.Num	unsigned_div	533	534	533	534
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int8s.Num	unsigned_div	567	567	567	567
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int8s.Num	unsigned_mod	571	571	571	571
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int8s.Num	unsigned_rem	538	539	538	539
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int8s.Num	xor	554	554	554	554
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_int8s.Num	zero	517	517	517	517
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_naked_immediates	standard_int_kind	374	374	374	374
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_naked_immediates	standard_int_or_float_kind	372	372	372	372
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_naked_immediates	term_unboxed	382	383	382	383
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_naked_immediates	these_unboxed	380	380	380	380
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_naked_immediates	this_unboxed	378	378	378	378
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_naked_immediates	unboxed_prover	376	376	376	376
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_naked_immediates.Num	checked_div	309	314	309	314
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_naked_immediates.Num	compare_unsigned	306	307	306	307
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_naked_immediates.Num	div	316	316	316	316
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_naked_immediates.Num	integer_bit_width	324	324	324	324
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_naked_immediates.Num	minus_one	300	300	300	300
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_naked_immediates.Num	mod_	320	320	320	320
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_naked_immediates.Num	not_	302	302	302	302
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_naked_immediates.Num	one	298	298	298	298
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_naked_immediates.Num	shift_left	326	331	326	331
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_naked_immediates.Num	shift_right	333	338	333	338
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_naked_immediates.Num	shift_right_logical	340	345	340	345
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_naked_immediates.Num	strictly_negative	304	304	304	304
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_naked_immediates.Num	swap_byte_endianness	347	348	347	348
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_naked_immediates.Num	to_const	350	350	350	350
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_naked_immediates.Num	to_immediate	352	352	352	352
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_naked_immediates.Num	to_naked_float	357	358	357	358
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_naked_immediates.Num	to_naked_float32	354	355	354	355
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_naked_immediates.Num	to_naked_int16	362	362	362	362
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_naked_immediates.Num	to_naked_int32	364	364	364	364
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_naked_immediates.Num	to_naked_int64	366	366	366	366
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_naked_immediates.Num	to_naked_int8	360	360	360	360
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_naked_immediates.Num	to_naked_nativeint	368	369	368	369
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_naked_immediates.Num	unsigned_div	318	318	318	318
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_naked_immediates.Num	unsigned_mod	322	322	322	322
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_naked_immediates.Num	zero	296	296	296	296
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_nativeints	box	1031	1031	1031	1031
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_nativeints	boxable_number_kind	1019	1019	1019	1019
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_nativeints	standard_int_kind	1017	1017	1017	1017
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_nativeints	standard_int_or_float_kind	1015	1015	1015	1015
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_nativeints	term_unboxed	1033	1034	1033	1034
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_nativeints	these_boxed	1029	1029	1029	1029
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_nativeints	these_unboxed	1025	1025	1025	1025
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_nativeints	this_boxed	1027	1027	1027	1027
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_nativeints	this_unboxed	1023	1023	1023	1023
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_nativeints	unboxed_prover	1021	1021	1021	1021
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_nativeints.Num	and_	961	961	961	961
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_nativeints.Num	checked_div	965	966	965	966
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_nativeints.Num	compare_unsigned	954	955	954	955
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_nativeints.Num	div	968	968	968	968
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_nativeints.Num	integer_bit_width	976	976	976	976
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_nativeints.Num	mod_	972	972	972	972
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_nativeints.Num	not_	963	963	963	963
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_nativeints.Num	or_	959	959	959	959
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_nativeints.Num	shift_left	978	981	978	981
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_nativeints.Num	shift_right	983	986	983	986
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_nativeints.Num	shift_right_logical	988	991	988	991
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_nativeints.Num	strictly_negative	950	952	950	952
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_nativeints.Num	to_const	993	993	993	993
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_nativeints.Num	to_immediate	995	996	995	996
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_nativeints.Num	to_naked_float	1001	1002	1001	1002
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_nativeints.Num	to_naked_float32	998	999	998	999
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_nativeints.Num	to_naked_int16	1006	1006	1006	1006
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_nativeints.Num	to_naked_int32	1008	1008	1008	1008
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_nativeints.Num	to_naked_int64	1010	1010	1010	1010
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_nativeints.Num	to_naked_int8	1004	1004	1004	1004
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_nativeints.Num	to_naked_nativeint	1012	1012	1012	1012
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_nativeints.Num	unsigned_div	970	970	970	970
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_nativeints.Num	unsigned_mod	974	974	974	974
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_nativeints.Num	xor	957	957	957	957
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_tagged_immediates	standard_int_kind	280	280	280	280
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_tagged_immediates	standard_int_or_float_kind	278	278	278	278
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_tagged_immediates	term_unboxed	288	289	288	289
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_tagged_immediates	these_unboxed	286	286	286	286
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_tagged_immediates	this_unboxed	284	284	284	284
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_tagged_immediates	unboxed_prover	282	282	282	282
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_tagged_immediates.Num	checked_div	216	221	216	221
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_tagged_immediates.Num	compare_unsigned	213	214	213	214
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_tagged_immediates.Num	div	223	223	223	223
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_tagged_immediates.Num	integer_bit_width	233	233	233	233
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_tagged_immediates.Num	minus_one	205	205	205	205
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_tagged_immediates.Num	mod_	227	227	227	227
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_tagged_immediates.Num	not_	207	207	207	207
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_tagged_immediates.Num	one	203	203	203	203
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_tagged_immediates.Num	shift_left	235	239	235	239
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_tagged_immediates.Num	shift_right	241	245	241	245
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_tagged_immediates.Num	shift_right_logical	247	251	247	251
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_tagged_immediates.Num	strictly_negative	211	211	211	211
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_tagged_immediates.Num	swap_byte_endianness	253	254	253	254
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_tagged_immediates.Num	to_const	256	256	256	256
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_tagged_immediates.Num	to_immediate	258	258	258	258
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_tagged_immediates.Num	to_naked_float	263	264	263	264
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_tagged_immediates.Num	to_naked_float32	260	261	260	261
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_tagged_immediates.Num	to_naked_int16	268	268	268	268
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_tagged_immediates.Num	to_naked_int32	270	270	270	270
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_tagged_immediates.Num	to_naked_int64	272	272	272	272
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_tagged_immediates.Num	to_naked_int8	266	266	266	266
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_tagged_immediates.Num	to_naked_nativeint	274	275	274	275
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_tagged_immediates.Num	unsigned_div	225	225	225	225
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_tagged_immediates.Num	unsigned_mod	229	229	229	229
+middle_end/flambda2/simplify/number_adjuncts.ml	value	For_tagged_immediates.Num	zero	201	201	201	201
+middle_end/flambda2/simplify/one_recursive_handler.ml	type		t	16	20	16	20
+middle_end/flambda2/simplify/one_recursive_handler.ml	value		create	22	22	22	22
+middle_end/flambda2/simplify/one_recursive_handler.ml	value		print	24	28	24	28
+middle_end/flambda2/simplify/one_recursive_handler.ml	value		with_handler	30	30	30	30
+middle_end/flambda2/simplify/original_handlers.ml	type		t	16	23	16	23
+middle_end/flambda2/simplify/original_handlers.ml	value		add_params_to_lift	58	97	58	97
+middle_end/flambda2/simplify/original_handlers.ml	value		bound_continuations	49	52	49	52
+middle_end/flambda2/simplify/original_handlers.ml	value		can_be_lifted	54	56	54	56
+middle_end/flambda2/simplify/original_handlers.ml	value		create_non_recursive	47	47	47	47
+middle_end/flambda2/simplify/original_handlers.ml	value		create_recursive	42	45	42	45
+middle_end/flambda2/simplify/original_handlers.ml	value		print	25	40	25	40
+middle_end/flambda2/simplify/rebuilt_expr.ml	exception	Matching_for_unique_handler	Match_failure	354	354	354	354
+middle_end/flambda2/simplify/rebuilt_expr.ml	module		ART	16	16	16	16
+middle_end/flambda2/simplify/rebuilt_expr.ml	module		Continuation_handler	193	252	193	252
+middle_end/flambda2/simplify/rebuilt_expr.ml	module		Function_params_and_body	174	191	174	191
+middle_end/flambda2/simplify/rebuilt_expr.ml	module		Matching_for_unique_handler	342	663	342	663
+middle_end/flambda2/simplify/rebuilt_expr.ml	module		Unique_continuation_handlers	675	753	675	753
+middle_end/flambda2/simplify/rebuilt_expr.ml	module	Matching_for_unique_handler	Match_permutable_parameters	362	457	362	457
+middle_end/flambda2/simplify/rebuilt_expr.ml	module	Matching_for_unique_handler.Match_permutable_parameters	HV	390	390	390	390
+middle_end/flambda2/simplify/rebuilt_expr.ml	module type	Matching_for_unique_handler	Equal_and_free_names	498	504	498	504
+middle_end/flambda2/simplify/rebuilt_expr.ml	type		contents_hash	18	21	18	21
+middle_end/flambda2/simplify/rebuilt_expr.ml	type		rebuilt_expr	69	69	69	69
+middle_end/flambda2/simplify/rebuilt_expr.ml	type		t	23	34	23	34
+middle_end/flambda2/simplify/rebuilt_expr.ml	type	Continuation_handler	t	194	202	194	202
+middle_end/flambda2/simplify/rebuilt_expr.ml	type	Function_params_and_body	t	175	175	175	175
+middle_end/flambda2/simplify/rebuilt_expr.ml	type	Matching_for_unique_handler	matching_env	483	486	483	486
+middle_end/flambda2/simplify/rebuilt_expr.ml	type	Matching_for_unique_handler.Match_permutable_parameters	parameter_on_one_side	394	397	394	397
+middle_end/flambda2/simplify/rebuilt_expr.ml	type	Matching_for_unique_handler.Match_permutable_parameters	t	399	406	399	406
+middle_end/flambda2/simplify/rebuilt_expr.ml	type	Unique_continuation_handlers	entry	676	681	676	681
+middle_end/flambda2/simplify/rebuilt_expr.ml	type	Unique_continuation_handlers	t	683	683	683	683
+middle_end/flambda2/simplify/rebuilt_expr.ml	value		bind_no_simplification	313	340	313	340
+middle_end/flambda2/simplify/rebuilt_expr.ml	value		can_be_removed_as_invalid	86	93	86	93
+middle_end/flambda2/simplify/rebuilt_expr.ml	value		contents_hash_simple	104	115	104	115
+middle_end/flambda2/simplify/rebuilt_expr.ml	value		create	57	67	57	67
+middle_end/flambda2/simplify/rebuilt_expr.ml	value		create_apply	153	156	153	156
+middle_end/flambda2/simplify/rebuilt_expr.ml	value		create_apply_cont	158	172	158	172
+middle_end/flambda2/simplify/rebuilt_expr.ml	value		create_invalid	311	311	311	311
+middle_end/flambda2/simplify/rebuilt_expr.ml	value		create_let	117	151	117	151
+middle_end/flambda2/simplify/rebuilt_expr.ml	value		create_non_recursive_let_cont	254	265	254	265
+middle_end/flambda2/simplify/rebuilt_expr.ml	value		create_non_recursive_let_cont'	267	279	267	279
+middle_end/flambda2/simplify/rebuilt_expr.ml	value		create_non_recursive_let_cont_without_free_names	281	292	281	292
+middle_end/flambda2/simplify/rebuilt_expr.ml	value		create_recursive_let_cont	294	304	294	304
+middle_end/flambda2/simplify/rebuilt_expr.ml	value		create_switch	306	309	306	309
+middle_end/flambda2/simplify/rebuilt_expr.ml	value		descr	79	79	79	79
+middle_end/flambda2/simplify/rebuilt_expr.ml	value		is_cold	36	36	36	36
+middle_end/flambda2/simplify/rebuilt_expr.ml	value		mark_as_cold	38	38	38	38
+middle_end/flambda2/simplify/rebuilt_expr.ml	value		match_continuation_handler	665	673	665	673
+middle_end/flambda2/simplify/rebuilt_expr.ml	value		max_hash_depth	55	55	55	55
+middle_end/flambda2/simplify/rebuilt_expr.ml	value		print	95	99	95	99
+middle_end/flambda2/simplify/rebuilt_expr.ml	value		term_not_rebuilt	101	102	101	102
+middle_end/flambda2/simplify/rebuilt_expr.ml	value		to_apply_cont	81	84	81	84
+middle_end/flambda2/simplify/rebuilt_expr.ml	value		to_expr	71	77	71	77
+middle_end/flambda2/simplify/rebuilt_expr.ml	value	Continuation_handler	create	240	251	240	251
+middle_end/flambda2/simplify/rebuilt_expr.ml	value	Continuation_handler	dummy	204	207	204	207
+middle_end/flambda2/simplify/rebuilt_expr.ml	value	Continuation_handler	print	236	238	236	238
+middle_end/flambda2/simplify/rebuilt_expr.ml	value	Continuation_handler	to_continuation_handler	209	234	209	234
+middle_end/flambda2/simplify/rebuilt_expr.ml	value	Function_params_and_body	create	177	181	177	181
+middle_end/flambda2/simplify/rebuilt_expr.ml	value	Function_params_and_body	is_my_closure_used	190	190	190	190
+middle_end/flambda2/simplify/rebuilt_expr.ml	value	Function_params_and_body	to_function_params_and_body	183	188	183	188
+middle_end/flambda2/simplify/rebuilt_expr.ml	value	Matching_for_unique_handler	fail	356	356	356	356
+middle_end/flambda2/simplify/rebuilt_expr.ml	value	Matching_for_unique_handler	fail_if_not	358	358	358	358
+middle_end/flambda2/simplify/rebuilt_expr.ml	value	Matching_for_unique_handler	fail_if_not_equal	360	360	360	360
+middle_end/flambda2/simplify/rebuilt_expr.ml	value	Matching_for_unique_handler	match_apply_cont	599	612	571	612
+middle_end/flambda2/simplify/rebuilt_expr.ml	value	Matching_for_unique_handler	match_equal_and_free_names	506	511	506	511
+middle_end/flambda2/simplify/rebuilt_expr.ml	value	Matching_for_unique_handler	match_expr	571	581	571	612
+middle_end/flambda2/simplify/rebuilt_expr.ml	value	Matching_for_unique_handler	match_let_expr	583	597	571	612
+middle_end/flambda2/simplify/rebuilt_expr.ml	value	Matching_for_unique_handler	match_list	537	543	537	543
+middle_end/flambda2/simplify/rebuilt_expr.ml	value	Matching_for_unique_handler	match_name	513	520	513	520
+middle_end/flambda2/simplify/rebuilt_expr.ml	value	Matching_for_unique_handler	match_named	555	569	555	569
+middle_end/flambda2/simplify/rebuilt_expr.ml	value	Matching_for_unique_handler	match_non_recursive_continuation_handler	637	662	637	662
+middle_end/flambda2/simplify/rebuilt_expr.ml	value	Matching_for_unique_handler	match_permutable_continuation_handler	614	635	614	635
+middle_end/flambda2/simplify/rebuilt_expr.ml	value	Matching_for_unique_handler	match_primitive	548	553	548	553
+middle_end/flambda2/simplify/rebuilt_expr.ml	value	Matching_for_unique_handler	match_simple	522	534	522	534
+middle_end/flambda2/simplify/rebuilt_expr.ml	value	Matching_for_unique_handler	match_simples	545	546	545	546
+middle_end/flambda2/simplify/rebuilt_expr.ml	value	Matching_for_unique_handler	match_variable	488	496	488	496
+middle_end/flambda2/simplify/rebuilt_expr.ml	value	Matching_for_unique_handler.Match_permutable_parameters	create	416	432	416	432
+middle_end/flambda2/simplify/rebuilt_expr.ml	value	Matching_for_unique_handler.Match_permutable_parameters	match_variable	434	456	434	456
+middle_end/flambda2/simplify/rebuilt_expr.ml	value	Matching_for_unique_handler.Match_permutable_parameters	matching_variable_for_param2	408	414	408	414
+middle_end/flambda2/simplify/rebuilt_expr.ml	value	Unique_continuation_handlers	add	710	727	710	727
+middle_end/flambda2/simplify/rebuilt_expr.ml	value	Unique_continuation_handlers	contents_hash	687	708	687	708
+middle_end/flambda2/simplify/rebuilt_expr.ml	value	Unique_continuation_handlers	empty	685	685	685	685
+middle_end/flambda2/simplify/rebuilt_expr.ml	value	Unique_continuation_handlers	find_opt	729	752	729	752
+middle_end/flambda2/simplify/rebuilt_static_const.ml	module		ART	18	18	18	18
+middle_end/flambda2/simplify/rebuilt_static_const.ml	module		Group	413	522	413	522
+middle_end/flambda2/simplify/rebuilt_static_const.ml	module		SC	19	19	19	19
+middle_end/flambda2/simplify/rebuilt_static_const.ml	type		rebuilt_static_const	40	40	40	40
+middle_end/flambda2/simplify/rebuilt_static_const.ml	type		t	24	38	24	38
+middle_end/flambda2/simplify/rebuilt_static_const.ml	type	Group	t	414	417	414	417
+middle_end/flambda2/simplify/rebuilt_static_const.ml	value		cost_metrics	60	66	60	66
+middle_end/flambda2/simplify/rebuilt_static_const.ml	value		create_block	136	145	136	145
+middle_end/flambda2/simplify/rebuilt_static_const.ml	value		create_boxed_float	157	165	157	165
+middle_end/flambda2/simplify/rebuilt_static_const.ml	value		create_boxed_float32	147	155	147	155
+middle_end/flambda2/simplify/rebuilt_static_const.ml	value		create_boxed_int32	167	175	167	175
+middle_end/flambda2/simplify/rebuilt_static_const.ml	value		create_boxed_int64	177	185	177	185
+middle_end/flambda2/simplify/rebuilt_static_const.ml	value		create_boxed_mask	227	235	227	235
+middle_end/flambda2/simplify/rebuilt_static_const.ml	value		create_boxed_nativeint	187	195	187	195
+middle_end/flambda2/simplify/rebuilt_static_const.ml	value		create_boxed_vec128	197	205	197	205
+middle_end/flambda2/simplify/rebuilt_static_const.ml	value		create_boxed_vec256	207	215	207	215
+middle_end/flambda2/simplify/rebuilt_static_const.ml	value		create_boxed_vec512	217	225	217	225
+middle_end/flambda2/simplify/rebuilt_static_const.ml	value		create_code	75	98	75	98
+middle_end/flambda2/simplify/rebuilt_static_const.ml	value		create_code'	100	105	100	105
+middle_end/flambda2/simplify/rebuilt_static_const.ml	value		create_empty_array	311	315	311	315
+middle_end/flambda2/simplify/rebuilt_static_const.ml	value		create_immutable_float32_array	268	269	268	269
+middle_end/flambda2/simplify/rebuilt_static_const.ml	value		create_immutable_float_array	265	266	265	266
+middle_end/flambda2/simplify/rebuilt_static_const.ml	value		create_immutable_float_block	237	249	237	249
+middle_end/flambda2/simplify/rebuilt_static_const.ml	value		create_immutable_int16_array	277	278	277	278
+middle_end/flambda2/simplify/rebuilt_static_const.ml	value		create_immutable_int32_array	280	281	280	281
+middle_end/flambda2/simplify/rebuilt_static_const.ml	value		create_immutable_int64_array	283	284	283	284
+middle_end/flambda2/simplify/rebuilt_static_const.ml	value		create_immutable_int8_array	274	275	274	275
+middle_end/flambda2/simplify/rebuilt_static_const.ml	value		create_immutable_int_array	271	272	271	272
+middle_end/flambda2/simplify/rebuilt_static_const.ml	value		create_immutable_mask_array	298	299	298	299
+middle_end/flambda2/simplify/rebuilt_static_const.ml	value		create_immutable_naked_number_array	251	263	251	263
+middle_end/flambda2/simplify/rebuilt_static_const.ml	value		create_immutable_nativeint_array	286	287	286	287
+middle_end/flambda2/simplify/rebuilt_static_const.ml	value		create_immutable_string	317	323	317	323
+middle_end/flambda2/simplify/rebuilt_static_const.ml	value		create_immutable_value_array	301	309	301	309
+middle_end/flambda2/simplify/rebuilt_static_const.ml	value		create_immutable_vec128_array	289	290	289	290
+middle_end/flambda2/simplify/rebuilt_static_const.ml	value		create_immutable_vec256_array	292	293	292	293
+middle_end/flambda2/simplify/rebuilt_static_const.ml	value		create_immutable_vec512_array	295	296	295	296
+middle_end/flambda2/simplify/rebuilt_static_const.ml	value		create_normal_non_code	68	73	68	73
+middle_end/flambda2/simplify/rebuilt_static_const.ml	value		create_set_of_closures	114	129	114	129
+middle_end/flambda2/simplify/rebuilt_static_const.ml	value		deleted_code	388	393	388	393
+middle_end/flambda2/simplify/rebuilt_static_const.ml	value		find_code_characteristics	107	112	107	112
+middle_end/flambda2/simplify/rebuilt_static_const.ml	value		free_names	361	367	361	367
+middle_end/flambda2/simplify/rebuilt_static_const.ml	value		free_names_of_fields	131	134	131	134
+middle_end/flambda2/simplify/rebuilt_static_const.ml	value		is_block	42	46	42	46
+middle_end/flambda2/simplify/rebuilt_static_const.ml	value		is_code	54	58	54	58
+middle_end/flambda2/simplify/rebuilt_static_const.ml	value		is_fully_static	369	369	369	369
+middle_end/flambda2/simplify/rebuilt_static_const.ml	value		is_set_of_closures	48	52	48	52
+middle_end/flambda2/simplify/rebuilt_static_const.ml	value		make_code_deleted	395	411	395	411
+middle_end/flambda2/simplify/rebuilt_static_const.ml	value		map_set_of_closures	325	359	325	359
+middle_end/flambda2/simplify/rebuilt_static_const.ml	value		print	377	386	377	386
+middle_end/flambda2/simplify/rebuilt_static_const.ml	value		to_const	371	375	371	375
+middle_end/flambda2/simplify/rebuilt_static_const.ml	value	Group	add	510	510	510	510
+middle_end/flambda2/simplify/rebuilt_static_const.ml	value	Group	concat	512	519	512	519
+middle_end/flambda2/simplify/rebuilt_static_const.ml	value	Group	cost_metrics	439	442	439	442
+middle_end/flambda2/simplify/rebuilt_static_const.ml	value	Group	create	421	421	421	421
+middle_end/flambda2/simplify/rebuilt_static_const.ml	value	Group	empty	419	419	419	419
+middle_end/flambda2/simplify/rebuilt_static_const.ml	value	Group	fold_left	508	508	508	508
+middle_end/flambda2/simplify/rebuilt_static_const.ml	value	Group	free_names	427	437	427	437
+middle_end/flambda2/simplify/rebuilt_static_const.ml	value	Group	function_params_and_body_for_code_not_rebuilt	466	478	466	478
+middle_end/flambda2/simplify/rebuilt_static_const.ml	value	Group	map	498	506	498	506
+middle_end/flambda2/simplify/rebuilt_static_const.ml	value	Group	pieces_of_code_for_cmx	454	464	454	464
+middle_end/flambda2/simplify/rebuilt_static_const.ml	value	Group	pieces_of_code_including_those_not_rebuilt	480	496	480	496
+middle_end/flambda2/simplify/rebuilt_static_const.ml	value	Group	print	423	425	423	425
+middle_end/flambda2/simplify/rebuilt_static_const.ml	value	Group	to_list	521	521	521	521
+middle_end/flambda2/simplify/rebuilt_static_const.ml	value	Group	to_named	444	452	444	452
+middle_end/flambda2/simplify/simplified_expr.ml	module		CSE	30	30	30	30
+middle_end/flambda2/simplify/simplified_expr.ml	module		EPA	31	31	31	31
+middle_end/flambda2/simplify/simplified_expr.ml	module		LCS	34	34	34	34
+middle_end/flambda2/simplify/simplified_expr.ml	module		T	32	32	32	32
+middle_end/flambda2/simplify/simplified_expr.ml	module		TE	33	33	33	33
+middle_end/flambda2/simplify/simplified_expr.ml	type		simplified_apply	87	93	36	121
+middle_end/flambda2/simplify/simplified_expr.ml	type		simplified_apply_cont	101	105	36	121
+middle_end/flambda2/simplify/simplified_expr.ml	type		simplified_defining_expr	49	56	36	121
+middle_end/flambda2/simplify/simplified_expr.ml	type		simplified_handler	58	68	36	121
+middle_end/flambda2/simplify/simplified_expr.ml	type		simplified_handlers_group	70	78	36	121
+middle_end/flambda2/simplify/simplified_expr.ml	type		simplified_let_cont_handlers	80	85	36	121
+middle_end/flambda2/simplify/simplified_expr.ml	type		simplified_lets_and_let_conts	43	47	36	121
+middle_end/flambda2/simplify/simplified_expr.ml	type		simplified_switch	107	121	36	121
+middle_end/flambda2/simplify/simplified_expr.ml	type		simplified_terminator	95	99	36	121
+middle_end/flambda2/simplify/simplified_expr.ml	type		t	36	41	36	121
+middle_end/flambda2/simplify/simplified_expr.ml	value		mark_as_cold	128	128	128	128
+middle_end/flambda2/simplify/simplified_expr.ml	value		notify_removed	123	126	123	126
+middle_end/flambda2/simplify/simplified_expr.ml	value		simplified_apply	159	166	159	166
+middle_end/flambda2/simplify/simplified_expr.ml	value		simplified_apply_cont	168	169	168	169
+middle_end/flambda2/simplify/simplified_expr.ml	value		simplified_invalid	184	185	184	185
+middle_end/flambda2/simplify/simplified_expr.ml	value		simplified_let	130	144	130	144
+middle_end/flambda2/simplify/simplified_expr.ml	value		simplified_let_cont	146	150	146	150
+middle_end/flambda2/simplify/simplified_expr.ml	value		simplified_switch	171	182	171	182
+middle_end/flambda2/simplify/simplified_expr.ml	value		simplified_terminator	152	157	152	157
+middle_end/flambda2/simplify/simplified_named.ml	type		binding_to_place	94	100	94	100
+middle_end/flambda2/simplify/simplified_named.ml	type		or_rewritten	90	92	90	92
+middle_end/flambda2/simplify/simplified_named.ml	type		simplified_named	19	23	19	23
+middle_end/flambda2/simplify/simplified_named.ml	type		t	32	36	32	36
+middle_end/flambda2/simplify/simplified_named.ml	value		cost_metrics	86	86	86	86
+middle_end/flambda2/simplify/simplified_named.ml	value		create	38	61	38	61
+middle_end/flambda2/simplify/simplified_named.ml	value		create_with_known_free_names	63	82	63	82
+middle_end/flambda2/simplify/simplified_named.ml	value		print	84	84	84	84
+middle_end/flambda2/simplify/simplified_named.ml	value		to_named	25	30	25	30
+middle_end/flambda2/simplify/simplified_named.ml	value		update_cost_metrics	88	88	88	88
+middle_end/flambda2/simplify/simplify.ml	type		simplify_result	19	25	19	25
+middle_end/flambda2/simplify/simplify.ml	value		run	27	99	27	99
+middle_end/flambda2/simplify/simplify_apply_cont_expr.ml	value		inline_linearly_used_continuation	19	70	19	70
+middle_end/flambda2/simplify/simplify_apply_cont_expr.ml	value		rebuild_apply_cont	72	174	72	174
+middle_end/flambda2/simplify/simplify_apply_cont_expr.ml	value		simplify_apply_cont	176	199	176	199
+middle_end/flambda2/simplify/simplify_apply_expr.ml	type		inlining_decision	224	226	224	226
+middle_end/flambda2/simplify/simplify_apply_expr.ml	type		simplify_apply_shared_result	1265	1267	1265	1267
+middle_end/flambda2/simplify/simplify_apply_expr.ml	value		arity_mismatch	876	896	876	896
+middle_end/flambda2/simplify/simplify_apply_expr.ml	value		fail_if_probe	20	27	20	27
+middle_end/flambda2/simplify/simplify_apply_expr.ml	value		loopify_decision_for_call	51	96	51	96
+middle_end/flambda2/simplify/simplify_apply_expr.ml	value		rebuild_apply	199	222	199	222
+middle_end/flambda2/simplify/simplify_apply_expr.ml	value		record_free_names_of_apply_as_used	47	49	47	49
+middle_end/flambda2/simplify/simplify_apply_expr.ml	value		record_free_names_of_apply_as_used0	29	45	29	45
+middle_end/flambda2/simplify/simplify_apply_expr.ml	value		replace_apply_by_invalid	873	874	873	874
+middle_end/flambda2/simplify/simplify_apply_expr.ml	value		simplify_apply	1508	1539	1508	1539
+middle_end/flambda2/simplify/simplify_apply_expr.ml	value		simplify_apply_shared	1269	1336	1269	1336
+middle_end/flambda2/simplify/simplify_apply_expr.ml	value		simplify_c_call	1381	1440	1381	1440
+middle_end/flambda2/simplify/simplify_apply_expr.ml	value		simplify_direct_full_application	230	436	230	436
+middle_end/flambda2/simplify/simplify_apply_expr.ml	value		simplify_direct_function_call	968	1145	968	1145
+middle_end/flambda2/simplify/simplify_apply_expr.ml	value		simplify_direct_over_application	853	871	853	871
+middle_end/flambda2/simplify/simplify_apply_expr.ml	value		simplify_direct_partial_application	441	851	441	851
+middle_end/flambda2/simplify/simplify_apply_expr.ml	value		simplify_direct_tuple_application	104	182	104	182
+middle_end/flambda2/simplify/simplify_apply_expr.ml	value		simplify_effect_op	1442	1506	1442	1506
+middle_end/flambda2/simplify/simplify_apply_expr.ml	value		simplify_function_call	1147	1263	1147	1263
+middle_end/flambda2/simplify/simplify_apply_expr.ml	value		simplify_function_call_where_callee's_type_unavailable	898	966	898	966
+middle_end/flambda2/simplify/simplify_apply_expr.ml	value		simplify_method_call	1338	1379	1338	1379
+middle_end/flambda2/simplify/simplify_apply_expr.ml	value		simplify_self_tail_call	98	102	98	102
+middle_end/flambda2/simplify/simplify_apply_expr.ml	value		update_direct_call_benefit	184	197	184	197
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module		A	18	18	18	18
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module		Binary_arith_like	78	277	78	277
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module		Binary_float32_arith	852	852	852	852
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module		Binary_float32_comp	979	979	979	979
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module		Binary_float_arith	851	851	851	851
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module		Binary_float_comp	978	978	978	978
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module		Binary_int_arith_int16	456	457	456	457
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module		Binary_int_arith_int32	458	459	458	459
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module		Binary_int_arith_int64	460	461	460	461
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module		Binary_int_arith_int8	455	455	455	455
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module		Binary_int_arith_naked_immediate	453	454	453	454
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module		Binary_int_arith_nativeint	462	463	462	463
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module		Binary_int_arith_tagged_immediate	451	452	451	452
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module		Binary_int_comp_int16	696	696	696	696
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module		Binary_int_comp_int32	697	697	697	697
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module		Binary_int_comp_int64	698	698	698	698
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module		Binary_int_comp_int8	695	695	695	695
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module		Binary_int_comp_naked_immediate	693	694	693	694
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module		Binary_int_comp_nativeint	699	700	699	700
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module		Binary_int_comp_tagged_immediate	691	692	691	692
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module		Binary_int_shift_int16	584	585	584	585
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module		Binary_int_shift_int32	586	587	586	587
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module		Binary_int_shift_int64	588	589	588	589
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module		Binary_int_shift_int8	583	583	583	583
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module		Binary_int_shift_naked_immediate	581	582	581	582
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module		Binary_int_shift_nativeint	590	591	590	591
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module		Binary_int_shift_tagged_immediate	579	580	579	580
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module		Float32_ops_for_binary_arith	833	849	833	849
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module		Float32_ops_for_binary_comp	970	976	970	976
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module		Float_ops_for_binary_arith	815	831	815	831
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module		Float_ops_for_binary_arith_gen	702	813	702	813
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module		Float_ops_for_binary_comp	962	968	962	968
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module		Float_ops_for_binary_comp_gen	854	960	854	960
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module		Int_ops_for_binary_arith	279	439	279	439
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module		Int_ops_for_binary_arith_int16	446	446	446	446
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module		Int_ops_for_binary_arith_int32	447	447	447	447
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module		Int_ops_for_binary_arith_int64	448	448	448	448
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module		Int_ops_for_binary_arith_int8	445	445	445	445
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module		Int_ops_for_binary_arith_naked_immediate	443	444	443	444
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module		Int_ops_for_binary_arith_nativeint	449	450	449	450
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module		Int_ops_for_binary_arith_tagged_immediate	441	442	441	442
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module		Int_ops_for_binary_comp	593	679	593	679
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module		Int_ops_for_binary_comp_int16	686	686	686	686
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module		Int_ops_for_binary_comp_int32	687	687	687	687
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module		Int_ops_for_binary_comp_int64	688	688	688	688
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module		Int_ops_for_binary_comp_int8	685	685	685	685
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module		Int_ops_for_binary_comp_naked_immediate	683	684	683	684
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module		Int_ops_for_binary_comp_nativeint	689	690	689	690
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module		Int_ops_for_binary_comp_tagged_immediate	681	682	681	682
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module		Int_ops_for_binary_shift	465	567	465	567
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module		Int_ops_for_binary_shift_int16	574	574	574	574
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module		Int_ops_for_binary_shift_int32	575	575	575	575
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module		Int_ops_for_binary_shift_int64	576	576	576	576
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module		Int_ops_for_binary_shift_int8	573	573	573	573
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module		Int_ops_for_binary_shift_naked_immediate	571	572	571	572
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module		Int_ops_for_binary_shift_nativeint	577	578	577	578
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module		Int_ops_for_binary_shift_tagged_immediate	569	570	569	570
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module	Binary_arith_like()	Possible_result	91	130	91	130
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module	Binary_arith_like().Possible_result	Set	99	129	99	129
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module	Float_ops_for_binary_arith_gen()	F	721	721	721	721
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module	Float_ops_for_binary_arith_gen()	Lhs	722	722	722	722
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module	Float_ops_for_binary_arith_gen()	Pair	751	751	751	751
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module	Float_ops_for_binary_arith_gen()	Result	724	724	724	724
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module	Float_ops_for_binary_arith_gen()	Rhs	723	723	723	723
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module	Float_ops_for_binary_comp_gen()	F	863	863	863	863
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module	Float_ops_for_binary_comp_gen()	Lhs	864	864	864	864
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module	Float_ops_for_binary_comp_gen()	Pair	900	900	900	900
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module	Float_ops_for_binary_comp_gen()	Result	866	866	866	866
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module	Float_ops_for_binary_comp_gen()	Rhs	865	865	865	865
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module	Int_ops_for_binary_arith()	Lhs	282	282	282	282
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module	Int_ops_for_binary_arith()	Num	348	348	348	348
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module	Int_ops_for_binary_arith()	Pair	323	323	323	323
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module	Int_ops_for_binary_arith()	Result	284	284	284	284
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module	Int_ops_for_binary_arith()	Rhs	283	283	283	283
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module	Int_ops_for_binary_comp()	Lhs	598	598	598	598
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module	Int_ops_for_binary_comp()	Num	638	638	638	638
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module	Int_ops_for_binary_comp()	Pair	634	634	634	634
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module	Int_ops_for_binary_comp()	Result	600	600	600	600
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module	Int_ops_for_binary_comp()	Rhs	599	599	599	599
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module	Int_ops_for_binary_shift()	Lhs	468	468	468	468
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module	Int_ops_for_binary_shift()	Num	522	522	522	522
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module	Int_ops_for_binary_shift()	Pair	508	512	508	512
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module	Int_ops_for_binary_shift()	Result	470	470	470	470
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module	Int_ops_for_binary_shift()	Rhs	469	469	469	469
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	module type		Binary_arith_like_sig	29	76	29	76
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	type		binary_arith_outcome_for_one_side_only	20	27	20	27
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	type	Binary_arith_like().Possible_result	t	92	95	92	95
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	type	Float_ops_for_binary_arith_gen()	op	726	726	726	726
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	type	Float_ops_for_binary_arith_gen()	symmetric_op	763	765	763	765
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	type	Float_ops_for_binary_comp_gen()	op	868	868	868	868
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	type	Int_ops_for_binary_arith()	op	286	286	286	286
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	type	Int_ops_for_binary_arith()	symmetric_op	341	346	341	346
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	type	Int_ops_for_binary_comp()	op	602	602	602	602
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	type	Int_ops_for_binary_shift()	op	472	472	472	472
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	type	Int_ops_for_binary_shift().Pair	t	509	509	509	509
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value		recover_comparison_primitive	1181	1239	1181	1239
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value		simplify_array_load	1009	1080	1009	1080
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value		simplify_atomic_load	1103	1107	1103	1107
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value		simplify_bigarray_get_alignment	1097	1101	1097	1101
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value		simplify_bigarray_load	1090	1095	1090	1095
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value		simplify_binary_primitive	1241	1270	1241	1270
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value		simplify_binary_primitive0	1123	1179	1123	1179
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value		simplify_block_set	1109	1111	1109	1111
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value		simplify_phys_equal	984	1007	984	1007
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value		simplify_poke	1113	1115	1113	1115
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value		simplify_read_offset	1117	1121	1117	1121
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value		simplify_string_or_bigstring_load	1082	1088	1082	1088
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value	Binary_arith_like()	max_num_possible_results	133	133	133	133
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value	Binary_arith_like()	simplify	135	275	135	275
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value	Float_ops_for_binary_arith_gen()	arg_kind	728	728	728	728
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value	Float_ops_for_binary_arith_gen()	cross_product	753	753	753	753
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value	Float_ops_for_binary_arith_gen()	ok_to_evaluate	732	732	732	732
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value	Float_ops_for_binary_arith_gen()	op	755	761	755	761
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value	Float_ops_for_binary_arith_gen()	op_lhs_unknown	791	804	791	804
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value	Float_ops_for_binary_arith_gen()	op_rhs_unknown	806	812	806	812
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value	Float_ops_for_binary_arith_gen()	prover_lhs	734	734	734	734
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value	Float_ops_for_binary_arith_gen()	prover_rhs	736	736	736	736
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value	Float_ops_for_binary_arith_gen()	result_kind	730	730	730	730
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value	Float_ops_for_binary_arith_gen()	symmetric_op_one_side_unknown	770	789	770	789
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value	Float_ops_for_binary_arith_gen()	term	749	749	749	749
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value	Float_ops_for_binary_arith_gen()	these	740	747	740	747
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value	Float_ops_for_binary_arith_gen()	unknown	738	738	738	738
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value	Float_ops_for_binary_comp_gen()	arg_kind	870	870	870	870
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value	Float_ops_for_binary_comp_gen()	cross_product	902	902	902	902
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value	Float_ops_for_binary_comp_gen()	ok_to_evaluate	874	874	874	874
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value	Float_ops_for_binary_comp_gen()	op	904	935	904	935
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value	Float_ops_for_binary_comp_gen()	op_lhs_unknown	943	950	943	950
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value	Float_ops_for_binary_comp_gen()	op_rhs_unknown	952	959	952	959
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value	Float_ops_for_binary_comp_gen()	prover_lhs	876	876	876	876
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value	Float_ops_for_binary_comp_gen()	prover_rhs	878	878	878	878
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value	Float_ops_for_binary_comp_gen()	result_kind	872	872	872	872
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value	Float_ops_for_binary_comp_gen()	result_of_comparison_with_nan	937	941	937	941
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value	Float_ops_for_binary_comp_gen()	term	897	898	897	898
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value	Float_ops_for_binary_comp_gen()	these	888	895	888	895
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value	Float_ops_for_binary_comp_gen()	unknown	880	886	880	886
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value	Int_ops_for_binary_arith()	arg_kind	292	292	292	292
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value	Int_ops_for_binary_arith()	cross_product	325	325	325	325
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value	Int_ops_for_binary_arith()	ok_to_evaluate	290	290	290	290
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value	Int_ops_for_binary_arith()	op	327	339	327	339
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value	Int_ops_for_binary_arith()	op_lhs_unknown	384	423	384	423
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value	Int_ops_for_binary_arith()	op_rhs_unknown	425	437	425	437
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value	Int_ops_for_binary_arith()	prover_lhs	296	296	296	296
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value	Int_ops_for_binary_arith()	prover_rhs	298	298	298	298
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value	Int_ops_for_binary_arith()	result_kind	294	294	294	294
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value	Int_ops_for_binary_arith()	symmetric_op_one_side_unknown	350	382	350	382
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value	Int_ops_for_binary_arith()	term	321	321	321	321
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value	Int_ops_for_binary_arith()	these	312	319	312	319
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value	Int_ops_for_binary_arith()	unknown	300	310	300	310
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value	Int_ops_for_binary_comp()	arg_kind	604	604	604	604
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value	Int_ops_for_binary_comp()	cross_product	636	636	636	636
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value	Int_ops_for_binary_comp()	ok_to_evaluate	608	608	608	608
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value	Int_ops_for_binary_comp()	op	640	673	640	673
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value	Int_ops_for_binary_comp()	op_lhs_unknown	675	675	675	675
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value	Int_ops_for_binary_comp()	op_rhs_unknown	677	677	677	677
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value	Int_ops_for_binary_comp()	prover_lhs	610	610	610	610
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value	Int_ops_for_binary_comp()	prover_rhs	612	612	612	612
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value	Int_ops_for_binary_comp()	result_kind	606	606	606	606
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value	Int_ops_for_binary_comp()	term	631	632	631	632
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value	Int_ops_for_binary_comp()	these	622	629	622	629
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value	Int_ops_for_binary_comp()	unknown	614	620	614	620
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value	Int_ops_for_binary_shift()	arg_kind	474	474	474	474
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value	Int_ops_for_binary_shift()	cross_product	514	520	514	520
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value	Int_ops_for_binary_shift()	ok_to_evaluate	478	478	478	478
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value	Int_ops_for_binary_shift()	op	524	529	524	529
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value	Int_ops_for_binary_shift()	op_lhs_unknown	531	545	531	545
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value	Int_ops_for_binary_shift()	op_rhs_unknown	547	565	547	565
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value	Int_ops_for_binary_shift()	prover_lhs	480	480	480	480
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value	Int_ops_for_binary_shift()	prover_rhs	482	482	482	482
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value	Int_ops_for_binary_shift()	result_kind	476	476	476	476
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value	Int_ops_for_binary_shift()	term	505	505	505	505
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value	Int_ops_for_binary_shift()	these	496	503	496	503
+middle_end/flambda2/simplify/simplify_binary_primitive.ml	value	Int_ops_for_binary_shift()	unknown	484	494	484	494
+middle_end/flambda2/simplify/simplify_coercion.ml	value		simplify_coercion	17	25	17	25
+middle_end/flambda2/simplify/simplify_common.ml	type		after_rebuild	19	20	19	20
+middle_end/flambda2/simplify/simplify_common.ml	type		apply_cont_context	342	344	342	344
+middle_end/flambda2/simplify/simplify_common.ml	type		down_to_up	28	29	28	29
+middle_end/flambda2/simplify/simplify_common.ml	type		expr_simplifier	31	35	31	35
+middle_end/flambda2/simplify/simplify_common.ml	type		rebuild	22	26	22	26
+middle_end/flambda2/simplify/simplify_common.ml	type		simplify_function_body	45	54	45	54
+middle_end/flambda2/simplify/simplify_common.ml	type		simplify_toplevel	37	43	37	43
+middle_end/flambda2/simplify/simplify_common.ml	value		add_symbol_projection	467	479	467	479
+middle_end/flambda2/simplify/simplify_common.ml	value		apply_cont_use_kind	346	374	346	374
+middle_end/flambda2/simplify/simplify_common.ml	value		clear_demoted_trap_action	376	384	376	384
+middle_end/flambda2/simplify/simplify_common.ml	value		clear_demoted_trap_action_and_patch_unused_exn_bucket	415	417	415	417
+middle_end/flambda2/simplify/simplify_common.ml	value		patch_unused_exn_bucket	386	413	386	413
+middle_end/flambda2/simplify/simplify_common.ml	value		project_tuple	87	101	87	101
+middle_end/flambda2/simplify/simplify_common.ml	value		simplify_projection	56	72	56	72
+middle_end/flambda2/simplify/simplify_common.ml	value		specialise_array_kind	423	465	423	465
+middle_end/flambda2/simplify/simplify_common.ml	value		split_direct_over_application	103	340	103	340
+middle_end/flambda2/simplify/simplify_common.ml	value		update_exn_continuation_extra_args	74	84	74	84
+middle_end/flambda2/simplify/simplify_expr.ml	value		rebuild_expr	31	61	31	61
+middle_end/flambda2/simplify/simplify_expr.ml	value		rebuild_terminator	19	29	19	29
+middle_end/flambda2/simplify/simplify_expr.ml	value		simplify_expr	173	190	173	222
+middle_end/flambda2/simplify/simplify_expr.ml	value		simplify_function_body	192	218	173	222
+middle_end/flambda2/simplify/simplify_expr.ml	value		simplify_let	220	222	173	222
+middle_end/flambda2/simplify/simplify_expr.ml	value		simplify_toplevel	224	231	224	231
+middle_end/flambda2/simplify/simplify_expr.ml	value		simplify_toplevel_common	63	168	63	168
+middle_end/flambda2/simplify/simplify_extcall.ml	module		RO	17	17	17	17
+middle_end/flambda2/simplify/simplify_extcall.ml	type		t	19	22	19	22
+middle_end/flambda2/simplify/simplify_extcall.ml	value		apply_cont	39	44	39	44
+middle_end/flambda2/simplify/simplify_extcall.ml	value		fun_symbol	27	37	27	37
+middle_end/flambda2/simplify/simplify_extcall.ml	value		let_prim	46	54	46	54
+middle_end/flambda2/simplify/simplify_extcall.ml	value		simplify_caml_array_make	142	169	142	169
+middle_end/flambda2/simplify/simplify_extcall.ml	value		simplify_comparison	97	140	97	140
+middle_end/flambda2/simplify/simplify_extcall.ml	value		simplify_comparison_of_boxed_numbers	72	95	72	95
+middle_end/flambda2/simplify/simplify_extcall.ml	value		simplify_comparison_of_tagged_immediates	59	70	59	70
+middle_end/flambda2/simplify/simplify_extcall.ml	value		simplify_extcall	220	239	220	239
+middle_end/flambda2/simplify/simplify_extcall.ml	value		simplify_returning_extcall	171	215	171	215
+middle_end/flambda2/simplify/simplify_import.ml	module		AC	35	35	35	35
+middle_end/flambda2/simplify/simplify_import.ml	module		Apply	19	19	19	19
+middle_end/flambda2/simplify/simplify_import.ml	module		Apply_cont	20	20	20	20
+middle_end/flambda2/simplify/simplify_import.ml	module		BP	36	36	36	36
+middle_end/flambda2/simplify/simplify_import.ml	module		BPt	37	37	37	37
+middle_end/flambda2/simplify/simplify_import.ml	module		BV	38	38	38	38
+middle_end/flambda2/simplify/simplify_import.ml	module		CH	39	39	39	39
+middle_end/flambda2/simplify/simplify_import.ml	module		CIS	40	40	40	40
+middle_end/flambda2/simplify/simplify_import.ml	module		CUE	41	41	41	41
+middle_end/flambda2/simplify/simplify_import.ml	module		Code	21	21	21	21
+middle_end/flambda2/simplify/simplify_import.ml	module		Const	22	22	22	22
+middle_end/flambda2/simplify/simplify_import.ml	module		Continuation_handler	23	23	23	23
+middle_end/flambda2/simplify/simplify_import.ml	module		Continuation_handlers	24	24	24	24
+middle_end/flambda2/simplify/simplify_import.ml	module		DA	42	42	42	42
+middle_end/flambda2/simplify/simplify_import.ml	module		DE	43	43	43	43
+middle_end/flambda2/simplify/simplify_import.ml	module		EA	44	44	44	44
+middle_end/flambda2/simplify/simplify_import.ml	module		EB	45	45	45	45
+middle_end/flambda2/simplify/simplify_import.ml	module		EPA	46	46	46	46
+middle_end/flambda2/simplify/simplify_import.ml	module		Expr	25	25	25	25
+middle_end/flambda2/simplify/simplify_import.ml	module		FU	47	47	47	47
+middle_end/flambda2/simplify/simplify_import.ml	module		Function_declarations	26	26	26	26
+middle_end/flambda2/simplify/simplify_import.ml	module		Function_params_and_body	27	27	27	27
+middle_end/flambda2/simplify/simplify_import.ml	module		K	48	48	48	48
+middle_end/flambda2/simplify/simplify_import.ml	module		KS	49	49	49	49
+middle_end/flambda2/simplify/simplify_import.ml	module		LC	50	50	50	50
+middle_end/flambda2/simplify/simplify_import.ml	module		LCS	51	51	51	51
+middle_end/flambda2/simplify/simplify_import.ml	module		Let	29	29	29	29
+middle_end/flambda2/simplify/simplify_import.ml	module		Let_cont	28	28	28	28
+middle_end/flambda2/simplify/simplify_import.ml	module		NM	52	52	52	52
+middle_end/flambda2/simplify/simplify_import.ml	module		NO	53	53	53	53
+middle_end/flambda2/simplify/simplify_import.ml	module		Named	30	30	30	30
+middle_end/flambda2/simplify/simplify_import.ml	module		Non_recursive_let_cont_handler	31	31	31	31
+middle_end/flambda2/simplify/simplify_import.ml	module		P	54	54	54	54
+middle_end/flambda2/simplify/simplify_import.ml	module		RE	55	55	55	55
+middle_end/flambda2/simplify/simplify_import.ml	module		RI	57	57	57	57
+middle_end/flambda2/simplify/simplify_import.ml	module		RSC	56	56	56	56
+middle_end/flambda2/simplify/simplify_import.ml	module		Recursive_let_cont_handlers	32	32	32	32
+middle_end/flambda2/simplify/simplify_import.ml	module		S	58	58	58	58
+middle_end/flambda2/simplify/simplify_import.ml	module		SC	59	59	59	59
+middle_end/flambda2/simplify/simplify_import.ml	module		SE	60	60	60	60
+middle_end/flambda2/simplify/simplify_import.ml	module		SPR	61	61	61	61
+middle_end/flambda2/simplify/simplify_import.ml	module		Set_of_closures	33	33	33	33
+middle_end/flambda2/simplify/simplify_import.ml	module		Switch	34	34	34	34
+middle_end/flambda2/simplify/simplify_import.ml	module		T	62	62	62	62
+middle_end/flambda2/simplify/simplify_import.ml	module		TE	63	63	63	63
+middle_end/flambda2/simplify/simplify_import.ml	module		TEE	64	64	64	64
+middle_end/flambda2/simplify/simplify_import.ml	module		UA	65	65	65	65
+middle_end/flambda2/simplify/simplify_import.ml	module		UE	66	66	66	66
+middle_end/flambda2/simplify/simplify_import.ml	module		VB	67	67	67	67
+middle_end/flambda2/simplify/simplify_import.ml	value		debug	17	17	17	17
+middle_end/flambda2/simplify/simplify_let_cont_expr.ml	module		SCC	1048	1048	1048	1048
+middle_end/flambda2/simplify/simplify_let_cont_expr.ml	type		after_downwards_traversal_of_body_and_handlers_data	77	100	77	100
+middle_end/flambda2/simplify/simplify_let_cont_expr.ml	type		after_downwards_traversal_of_body_data	56	60	56	60
+middle_end/flambda2/simplify/simplify_let_cont_expr.ml	type		behaviour	323	326	323	326
+middle_end/flambda2/simplify/simplify_let_cont_expr.ml	type		handler_after_downwards_traversal	62	75	62	75
+middle_end/flambda2/simplify/simplify_let_cont_expr.ml	type		one_original_handler	47	49	47	49
+middle_end/flambda2/simplify/simplify_let_cont_expr.ml	type		prepare_to_rebuild_body_data	119	125	119	125
+middle_end/flambda2/simplify/simplify_let_cont_expr.ml	type		rebuild_let_cont_data	127	132	127	132
+middle_end/flambda2/simplify/simplify_let_cont_expr.ml	type		rebuilt_handler	102	107	102	107
+middle_end/flambda2/simplify/simplify_let_cont_expr.ml	type		rebuilt_handlers_group	109	117	109	117
+middle_end/flambda2/simplify/simplify_let_cont_expr.ml	type		simplify_let_cont_data	51	54	51	54
+middle_end/flambda2/simplify/simplify_let_cont_expr.ml	value		add_extra_params_for_mutable_unboxing	314	321	314	321
+middle_end/flambda2/simplify/simplify_let_cont_expr.ml	value		add_lets_around_handler	546	603	546	603
+middle_end/flambda2/simplify/simplify_let_cont_expr.ml	value		add_phantom_params_bindings	605	627	605	627
+middle_end/flambda2/simplify/simplify_let_cont_expr.ml	value		after_downwards_traversal_of_body	1779	1811	1092	1838
+middle_end/flambda2/simplify/simplify_let_cont_expr.ml	value		after_downwards_traversal_of_body_and_handlers	1249	1339	1092	1838
+middle_end/flambda2/simplify/simplify_let_cont_expr.ml	value		arg_types_by_use_id_for_lifting	192	225	192	225
+middle_end/flambda2/simplify/simplify_let_cont_expr.ml	value		compute_specialized_continuation	1092	1177	1092	1838
+middle_end/flambda2/simplify/simplify_let_cont_expr.ml	value		compute_specialized_continuation_handlers	1179	1187	1092	1838
+middle_end/flambda2/simplify/simplify_let_cont_expr.ml	value		create_handler_to_rebuild	975	1046	975	1046
+middle_end/flambda2/simplify/simplify_let_cont_expr.ml	value		decide_param_usage_non_recursive	227	259	227	259
+middle_end/flambda2/simplify/simplify_let_cont_expr.ml	value		decide_param_usage_recursive	261	270	261	270
+middle_end/flambda2/simplify/simplify_let_cont_expr.ml	value		down_to_up_for_lifted_continuations	1813	1838	1092	1838
+middle_end/flambda2/simplify/simplify_let_cont_expr.ml	value		extra_params_and_args_for_lifting	170	190	170	190
+middle_end/flambda2/simplify/simplify_let_cont_expr.ml	value		extra_params_for_continuation_param_aliases	272	312	272	312
+middle_end/flambda2/simplify/simplify_let_cont_expr.ml	value		get_removed_aliased_params	328	333	328	333
+middle_end/flambda2/simplify/simplify_let_cont_expr.ml	value		get_uses	966	973	966	973
+middle_end/flambda2/simplify/simplify_let_cont_expr.ml	value		make_rewrite_for_recursive_continuation	335	381	335	381
+middle_end/flambda2/simplify/simplify_let_cont_expr.ml	value		prepare_dacc_for_handlers	1341	1437	1092	1838
+middle_end/flambda2/simplify/simplify_let_cont_expr.ml	value		prepare_to_rebuild_body	524	544	524	544
+middle_end/flambda2/simplify/simplify_let_cont_expr.ml	value		prepare_to_rebuild_handlers	922	959	922	959
+middle_end/flambda2/simplify/simplify_let_cont_expr.ml	value		rebuild_continuation_handlers_loop	836	920	836	920
+middle_end/flambda2/simplify/simplify_let_cont_expr.ml	value		rebuild_let_cont	383	522	383	522
+middle_end/flambda2/simplify/simplify_let_cont_expr.ml	value		rebuild_let_cont	961	964	961	964
+middle_end/flambda2/simplify/simplify_let_cont_expr.ml	value		rebuild_single_non_recursive_handler	633	786	633	786
+middle_end/flambda2/simplify/simplify_let_cont_expr.ml	value		rebuild_single_recursive_handler	788	834	788	834
+middle_end/flambda2/simplify/simplify_let_cont_expr.ml	value		remove_params	629	631	629	631
+middle_end/flambda2/simplify/simplify_let_cont_expr.ml	value		simplify_as_recursive_let_cont	2016	2039	2016	2039
+middle_end/flambda2/simplify/simplify_let_cont_expr.ml	value		simplify_handler	1439	1462	1092	1838
+middle_end/flambda2/simplify/simplify_let_cont_expr.ml	value		simplify_handlers	1590	1777	1092	1838
+middle_end/flambda2/simplify/simplify_let_cont_expr.ml	value		simplify_let_cont	1989	2014	1989	2014
+middle_end/flambda2/simplify/simplify_let_cont_expr.ml	value		simplify_let_cont0	1840	1987	1840	1987
+middle_end/flambda2/simplify/simplify_let_cont_expr.ml	value		simplify_recursive_handlers	1522	1588	1092	1838
+middle_end/flambda2/simplify/simplify_let_cont_expr.ml	value		simplify_single_recursive_handler	1464	1520	1092	1838
+middle_end/flambda2/simplify/simplify_let_cont_expr.ml	value		sort_handlers	1050	1088	1050	1088
+middle_end/flambda2/simplify/simplify_let_cont_expr.ml	value		specialize_continuation_if_needed	1189	1247	1092	1838
+middle_end/flambda2/simplify/simplify_let_cont_expr.ml	value		split_non_recursive_let_cont	136	150	136	150
+middle_end/flambda2/simplify/simplify_let_cont_expr.ml	value		split_recursive_let_cont	152	168	152	168
+middle_end/flambda2/simplify/simplify_let_expr.ml	value		keep_lifted_constant_only_if_used	19	38	19	38
+middle_end/flambda2/simplify/simplify_let_expr.ml	value		rebuild_let	40	346	40	346
+middle_end/flambda2/simplify/simplify_let_expr.ml	value		record_new_defining_expression_binding_for_data_flow	348	356	348	356
+middle_end/flambda2/simplify/simplify_let_expr.ml	value		simplify_let	455	461	455	461
+middle_end/flambda2/simplify/simplify_let_expr.ml	value		simplify_let0	377	453	377	453
+middle_end/flambda2/simplify/simplify_let_expr.ml	value		update_data_flow	358	375	358	375
+middle_end/flambda2/simplify/simplify_named.ml	value		create_lifted_constant	19	61	19	61
+middle_end/flambda2/simplify/simplify_named.ml	value		removed_operations	252	315	252	315
+middle_end/flambda2/simplify/simplify_named.ml	value		simplify_named	317	333	317	333
+middle_end/flambda2/simplify/simplify_named.ml	value		simplify_named0	69	250	69	250
+middle_end/flambda2/simplify/simplify_named_result.ml	type		t	17	21	17	21
+middle_end/flambda2/simplify/simplify_named_result.ml	value		bindings_to_place	61	61	61	61
+middle_end/flambda2/simplify/simplify_named_result.ml	value		create	25	31	25	31
+middle_end/flambda2/simplify/simplify_named_result.ml	value		create_empty	33	34	33	34
+middle_end/flambda2/simplify/simplify_named_result.ml	value		create_have_lifted_set_of_closures	36	54	36	54
+middle_end/flambda2/simplify/simplify_named_result.ml	value		dacc	56	56	56	56
+middle_end/flambda2/simplify/simplify_named_result.ml	value		no_bindings	58	59	58	59
+middle_end/flambda2/simplify/simplify_named_result.ml	value		was_lifted_set_of_closures	63	63	63	63
+middle_end/flambda2/simplify/simplify_named_result.ml	value		with_dacc	23	23	23	23
+middle_end/flambda2/simplify/simplify_nullary_primitive.ml	value		simplify_nullary_primitive	18	77	18	77
+middle_end/flambda2/simplify/simplify_primitive.ml	type		cse_result	19	21	19	21
+middle_end/flambda2/simplify/simplify_primitive.ml	value		apply_cse	23	37	23	37
+middle_end/flambda2/simplify/simplify_primitive.ml	value		arg_kind_mismatch	83	98	83	98
+middle_end/flambda2/simplify/simplify_primitive.ml	value		simplify_primitive	100	235	100	235
+middle_end/flambda2/simplify/simplify_primitive.ml	value		try_cse	39	81	39	81
+middle_end/flambda2/simplify/simplify_primitive_result.ml	type		t	25	25	25	25
+middle_end/flambda2/simplify/simplify_primitive_result.ml	type		t_simplified	19	23	19	23
+middle_end/flambda2/simplify/simplify_primitive_result.ml	value		create	27	33	27	33
+middle_end/flambda2/simplify/simplify_primitive_result.ml	value		create_invalid	38	39	38	39
+middle_end/flambda2/simplify/simplify_primitive_result.ml	value		create_rewritten	56	56	56	56
+middle_end/flambda2/simplify/simplify_primitive_result.ml	value		create_simplified	35	36	35	36
+middle_end/flambda2/simplify/simplify_primitive_result.ml	value		create_unit	41	49	41	49
+middle_end/flambda2/simplify/simplify_primitive_result.ml	value		create_unknown	51	54	51	54
+middle_end/flambda2/simplify/simplify_primitive_result.ml	value		is_invalid	58	61	58	61
+middle_end/flambda2/simplify/simplify_primitive_result.ml	value		map_dacc	63	66	63	66
+middle_end/flambda2/simplify/simplify_quaternary_primitive.ml	value		simplify_atomic_compare_and_set	45	68	45	68
+middle_end/flambda2/simplify/simplify_quaternary_primitive.ml	value		simplify_atomic_compare_and_set_or_exchange_args	17	43	17	43
+middle_end/flambda2/simplify/simplify_quaternary_primitive.ml	value		simplify_atomic_compare_exchange	70	96	70	96
+middle_end/flambda2/simplify/simplify_quaternary_primitive.ml	value		simplify_quaternary_primitive	98	112	98	112
+middle_end/flambda2/simplify/simplify_rec_info_expr.ml	module		DA	17	17	17	17
+middle_end/flambda2/simplify/simplify_rec_info_expr.ml	module		DE	18	18	18	18
+middle_end/flambda2/simplify/simplify_rec_info_expr.ml	module		Evaluated_rec_info_expr	130	138	130	138
+middle_end/flambda2/simplify/simplify_rec_info_expr.ml	module		K	19	19	19	19
+middle_end/flambda2/simplify/simplify_rec_info_expr.ml	module		T	20	20	20	20
+middle_end/flambda2/simplify/simplify_rec_info_expr.ml	module		TE	21	21	21	21
+middle_end/flambda2/simplify/simplify_rec_info_expr.ml	type		on_unknown	55	57	55	57
+middle_end/flambda2/simplify/simplify_rec_info_expr.ml	type	Evaluated_rec_info_expr	t	131	134	131	134
+middle_end/flambda2/simplify/simplify_rec_info_expr.ml	value		can_unroll	161	164	161	164
+middle_end/flambda2/simplify/simplify_rec_info_expr.ml	value		compute_succ	23	38	23	38
+middle_end/flambda2/simplify/simplify_rec_info_expr.ml	value		compute_unroll_to	40	53	40	53
+middle_end/flambda2/simplify/simplify_rec_info_expr.ml	value		depth_may_exceed	150	154	150	154
+middle_end/flambda2/simplify/simplify_rec_info_expr.ml	value		evaluate_rec_info_expr	140	148	140	148
+middle_end/flambda2/simplify/simplify_rec_info_expr.ml	value		known_remaining_unrolling_depth	156	159	156	159
+middle_end/flambda2/simplify/simplify_rec_info_expr.ml	value		simplify_rec_info_expr	123	128	123	128
+middle_end/flambda2/simplify/simplify_rec_info_expr.ml	value		simplify_rec_info_expr0	59	121	59	121
+middle_end/flambda2/simplify/simplify_rec_info_expr.ml	value	Evaluated_rec_info_expr	print	136	137	136	137
+middle_end/flambda2/simplify/simplify_set_of_closures.ml	module		C	27	27	27	27
+middle_end/flambda2/simplify/simplify_set_of_closures.ml	module		List	1151	1159	1151	1159
+middle_end/flambda2/simplify/simplify_set_of_closures.ml	type		lifting_decision_result	986	991	986	991
+middle_end/flambda2/simplify/simplify_set_of_closures.ml	type		rebuilt_code	369	371	369	371
+middle_end/flambda2/simplify/simplify_set_of_closures.ml	type		simplify_function_body_result	178	189	178	189
+middle_end/flambda2/simplify/simplify_set_of_closures.ml	type		simplify_function_result	373	378	373	378
+middle_end/flambda2/simplify/simplify_set_of_closures.ml	type		simplify_set_of_closures0_result	636	639	636	639
+middle_end/flambda2/simplify/simplify_set_of_closures.ml	value		compute_result_types	315	367	315	367
+middle_end/flambda2/simplify/simplify_set_of_closures.ml	value		dacc_inside_function	29	137	29	137
+middle_end/flambda2/simplify/simplify_set_of_closures.ml	value		extract_accumulators_from_function	139	176	139	176
+middle_end/flambda2/simplify/simplify_set_of_closures.ml	value		introduce_code	572	575	572	575
+middle_end/flambda2/simplify/simplify_set_of_closures.ml	value		simplify_and_lift_set_of_closures	760	876	760	876
+middle_end/flambda2/simplify/simplify_set_of_closures.ml	value		simplify_function	577	634	577	634
+middle_end/flambda2/simplify/simplify_set_of_closures.ml	value		simplify_function0	380	570	380	570
+middle_end/flambda2/simplify/simplify_set_of_closures.ml	value		simplify_function_body	191	313	191	313
+middle_end/flambda2/simplify/simplify_set_of_closures.ml	value		simplify_lifted_set_of_closures0	1117	1149	1117	1149
+middle_end/flambda2/simplify/simplify_set_of_closures.ml	value		simplify_lifted_sets_of_closures	1161	1211	1161	1211
+middle_end/flambda2/simplify/simplify_set_of_closures.ml	value		simplify_non_lifted_set_of_closures	1086	1115	1086	1115
+middle_end/flambda2/simplify/simplify_set_of_closures.ml	value		simplify_non_lifted_set_of_closures0	878	984	878	984
+middle_end/flambda2/simplify/simplify_set_of_closures.ml	value		simplify_set_of_closures0	641	758	641	758
+middle_end/flambda2/simplify/simplify_set_of_closures.ml	value		simplify_static_stub_function	1213	1230	1213	1230
+middle_end/flambda2/simplify/simplify_set_of_closures.ml	value		type_value_slots_and_make_lifting_decision_for_one_set	993	1084	993	1084
+middle_end/flambda2/simplify/simplify_set_of_closures.ml	value	List	fold_left3	1154	1158	1154	1158
+middle_end/flambda2/simplify/simplify_set_of_closures_context.ml	type		t	19	28	19	28
+middle_end/flambda2/simplify/simplify_set_of_closures_context.ml	value		bind_closure_types_inside_functions	177	217	177	217
+middle_end/flambda2/simplify/simplify_set_of_closures_context.ml	value		bind_existing_code_to_new_code_ids	246	261	246	261
+middle_end/flambda2/simplify/simplify_set_of_closures_context.ml	value		closure_bound_names_inside_functions_all_sets	68	69	68	69
+middle_end/flambda2/simplify/simplify_set_of_closures_context.ml	value		closure_bound_names_inside_functions_exactly_one_set	71	74	71	74
+middle_end/flambda2/simplify/simplify_set_of_closures_context.ml	value		compute_and_erase_depth_variables	263	326	263	326
+middle_end/flambda2/simplify/simplify_set_of_closures_context.ml	value		compute_closure_types_inside_functions	94	175	94	175
+middle_end/flambda2/simplify/simplify_set_of_closures_context.ml	value		compute_old_to_new_code_ids_all_sets	219	244	219	244
+middle_end/flambda2/simplify/simplify_set_of_closures_context.ml	value		create	328	375	328	375
+middle_end/flambda2/simplify/simplify_set_of_closures_context.ml	value		create_for_static_stub	34	58	34	58
+middle_end/flambda2/simplify/simplify_set_of_closures_context.ml	value		dacc_inside_functions	64	64	64	64
+middle_end/flambda2/simplify/simplify_set_of_closures_context.ml	value		dacc_prior_to_sets	62	62	62	62
+middle_end/flambda2/simplify/simplify_set_of_closures_context.ml	value		function_can_be_simplified	89	92	89	92
+middle_end/flambda2/simplify/simplify_set_of_closures_context.ml	value		function_decl_type	30	32	30	32
+middle_end/flambda2/simplify/simplify_set_of_closures_context.ml	value		old_to_new_code_ids_all_sets	66	66	66	66
+middle_end/flambda2/simplify/simplify_set_of_closures_context.ml	value		previously_free_depth_variables	76	76	76	76
+middle_end/flambda2/simplify/simplify_set_of_closures_context.ml	value		simplify_function_body	60	60	60	60
+middle_end/flambda2/simplify/simplify_set_of_closures_context.ml	value		single_set_of_size_one	78	78	78	78
+middle_end/flambda2/simplify/simplify_set_of_closures_context.ml	value		stub_can_be_simplified	80	87	80	87
+middle_end/flambda2/simplify/simplify_simple.ml	exception		Simple_not_in_scope	21	21	21	21
+middle_end/flambda2/simplify/simplify_simple.ml	module		DA	17	17	17	17
+middle_end/flambda2/simplify/simplify_simple.ml	module		T	18	18	18	18
+middle_end/flambda2/simplify/simplify_simple.ml	module		TE	19	19	19	19
+middle_end/flambda2/simplify/simplify_simple.ml	type		simplify_simples_result	52	55	52	55
+middle_end/flambda2/simplify/simplify_simple.ml	value		simplify_simple	38	45	38	45
+middle_end/flambda2/simplify/simplify_simple.ml	value		simplify_simple0	23	36	23	36
+middle_end/flambda2/simplify/simplify_simple.ml	value		simplify_simple_if_in_scope	47	50	47	50
+middle_end/flambda2/simplify/simplify_simple.ml	value		simplify_simples	57	65	57	65
+middle_end/flambda2/simplify/simplify_static_const.ml	value		rebuild_naked_number_array	49	64	49	64
+middle_end/flambda2/simplify/simplify_static_const.ml	value		simplify_field_of_block	20	38	20	38
+middle_end/flambda2/simplify/simplify_static_const.ml	value		simplify_or_variable	40	47	40	47
+middle_end/flambda2/simplify/simplify_static_const.ml	value		simplify_static_const_block_type	66	78	66	78
+middle_end/flambda2/simplify/simplify_static_const.ml	value		simplify_static_const_of_kind_value	80	308	80	308
+middle_end/flambda2/simplify/simplify_static_const.ml	value		simplify_static_consts	310	483	310	483
+middle_end/flambda2/simplify/simplify_switch_expr.ml	exception		Argument_cannot_be_used_in_lookup_table	584	584	584	584
+middle_end/flambda2/simplify/simplify_switch_expr.ml	module		Alias_set	20	20	20	20
+middle_end/flambda2/simplify/simplify_switch_expr.ml	module		RWC	21	21	21	21
+middle_end/flambda2/simplify/simplify_switch_expr.ml	module		TE	18	18	18	18
+middle_end/flambda2/simplify/simplify_switch_expr.ml	module		TI	19	19	19	19
+middle_end/flambda2/simplify/simplify_switch_expr.ml	type		affine_argument_of_mergeable_arm	419	423	419	423
+middle_end/flambda2/simplify/simplify_switch_expr.ml	type		affine_immediate_kind	406	408	406	408
+middle_end/flambda2/simplify/simplify_switch_expr.ml	type		alias_set	23	25	23	25
+middle_end/flambda2/simplify/simplify_switch_expr.ml	type		mergeable_argument	468	482	468	482
+middle_end/flambda2/simplify/simplify_switch_expr.ml	type		mergeable_arms	27	33	27	33
+middle_end/flambda2/simplify/simplify_switch_expr.ml	type		named	291	300	291	300
+middle_end/flambda2/simplify/simplify_switch_expr.ml	value		affine_immediate_kind_to_standard_int	415	417	415	417
+middle_end/flambda2/simplify/simplify_switch_expr.ml	value		bound_lookup_table	306	307	306	307
+middle_end/flambda2/simplify/simplify_switch_expr.ml	value		bound_prim	304	304	304	304
+middle_end/flambda2/simplify/simplify_switch_expr.ml	value		bound_simple	302	302	302	302
+middle_end/flambda2/simplify/simplify_switch_expr.ml	value		bound_tagged_scrutinee	496	497	496	497
+middle_end/flambda2/simplify/simplify_switch_expr.ml	value		create_lookup_table_array_const	222	287	222	287
+middle_end/flambda2/simplify/simplify_switch_expr.ml	value		decide_continuation_specialization	1017	1038	1017	1038
+middle_end/flambda2/simplify/simplify_switch_expr.ml	value		decide_continuation_specialization0	889	1015	889	1015
+middle_end/flambda2/simplify/simplify_switch_expr.ml	value		enough_arms	489	494	489	494
+middle_end/flambda2/simplify/simplify_switch_expr.ml	value		equal_affine_immediate_kind	410	413	410	413
+middle_end/flambda2/simplify/simplify_switch_expr.ml	value		fields_to_simples	219	220	219	220
+middle_end/flambda2/simplify/simplify_switch_expr.ml	value		filter_and_choose_alias	181	192	181	192
+middle_end/flambda2/simplify/simplify_switch_expr.ml	value		find_all_aliases	48	80	48	80
+middle_end/flambda2/simplify/simplify_switch_expr.ml	value		find_cse_simple	194	217	194	217
+middle_end/flambda2/simplify/simplify_switch_expr.ml	value		inter_alias_set	35	46	35	46
+middle_end/flambda2/simplify/simplify_switch_expr.ml	value		let$	309	388	309	388
+middle_end/flambda2/simplify/simplify_switch_expr.ml	value		rebuild_arm	82	179	82	179
+middle_end/flambda2/simplify/simplify_switch_expr.ml	value		rebuild_mergeable_argument	499	582	499	582
+middle_end/flambda2/simplify/simplify_switch_expr.ml	value		rebuild_switch	759	846	759	846
+middle_end/flambda2/simplify/simplify_switch_expr.ml	value		recognize_affine_argument	435	466	435	466
+middle_end/flambda2/simplify/simplify_switch_expr.ml	value		recognize_affine_immediate_const	425	433	425	433
+middle_end/flambda2/simplify/simplify_switch_expr.ml	value		recognize_invariant_argument	586	603	586	603
+middle_end/flambda2/simplify/simplify_switch_expr.ml	value		recognize_mergeable_argument	605	757	605	757
+middle_end/flambda2/simplify/simplify_switch_expr.ml	value		return	390	394	390	394
+middle_end/flambda2/simplify/simplify_switch_expr.ml	value		run	396	404	396	404
+middle_end/flambda2/simplify/simplify_switch_expr.ml	value		simplify_arm	848	887	848	887
+middle_end/flambda2/simplify/simplify_switch_expr.ml	value		simplify_switch	1040	1096	1040	1096
+middle_end/flambda2/simplify/simplify_ternary_primitive.ml	value		simplify_array_set	19	63	19	63
+middle_end/flambda2/simplify/simplify_ternary_primitive.ml	value		simplify_atomic_exchange	88	92	88	92
+middle_end/flambda2/simplify/simplify_ternary_primitive.ml	value		simplify_atomic_int_arith	75	80	75	80
+middle_end/flambda2/simplify/simplify_ternary_primitive.ml	value		simplify_atomic_set	82	86	82	86
+middle_end/flambda2/simplify/simplify_ternary_primitive.ml	value		simplify_bigarray_set	70	73	70	73
+middle_end/flambda2/simplify/simplify_ternary_primitive.ml	value		simplify_bytes_or_bigstring_set	65	68	65	68
+middle_end/flambda2/simplify/simplify_ternary_primitive.ml	value		simplify_ternary_primitive	100	116	100	116
+middle_end/flambda2/simplify/simplify_ternary_primitive.ml	value		simplify_write_offset	94	98	94	98
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	module		A	18	18	18	18
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	module		Float	20	20	20	20
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	module		Float32	19	19	19	19
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	module		Int32	21	21	21	21
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	module		Int64	22	22	22	22
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	module		Make_simplify_float_arith_op	639	669	639	669
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	module		Make_simplify_int_conv	355	475	355	475
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	module		Make_simplify_reinterpret_64_bit_word	525	558	525	558
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	module		Simplify_float32_arith_op	681	689	681	689
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	module		Simplify_float_arith_op	671	679	671	679
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	module		Simplify_int_conv_naked_float	481	481	481	481
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	module		Simplify_int_conv_naked_float32	482	482	482	482
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	module		Simplify_int_conv_naked_immediate	479	480	479	480
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	module		Simplify_int_conv_naked_int16	484	484	484	484
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	module		Simplify_int_conv_naked_int32	485	485	485	485
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	module		Simplify_int_conv_naked_int64	486	486	486	486
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	module		Simplify_int_conv_naked_int8	483	483	483	483
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	module		Simplify_int_conv_naked_nativeint	487	488	487	488
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	module		Simplify_int_conv_tagged_immediate	477	478	477	478
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	module		Simplify_reinterpret_tagged_int63_as_unboxed_int64	606	621	606	621
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	module		Simplify_reinterpret_unboxed_float64_as_unboxed_int64	574	586	574	586
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	module		Simplify_reinterpret_unboxed_int64_as_tagged_int63	588	604	588	604
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	module		Simplify_reinterpret_unboxed_int64_as_unboxed_float64	560	572	560	572
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	module		Unary_int_arith	323	344	323	344
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	module		Unary_int_arith_naked_immediate	348	348	348	348
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	module		Unary_int_arith_naked_int16	350	350	350	350
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	module		Unary_int_arith_naked_int32	351	351	351	351
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	module		Unary_int_arith_naked_int64	352	352	352	352
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	module		Unary_int_arith_naked_int8	349	349	349	349
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	module		Unary_int_arith_naked_nativeint	353	353	353	353
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	module		Unary_int_arith_tagged_immediate	346	347	346	347
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	value		get_my_alloc_region	24	30	24	30
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	value		simplify_array_length	284	296	284	296
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	value		simplify_bigarray_length	755	757	755	757
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	value		simplify_boolean_not	490	523	490	523
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	value		simplify_box_number	188	206	188	206
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	value		simplify_duplicate_array	759	784	759	784
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	value		simplify_duplicate_block	786	792	786	792
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	value		simplify_end_region	737	742	737	742
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	value		simplify_end_try_region	744	749	744	749
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	value		simplify_float32_arith_op	693	693	693	693
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	value		simplify_float_arith_op	691	691	691	691
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	value		simplify_get_header	876	880	876	880
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	value		simplify_get_tag	253	282	253	282
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	value		simplify_immutable_block_load	991	1007	991	1007
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	value		simplify_immutable_block_load0	882	989	882	989
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	value		simplify_int_as_pointer	751	753	751	753
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	value		simplify_is_boxed_float	695	708	695	708
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	value		simplify_is_flat_float_array	710	727	710	727
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	value		simplify_is_int	237	251	237	251
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	value		simplify_is_null	1025	1028	1025	1028
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	value		simplify_lazy	1018	1022	1018	1022
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	value		simplify_mutable_block_load	1009	1016	1009	1016
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	value		simplify_obj_dup	794	874	794	874
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	value		simplify_opaque_identity	729	731	729	731
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	value		simplify_peek	1030	1034	1030	1034
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	value		simplify_project_function_slot	32	53	32	53
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	value		simplify_project_value_slot	55	100	55	100
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	value		simplify_reinterpret_64_bit_word	623	637	623	637
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	value		simplify_reinterpret_boxed_vector	733	735	733	735
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	value		simplify_relational_primitive	218	235	218	235
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	value		simplify_string_length	300	321	300	321
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	value		simplify_tag_immediate	208	216	208	216
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	value		simplify_unary_primitive	1036	1106	1036	1106
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	value		simplify_unbox_number	102	168	102	168
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	value		simplify_untag_immediate	170	186	170	186
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	value	Make_simplify_float_arith_op()	simplify	649	668	649	668
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	value	Make_simplify_int_conv()	simplify	356	474	356	474
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	value	Make_simplify_reinterpret_64_bit_word()	simplify	539	557	539	557
+middle_end/flambda2/simplify/simplify_unary_primitive.ml	value	Unary_int_arith()	simplify	324	343	324	343
+middle_end/flambda2/simplify/simplify_variadic_primitive.ml	value		simplify_begin_region	167	171	167	171
+middle_end/flambda2/simplify/simplify_variadic_primitive.ml	value		simplify_make_array	85	165	85	165
+middle_end/flambda2/simplify/simplify_variadic_primitive.ml	value		simplify_make_block	19	83	19	83
+middle_end/flambda2/simplify/simplify_variadic_primitive.ml	value		simplify_variadic_primitive	173	186	173	186
+middle_end/flambda2/simplify/specialization_cost.ml	type		cost	22	25	22	25
+middle_end/flambda2/simplify/specialization_cost.ml	type		reason	16	20	16	20
+middle_end/flambda2/simplify/specialization_cost.ml	type		t	27	29	27	29
+middle_end/flambda2/simplify/specialization_cost.ml	value		add_continuations	90	96	90	96
+middle_end/flambda2/simplify/specialization_cost.ml	value		add_lifted_set_of_closures	79	80	79	80
+middle_end/flambda2/simplify/specialization_cost.ml	value		add_prim	82	88	82	88
+middle_end/flambda2/simplify/specialization_cost.ml	value		add_set_of_closures	76	77	76	77
+middle_end/flambda2/simplify/specialization_cost.ml	value		can_specialize	65	68	65	68
+middle_end/flambda2/simplify/specialization_cost.ml	value		cannot_specialize	63	63	63	63
+middle_end/flambda2/simplify/specialization_cost.ml	value		cost_metrics	102	202	102	202
+middle_end/flambda2/simplify/specialization_cost.ml	value		print	46	59	46	59
+middle_end/flambda2/simplify/specialization_cost.ml	value		print_prim	42	44	42	44
+middle_end/flambda2/simplify/specialization_cost.ml	value		print_reason	31	40	31	40
+middle_end/flambda2/simplify/specialization_cost.ml	value		repeat	100	100	100	100
+middle_end/flambda2/simplify/specialization_cost.ml	value		update_cost	72	74	72	74
+middle_end/flambda2/simplify/unboxing/build_unboxing_denv.ml	module		U	18	18	18	18
+middle_end/flambda2/simplify/unboxing/build_unboxing_denv.ml	value		add_equation_on_var	20	26	20	26
+middle_end/flambda2/simplify/unboxing/build_unboxing_denv.ml	value		denv_of_decision	34	291	34	291
+middle_end/flambda2/simplify/unboxing/build_unboxing_denv.ml	value		denv_of_number_decision	28	32	28	32
+middle_end/flambda2/simplify/unboxing/is_unboxing_beneficial.ml	module		Extra_param_and_args	19	19	19	19
+middle_end/flambda2/simplify/unboxing/is_unboxing_beneficial.ml	module		U	18	18	18	18
+middle_end/flambda2/simplify/unboxing/is_unboxing_beneficial.ml	value		filter_non_beneficial_decisions	35	98	35	98
+middle_end/flambda2/simplify/unboxing/is_unboxing_beneficial.ml	value		is_unboxing_beneficial_for_epa	21	33	21	33
+middle_end/flambda2/simplify/unboxing/optimistic_unboxing_decision.ml	module		Extra_param_and_args	19	19	19	19
+middle_end/flambda2/simplify/unboxing/optimistic_unboxing_decision.ml	module		U	18	18	18	18
+middle_end/flambda2/simplify/unboxing/optimistic_unboxing_decision.ml	value		decide	57	58	57	58
+middle_end/flambda2/simplify/unboxing/optimistic_unboxing_decision.ml	value		deciders	60	70	60	70
+middle_end/flambda2/simplify/unboxing/optimistic_unboxing_decision.ml	value		make_optimistic_const_ctor	33	43	33	43
+middle_end/flambda2/simplify/unboxing/optimistic_unboxing_decision.ml	value		make_optimistic_decision	72	153	72	228
+middle_end/flambda2/simplify/unboxing/optimistic_unboxing_decision.ml	value		make_optimistic_fields	155	210	72	228
+middle_end/flambda2/simplify/unboxing/optimistic_unboxing_decision.ml	value		make_optimistic_number_decision	45	55	45	55
+middle_end/flambda2/simplify/unboxing/optimistic_unboxing_decision.ml	value		make_optimistic_vars_within_closure	212	228	72	228
+middle_end/flambda2/simplify/unboxing/optimistic_unboxing_decision.ml	value		pp_tag	21	22	21	22
+middle_end/flambda2/simplify/unboxing/optimistic_unboxing_decision.ml	value		unbox_blocks	27	27	27	27
+middle_end/flambda2/simplify/unboxing/optimistic_unboxing_decision.ml	value		unbox_closures	31	31	31	31
+middle_end/flambda2/simplify/unboxing/optimistic_unboxing_decision.ml	value		unbox_numbers	25	25	25	25
+middle_end/flambda2/simplify/unboxing/optimistic_unboxing_decision.ml	value		unbox_variants	29	29	29	29
+middle_end/flambda2/simplify/unboxing/unbox_continuation_params.ml	module		Decisions	19	19	19	19
+middle_end/flambda2/simplify/unboxing/unbox_continuation_params.ml	module		List	59	67	59	67
+middle_end/flambda2/simplify/unboxing/unbox_continuation_params.ml	module		U	18	18	18	18
+middle_end/flambda2/simplify/unboxing/unbox_continuation_params.ml	type		continuation_arg_types	80	82	80	82
+middle_end/flambda2/simplify/unboxing/unbox_continuation_params.ml	value		compute_extra_params_and_args	182	203	182	203
+middle_end/flambda2/simplify/unboxing/unbox_continuation_params.ml	value		make_decisions	157	180	157	180
+middle_end/flambda2/simplify/unboxing/unbox_continuation_params.ml	value		make_decisions	84	155	84	155
+middle_end/flambda2/simplify/unboxing/unbox_continuation_params.ml	value		make_do_not_unbox_decisions	69	78	69	78
+middle_end/flambda2/simplify/unboxing/unbox_continuation_params.ml	value		refine_decision_based_on_arg_types_at_uses	21	57	21	57
+middle_end/flambda2/simplify/unboxing/unbox_continuation_params.ml	value	List	fold_left3	62	66	62	66
+middle_end/flambda2/simplify/unboxing/unboxers.ml	module		Closure_field	242	260	242	260
+middle_end/flambda2/simplify/unboxing/unboxers.ml	module		Field	225	240	225	240
+middle_end/flambda2/simplify/unboxing/unboxers.ml	module		Float	80	96	80	96
+middle_end/flambda2/simplify/unboxing/unboxers.ml	module		Float32	61	78	61	78
+middle_end/flambda2/simplify/unboxing/unboxers.ml	module		Immediate	42	59	42	59
+middle_end/flambda2/simplify/unboxing/unboxers.ml	module		Int32	98	114	98	114
+middle_end/flambda2/simplify/unboxing/unboxers.ml	module		Int64	116	132	116	132
+middle_end/flambda2/simplify/unboxing/unboxers.ml	module		Mask	207	223	207	223
+middle_end/flambda2/simplify/unboxing/unboxers.ml	module		Nativeint	134	151	134	151
+middle_end/flambda2/simplify/unboxing/unboxers.ml	module		Vec128	153	169	153	169
+middle_end/flambda2/simplify/unboxing/unboxers.ml	module		Vec256	171	187	171	187
+middle_end/flambda2/simplify/unboxing/unboxers.ml	module		Vec512	189	205	189	205
+middle_end/flambda2/simplify/unboxing/unboxers.ml	module type		Number_S	34	40	34	40
+middle_end/flambda2/simplify/unboxing/unboxers.ml	type		number_decider	19	23	19	23
+middle_end/flambda2/simplify/unboxing/unboxers.ml	type		unboxer	25	32	25	32
+middle_end/flambda2/simplify/unboxing/unboxers.ml	value	Closure_field	unboxer	247	259	247	259
+middle_end/flambda2/simplify/unboxing/unboxers.ml	value	Closure_field	unboxing_prim	243	245	243	245
+middle_end/flambda2/simplify/unboxing/unboxers.ml	value	Field	unboxer	229	239	229	239
+middle_end/flambda2/simplify/unboxing/unboxers.ml	value	Field	unboxing_prim	226	227	226	227
+middle_end/flambda2/simplify/unboxing/unboxers.ml	value	Float	decider	81	85	81	85
+middle_end/flambda2/simplify/unboxing/unboxers.ml	value	Float	unboxer	89	95	89	95
+middle_end/flambda2/simplify/unboxing/unboxers.ml	value	Float	unboxing_prim	87	87	87	87
+middle_end/flambda2/simplify/unboxing/unboxers.ml	value	Float32	decider	62	66	62	66
+middle_end/flambda2/simplify/unboxing/unboxers.ml	value	Float32	unboxer	70	77	70	77
+middle_end/flambda2/simplify/unboxing/unboxers.ml	value	Float32	unboxing_prim	68	68	68	68
+middle_end/flambda2/simplify/unboxing/unboxers.ml	value	Immediate	decider	43	47	43	47
+middle_end/flambda2/simplify/unboxing/unboxers.ml	value	Immediate	unboxer	51	58	51	58
+middle_end/flambda2/simplify/unboxing/unboxers.ml	value	Immediate	unboxing_prim	49	49	49	49
+middle_end/flambda2/simplify/unboxing/unboxers.ml	value	Int32	decider	99	103	99	103
+middle_end/flambda2/simplify/unboxing/unboxers.ml	value	Int32	unboxer	107	113	107	113
+middle_end/flambda2/simplify/unboxing/unboxers.ml	value	Int32	unboxing_prim	105	105	105	105
+middle_end/flambda2/simplify/unboxing/unboxers.ml	value	Int64	decider	117	121	117	121
+middle_end/flambda2/simplify/unboxing/unboxers.ml	value	Int64	unboxer	125	131	125	131
+middle_end/flambda2/simplify/unboxing/unboxers.ml	value	Int64	unboxing_prim	123	123	123	123
+middle_end/flambda2/simplify/unboxing/unboxers.ml	value	Mask	decider	208	212	208	212
+middle_end/flambda2/simplify/unboxing/unboxers.ml	value	Mask	unboxer	216	222	216	222
+middle_end/flambda2/simplify/unboxing/unboxers.ml	value	Mask	unboxing_prim	214	214	214	214
+middle_end/flambda2/simplify/unboxing/unboxers.ml	value	Nativeint	decider	135	139	135	139
+middle_end/flambda2/simplify/unboxing/unboxers.ml	value	Nativeint	unboxer	143	150	143	150
+middle_end/flambda2/simplify/unboxing/unboxers.ml	value	Nativeint	unboxing_prim	141	141	141	141
+middle_end/flambda2/simplify/unboxing/unboxers.ml	value	Vec128	decider	154	158	154	158
+middle_end/flambda2/simplify/unboxing/unboxers.ml	value	Vec128	unboxer	162	168	162	168
+middle_end/flambda2/simplify/unboxing/unboxers.ml	value	Vec128	unboxing_prim	160	160	160	160
+middle_end/flambda2/simplify/unboxing/unboxers.ml	value	Vec256	decider	172	176	172	176
+middle_end/flambda2/simplify/unboxing/unboxers.ml	value	Vec256	unboxer	180	186	180	186
+middle_end/flambda2/simplify/unboxing/unboxers.ml	value	Vec256	unboxing_prim	178	178	178	178
+middle_end/flambda2/simplify/unboxing/unboxers.ml	value	Vec512	decider	190	194	190	194
+middle_end/flambda2/simplify/unboxing/unboxers.ml	value	Vec512	unboxer	198	204	198	204
+middle_end/flambda2/simplify/unboxing/unboxers.ml	value	Vec512	unboxing_prim	196	196	196	196
+middle_end/flambda2/simplify/unboxing/unboxing_epa.ml	exception		Invalid_apply_cont	21	21	21	21
+middle_end/flambda2/simplify/unboxing/unboxing_epa.ml	exception		Prevent_current_unboxing	23	23	23	23
+middle_end/flambda2/simplify/unboxing/unboxing_epa.ml	module		Extra_param_and_args	19	19	19	19
+middle_end/flambda2/simplify/unboxing/unboxing_epa.ml	module		U	18	18	18	18
+middle_end/flambda2/simplify/unboxing/unboxing_epa.ml	type		unboxed_arg	27	31	27	31
+middle_end/flambda2/simplify/unboxing/unboxing_epa.ml	type		variant_argument	87	92	87	92
+middle_end/flambda2/simplify/unboxing/unboxing_epa.ml	value		_print_unboxed_arg	33	38	33	38
+middle_end/flambda2/simplify/unboxing/unboxing_epa.ml	value		access_kind_and_poison_const	178	218	178	218
+middle_end/flambda2/simplify/unboxing/unboxing_epa.ml	value		add_extra_params_and_args	454	553	454	553
+middle_end/flambda2/simplify/unboxing/unboxing_epa.ml	value		compute_extra_arg_for_number	167	173	167	173
+middle_end/flambda2/simplify/unboxing/unboxing_epa.ml	value		compute_extra_args_for_block	298	327	223	452
+middle_end/flambda2/simplify/unboxing/unboxing_epa.ml	value		compute_extra_args_for_closure	329	350	223	452
+middle_end/flambda2/simplify/unboxing/unboxing_epa.ml	value		compute_extra_args_for_one_decision_and_use	223	232	223	452
+middle_end/flambda2/simplify/unboxing/unboxing_epa.ml	value		compute_extra_args_for_one_decision_and_use_aux	234	296	223	452
+middle_end/flambda2/simplify/unboxing/unboxing_epa.ml	value		compute_extra_args_for_variant	352	452	223	452
+middle_end/flambda2/simplify/unboxing/unboxing_epa.ml	value		extra_arg_for_ctor	101	119	101	119
+middle_end/flambda2/simplify/unboxing/unboxing_epa.ml	value		extra_arg_for_is_int	94	99	94	99
+middle_end/flambda2/simplify/unboxing/unboxing_epa.ml	value		extra_args_for_const_ctor_of_variant	121	162	121	162
+middle_end/flambda2/simplify/unboxing/unboxing_epa.ml	value		prevent_current_unboxing	25	25	25	25
+middle_end/flambda2/simplify/unboxing/unboxing_epa.ml	value		type_of_arg_being_unboxed	40	45	40	45
+middle_end/flambda2/simplify/unboxing/unboxing_epa.ml	value		unbox_arg	47	82	47	82
+middle_end/flambda2/simplify/unboxing/unboxing_types.ml	module		Decisions	177	185	177	185
+middle_end/flambda2/simplify/unboxing/unboxing_types.ml	module		Extra_param_and_args	31	56	31	56
+middle_end/flambda2/simplify/unboxing/unboxing_types.ml	type		const_ctors_decision	82	87	58	91
+middle_end/flambda2/simplify/unboxing/unboxing_types.ml	type		decision	89	91	58	91
+middle_end/flambda2/simplify/unboxing/unboxing_types.ml	type		decisions	93	97	93	97
+middle_end/flambda2/simplify/unboxing/unboxing_types.ml	type		do_not_unbox_reason	19	29	19	29
+middle_end/flambda2/simplify/unboxing/unboxing_types.ml	type		field_decision	76	80	58	91
+middle_end/flambda2/simplify/unboxing/unboxing_types.ml	type		pass	99	101	99	101
+middle_end/flambda2/simplify/unboxing/unboxing_types.ml	type		unboxing_decision	58	74	58	91
+middle_end/flambda2/simplify/unboxing/unboxing_types.ml	type	Decisions	t	178	182	178	182
+middle_end/flambda2/simplify/unboxing/unboxing_types.ml	type	Extra_param_and_args	t	32	36	32	36
+middle_end/flambda2/simplify/unboxing/unboxing_types.ml	value		print	162	175	162	175
+middle_end/flambda2/simplify/unboxing/unboxing_types.ml	value		print_const_ctor_num	155	160	116	160
+middle_end/flambda2/simplify/unboxing/unboxing_types.ml	value		print_decision	116	143	116	160
+middle_end/flambda2/simplify/unboxing/unboxing_types.ml	value		print_do_not_unbox_reason	106	114	106	114
+middle_end/flambda2/simplify/unboxing/unboxing_types.ml	value		print_field_decision	145	149	116	160
+middle_end/flambda2/simplify/unboxing/unboxing_types.ml	value		print_fields_decisions	151	153	116	160
+middle_end/flambda2/simplify/unboxing/unboxing_types.ml	value	Decisions	print	184	184	184	184
+middle_end/flambda2/simplify/unboxing/unboxing_types.ml	value	Extra_param_and_args	create	38	42	38	42
+middle_end/flambda2/simplify/unboxing/unboxing_types.ml	value	Extra_param_and_args	print	49	54	49	54
+middle_end/flambda2/simplify/unboxing/unboxing_types.ml	value	Extra_param_and_args	update_param_args	44	47	44	47
