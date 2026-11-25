@@ -85,7 +85,7 @@ Definition new_param (t : Lifted_cont_params.t)
   in
   ret {| len := t.(len) + 1; new_params_indexed := new_params_indexed |}.
 
-(* PORT-GAP(update): 57, [{ t with new_params_indexed }]. *)
+(* 57. [{ t with new_params_indexed }]. *)
 Definition update_new_params_indexed (t : Lifted_cont_params.t)
     (new_params_indexed : BP.Map.t BP.t) : Lifted_cont_params.t :=
   {| len := t.(len);

@@ -48,6 +48,7 @@ Targetint_32_64 Value_slot Variable_.
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 
+(* 17 *)
 (*OCAML
 open! Simplify_import
 OCAML*)
@@ -62,7 +63,7 @@ module Int32 = Numeric_types.Int32
 module Int64 = Numeric_types.Int64
 OCAML*)
 
-(* The literals [2L] and [1L] of line 583. *)
+(* 616. The literals [2L] and [1L] of that line. *)
 Parameter int64_2L : Stdlib_.int64.
 Extract Inlined Constant int64_2L => "2L".
 Parameter int64_1L : Stdlib_.int64.

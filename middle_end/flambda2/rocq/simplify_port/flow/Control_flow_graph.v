@@ -35,7 +35,7 @@ From SimplifyPort.abbrev.control_flow_graph Require Import Port_abbreviations.
 module T = Flow_types
 OCAML*)
 
-(* PORT-GAP(verbatim): 16, the module that the file makes with a functor;
+(* 16. The module that the file makes with a functor;
    decl/Control_flow_graph__local.v declares what the file uses of it. *)
 (*OCAML
 module G = Strongly_connected_components.Make (Continuation)
@@ -49,9 +49,9 @@ Record t : Type :=
     children : Continuation.Map.t Continuation.Set_.t
   }.
 
-(* PORT-GAP(type): 25-32, a variant with an inline record: in Rocq the two
-   fields of [Aliased] are by place; the extracted file has the compiler's
-   definition, which the directive of [exn_param_alias] holds. *)
+(* 25-32. A variant with an inline record: in Rocq the two fields of [Aliased]
+   are by place; the extracted file has the compiler's definition, which the
+   directive of [exn_param_alias] holds. *)
 Inductive exn_param_alias_ : Type :=
   | Not_aliased
   | Aliased_to_poison
@@ -582,8 +582,8 @@ Parameter continuation_to_int : Continuation.t -> int.
 Extract Inlined Constant continuation_to_int =>
   "(fun (cont : Continuation.t) -> (cont :> int))".
 
-(* PORT-GAP(verbatim): 406 and 409, a function on characters, the argument
-   of [String.map]: the kit has no character; the compiler's text. *)
+(* 406 and 409. A function on characters, the argument of [String.map]: the
+   kit has no character; the compiler's text. *)
 Parameter braces_to_brackets : Stdlib_.char -> M Stdlib_.char.
 Extract Inlined Constant braces_to_brackets =>
   "(function '{' -> '[' | '}' -> ']' | c -> c)".

@@ -83,8 +83,8 @@ OCAML*)
    involved), the semantics of the Flambda 2 compile-time evaluation should
    always match that of runtime evaluation by the processor. *)
 
-(* PORT-GAP(verbatim): 50-176, the module types of the compiler's file.
-   (Rocq's module types cannot say [include Container_types.S].) *)
+(* 50-176. The module types of the compiler's file. (Rocq's module types
+   cannot say [include Container_types.S].) *)
 (*OCAML
 module type Num_common = sig
   include Container_types.S
@@ -265,7 +265,7 @@ Definition compare_unsigned_generic {A : Type} (n1 n2 : A)
 Module For_tagged_immediates.
   (* 198-276 *)
   Module Num.
-    (* PORT-GAP(verbatim): 199, [include Target_ocaml_int]. *)
+    (* 199. [include Target_ocaml_int]. *)
     Definition include_Target_ocaml_int : unit := tt.
     Extract Constant include_Target_ocaml_int => "() include Target_ocaml_int".
 
@@ -444,7 +444,7 @@ End For_tagged_immediates.
 Module For_naked_immediates.
   (* 293-370 *)
   Module Num.
-    (* PORT-GAP(verbatim): 294, [include Target_ocaml_int]. *)
+    (* 294. [include Target_ocaml_int]. *)
     Definition include_Target_ocaml_int : unit := tt.
     Extract Constant include_Target_ocaml_int => "() include Target_ocaml_int".
 
@@ -617,7 +617,7 @@ End For_naked_immediates.
 Module For_float32s.
   (* 387-425 *)
   Module Num.
-    (* PORT-GAP(verbatim): 388, [include Float32_by_bit_pattern]. *)
+    (* 388. [include Float32_by_bit_pattern]. *)
     Definition include_Float32_by_bit_pattern : unit := tt.
     Extract Constant include_Float32_by_bit_pattern => "() include Float32_by_bit_pattern".
 
@@ -743,7 +743,7 @@ End For_float32s.
 Module For_floats.
   (* 448-486 *)
   Module Num.
-    (* PORT-GAP(verbatim): 449, [include Float_by_bit_pattern]. *)
+    (* 449. [include Float_by_bit_pattern]. *)
     Definition include_Float_by_bit_pattern : unit := tt.
     Extract Constant include_Float_by_bit_pattern => "() include Float_by_bit_pattern".
 
@@ -869,7 +869,7 @@ End For_floats.
 Module For_int8s.
   (* 509-618 *)
   Module Num.
-    (* PORT-GAP(verbatim): 510, [include Int8]. *)
+    (* 510. [include Int8]. *)
     Definition include_Int8 : unit := tt.
     Extract Constant include_Int8 => "() include Int8".
 
@@ -1106,9 +1106,9 @@ Module For_int8s.
       let! tmp1 := Int8.to_int t in
       Targetint_32_64.of_int machine_width tmp1.
 
-    (* PORT-GAP(verbatim): 609-613, the module [Pair], which the compiler
-       makes with a functor of another part of the compiler
-       (decl/Number_adjuncts__local.v declares what the file uses of it). *)
+    (* 609-613. The module [Pair], which the compiler makes with a functor of
+       another part of the compiler (decl/Number_adjuncts__local.v declares
+       what the file uses of it). *)
     Definition module_Pair : unit := tt.
     Extract Constant module_Pair => "() module Pair = struct type nonrec t = t * t include Container_types.Make_pair (Int8) (Int8) end".
 
@@ -1149,7 +1149,7 @@ End For_int8s.
 Module For_int16s.
   (* 635-748 *)
   Module Num.
-    (* PORT-GAP(verbatim): 636, [include Int16]. *)
+    (* 636. [include Int16]. *)
     Definition include_Int16 : unit := tt.
     Extract Constant include_Int16 => "() include Int16".
 
@@ -1384,9 +1384,9 @@ Module For_int16s.
       let! tmp1 := Int16.to_int t in
       Targetint_32_64.of_int machine_width tmp1.
 
-    (* PORT-GAP(verbatim): 735-739, the module [Pair], which the compiler
-       makes with a functor of another part of the compiler
-       (decl/Number_adjuncts__local.v declares what the file uses of it). *)
+    (* 735-739. The module [Pair], which the compiler makes with a functor of
+       another part of the compiler (decl/Number_adjuncts__local.v declares
+       what the file uses of it). *)
     Definition module_Pair : unit := tt.
     Extract Constant module_Pair => "() module Pair = struct type nonrec t = t * t include Container_types.Make_pair (Int16) (Int16) end".
 
@@ -1435,7 +1435,7 @@ End For_int16s.
 Module For_int32s.
   (* 765-831 *)
   Module Num.
-    (* PORT-GAP(verbatim): 766, [include Int32]. *)
+    (* 766. [include Int32]. *)
     Definition include_Int32 : unit := tt.
     Extract Constant include_Int32 => "() include Int32".
 
@@ -1608,7 +1608,7 @@ End For_int32s.
 Module For_int64s.
   (* 856-922 *)
   Module Num.
-    (* PORT-GAP(verbatim): 857, [include Int64]. *)
+    (* 857. [include Int64]. *)
     Definition include_Int64 : unit := tt.
     Extract Constant include_Int64 => "() include Int64".
 
@@ -1776,7 +1776,7 @@ End For_int64s.
 Module For_nativeints.
   (* 947-1013 *)
   Module Num.
-    (* PORT-GAP(verbatim): 948, [include Targetint_32_64]. *)
+    (* 948. [include Targetint_32_64]. *)
     Definition include_Targetint_32_64 : unit := tt.
     Extract Constant include_Targetint_32_64 => "() include Targetint_32_64".
 

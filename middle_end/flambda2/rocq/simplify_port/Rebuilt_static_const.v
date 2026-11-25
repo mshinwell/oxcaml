@@ -53,10 +53,10 @@ OCAML*)
    their code_ids, like for non-lifted sets of closures. To avoid double
    counting, the cost metrics of [Code] bindings are zero. *)
 (* 24-38 *)
-(* PORT-GAP(type): the type has inline records. In Rocq it is the inductive
-   type [t_], whose constructors take the fields by place; the OCaml
-   definition is the compiler's text, which the directive of [t] puts at
-   this place of the extracted file. *)
+(* The type has inline records. In Rocq it is the inductive type [t_], whose
+   constructors take the fields by place; the OCaml definition is the
+   compiler's text, which the directive of [t] puts at this place of the
+   extracted file. *)
 Inductive t_ : Type :=
 | Normal :
     Static_const_or_code.t -> Name_occurrences.t -> Cost_metrics.t -> t_

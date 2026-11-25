@@ -40,21 +40,21 @@ From SimplifyPort.abbrev.lifted_constant_state Require Import Port_abbreviations
 module LC = Lifted_constant
 OCAML*)
 
-(* PORT-GAP(verbatim): 81-82, the abbreviation [CIS] and the application of
-   the functor are the compiler's two lines. They stand at the head of the
-   extracted file, not at their place (OCaml text can stand at the head or
-   the end only). decl/Lifted_constant_state__local.v declares what the file
-   uses of [SCC_lifted_constants]. *)
+(* 81-82. The abbreviation [CIS] and the application of the functor are the
+   compiler's two lines. They stand at the head of the extracted file, not at
+   their place (OCaml text can stand at the head or the end only).
+   decl/Lifted_constant_state__local.v declares what the file uses of
+   [SCC_lifted_constants]. *)
 (*OCAML
 module CIS = Code_id_or_symbol
 module SCC_lifted_constants = Strongly_connected_components.Make (CIS)
 OCAML*)
 
 (* 19-26 *)
-(* PORT-GAP(type): the constructors [Leaf_array] and [Union] have inline
-   records: the Rocq type takes the fields by place, in the order of the
-   type ([ts]; [t1], [t2]), and the directive gives the match; the
-   compiler's definition is the text that Rocq prints. *)
+(* The constructors [Leaf_array] and [Union] have inline records: the Rocq
+   type takes the fields by place, in the order of the type ([ts]; [t1],
+   [t2]), and the directive gives the match; the compiler's definition is the
+   text that Rocq prints. *)
 Inductive t_ : Type :=
 | Empty : t_
 | Leaf : LC.t -> t_

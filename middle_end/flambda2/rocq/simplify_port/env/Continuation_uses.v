@@ -64,7 +64,7 @@ Definition print (ppf : Format.formatter) (t : Continuation_uses.t) : M unit :=
       Continuation.print continuation Flambda_arity.print arity tmp1 uses
   end.
 
-(* PORT-GAP(update): 48, [{ t with uses }]. *)
+(* 48, 156 and 158. [{ t with uses }]. *)
 Definition update_uses (t : Continuation_uses.t) (uses : list U.t)
     : Continuation_uses.t :=
   {| continuation := t.(continuation);

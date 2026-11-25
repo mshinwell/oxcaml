@@ -27,9 +27,9 @@ Local Open Scope string_scope.
 Local Open Scope Z_scope.
 
 (* 16-23 *)
-(* PORT-GAP(type): the type has an inline record: the OCaml definition is
-   the compiler's text; in Rocq, the form of decl/Original_handlers.v (the
-   fields of [Recursive] by place). *)
+(* The type has an inline record: the OCaml definition is the compiler's text;
+   in Rocq, the form of decl/Original_handlers.v (the fields of [Recursive] by
+   place). *)
 (*OCAML
 type t =
   | Recursive of

@@ -68,7 +68,7 @@ Definition empty : t :=
      continuation_arities := Continuation.Map.empty
   |}.
 
-(* PORT-GAP(update): 50, [{ t with continuation_arities }]. *)
+(* 50. [{ t with continuation_arities }]. *)
 Definition update_continuation_arities (t : Continuation_uses_env.t)
     (continuation_arities : Continuation.Map.t Flambda_arity.t_Unarized)
     : Continuation_uses_env.t :=
@@ -119,7 +119,7 @@ Definition record_continuation_arity (t : Continuation_uses_env.t)
       continuation_handlers t
   end.
 
-(* PORT-GAP(update): 104, [{ t with continuation_uses }]. *)
+(* 104 and 153-158. [{ t with continuation_uses }]. *)
 Definition update_continuation_uses (t : Continuation_uses_env.t)
     (continuation_uses : Continuation.Map.t Continuation_uses.t)
     : Continuation_uses_env.t :=

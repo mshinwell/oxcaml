@@ -49,8 +49,8 @@ From SimplifyPort.abbrev.unboxing_epa Require Import Port_abbreviations.
 module U = Unboxing_types
 module Extra_param_and_args = U.Extra_param_and_args
 OCAML*)
-(* PORT-GAP(verbatim): 21-23, the two exceptions of the file are the
-   compiler's lines; they stand at the head of the extracted file. *)
+(* 21-23. The two exceptions of the file are the compiler's lines; they stand
+   at the head of the extracted file. *)
 (*OCAML
 exception Invalid_apply_cont
 
@@ -72,11 +72,11 @@ Definition prevent_current_unboxing {A : Type} (_ : unit) : M A :=
   raise_ Prevent_current_unboxing tt.
 
 (* 27-31 *)
-(* PORT-GAP(type): the type has an inline record. In Rocq it is the
-   inductive type [unboxed_arg_], in the form of decl/Unboxing_epa.v (the
-   field of [Added_by_wrapper_at_rewrite_use] by place); the OCaml
-   definition is the compiler's text, which the directive of [unboxed_arg]
-   puts at this place of the extracted file. *)
+(* The type has an inline record. In Rocq it is the inductive type
+   [unboxed_arg_], in the form of decl/Unboxing_epa.v (the field of
+   [Added_by_wrapper_at_rewrite_use] by place); the OCaml definition is the
+   compiler's text, which the directive of [unboxed_arg] puts at this place of
+   the extracted file. *)
 Inductive unboxed_arg_ : Type :=
 | Poison : unboxed_arg_
 | Available : Simple.t -> unboxed_arg_
@@ -176,10 +176,10 @@ Definition unbox_arg (unboxer : Unboxers.unboxer) (typing_env_at_use : TE.t)
 (* **************************** *)
 
 (* 87-92 *)
-(* PORT-GAP(type): the type has an inline record. In Rocq it is the
-   inductive type [variant_argument_], whose constructor takes the fields by
-   place; the OCaml definition is the compiler's text, which the directive
-   of [variant_argument] puts at this place of the extracted file. *)
+(* The type has an inline record. In Rocq it is the inductive type
+   [variant_argument_], whose constructor takes the fields by place; the OCaml
+   definition is the compiler's text, which the directive of
+   [variant_argument] puts at this place of the extracted file. *)
 Inductive variant_argument_ : Type :=
 | Not_a_constant_constructor : variant_argument_
 | Maybe_constant_constructor : Simple.t -> unboxed_arg -> variant_argument_.

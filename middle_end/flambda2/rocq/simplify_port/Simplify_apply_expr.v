@@ -56,6 +56,7 @@ Local Open Scope string_scope.
 Local Open Scope Z_scope.
 Local Open Scope list_scope.
 
+(* 17-18 *)
 (*OCAML
 open! Flambda.Import
 open! Simplify_import
@@ -330,10 +331,8 @@ Definition rebuild_apply (simplified_apply : Simplified_expr.simplified_apply_)
   in
   after_rebuild expr uacc.
 
-(* 224-226 *)
-(* PORT-GAP(type): 224-226, a variant with an inline record: the Rocq type
-   takes the field by place; Rocq prints the compiler's definition at its
-   place. *)
+(* 224-226. A variant with an inline record: the Rocq type takes the field by
+   place; Rocq prints the compiler's definition at its place. *)
 Inductive inlining_decision_ : Type :=
 | Do_not_inline (erase_attribute : bool)
 | Inline (dacc : DA.t) (inlined : Expr.t).
@@ -586,12 +585,12 @@ Definition simplify_direct_full_application
   end.
 
 (* 595-604 *)
-(* PORT-GAP(type): 583-605, the type [applied_value], a variant with an
-   inline record that the compiler defines INSIDE the function
-   [simplify_direct_partial_application] ([let open struct ... end in]), is
-   defined here, before that function; the Rocq type takes the fields by
-   place and has the name [applied_value_], the local function of line 617
-   having the name of the type. Rocq prints the compiler's definition. *)
+(* The type [applied_value], a variant with an inline record that the compiler
+   defines INSIDE the function [simplify_direct_partial_application] ([let
+   open struct ... end in], lines 583-605), is defined here, before that
+   function; the Rocq type takes the fields by place and has the name
+   [applied_value_], the local function of line 617 having the name of the
+   type. Rocq prints the compiler's definition. *)
 (* An argument or the callee, with information about its entry in the
    closure, if any. If the argument is a constant or uncoerced symbol,
    we don't need to put it in the closure. *)

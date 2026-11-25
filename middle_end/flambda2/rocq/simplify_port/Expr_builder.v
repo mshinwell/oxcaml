@@ -749,15 +749,14 @@ Definition rebuild_invalid (uacc : UA.t) (reason : Flambda.Invalid.t)
   let! tmp1 := RE.create_invalid reason in
   after_rebuild tmp1 uacc.
 
-(* PORT-GAP(type): 540-546. Four types of the file (here, 609-613, 615-617
-   and 743-746) share the constructors [Invalid], [Apply_cont] and
-   [New_wrapper]; three of them have a constructor with an inline record
-   and this one a function with a label; and each must stand at its place,
-   after [new_let_cont]. In Rocq each is a type whose name ends in [_]; a
-   constructor that another of them has already gets one more [_]
-   ([Invalid], [Invalid_], [Invalid__]); the extraction is told the
-   compiler's constructor and its type, and the compiler's definition is
-   printed at the place of the [Definition]. *)
+(* 540-546. Four types of the file (here, 609-613, 615-617 and 743-746) share
+   the constructors [Invalid], [Apply_cont] and [New_wrapper]; three of them
+   have a constructor with an inline record and this one a function with a
+   label; and each must stand at its place, after [new_let_cont]. In Rocq each
+   is a type whose name ends in [_]; a constructor that another of them has
+   already gets one more [_] ([Invalid], [Invalid_], [Invalid__]); the
+   extraction is told the compiler's constructor and its type, and the
+   compiler's definition is printed at the place of the [Definition]. *)
 Inductive rewrite_apply_cont_result_ : Type :=
 | Invalid : string -> rewrite_apply_cont_result_
 | Apply_cont : Apply_cont.t -> rewrite_apply_cont_result_
@@ -865,8 +864,8 @@ Definition rewrite_apply_cont (uacc : UA.t) (rewrite : Apply_cont_rewrite.t)
     : M rewrite_apply_cont_result :=
   rewrite_apply_cont0 uacc rewrite Apply_cont_rewrite.Apply_cont id apply_cont.
 
-(* PORT-GAP(type): 609-613, as at 540: [Invalid_] and [Apply_cont_] are the
-   compiler's [Invalid] and [Apply_cont] of this type. *)
+(* 609-613. As at 540: [Invalid_] and [Apply_cont_] are the compiler's
+   [Invalid] and [Apply_cont] of this type. *)
 Inductive rewrite_fixed_arity_continuation0_result_ : Type :=
 | Invalid_ : string -> rewrite_fixed_arity_continuation0_result_
 | This_continuation :
@@ -878,8 +877,8 @@ Definition rewrite_fixed_arity_continuation0_result : Type :=
   rewrite_fixed_arity_continuation0_result_.
 Extract Constant rewrite_fixed_arity_continuation0_result => "| Invalid of { message : string } | This_continuation of Continuation.t | Apply_cont of Apply_cont.t | New_wrapper of new_let_cont".
 
-(* PORT-GAP(type): 615-617, as at 540: [Apply_cont__] is the compiler's
-   [Apply_cont] of this type. *)
+(* 615-617. As at 540: [Apply_cont__] is the compiler's [Apply_cont] of this
+   type. *)
 Inductive cont_or_apply_cont_ : Type :=
 | Continuation : Continuation.t -> cont_or_apply_cont_
 | Apply_cont__ : Apply_cont.t -> cont_or_apply_cont_.
@@ -1066,9 +1065,8 @@ Definition rewrite_fixed_arity_continuation0 (uacc : UA.t)
       end
   end.
 
-(* PORT-GAP(type): 743-746, as at 540: [Invalid__], [Apply_cont___] and
-   [New_wrapper_] are the compiler's [Invalid], [Apply_cont] and
-   [New_wrapper] of this type. *)
+(* 743-746. As at 540: [Invalid__], [Apply_cont___] and [New_wrapper_] are the
+   compiler's [Invalid], [Apply_cont] and [New_wrapper] of this type. *)
 Inductive rewrite_switch_arm_result_ : Type :=
 | Invalid__ : string -> rewrite_switch_arm_result_
 | Apply_cont___ : Apply_cont.t -> rewrite_switch_arm_result_

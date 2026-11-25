@@ -29,12 +29,12 @@ From SimplifyPort.decl Require Apply_cont_rewrite_id Bound_parameter
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 
-(* PORT-GAP(verbatim): 17-51, the module [Extra_arg] (its type, [print],
-   [List.print]: lines 17-44) and the type [t] (46-51) are the compiler's
-   text. The type [t] has an inline record, so its OCaml definition must be
-   verbatim, and verbatim text is at the head of the extracted file: what it
-   mentions ([Extra_arg.t]) must be there too. The two printers of
-   [Extra_arg] are therefore not ported. *)
+(* 17-51. The module [Extra_arg] (its type, [print], [List.print]: lines
+   17-44) and the type [t] (46-51) are the compiler's text. The type [t] has
+   an inline record, so its OCaml definition must be verbatim, and verbatim
+   text is at the head of the extracted file: what it mentions ([Extra_arg.t])
+   must be there too. The two printers of [Extra_arg] are therefore not
+   ported. *)
 (*OCAML
 module Extra_arg = struct
   type t =
@@ -74,11 +74,10 @@ type t =
 OCAML*)
 
 (* 17-44 *)
-(* PORT-GAP(type): the declarations of the verbatim module [Extra_arg], in
-   the form of decl/. They are not in a Rocq [Module]: Rocq would extract
-   one, which would hide the verbatim module. [Extra_arg_t] is
-   [Extra_arg.t], [Extra_arg_print] is [Extra_arg.print],
-   [Extra_arg_List_print] is [Extra_arg.List.print]. *)
+(* The declarations of the verbatim module [Extra_arg], in the form of decl/.
+   They are not in a Rocq [Module]: Rocq would extract one, which would hide
+   the verbatim module. [Extra_arg_t] is [Extra_arg.t], [Extra_arg_print] is
+   [Extra_arg.print], [Extra_arg_List_print] is [Extra_arg.List.print]. *)
 Inductive Extra_arg_t : Type :=
 | Already_in_scope : Simple.t -> Extra_arg_t
 | New_let_binding : Variable_.t -> Flambda_primitive.t -> Extra_arg_t
@@ -94,10 +93,9 @@ Parameter Extra_arg_List_print :
 Extract Inlined Constant Extra_arg_List_print => "Extra_arg.List.print".
 
 (* 46-51 *)
-(* PORT-GAP(type): the type has an inline record; the fields are by place,
-   as in decl/. (The strings do not name the type [t]: Rocq writes [open
-   Apply_cont_rewrite_id] after the verbatim text, and that module has a
-   type [t] too.) *)
+(* The type has an inline record; the fields are by place, as in decl/. (The
+   strings do not name the type [t]: Rocq writes [open Apply_cont_rewrite_id]
+   after the verbatim text, and that module has a type [t] too.) *)
 Inductive t : Type :=
 | Empty : t
 | Non_empty :

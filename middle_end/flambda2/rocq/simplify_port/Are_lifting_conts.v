@@ -25,9 +25,9 @@ From SimplifyPort.decl Require Continuation Continuation_uses Format.
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 
-(* PORT-GAP(verbatim): 16-30, the two types are the compiler's text: [t] has
-   constructors with inline records, which Rocq cannot print, and [reason]
-   must stand before it. *)
+(* 16-30. The two types are the compiler's text: [t] has constructors with
+   inline records, which Rocq cannot print, and [reason] must stand before
+   it. *)
 (*OCAML
 type reason =
   | At_toplevel
@@ -55,10 +55,9 @@ Inductive reason : Type :=
 | In_inlinable_continuation : reason.
 Extract Inductive reason => "reason" [ "At_toplevel" "In_speculative_inlining" "In_continuation_specialization" "In_recursive_continuation" "In_inlinable_continuation" ].
 
-(* PORT-GAP(type): 23-30, the fields of the inline records are taken by
-   place, as in decl/Are_lifting_conts.v: a constructor is built by a
-   function of the tuple of its fields and matched by one function for each
-   constructor. *)
+(* 23-30. The fields of the inline records are taken by place, as in
+   decl/Are_lifting_conts.v: a constructor is built by a function of the tuple
+   of its fields and matched by one function for each constructor. *)
 Inductive t : Type :=
 | Not_lifting : reason -> t
 | Analyzing : Continuation.t -> bool -> Continuation_uses.t -> t

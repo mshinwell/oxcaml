@@ -141,8 +141,8 @@ Definition print (ppf : Format.formatter)
    [let cost_metrics t = t.cost_metrics], after the type and not here, and
    its Rocq type is not in the monad. *)
 
-(* PORT-GAP(update): 88, [{ t with cost_metrics }]. The setter gets one [_]
-   after its name: [update_cost_metrics] is the compiler's function of 88. *)
+(* 88. [{ t with cost_metrics }]. The setter gets one [_] after its name:
+   [update_cost_metrics] is the compiler's function of 88. *)
 Definition update_cost_metrics_ (t : Simplified_named.t)
     (cost_metrics : Cost_metrics.t) : Simplified_named.t :=
   {| named := t.(named);
@@ -165,9 +165,9 @@ Arguments Simplified {A}.
 Arguments Rewritten {A}.
 
 (* 94-100 *)
-(* PORT-GAP(type): the type has inline records: the OCaml definition is the
-   compiler's text, at the end of the extracted file (as in the compiler);
-   in Rocq, the form of decl/Simplified_named.v (the fields by place). *)
+(* The type has inline records: the OCaml definition is the compiler's text,
+   at the end of the extracted file (as in the compiler); in Rocq, the form of
+   decl/Simplified_named.v (the fields by place). *)
 (*OCAML-END
 type binding_to_place =
   | Keep_binding of

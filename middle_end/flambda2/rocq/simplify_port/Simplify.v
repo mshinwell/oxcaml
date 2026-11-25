@@ -29,12 +29,12 @@ From SimplifyPort.decl Require Code_id Continuation_uses_env Exported_code
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 
+(* 17 *)
 (*OCAML
 open! Simplify_import
 OCAML*)
 
-(* PORT-GAP(verbatim): 19-25, the compiler's definition of the type, as it
-   is. *)
+(* 19-25. The compiler's definition of the type, as it is. *)
 (*OCAML
 type simplify_result =
   { free_names : Name_occurrences.t;
@@ -45,10 +45,10 @@ type simplify_result =
   }
 OCAML*)
 
-(* PORT-GAP(type): 19-25, a plain record, but Rocq's extraction does not
-   keep a field of the name [unit] (it prints [coq_unit]). So the type is
-   abstract here, in the form of decl/, with a maker that takes the fields
-   by place in the order of the type. *)
+(* 19-25. A plain record, but Rocq's extraction does not keep a field of the
+   name [unit] (it prints [coq_unit]). So the type is abstract here, in the
+   form of decl/, with a maker that takes the fields by place in the order of
+   the type. *)
 Parameter simplify_result : Type.
 Extract Inlined Constant simplify_result => "simplify_result".
 Parameter mk_simplify_result :

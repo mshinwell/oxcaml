@@ -34,7 +34,7 @@ From SimplifyPort.abbrev.dominator_graph Require Import Port_abbreviations.
 module T = Flow_types
 OCAML*)
 
-(* PORT-GAP(verbatim): 16, the module that the file makes with a functor;
+(* 16. The module that the file makes with a functor;
    decl/Dominator_graph__local.v declares what the file uses of it. *)
 (*OCAML
 module G = Strongly_connected_components.Make (Simple)
@@ -67,7 +67,7 @@ Definition empty (required_names : Name.Set_.t) : M Dominator_graph.t :=
 
 (* Adding new nodes *)
 
-(* PORT-GAP(update): 43, 74, 155, [{ t with graph }]. *)
+(* 43, 74 and 155. [{ t with graph }]. *)
 Definition update_graph (t : Dominator_graph.t) (graph : G.directed_graph)
     : Dominator_graph.t :=
   {| Dominator_graph.required_names := t.(Dominator_graph.required_names);
@@ -103,7 +103,7 @@ Definition add_node (t : Dominator_graph.t) (simple : Simple.t)
 
 (* Adding roots *)
 
-(* PORT-GAP(update): 57-59, [{ t with dominator_roots }]. *)
+(* 57-59. [{ t with dominator_roots }]. *)
 Definition update_dominator_roots (t : Dominator_graph.t)
     (dominator_roots : Simple.Set_.t) : Dominator_graph.t :=
   {| Dominator_graph.required_names := t.(Dominator_graph.required_names);
@@ -154,7 +154,7 @@ Definition add_edge (src : Variable_.t) (dst : Simple.t)
 
 (* Import continuation info into the graph *)
 
-(* PORT-GAP(update): 88, [{ t with params_kind }]. *)
+(* 88. [{ t with params_kind }]. *)
 Definition update_params_kind (t : Dominator_graph.t)
     (params_kind : Variable_.Map.t Flambda_kind.With_subkind.t)
     : Dominator_graph.t :=

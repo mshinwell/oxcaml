@@ -145,7 +145,7 @@ Definition find_unique_continuation_handler
     params handler is_exn_handler free_names_without_params
     t.(unique_handlers_map).
 
-(* PORT-GAP(update): 96, [{ t with continuations }]. *)
+(* 96. [{ t with continuations }]. *)
 Definition update_continuations (t : Upwards_env.t)
     (continuations : Continuation.Map.t Continuation_in_env.t)
     : Upwards_env.t :=
@@ -168,7 +168,7 @@ Definition add_continuation0 (t : Upwards_env.t) (cont : Continuation.t)
   in
   ret (update_continuations t continuations).
 
-(* PORT-GAP(update): 108, [{ t with unique_handlers_map }]. *)
+(* 108. [{ t with unique_handlers_map }]. *)
 Definition update_unique_handlers_map (t : Upwards_env.t)
     (unique_handlers_map :
       Rebuilt_expr.Unique_continuation_handlers.t Continuation.t)
@@ -205,7 +205,7 @@ Definition add_unique_continuation_handler
     in
     ret (update_unique_handlers_map t unique_handlers_map).
 
-(* PORT-GAP(update): 112, [{ t with cold_continuations }]. *)
+(* 112. [{ t with cold_continuations }]. *)
 Definition update_cold_continuations (t : Upwards_env.t)
     (cold_continuations : Continuation.Set_.t) : Upwards_env.t :=
   {| continuations := t.(continuations);
@@ -284,7 +284,7 @@ Definition continuation_arity (t : Upwards_env.t) (cont : Continuation.t)
   let! tmp1 := find_continuation t cont in
   Continuation_in_env.arity tmp1.
 
-(* PORT-GAP(update): 177, [{ t with continuation_shortcuts }]. *)
+(* 177. [{ t with continuation_shortcuts }]. *)
 Definition update_continuation_shortcuts (t : Upwards_env.t)
     (continuation_shortcuts : Continuation.Map.t Continuation_shortcut.t)
     : Upwards_env.t :=
@@ -368,7 +368,7 @@ Definition add_function_return_or_exn_continuation (t : Upwards_env.t)
     (Continuation_in_env.Toplevel_or_function_return_or_exn_continuation
        arity).
 
-(* PORT-GAP(update): 198, [{ t with apply_cont_rewrites }]. *)
+(* 198 and 208. [{ t with apply_cont_rewrites }]. *)
 Definition update_apply_cont_rewrites (t : Upwards_env.t)
     (apply_cont_rewrites : Continuation.Map.t Apply_cont_rewrite.t)
     : Upwards_env.t :=

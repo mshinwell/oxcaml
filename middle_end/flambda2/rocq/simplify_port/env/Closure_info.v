@@ -25,12 +25,12 @@ From SimplifyPort.decl Require Code_id Continuation Format Variable_.
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 
-(* PORT-GAP(verbatim): 16-25 and 65-67, the two types are the compiler's
-   text: [t] has a constructor with an inline record, which Rocq cannot
-   print; [in_or_out_of_closure] has the name of a function of the file and
-   a constructor of [t], so Rocq cannot print it under its name. Both stand
-   at the head of the extracted file; in the compiler the second one is
-   after [in_a_closure]. *)
+(* 16-25 and 65-67. The two types are the compiler's text: [t] has a
+   constructor with an inline record, which Rocq cannot print;
+   [in_or_out_of_closure] has the name of a function of the file and a
+   constructor of [t], so Rocq cannot print it under its name. Both stand at
+   the head of the extracted file; in the compiler the second one is after
+   [in_a_closure]. *)
 (*OCAML
 type t =
   | Not_in_a_closure
@@ -48,10 +48,10 @@ type in_or_out_of_closure =
   | Not_in_a_closure
 OCAML*)
 
-(* PORT-GAP(type): 16-25, the fields of the inline record are taken by
-   place, as in decl/Closure_info.v: the constructor is built by a function
-   of the tuple of its fields, and the type is matched by one function for
-   each constructor. *)
+(* 16-25. The fields of the inline record are taken by place, as in
+   decl/Closure_info.v: the constructor is built by a function of the tuple of
+   its fields, and the type is matched by one function for each
+   constructor. *)
 Inductive t : Type :=
 | Not_in_a_closure : t
 | In_a_set_of_closures_but_not_yet_in_a_specific_closure : t
@@ -91,10 +91,10 @@ Definition in_a_closure (code_id : Code_id.t)
     (Closure code_id return_continuation exn_continuation my_closure
        my_alloc_region).
 
-(* PORT-GAP(type): 65-67, the type has the name of the function of line 69
-   and its second constructor that of the first constructor of [t]: in Rocq
-   each gets one [_], as in decl/Closure_info.v, and the extraction is told
-   the compiler's names. *)
+(* 65-67. The type has the name of the function of line 69 and its second
+   constructor that of the first constructor of [t]: in Rocq each gets one
+   [_], as in decl/Closure_info.v, and the extraction is told the compiler's
+   names. *)
 Inductive in_or_out_of_closure_ : Type :=
 | In_a_closure : in_or_out_of_closure_
 | Not_in_a_closure_ : in_or_out_of_closure_.

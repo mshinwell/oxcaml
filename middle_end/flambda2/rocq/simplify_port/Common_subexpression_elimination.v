@@ -115,10 +115,9 @@ Definition add := T0.add.
 Definition find := T0.find.
 
 (* 78-122 *)
-(* PORT-GAP(verbatim): the module [Rhs_kind] applies a functor of the
-   compiler; its OCaml text is the compiler's, and
-   decl/Common_subexpression_elimination__local.v declares what the file
-   uses of it. *)
+(* The module [Rhs_kind] applies a functor of the compiler; its OCaml text is
+   the compiler's, and decl/Common_subexpression_elimination__local.v declares
+   what the file uses of it. *)
 (*OCAML
 module Rhs_kind : sig
   type t =

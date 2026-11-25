@@ -34,21 +34,22 @@ From SimplifyPort.decl Require Alloc_mode Bound_pattern Bound_var Continuation
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 
+(* 16 *)
 (*OCAML
 open! Simplify_import
 OCAML*)
 
-(* 16 *)
+(* 17 *)
 From SimplifyPort.abbrev.simplify_extcall Require Import Port_abbreviations.
 (*OCAML
 module RO = Removed_operations
 OCAML*)
 
-(* 18-21 *)
-(* PORT-GAP(type): the type has an inline record. In Rocq it is the
-   inductive type [t_], in the form of decl/Simplify_extcall.v (the field by
-   place); the OCaml definition is the compiler's text, which the directive
-   of [t] puts at this place of the extracted file. *)
+(* 19-22 *)
+(* The type has an inline record. In Rocq it is the inductive type [t_], in
+   the form of decl/Simplify_extcall.v (the field by place); the OCaml
+   definition is the compiler's text, which the directive of [t] puts at this
+   place of the extracted file. *)
 Inductive t_ : Type :=
 | Unchanged : Or_unknown.t (list Flambda2_types.t) -> t_
 | Specialised : DA.t -> Expr.t -> Removed_operations.t -> t_

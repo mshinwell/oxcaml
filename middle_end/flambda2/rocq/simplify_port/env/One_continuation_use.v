@@ -80,7 +80,7 @@ Definition use_kind (t : One_continuation_use.t) : M Continuation_use_kind.t :=
 (* 44 *)
 Definition env_at_use (t : One_continuation_use.t) : M DE.t := ret t.(env).
 
-(* PORT-GAP(update): 48, [{ t with kind }]. *)
+(* 48. [{ t with kind }]. *)
 Definition update_kind (t : One_continuation_use.t)
     (kind : Continuation_use_kind.t) : One_continuation_use.t :=
   {| id := t.(id);

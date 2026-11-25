@@ -165,7 +165,7 @@ Definition create (denv : DE.t) (slot_offsets : Code_id.Map.t Slot_offsets.t)
    (342). Where the compiler calls one of them ([denv t]), the Rocq text
    reads the field. *)
 
-(* PORT-GAP(update): 118, [{ t with flow_acc }]. *)
+(* 118 and 120. [{ t with flow_acc }]. *)
 Definition update_flow_acc (t : Downwards_acc.t)
     (flow_acc : Flow.Acc.t) : Downwards_acc.t :=
   {| denv := t.(denv);
@@ -202,7 +202,7 @@ Definition map_flow_acc (t : Downwards_acc.t)
   let! tmp1 := f t.(flow_acc) in
   ret (update_flow_acc t tmp1).
 
-(* PORT-GAP(update): 122, [{ t with denv }]. *)
+(* 122 and 124. [{ t with denv }]. *)
 Definition update_denv (t : Downwards_acc.t) (denv : DE.t) : Downwards_acc.t :=
   {| denv := denv;
      continuation_uses_env := t.(continuation_uses_env);
@@ -235,7 +235,7 @@ Definition map_denv (t : Downwards_acc.t) (f : DE.t -> M DE.t)
 Definition with_denv (t : Downwards_acc.t) (denv : DE.t) : M Downwards_acc.t :=
   ret (update_denv t denv).
 
-(* PORT-GAP(update): 127, [{ t with continuation_uses_env }]. *)
+(* 127. [{ t with continuation_uses_env }]. *)
 Definition update_continuation_uses_env (t : Downwards_acc.t)
     (continuation_uses_env : CUE.t) : Downwards_acc.t :=
   {| denv := t.(denv);
@@ -330,7 +330,7 @@ Definition get_typing_env_no_more_than_one_use (t : Downwards_acc.t)
     (k : Continuation.t) : M (option TE.t) :=
   CUE.get_typing_env_no_more_than_one_use t.(continuation_uses_env) k.
 
-(* PORT-GAP(update): 178, [{ t with lifted_constants; denv }]. *)
+(* 178. [{ t with lifted_constants; denv }]. *)
 Definition update_lifted_constants_denv (t : Downwards_acc.t)
     (lifted_constants : LCS.t) (denv : DE.t) : Downwards_acc.t :=
   {| denv := denv;
@@ -375,7 +375,7 @@ Definition add_to_lifted_constant_accumulator (also_add_to_env : option unit)
 Definition get_lifted_constants (t : Downwards_acc.t) : M LCS.t :=
   ret t.(lifted_constants).
 
-(* PORT-GAP(update): 182, [{ t with lifted_constants }]. *)
+(* 182 and 191. [{ t with lifted_constants }]. *)
 Definition update_lifted_constants (t : Downwards_acc.t)
     (lifted_constants : LCS.t) : Downwards_acc.t :=
   {| denv := t.(denv);
@@ -424,7 +424,7 @@ Definition find_shareable_constant (t : Downwards_acc.t)
     (static_const : Static_const.t) : M (option Symbol.t) :=
   Static_const.Map.find_opt static_const t.(shareable_constants).
 
-(* PORT-GAP(update): 200, [{ t with shareable_constants }]. *)
+(* 200 and 206. [{ t with shareable_constants }]. *)
 Definition update_shareable_constants (t : Downwards_acc.t)
     (shareable_constants : Static_const.Map.t Symbol.t) : Downwards_acc.t :=
   {| denv := t.(denv);
@@ -467,7 +467,7 @@ Definition with_shareable_constants (t : Downwards_acc.t)
     (shareable_constants : Static_const.Map.t Symbol.t) : M Downwards_acc.t :=
   ret (update_shareable_constants t shareable_constants).
 
-(* PORT-GAP(update): 211, [{ t with used_value_slots }]. *)
+(* 211 and 222. [{ t with used_value_slots }]. *)
 Definition update_used_value_slots (t : Downwards_acc.t)
     (used_value_slots : Name_occurrences.t) : Downwards_acc.t :=
   {| denv := t.(denv);
@@ -510,7 +510,7 @@ Definition with_used_value_slots (t : Downwards_acc.t)
     (used_value_slots : Name_occurrences.t) : M Downwards_acc.t :=
   ret (update_used_value_slots t used_value_slots).
 
-(* PORT-GAP(update): 228, [{ t with code_ids_to_remember }]. *)
+(* 228 and 235. [{ t with code_ids_to_remember }]. *)
 Definition update_code_ids_to_remember (t : Downwards_acc.t)
     (code_ids_to_remember : Code_id.Set_.t) : Downwards_acc.t :=
   {| denv := t.(denv);
@@ -550,7 +550,7 @@ Definition with_code_ids_to_remember (t : Downwards_acc.t)
     (code_ids_to_remember : Code_id.Set_.t) : M Downwards_acc.t :=
   ret (update_code_ids_to_remember t code_ids_to_remember).
 
-(* PORT-GAP(update): 238, [{ t with code_ids_to_never_delete }]. *)
+(* 238 and 246. [{ t with code_ids_to_never_delete }]. *)
 Definition update_code_ids_to_never_delete (t : Downwards_acc.t)
     (code_ids_to_never_delete : Code_id.Set_.t) : Downwards_acc.t :=
   {| denv := t.(denv);
@@ -586,7 +586,7 @@ Definition with_code_ids_to_never_delete (t : Downwards_acc.t)
     (code_ids_to_never_delete : Code_id.Set_.t) : M Downwards_acc.t :=
   ret (update_code_ids_to_never_delete t code_ids_to_never_delete).
 
-(* PORT-GAP(update): 249, [{ t with code_ids_never_simplified }]. *)
+(* 249 and 257. [{ t with code_ids_never_simplified }]. *)
 Definition update_code_ids_never_simplified (t : Downwards_acc.t)
     (code_ids_never_simplified : Code_id.Set_.t) : Downwards_acc.t :=
   {| denv := t.(denv);
@@ -629,7 +629,7 @@ Definition are_rebuilding_terms (t : Downwards_acc.t)
     : M Are_rebuilding_terms.t :=
   DE.are_rebuilding_terms t.(denv).
 
-(* PORT-GAP(update): 262, [{ t with demoted_exn_handlers }]. *)
+(* 262. [{ t with demoted_exn_handlers }]. *)
 Definition update_demoted_exn_handlers (t : Downwards_acc.t)
     (demoted_exn_handlers : Continuation.Set_.t) : Downwards_acc.t :=
   {| denv := t.(denv);
@@ -660,7 +660,7 @@ Definition demote_exn_handler (t : Downwards_acc.t) (cont : Continuation.t)
   let! tmp1 := Continuation.Set_.add cont t.(demoted_exn_handlers) in
   ret (update_demoted_exn_handlers t tmp1).
 
-(* PORT-GAP(update): 270, [{ t with slot_offsets }]. *)
+(* 270. [{ t with slot_offsets }]. *)
 Definition update_slot_offsets (t : Downwards_acc.t)
     (slot_offsets : Code_id.Map.t Slot_offsets.t) : Downwards_acc.t :=
   {| denv := t.(denv);
@@ -694,7 +694,7 @@ Definition find_debuginfo_rewrite (t : Downwards_acc.t) (bound_to : Simple.t)
     : M (option Debuginfo.t) :=
   Simple.Map.find_opt bound_to t.(debuginfo_rewrites).
 
-(* PORT-GAP(update): 281, [{ t with debuginfo_rewrites }]. *)
+(* 281. [{ t with debuginfo_rewrites }]. *)
 Definition update_debuginfo_rewrites (t : Downwards_acc.t)
     (debuginfo_rewrites : Simple.Map.t Debuginfo.t) : Downwards_acc.t :=
   {| denv := t.(denv);
@@ -734,7 +734,7 @@ Definition merge_debuginfo_rewrite (t : Downwards_acc.t) (bound_to : Simple.t)
   let! tmp1 := Simple.Map.add bound_to dbg t.(debuginfo_rewrites) in
   ret (update_debuginfo_rewrites t tmp1).
 
-(* PORT-GAP(update): 288, [{ t with are_lifting_conts }]. *)
+(* 288. [{ t with are_lifting_conts }]. *)
 Definition update_are_lifting_conts (t : Downwards_acc.t)
     (are_lifting_conts : Are_lifting_conts.t) : Downwards_acc.t :=
   {| denv := t.(denv);
@@ -764,7 +764,7 @@ Definition with_are_lifting_conts (t : Downwards_acc.t)
     (are_lifting_conts : Are_lifting_conts.t) : M Downwards_acc.t :=
   ret (update_are_lifting_conts t are_lifting_conts).
 
-(* PORT-GAP(update): 291, [{ t with lifted_continuations }]. *)
+(* 291 and 294-296. [{ t with lifted_continuations }]. *)
 Definition update_lifted_continuations (t : Downwards_acc.t)
     (lifted_continuations : list (DE.t * Original_handlers.t))
     : Downwards_acc.t :=
@@ -809,7 +809,7 @@ Definition get_continuation_lifting_budget (t : Downwards_acc.t) : M int :=
   let& budget := t.(continuation_lifting_budget) in
   if budget <? 0 then ret Stdlib_.max_int else ret budget.
 
-(* PORT-GAP(update): 304, [{ t with continuation_lifting_budget }]. *)
+(* 304. [{ t with continuation_lifting_budget }]. *)
 Definition update_continuation_lifting_budget (t : Downwards_acc.t)
     (continuation_lifting_budget : int) : Downwards_acc.t :=
   {| denv := t.(denv);
@@ -868,7 +868,7 @@ Definition prepare_for_speculative_inlining (dacc : Downwards_acc.t)
   in
   with_are_lifting_conts dacc tmp1.
 
-(* PORT-GAP(update): 331, [{ t with continuations_to_specialize }]. *)
+(* 331. [{ t with continuations_to_specialize }]. *)
 Definition update_continuations_to_specialize (t : Downwards_acc.t)
     (continuations_to_specialize : Continuation.Set_.t) : Downwards_acc.t :=
   {| denv := t.(denv);
@@ -899,7 +899,7 @@ Definition add_continuation_to_specialize (t : Downwards_acc.t)
   let! tmp1 := Continuation.Set_.add cont t.(continuations_to_specialize) in
   ret (update_continuations_to_specialize t tmp1).
 
-(* PORT-GAP(update): 340, [{ t with specialization_map }]. *)
+(* 340. [{ t with specialization_map }]. *)
 Definition update_specialization_map (t : Downwards_acc.t)
     (specialization_map : Continuation_callsite_map.t Continuation.t)
     : Downwards_acc.t :=

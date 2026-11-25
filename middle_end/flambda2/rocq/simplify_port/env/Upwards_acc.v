@@ -121,7 +121,7 @@ Definition code_age_relation (t : Upwards_acc.t)
   let! tmp1 := DA.typing_env t.(creation_dacc) in
   TE.code_age_relation tmp1.
 
-(* PORT-GAP(update): 88, [{ t with lifted_constants }]. *)
+(* 88, 91 and 97. [{ t with lifted_constants }]. *)
 Definition update_lifted_constants (t : Upwards_acc.t)
     (lifted_constants : LCS.t) : Upwards_acc.t :=
   {| uenv := t.(uenv);
@@ -162,7 +162,7 @@ Definition with_lifted_constants (t : Upwards_acc.t) (lifted_constants : LCS.t)
 Definition no_lifted_constants (t : Upwards_acc.t) : M bool :=
   LCS.is_empty t.(lifted_constants).
 
-(* PORT-GAP(update): 101, [{ t with uenv }]. *)
+(* 101 and 103. [{ t with uenv }]. *)
 Definition update_uenv (t : Upwards_acc.t) (uenv : UE.t) : Upwards_acc.t :=
   {| uenv := uenv;
      creation_dacc := t.(creation_dacc);
@@ -187,7 +187,7 @@ Definition map_uenv (t : Upwards_acc.t) (f : UE.t -> M UE.t)
 Definition with_uenv (t : Upwards_acc.t) (uenv : UE.t) : M Upwards_acc.t :=
   ret (update_uenv t uenv).
 
-(* PORT-GAP(update): 113, [{ t with all_code }]. *)
+(* 113. [{ t with all_code }]. *)
 Definition update_all_code (t : Upwards_acc.t)
     (all_code : Exported_code.t) : Upwards_acc.t :=
   {| uenv := t.(uenv);
@@ -219,7 +219,7 @@ Definition remember_code_for_cmx (t : Upwards_acc.t)
     let* all_code := Exported_code.add_code keep_code code t.(all_code) in
     ret (update_all_code t all_code).
 
-(* PORT-GAP(update): 122, [{ t with name_occurrences }]. *)
+(* 122, 129 and 139. [{ t with name_occurrences }]. *)
 Definition update_name_occurrences (t : Upwards_acc.t)
     (name_occurrences : Name_occurrences.t) : Upwards_acc.t :=
   {| uenv := t.(uenv);
@@ -270,7 +270,7 @@ Definition remove_all_occurrences_of_free_names (t : Upwards_acc.t)
   in
   ret (update_name_occurrences t name_occurrences).
 
-(* PORT-GAP(update): 141, [{ t with cost_metrics }]. *)
+(* 141, 143, 146, 149-151 and 154. [{ t with cost_metrics }]. *)
 Definition update_cost_metrics (t : Upwards_acc.t)
     (cost_metrics : Cost_metrics.t) : Upwards_acc.t :=
   {| uenv := t.(uenv);
@@ -315,7 +315,7 @@ Definition add_cost_metrics (cost_metrics : Cost_metrics.t)
   in
   ret (update_cost_metrics t tmp1).
 
-(* PORT-GAP(update): 157, [{ t with cost_metrics; name_occurrences }]. *)
+(* 157. [{ t with cost_metrics; name_occurrences }]. *)
 Definition update_cost_metrics_name_occurrences (t : Upwards_acc.t)
     (cost_metrics : Cost_metrics.t)
     (name_occurrences : Name_occurrences.t) : Upwards_acc.t :=
@@ -353,7 +353,7 @@ Definition is_demoted_exn_handler (t : Upwards_acc.t) (cont : Continuation.t)
   let! tmp1 := DA.demoted_exn_handlers t.(creation_dacc) in
   Continuation.Set_.mem cont tmp1.
 
-(* PORT-GAP(update): 169, [{ t with slot_offsets }]. *)
+(* 169. [{ t with slot_offsets }]. *)
 Definition update_slot_offsets (t : Upwards_acc.t)
     (slot_offsets : Or_unknown.t Slot_offsets.t) : Upwards_acc.t :=
   {| uenv := t.(uenv);
@@ -395,7 +395,7 @@ Definition mutable_unboxing_result (t : Upwards_acc.t)
     : M Flow_types.Mutable_unboxing_result.t :=
   ret t.(flow_result).(Flow_types.Flow_result.mutable_unboxing_result).
 
-(* PORT-GAP(update): 179, [{ t with resimplify }]. *)
+(* 179. [{ t with resimplify }]. *)
 Definition update_resimplify (t : Upwards_acc.t)
     (resimplify : bool) : Upwards_acc.t :=
   {| uenv := t.(uenv);

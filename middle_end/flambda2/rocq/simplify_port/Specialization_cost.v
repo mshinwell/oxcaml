@@ -49,12 +49,11 @@ Record cost : Type :=
   }.
 
 (* 27-29 *)
-(* PORT-GAP(type): [t] has an inline record. As in
-   decl/Specialization_cost.v, the Rocq variant, here [t_], takes the field
-   of [Cannot_specialize] by place; [t] is its name in the rest of the
-   file. *)
-(* PORT-GAP(verbatim): the OCaml definition of [t] is the text of the
-   directive of [t]: Rocq prints it where the type is defined. *)
+(* [t] has an inline record. As in decl/Specialization_cost.v, the Rocq
+   variant, here [t_], takes the field of [Cannot_specialize] by place; [t] is
+   its name in the rest of the file. *)
+(* The OCaml definition of [t] is the text of the directive of [t]: Rocq
+   prints it where the type is defined. *)
 Inductive t_ : Type :=
 | Can_specialize : cost -> t_
 | Cannot_specialize : reason -> t_.

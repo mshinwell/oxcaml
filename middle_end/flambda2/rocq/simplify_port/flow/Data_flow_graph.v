@@ -305,7 +305,7 @@ Definition fold_name_occurrences {A : Type}
   let! tmp2 := code_ids init tmp1 in
   Name_occurrences.fold_names name_occurrences tmp2 names.
 
-(* PORT-GAP(update): 202, [{ t with name_to_code_id }]. *)
+(* 202. [{ t with name_to_code_id }]. *)
 Definition update_name_to_code_id (t : Data_flow_graph.t)
     (name_to_code_id : Name.Map.t Code_id.Set_.t) : Data_flow_graph.t :=
   {| Data_flow_graph.code_age_relation := t.(Data_flow_graph.code_age_relation);
@@ -344,7 +344,7 @@ Definition add_code_id_dep (src : Name.t) (dst : Code_id.Set_.t)
   in
   ret (update_name_to_code_id t name_to_code_id).
 
-(* PORT-GAP(update): 212, [{ t with name_to_name }]. *)
+(* 212. [{ t with name_to_name }]. *)
 Definition update_name_to_name (t : Data_flow_graph.t)
     (name_to_name : Name.Map.t Name.Set_.t) : Data_flow_graph.t :=
   {| Data_flow_graph.code_age_relation := t.(Data_flow_graph.code_age_relation);
@@ -382,7 +382,7 @@ Definition add_dependency (src dst : Name.t) (t : Data_flow_graph.t)
   in
   ret (update_name_to_name t name_to_name).
 
-(* PORT-GAP(update): 222, [{ t with code_id_to_name }]. *)
+(* 222. [{ t with code_id_to_name }]. *)
 Definition update_code_id_to_name (t : Data_flow_graph.t)
     (code_id_to_name : Code_id.Map.t Name.Set_.t) : Data_flow_graph.t :=
   {| Data_flow_graph.code_age_relation := t.(Data_flow_graph.code_age_relation);
@@ -420,7 +420,7 @@ Definition add_code_id_dependency (src : Code_id.t) (dst : Name.t)
   in
   ret (update_code_id_to_name t code_id_to_name).
 
-(* PORT-GAP(update): 234, [{ t with code_id_to_code_id }]. *)
+(* 234. [{ t with code_id_to_code_id }]. *)
 Definition update_code_id_to_code_id (t : Data_flow_graph.t)
     (code_id_to_code_id : Code_id.Map.t Code_id.Set_.t) : Data_flow_graph.t :=
   {| Data_flow_graph.code_age_relation := t.(Data_flow_graph.code_age_relation);
@@ -460,8 +460,7 @@ Definition add_code_id_to_code_id (src : Code_id.t) (dst : Code_id.Set_.t)
   in
   ret (update_code_id_to_code_id t code_id_to_code_id).
 
-(* PORT-GAP(update): 248, [{ t with unconditionally_used;
-   code_id_unconditionally_used }]. *)
+(* 248. [{ t with unconditionally_used; code_id_unconditionally_used }]. *)
 Definition update_unconditionally_used_code_id_unconditionally_used
     (t : Data_flow_graph.t) (unconditionally_used : Name.Set_.t)
     (code_id_unconditionally_used : Code_id.Set_.t) : Data_flow_graph.t :=

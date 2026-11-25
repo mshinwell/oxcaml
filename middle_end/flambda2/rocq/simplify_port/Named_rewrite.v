@@ -31,11 +31,11 @@ Local Open Scope Z_scope.
 (* 19-40 *)
 Module Prim_rewrite.
   (* 20-26 *)
-  (* PORT-GAP(type): the type has an inline record. In Rocq it is the
-     inductive type [t_], in the form of decl/Named_rewrite.v (the fields by
-     place); the OCaml definition is the compiler's text, which the
-     directive of [t] puts at this place of the extracted module (a verbatim
-     block cannot stand inside a module). *)
+  (* The type has an inline record. In Rocq it is the inductive type [t_], in
+     the form of decl/Named_rewrite.v (the fields by place); the OCaml
+     definition is the compiler's text, which the directive of [t] puts at
+     this place of the extracted module (a verbatim block cannot stand inside
+     a module). *)
   Inductive t_ : Type :=
   | Remove_prim : t_
   | Invalid : Flambda_kind.t -> t_

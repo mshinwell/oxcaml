@@ -27,6 +27,7 @@ Import Flambda.Import_.
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 
+(* 15 *)
 (*OCAML
 open! Flambda.Import
 OCAML*)
@@ -44,7 +45,7 @@ Record t : Type := {
   was_lifted_set_of_closures : bool
 }.
 
-(* PORT-GAP(update): 23, [{ t with dacc }]. *)
+(* 23. [{ t with dacc }]. *)
 Definition update_dacc (t : Simplify_named_result.t) (dacc : Downwards_acc.t)
     : Simplify_named_result.t :=
   {| dacc := dacc;

@@ -234,14 +234,14 @@ Module Definition_.
 End Definition_.
 
 (* 139-145 *)
-(* PORT-GAP(type): the fields [bound_static] and [defining_exprs] have the
-   names of two functions of the file (lines 263 and 267) that do NOT read
-   them: in Rocq the two fields are [bound_static_] and [defining_exprs_],
-   and their directives make Rocq print the compiler's names for them in
-   the type, in a record and in a pattern. Such a field is READ by a match
-   ([match t with {| defining_exprs_ := x |} => x end], which Rocq prints
-   [t.defining_exprs]): for [t.(defining_exprs_)] Rocq would print the call
-   [defining_exprs t], which is the function of line 263. *)
+(* The fields [bound_static] and [defining_exprs] have the names of two
+   functions of the file (lines 263 and 267) that do NOT read them: in Rocq
+   the two fields are [bound_static_] and [defining_exprs_], and their
+   directives make Rocq print the compiler's names for them in the type, in a
+   record and in a pattern. Such a field is READ by a match ([match t with {|
+   defining_exprs_ := x |} => x end], which Rocq prints [t.defining_exprs]):
+   for [t.(defining_exprs_)] Rocq would print the call [defining_exprs t],
+   which is the function of line 263. *)
 (* PORT-GAP(loose): 147, 149 and 154, the functions [definitions],
    [symbol_projections] and [is_fully_static] only read the field of their
    name: they are the projections of this record, which Rocq prints here. *)
@@ -557,6 +557,10 @@ Definition apply_projection (t : Lifted_constant.t)
       Symbol_projection.print proj print t
   end.
 
+(* PORT-GAP(verbatim): not from the compiler's file. The module is
+   [Definition_] in Rocq ([Definition] is a word of Rocq), and Rocq prints
+   it under that name: this line of OCaml gives it the compiler's name,
+   which the interface of the file has. *)
 (*OCAML-END
 module Definition = Definition_
 OCAML-END*)

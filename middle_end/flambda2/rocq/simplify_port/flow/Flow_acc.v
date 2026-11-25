@@ -36,7 +36,7 @@ From SimplifyPort.decl Require Apply_cont_rewrite_id Bound_parameter
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 
-(* 15 *)
+(* 15-16 *)
 From SimplifyPort.abbrev.flow_acc Require Import Port_abbreviations.
 (*OCAML
 module T = Flow_types
@@ -78,7 +78,7 @@ Definition empty (_ : unit) : M Flow_acc.t :=
 (* Updates *)
 (* ******* *)
 
-(* PORT-GAP(update): 54, [{ t with extra }]. *)
+(* 54. [{ t with extra }]. *)
 Definition update_extra (t : T.Acc.t)
     (extra : Continuation.Map.t Continuation_extra_params_and_args.t)
     : T.Acc.t :=
@@ -106,7 +106,7 @@ Definition add_extra_params_and_args (cont : Continuation.t)
   in
   ret (update_extra t extra).
 
-(* PORT-GAP(update): 86, 104, [{ t with stack }]. *)
+(* 86 and 104. [{ t with stack }]. *)
 Definition update_stack (t : T.Acc.t) (stack : list T.Continuation_info.t)
     : T.Acc.t :=
   {| T.Acc.stack := stack;
@@ -158,7 +158,7 @@ Definition enter_continuation (continuation : Continuation.t)
   in
   ret (update_stack t (cont_info :: t.(Flow_types.Acc.stack))).
 
-(* PORT-GAP(update): 91, [{ (empty ()) with dummy_toplevel_cont }]. *)
+(* 91. [{ (empty ()) with dummy_toplevel_cont }]. *)
 Definition update_dummy_toplevel_cont (t : T.Acc.t)
     (dummy_toplevel_cont : Continuation.t) : T.Acc.t :=
   {| T.Acc.stack := t.(Flow_types.Acc.stack);
@@ -178,7 +178,7 @@ Definition init_toplevel (dummy_toplevel_cont : Continuation.t)
   enter_continuation dummy_toplevel_cont false false params
     (update_dummy_toplevel_cont tmp1 dummy_toplevel_cont).
 
-(* PORT-GAP(update): 99, [{ t with stack; map }]. *)
+(* 99. [{ t with stack; map }]. *)
 Definition update_stack_map (t : T.Acc.t) (stack : list T.Continuation_info.t)
     (map : Continuation.Map.t T.Continuation_info.t) : T.Acc.t :=
   {| T.Acc.stack := stack;
@@ -214,7 +214,7 @@ Definition update_top_of_stack (t : Flow_acc.t)
     ret (update_stack t (tmp1 :: stack))
   end.
 
-(* PORT-GAP(update): 109, 612, [{ elt with defined }]. *)
+(* 109 and 612. [{ elt with defined }]. *)
 Definition update_defined (t : T.Continuation_info.t)
     (defined : Variable_.Set_.t) : T.Continuation_info.t :=
   {| T.Continuation_info.continuation :=
@@ -252,7 +252,7 @@ Definition record_defined_var (var : Variable_.t) (t : Flow_acc.t)
     in
     ret (update_defined elt defined)).
 
-(* PORT-GAP(update): 131, [{ elt with bindings; used_in_handler; defined }]. *)
+(* 131. [{ elt with bindings; used_in_handler; defined }]. *)
 Definition update_bindings_used_in_handler_defined (t : T.Continuation_info.t)
     (bindings : Name.Map.t Name_occurrences.t)
     (used_in_handler : Name_occurrences.t) (defined : Variable_.Set_.t)
@@ -317,7 +317,7 @@ Definition record_var_binding (var : Variable_.t)
       (update_bindings_used_in_handler_defined elt bindings used_in_handler
         defined)).
 
-(* PORT-GAP(update): 146, [{ elt with direct_aliases; defined }]. *)
+(* 146. [{ elt with direct_aliases; defined }]. *)
 Definition update_direct_aliases_defined (t : T.Continuation_info.t)
     (direct_aliases : Variable_.Map.t Simple.t) (defined : Variable_.Set_.t)
     : T.Continuation_info.t :=
@@ -367,7 +367,7 @@ Definition record_var_alias (var : Variable_.t) (definition : Simple.t)
     in
     ret (update_direct_aliases_defined elt direct_aliases defined)).
 
-(* PORT-GAP(update): 156, [{ cont_info with mutable_let_prims_rev }]. *)
+(* 156. [{ cont_info with mutable_let_prims_rev }]. *)
 Definition update_mutable_let_prims_rev (t : T.Continuation_info.t)
     (mutable_let_prims_rev : T.Mutable_let_prim.List.t)
     : T.Continuation_info.t :=
@@ -416,7 +416,7 @@ Definition record_ref_named (named_rewrite_id : Named_rewrite_id.t)
     in
     ret (update_mutable_let_prims_rev cont_info mutable_let_prims_rev)).
 
-(* PORT-GAP(update): 174, 189, [{ elt with bindings }]. *)
+(* 174 and 189. [{ elt with bindings }]. *)
 Definition update_bindings (t : T.Continuation_info.t)
     (bindings : Name.Map.t Name_occurrences.t) : T.Continuation_info.t :=
   {| T.Continuation_info.continuation :=
@@ -498,7 +498,7 @@ Definition record_symbol_binding (symbol : Symbol.t)
     (name_occurrences : Name_occurrences.t) (t : Flow_acc.t) : M Flow_acc.t :=
   update_top_of_stack t (record_symbol_binding_aux symbol name_occurrences).
 
-(* PORT-GAP(update): 204, [{ elt with code_ids }]. *)
+(* 204. [{ elt with code_ids }]. *)
 Definition update_code_ids (t : T.Continuation_info.t)
     (code_ids : Code_id.Map.t Name_occurrences.t) : T.Continuation_info.t :=
   {| T.Continuation_info.continuation :=
@@ -548,7 +548,7 @@ Definition record_code_id_binding (code_id : Code_id.t)
     (name_occurrences : Name_occurrences.t) (t : Flow_acc.t) : M Flow_acc.t :=
   update_top_of_stack t (record_code_id_binding_aux code_id name_occurrences).
 
-(* PORT-GAP(update): 224, [{ elt with value_slots }]. *)
+(* 224. [{ elt with value_slots }]. *)
 Definition update_value_slots (t : T.Continuation_info.t)
     (value_slots : Value_slot.Map.t (Name.Map.t Name_occurrences.t))
     : T.Continuation_info.t :=
@@ -611,7 +611,7 @@ Definition record_value_slot (src : Name.t) (value_slot : Value_slot.t)
     (dst : Name_occurrences.t) (t : Flow_acc.t) : M Flow_acc.t :=
   update_top_of_stack t (record_value_slot_aux src value_slot dst).
 
-(* PORT-GAP(update): 234, [{ elt with used_in_handler }]. *)
+(* 234. [{ elt with used_in_handler }]. *)
 Definition update_used_in_handler (t : T.Continuation_info.t)
     (used_in_handler : Name_occurrences.t) : T.Continuation_info.t :=
   {| T.Continuation_info.continuation :=
@@ -650,7 +650,7 @@ Definition add_used_in_current_handler (name_occurrences : Name_occurrences.t)
     in
     ret (update_used_in_handler elt used_in_handler)).
 
-(* PORT-GAP(update): 293, 331, 577, [{ elt with apply_cont_args }]. *)
+(* 293, 331 and 577. [{ elt with apply_cont_args }]. *)
 Definition update_apply_cont_args (t : T.Continuation_info.t)
     (apply_cont_args :
       Continuation_callsite_map.t (Numeric_types.Int.Map.t T.Cont_arg.t))
@@ -1018,7 +1018,7 @@ Definition normalize_lifted_constants_aux
     (fun elt lifted_constant =>
       normalize_lifted_constant_aux lifted_constant elt).
 
-(* PORT-GAP(update): 489-492, [{ t with lifted_constants }]. *)
+(* 489-492. [{ t with lifted_constants }]. *)
 Definition update_lifted_constants (t : T.Acc.t)
     (lifted_constants : Lifted_constant_state.t) : T.Acc.t :=
   {| T.Acc.stack := t.(Flow_types.Acc.stack);
@@ -1088,7 +1088,7 @@ Definition add_extra_args_to_call
     ret (Some args)
   end.
 
-(* PORT-GAP(update): 623, [{ elt with params }]. *)
+(* 623. [{ elt with params }]. *)
 Definition update_params (t : T.Continuation_info.t)
     (params : Bound_parameters.t) : T.Continuation_info.t :=
   {| T.Continuation_info.continuation :=
@@ -1117,7 +1117,7 @@ Definition update_params (t : T.Continuation_info.t)
 Extract Inlined Constant update_params =>
   "(fun t params -> { t with T.Continuation_info.params = params })".
 
-(* PORT-GAP(update): 638, [{ t with map; extra }]. *)
+(* 638. [{ t with map; extra }]. *)
 Definition update_map_extra (t : T.Acc.t)
     (map : Continuation.Map.t T.Continuation_info.t)
     (extra : Continuation.Map.t Continuation_extra_params_and_args.t)

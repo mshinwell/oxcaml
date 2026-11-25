@@ -37,6 +37,7 @@ From SimplifyPort.decl Require Alloc_mode Apply_cont_rewrite_id Apply_expr
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 
+(* 17 *)
 (*OCAML
 open Simplify_import
 OCAML*)
@@ -45,36 +46,36 @@ OCAML*)
    is what decl/ has for it; its realisation is the compiler's own
    definition, which Rocq prints after [type NAME =], at its place. *)
 
-(* PORT-GAP(type): 19-20, an abbreviation of a function type. *)
+(* 19-20. An abbreviation of a function type. *)
 Definition after_rebuild : Type :=
   Rebuilt_expr.t -> Upwards_acc.t -> M (Rebuilt_expr.t * Upwards_acc.t).
 Extract Constant after_rebuild => "Rebuilt_expr.t -> Upwards_acc.t -> Rebuilt_expr.t * Upwards_acc.t".
 
-(* PORT-GAP(type): 22-26, an abbreviation of a function type with a label. *)
+(* 22-26. An abbreviation of a function type with a label. *)
 Definition rebuild (A : Type) : Type :=
   A -> Upwards_acc.t -> after_rebuild -> M (Rebuilt_expr.t * Upwards_acc.t).
 Extract Constant rebuild "'a" => "'a -> Upwards_acc.t -> after_rebuild:after_rebuild -> Rebuilt_expr.t * Upwards_acc.t".
 
-(* PORT-GAP(type): 28-29, an abbreviation of a function type. *)
+(* 28-29. An abbreviation of a function type. *)
 Definition down_to_up (A : Type) : Type :=
   Downwards_acc.t -> A -> M (Simplified_expr.t * Downwards_acc.t).
 Extract Constant down_to_up "'a" => "Downwards_acc.t -> 'a -> Simplified_expr.t * Downwards_acc.t".
 
-(* PORT-GAP(type): 31-35, an abbreviation of a function type with a label. *)
+(* 31-35. An abbreviation of a function type with a label. *)
 Definition expr_simplifier (A : Type) : Type :=
   Downwards_acc.t -> A -> down_to_up Simplified_expr.t ->
   M (Simplified_expr.t * Downwards_acc.t).
 Extract Constant expr_simplifier "'a" => "Downwards_acc.t -> 'a -> down_to_up:Simplified_expr.t down_to_up -> Simplified_expr.t * Downwards_acc.t".
 
-(* PORT-GAP(type): 37-43, an abbreviation of a function type with labels
-   and a polymorphic variant. *)
+(* 37-43. An abbreviation of a function type with labels and a polymorphic
+   variant. *)
 Definition simplify_toplevel : Type :=
   Downwards_acc.t -> Expr.t -> Continuation.t -> Flambda_arity.t_Complex ->
   Continuation.t -> M (Rebuilt_expr.t * Upwards_acc.t).
 Extract Constant simplify_toplevel => "Downwards_acc.t -> Expr.t -> return_continuation:Continuation.t -> return_arity:[ `Complex ] Flambda_arity.t -> exn_continuation:Continuation.t -> Rebuilt_expr.t * Upwards_acc.t".
 
-(* PORT-GAP(type): 45-54, an abbreviation of a function type with labels
-   and a polymorphic variant. *)
+(* 45-54. An abbreviation of a function type with labels and a polymorphic
+   variant. *)
 Definition simplify_function_body : Type :=
   Downwards_acc.t -> Expr.t -> Continuation.t -> Flambda_arity.t_Complex ->
   Continuation.t -> Loopify_state.t -> Bound_parameters.t ->

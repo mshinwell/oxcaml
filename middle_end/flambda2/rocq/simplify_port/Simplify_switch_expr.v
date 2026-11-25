@@ -54,6 +54,7 @@ Local Open Scope string_scope.
 Local Open Scope Z_scope.
 Local Open Scope list_scope.
 
+(* 17 *)
 (*OCAML
 open! Simplify_import
 OCAML*)
@@ -67,6 +68,8 @@ module Alias_set = TE.Alias_set
 module RWC = Reg_width_const
 OCAML*)
 
+(* 584. The exception stands here, at the head of the extracted file, not
+   at its place. *)
 (*OCAML
 exception Argument_cannot_be_used_in_lookup_table
 OCAML*)
@@ -77,8 +80,8 @@ Inductive alias_set : Type :=
 | Poison (_ : Flambda_kind.t).
 
 (* 27-33 *)
-(* PORT-GAP(type): [Mergeable] has an inline record: its fields are taken by
-   place, and the compiler's definition is the text that Rocq prints. *)
+(* [Mergeable] has an inline record: its fields are taken by place, and the
+   compiler's definition is the text that Rocq prints. *)
 Inductive mergeable_arms_ : Type :=
 | No_arms
 | Mergeable (cont : Continuation.t) (args : list (TI.Map.t alias_set))
@@ -467,8 +470,8 @@ Definition create_lookup_table_array_const (dbg : Debuginfo.t)
 (* Tiny DSL to preserve sanity while rebuilding expressions. *)
 
 (* 291-300 *)
-(* PORT-GAP(type): [Lookup_table] has an inline record: its fields are taken
-   by place, and the compiler's definition is the text that Rocq prints. *)
+(* [Lookup_table] has an inline record: its fields are taken by place, and the
+   compiler's definition is the text that Rocq prints. *)
 Inductive named_ : Type :=
 | Simple (_ : Simple.t)
 | Prim (_ : string) (_ : K.t) (_ : P.t) (_ : Debuginfo.t)
@@ -782,9 +785,9 @@ Definition recognize_affine_argument
   end.
 
 (* 468-487 *)
-(* PORT-GAP(type): [Affine_argument] and [Lookup_table_argument] have an
-   inline record: their fields are taken by place, and the compiler's
-   definition is the text that Rocq prints (without its comments). *)
+(* [Affine_argument] and [Lookup_table_argument] have an inline record: their
+   fields are taken by place, and the compiler's definition is the text that
+   Rocq prints (without its comments). *)
 Inductive mergeable_argument_ : Type :=
 | Invariant_argument (_ : Simple.t)
 | Tagged_scrutinee
@@ -939,8 +942,7 @@ Definition rebuild_mergeable_argument
   end.
 
 (* 584 *)
-(* PORT-GAP(verbatim): the exception is declared in the OCaml text at the
-   head of the file. *)
+(* The exception is declared in the OCaml text at the head of the file. *)
 Parameter Argument_cannot_be_used_in_lookup_table : exception unit.
 Extract Inlined Constant Argument_cannot_be_used_in_lookup_table => "((fun () -> Argument_cannot_be_used_in_lookup_table), (function Argument_cannot_be_used_in_lookup_table -> Some () | _ -> None))".
 
@@ -1411,7 +1413,7 @@ Definition simplify_arm (arm : TI.t) (pat : Switch_arm.t * TE.t)
   in
   ret (arms, dacc).
 
-(* PORT-GAP(decl): the float [0.] of line 1012. *)
+(* PORT-GAP(decl): 1012, the float [0.] of that line. *)
 Parameter float_0 : Stdlib_.float_.
 Extract Inlined Constant float_0 => "0.".
 

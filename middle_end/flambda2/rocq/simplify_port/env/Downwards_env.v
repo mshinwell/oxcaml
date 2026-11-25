@@ -60,9 +60,9 @@ module LCS = Lifted_constant_state
 module LC = Lifted_constant
 OCAML*)
 
-(* PORT-GAP(verbatim): 26-29, the two types have the names of a function and
-   of a field of the file: they are the compiler's text, and in Rocq they are
-   [resolver_] and [get_imported_code_]. *)
+(* 26-29. The two types have the names of a function and of a field of the
+   file: they are the compiler's text, and in Rocq they are [resolver_] and
+   [get_imported_code_]. *)
 (*OCAML
 type resolver =
   Compilation_unit.t -> Flambda2_types.Typing_env.Serializable.t option
@@ -343,7 +343,7 @@ Definition print (ppf : Format.formatter) (t : Downwards_env.t) : M unit :=
         tmp9; tmp8; tmp7; tmp5; tmp3; tmp2; tmp1 ]
   end.
 
-(* PORT-GAP(update): 194, 782 and 887-890, [{ t with replay_history }]. *)
+(* 194, 782 and 887-890. [{ t with replay_history }]. *)
 Definition update_replay_history (t : Downwards_env.t)
     (replay_history : Replay_history.t) : Downwards_env.t :=
   {| round := t.(round); machine_width := t.(machine_width);
@@ -387,7 +387,7 @@ Definition define_continuations (can_be_lifted : bool) (t : Downwards_env.t)
   in
   ret (update_replay_history t replay_history).
 
-(* PORT-GAP(update): 227-232, [{ t with typing_env; replay_history;
+(* 227-232. [{ t with typing_env; replay_history;
    variables_defined_at_toplevel; defined_variables_by_scope }]. *)
 Definition update_typing_env_replay_history_variables_defined_at_toplevel_defined_variables_by_scope
     (t : Downwards_env.t) (typing_env : TE.t)
@@ -563,7 +563,7 @@ Definition resolver (t : Downwards_env.t) : M resolver_ :=
 Definition get_continuation_scope (t : Downwards_env.t) : M Scope.t :=
   TE.current_scope t.(Downwards_env.typing_env).
 
-(* PORT-GAP(update): 307, [{ t with at_unit_toplevel }]. *)
+(* 307. [{ t with at_unit_toplevel }]. *)
 Definition update_at_unit_toplevel (t : Downwards_env.t)
     (at_unit_toplevel : bool) : Downwards_env.t :=
   {| round := t.(round); machine_width := t.(machine_width);
@@ -612,7 +612,7 @@ Definition is_defined_at_toplevel (t : Downwards_env.t) (var : Variable_.t)
 Definition get_inlining_state (t : Downwards_env.t) : M Inlining_state.t :=
   ret t.(Downwards_env.inlining_state).
 
-(* PORT-GAP(update): 316 and 663-665, [{ t with inlining_state }]. *)
+(* 316 and 663-665. [{ t with inlining_state }]. *)
 Definition update_inlining_state (t : Downwards_env.t)
     (inlining_state : Inlining_state.t) : Downwards_env.t :=
   {| round := t.(round); machine_width := t.(machine_width);
@@ -657,7 +657,7 @@ Definition relative_history (t : Downwards_env.t)
     : M Inlining_history.Relative.t :=
   Inlining_history.Tracker.relative t.(Downwards_env.inlining_history_tracker).
 
-(* PORT-GAP(update): 324, [{ t with inlining_history_tracker }]. *)
+(* 324. [{ t with inlining_history_tracker }]. *)
 Definition update_inlining_history_tracker (t : Downwards_env.t)
     (inlining_history_tracker : Inlining_history.Tracker.t)
     : Downwards_env.t :=
@@ -700,8 +700,8 @@ Definition set_inlining_history_tracker
     (t : Downwards_env.t) : M Downwards_env.t :=
   ret (update_inlining_history_tracker t inlining_history_tracker).
 
-(* PORT-GAP(update): 327, 330, 409, 424-426, 433, 448, 459, 466, 477, 540, 542
-   and 765-767, [{ t with typing_env }]. *)
+(* 327, 330, 409, 424-426, 433, 448, 459, 466, 477, 540, 542 and 765-767. [{ t
+   with typing_env }]. *)
 Definition update_typing_env (t : Downwards_env.t) (typing_env : TE.t)
     : Downwards_env.t :=
   {| round := t.(round); machine_width := t.(machine_width);
@@ -748,7 +748,7 @@ Definition bump_current_level_scope (t : Downwards_env.t)
   let! tmp1 := TE.bump_current_level_scope t.(Downwards_env.typing_env) in
   ret (update_typing_env t tmp1).
 
-(* PORT-GAP(update): 333-338, [{ t with disable_inlining;
+(* 333-338. [{ t with disable_inlining;
    disable_partial_application_stub_generation }]. *)
 Definition update_disable_inlining_disable_partial_application_stub_generation
     (t : Downwards_env.t) (disable_inlining : Disable_inlining.t)
@@ -1094,7 +1094,7 @@ let add_parameters_with_unknown_types extra ?alloc_modes ?name_mode t params =
   add_parameters_with_unknown_types extra alloc_modes name_mode t params
 OCAML-END*)
 
-(* PORT-GAP(update): 531, [{ t with variables_defined_at_toplevel }]. *)
+(* 531. [{ t with variables_defined_at_toplevel }]. *)
 Definition update_variables_defined_at_toplevel (t : Downwards_env.t)
     (variables_defined_at_toplevel : Variable_.Set_.t) : Downwards_env.t :=
   {| round := t.(round); machine_width := t.(machine_width);
@@ -1235,7 +1235,7 @@ Definition find_code_exn (t : Downwards_env.t) (id : Code_id.t)
     Exported_code.find_exn tmp1 id
   end.
 
-(* PORT-GAP(update): 604, [{ t with typing_env; all_code }]. *)
+(* 604. [{ t with typing_env; all_code }]. *)
 Definition update_typing_env_all_code (t : Downwards_env.t) (typing_env : TE.t)
     (all_code : Code_id.Map.t Code.t) : Downwards_env.t :=
   {| round := t.(round); machine_width := t.(machine_width);
@@ -1295,7 +1295,7 @@ Definition define_code (t : Downwards_env.t) (code_id : Code_id.t)
   let* all_code := Code_id.Map.add code_id code t.(Downwards_env.all_code) in
   ret (update_typing_env_all_code t typing_env all_code).
 
-(* PORT-GAP(update): 626, [{ t with cse; comparison_results }]. *)
+(* 626. [{ t with cse; comparison_results }]. *)
 Definition update_cse_comparison_results (t : Downwards_env.t) (cse : CSE.t)
     (comparison_results : Variable_.Map.t Comparison_result.t)
     : Downwards_env.t :=
@@ -1368,7 +1368,7 @@ Definition find_comparison_result (t : Downwards_env.t) (var : Variable_.t)
     : M (option Comparison_result.t) :=
   Variable_.Map.find_opt var t.(Downwards_env.comparison_results).
 
-(* PORT-GAP(update): 633, [{ t with cse }]. *)
+(* 633. [{ t with cse }]. *)
 Definition update_cse (t : Downwards_env.t) (cse : CSE.t) : Downwards_env.t :=
   {| round := t.(round); machine_width := t.(machine_width);
      typing_env := t.(typing_env); inlined_debuginfo := t.(inlined_debuginfo);
@@ -1405,8 +1405,7 @@ Extract Inlined Constant update_cse => "(fun t cse -> { t with cse = cse })".
 Definition with_cse (t : Downwards_env.t) (cse : CSE.t) : M Downwards_env.t :=
   ret (update_cse t cse).
 
-(* PORT-GAP(update): 636-639, [{ t with are_rebuilding_terms;
-   disable_inlining }]. *)
+(* 636-639. [{ t with are_rebuilding_terms; disable_inlining }]. *)
 Definition update_are_rebuilding_terms_disable_inlining (t : Downwards_env.t)
     (are_rebuilding_terms : Are_rebuilding_terms.t)
     (disable_inlining : Disable_inlining.t) : Downwards_env.t :=
@@ -1454,7 +1453,7 @@ Definition set_do_not_rebuild_terms_and_disable_inlining
        Are_rebuilding_terms.are_not_rebuilding
        (Disable_inlining.Disable_inlining disable_inlining_reason)).
 
-(* PORT-GAP(update): 642, [{ t with disable_inlining }]. *)
+(* 642. [{ t with disable_inlining }]. *)
 Definition update_disable_inlining (t : Downwards_env.t)
     (disable_inlining : Disable_inlining.t) : Downwards_env.t :=
   {| round := t.(round); machine_width := t.(machine_width);
@@ -1494,7 +1493,7 @@ Definition set_disable_inlining (t : Downwards_env.t)
     (reason : Disable_inlining_reason.t) : M Downwards_env.t :=
   ret (update_disable_inlining t (Disable_inlining.Disable_inlining reason)).
 
-(* PORT-GAP(update): 645, [{ t with are_rebuilding_terms }]. *)
+(* 645. [{ t with are_rebuilding_terms }]. *)
 Definition update_are_rebuilding_terms (t : Downwards_env.t)
     (are_rebuilding_terms : Are_rebuilding_terms.t) : Downwards_env.t :=
   {| round := t.(round); machine_width := t.(machine_width);
@@ -1534,7 +1533,7 @@ Extract Inlined Constant update_are_rebuilding_terms =>
 Definition set_rebuild_terms (t : Downwards_env.t) : M Downwards_env.t :=
   ret (update_are_rebuilding_terms t Are_rebuilding_terms.are_rebuilding).
 
-(* PORT-GAP(update): 651-655, [{ t with closure_info }]. *)
+(* 651-655. [{ t with closure_info }]. *)
 Definition update_closure_info (t : Downwards_env.t)
     (closure_info : Closure_info.t) : Downwards_env.t :=
   {| round := t.(round); machine_width := t.(machine_width);
@@ -1596,7 +1595,7 @@ Definition set_inlining_arguments (arguments : Inlining_arguments.t)
   in
   ret (update_inlining_state t tmp1).
 
-(* PORT-GAP(update): 671, [{ t with inlined_debuginfo }]. *)
+(* 671. [{ t with inlined_debuginfo }]. *)
 Definition update_inlined_debuginfo (t : Downwards_env.t)
     (inlined_debuginfo : Inlined_debuginfo.t) : Downwards_env.t :=
   {| round := t.(round); machine_width := t.(machine_width);
@@ -1661,8 +1660,7 @@ Definition inlined_attribute_to_forward_through_inlined_apply
     ret (Some (Attribute_to_forward inlined from_apply_expr))
   end.
 
-(* PORT-GAP(update): 693-697, [{ t with inlined_attribute_to_forward;
-   inlined_debuginfo }]. *)
+(* 693-697. [{ t with inlined_attribute_to_forward; inlined_debuginfo }]. *)
 Definition update_inlined_attribute_to_forward_inlined_debuginfo
     (t : Downwards_env.t)
     (inlined_attribute_to_forward : option attribute_to_forward)
@@ -1722,9 +1720,8 @@ Definition add_inlined_debuginfo (t : Downwards_env.t) (dbg : Debuginfo.t)
     : M Debuginfo.t :=
   Inlined_debuginfo.rewrite t.(Downwards_env.inlined_debuginfo) dbg.
 
-(* PORT-GAP(update): 741-751, [{ t with inlined_debuginfo;
-   inlined_attribute_to_forward; inlining_state;
-   inlining_history_tracker }]. *)
+(* 741-751. [{ t with inlined_debuginfo; inlined_attribute_to_forward;
+   inlining_state; inlining_history_tracker }]. *)
 Definition update_inlined_debuginfo_inlined_attribute_to_forward_inlining_state_inlining_history_tracker
     (t : Downwards_env.t) (inlined_debuginfo : Inlined_debuginfo.t)
     (inlined_attribute_to_forward : option attribute_to_forward)
@@ -1839,7 +1836,7 @@ Definition generate_phantom_lets (t : Downwards_env.t) : M bool :=
        (Are_rebuilding_terms.do_rebuild_terms
           t.(Downwards_env.are_rebuilding_terms))).
 
-(* PORT-GAP(update): 762, [{ t with loopify_state }]. *)
+(* 762. [{ t with loopify_state }]. *)
 Definition update_loopify_state (t : Downwards_env.t)
     (loopify_state : Loopify_state.t) : Downwards_env.t :=
   {| round := t.(round); machine_width := t.(machine_width);
@@ -1887,7 +1884,7 @@ Definition with_code_age_relation (code_age_relation : T.Code_age_relation.t)
   in
   ret (update_typing_env t tmp1).
 
-(* PORT-GAP(update): 769, [{ t with join_analysis }]. *)
+(* 769. [{ t with join_analysis }]. *)
 Definition update_join_analysis (t : Downwards_env.t)
     (join_analysis : option (T.Join_analysis.t Apply_cont_rewrite_id.t))
     : Downwards_env.t :=
@@ -1941,7 +1938,7 @@ Definition with_replay_history (replay : option (Replay_history.t * bool))
   in
   ret (update_replay_history t replay_history).
 
-(* PORT-GAP(update): 790-801, [{ t with lifted; defined_variables_by_scope;
+(* 790-801. [{ t with lifted; defined_variables_by_scope;
    cost_of_lifting_continuations_out_of_current_one;
    has_seen_a_non_liftable_continuation; specialization_cost }]. *)
 Definition update_lifted_defined_variables_by_scope_cost_of_lifting_continuations_out_of_current_one_has_seen_a_non_liftable_continuation_specialization_cost
@@ -2092,8 +2089,7 @@ Definition variables_defined_in_current_continuation (t : Downwards_env.t)
   | res :: _ => ret res
   end.
 
-(* PORT-GAP(update): 865-868, [{ t with
-   cost_of_lifting_continuations_out_of_current_one }]. *)
+(* 865-868. [{ t with cost_of_lifting_continuations_out_of_current_one }]. *)
 Definition update_cost_of_lifting_continuations_out_of_current_one
     (t : Downwards_env.t)
     (cost_of_lifting_continuations_out_of_current_one : int)
@@ -2143,8 +2139,7 @@ Definition add_lifting_cost (cost : int) (t : Downwards_env.t)
          (t.(Downwards_env.cost_of_lifting_continuations_out_of_current_one)
           + cost)).
 
-(* PORT-GAP(update): 876, [{ t with
-   has_seen_a_non_liftable_continuation }]. *)
+(* 876. [{ t with has_seen_a_non_liftable_continuation }]. *)
 Definition update_has_seen_a_non_liftable_continuation (t : Downwards_env.t)
     (has_seen_a_non_liftable_continuation : bool) : Downwards_env.t :=
   {| round := t.(round); machine_width := t.(machine_width);
@@ -2189,7 +2184,7 @@ Definition set_has_seen_a_non_liftable_continuation (t : Downwards_env.t)
   else
     ret (update_has_seen_a_non_liftable_continuation t true).
 
-(* PORT-GAP(update): 880, [{ t with is_cold }]. *)
+(* 880. [{ t with is_cold }]. *)
 Definition update_is_cold (t : Downwards_env.t) (is_cold : bool)
     : Downwards_env.t :=
   {| round := t.(round); machine_width := t.(machine_width);
@@ -2245,7 +2240,7 @@ Definition record_inlining_decision (apply : Apply_expr.t)
   in
   ret (update_replay_history t tmp1).
 
-(* PORT-GAP(update): 894, [{ t with specialization_cost }]. *)
+(* 894. [{ t with specialization_cost }]. *)
 Definition update_specialization_cost (t : Downwards_env.t)
     (specialization_cost : Specialization_cost.t) : Downwards_env.t :=
   {| round := t.(round); machine_width := t.(machine_width);

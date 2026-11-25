@@ -46,12 +46,13 @@ Local Open Scope string_scope.
 Local Open Scope Z_scope.
 Local Open Scope list_scope.
 
+(* 17 *)
 (*OCAML
 open! Simplify_import
 OCAML*)
 
-(* PORT-GAP(verbatim): 1048, the module [SCC] is made by a functor of the
-   compiler; it is at the head of the extracted file, not at its place. *)
+(* 1048. The module [SCC] is made by a functor of the compiler; it is at the
+   head of the extracted file, not at its place. *)
 (*OCAML
 module SCC = Strongly_connected_components.Make (Continuation)
 OCAML*)
@@ -90,11 +91,11 @@ Inductive one_original_handler : Type :=
 | Non_rec : Non_recursive_handler.t -> one_original_handler.
 
 (* 51-54 *)
-(* PORT-GAP(type): two later records of the file have a field [handlers]
-   too. Rocq has one name space, and the plain name is that of the field of
-   the last of the three (the record that the file updates): this Rocq
-   record has [handlers_], and Rocq prints the compiler's definition and
-   reads each field with the type written. *)
+(* Two later records of the file have a field [handlers] too. Rocq has one
+   name space, and the plain name is that of the field of the last of the
+   three (the record that the file updates): this Rocq record has [handlers_],
+   and Rocq prints the compiler's definition and reads each field with the
+   type written. *)
 Record simplify_let_cont_data_ : Type := {
   body : Expr.t;
   handlers_ : Original_handlers.t
@@ -111,7 +112,7 @@ Extract Constant simplify_let_cont_data =>
   "{ body : Expr.t; handlers : Original_handlers.t }".
 
 (* 56-60 *)
-(* PORT-GAP(type): the name of the field [handlers] is taken in Rocq (see
+(* The name of the field [handlers] is taken in Rocq (see
    [simplify_let_cont_data]): the Rocq record has [handlers__], and Rocq
    prints the compiler's definition and the compiler's fields. *)
 Record after_downwards_traversal_of_body_data_ : Type := {
@@ -149,12 +150,11 @@ Record handler_after_downwards_traversal : Type := {
 }.
 
 (* 77-100 *)
-(* PORT-GAP(type): the name of the field
-   [after_downwards_traversal_of_body] is taken in Rocq (a function of the
-   file): the Rocq record has [after_downwards_traversal_of_body_]; its
-   field [handlers] has the plain name (see [simplify_let_cont_data]). Rocq
-   prints the compiler's definition (without its comments, which are here)
-   and the compiler's fields. *)
+(* The name of the field [after_downwards_traversal_of_body] is taken in Rocq
+   (a function of the file): the Rocq record has
+   [after_downwards_traversal_of_body_]; its field [handlers] has the plain
+   name (see [simplify_let_cont_data]). Rocq prints the compiler's definition
+   (without its comments, which are here) and the compiler's fields. *)
 Record after_downwards_traversal_of_body_and_handlers_data_ : Type := {
   after_downwards_traversal_of_body_ : after_downwards_traversal_of_body_data;
   cont_uses_env_after_body : CUE.t;
@@ -219,8 +219,8 @@ Record rebuilt_handler : Type := {
 }.
 
 (* 109-117 *)
-(* PORT-GAP(type): the type has two inline records; the fields are by place,
-   as in decl/, and Rocq prints the compiler's definition. *)
+(* The type has two inline records; the fields are by place, as in decl/, and
+   Rocq prints the compiler's definition. *)
 Inductive rebuilt_handlers_group_ : Type :=
 | Recursive :
     Continuation.Lmap.t rebuilt_handler -> Bound_parameters.t ->
@@ -235,9 +235,9 @@ Extract Constant rebuilt_handlers_group =>
   "| Recursive of { continuation_handlers : rebuilt_handler Continuation.Lmap.t; invariant_params : Bound_parameters.t } | Non_recursive of { cont : Continuation.t; handler : rebuilt_handler }".
 
 (* 119-125 *)
-(* PORT-GAP(type): the name of the field [simplified_body] is taken in Rocq:
-   the Rocq record has [simplified_body_], and Rocq prints the compiler's
-   definition and the compiler's fields. *)
+(* The name of the field [simplified_body] is taken in Rocq: the Rocq record
+   has [simplified_body_], and Rocq prints the compiler's definition and the
+   compiler's fields. *)
 Record prepare_to_rebuild_body_data_ (A : Type) : Type := {
   simplified_body_ : A;
   handlers_from_the_inside_to_the_outside : list rebuilt_handlers_group;
@@ -268,10 +268,10 @@ Extract Constant prepare_to_rebuild_body_data "'a" =>
   "{ simplified_body : 'a; handlers_from_the_inside_to_the_outside : rebuilt_handlers_group list; name_occurrences_of_subsequent_exprs : Name_occurrences.t; cost_metrics_of_subsequent_exprs : Cost_metrics.t; uenv_of_subsequent_exprs : UE.t }".
 
 (* 127-132 *)
-(* PORT-GAP(type): the names of the four fields are taken in Rocq (by the
-   fields of [prepare_to_rebuild_body_data]): the Rocq record has them with
-   one [_] after, and Rocq prints the compiler's definition and the
-   compiler's fields. *)
+(* The names of the four fields are taken in Rocq (by the fields of
+   [prepare_to_rebuild_body_data]): the Rocq record has them with one [_]
+   after, and Rocq prints the compiler's definition and the compiler's
+   fields. *)
 Record rebuild_let_cont_data_ : Type := {
   handlers_from_the_inside_to_the_outside_ : list rebuilt_handlers_group;
   name_occurrences_of_subsequent_exprs_ : Name_occurrences.t;
@@ -1507,8 +1507,8 @@ Definition sort_handlers
     ([] : list Simplified_expr.simplified_handlers_group)
     sorted_handlers_from_the_inside_to_the_outside.
 
-(* PORT-GAP(update): 1166-1175, [{ data with consts_lifted_after_fork;
-   handlers; cont_uses_env }]. *)
+(* 1166-1175. [{ data with consts_lifted_after_fork; handlers; cont_uses_env
+   }]. *)
 Definition update_consts_lifted_after_fork_handlers_cont_uses_env
     (t : after_downwards_traversal_of_body_and_handlers_data)
     (consts_lifted_after_fork : LCS.t)
@@ -1533,8 +1533,8 @@ Extract Inlined Constant update_consts_lifted_after_fork_handlers_cont_uses_env 
    consts_lifted_after_fork = consts_lifted_after_fork; handlers = handlers;
    cont_uses_env = cont_uses_env })".
 
-(* PORT-GAP(update): 1238-1243, [{ data with handlers; cont_uses_env;
-   cont_uses_env_after_body; consts_lifted_after_fork }]. *)
+(* 1238-1243. [{ data with handlers; cont_uses_env; cont_uses_env_after_body;
+   consts_lifted_after_fork }]. *)
 Definition update_handlers_cont_uses_env_cont_uses_env_after_body_consts_lifted_after_fork
     (t : after_downwards_traversal_of_body_and_handlers_data)
     (handlers : Continuation.Map.t handler_after_downwards_traversal)
@@ -1561,7 +1561,7 @@ Extract Inlined Constant update_handlers_cont_uses_env_cont_uses_env_after_body_
    cont_uses_env; cont_uses_env_after_body = cont_uses_env_after_body;
    consts_lifted_after_fork = consts_lifted_after_fork })".
 
-(* PORT-GAP(update): 1268, [{ data with cont_uses_env_after_body }]. *)
+(* 1268. [{ data with cont_uses_env_after_body }]. *)
 Definition update_cont_uses_env_after_body
     (t : after_downwards_traversal_of_body_and_handlers_data)
     (cont_uses_env_after_body : CUE.t)

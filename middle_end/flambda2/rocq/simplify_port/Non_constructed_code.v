@@ -32,10 +32,10 @@ Definition t : Type := Code0.t unit.
 (* 19 *)
 Definition code_metadata : t -> M Code_metadata.t := Code0.code_metadata.
 
-(* PORT-GAP(verbatim): 21-27, the module [Metadata_view] and the [include]
-   of the result of the functor [Code_metadata.Code_metadata_accessors] are
-   the compiler's text, and they stand at the END of the extracted file, not
-   here: nothing of this file uses what they define. *)
+(* 21-27. The module [Metadata_view] and the [include] of the result of the
+   functor [Code_metadata.Code_metadata_accessors] are the compiler's text,
+   and they stand at the END of the extracted file, not here: nothing of this
+   file uses what they define. *)
 (*OCAML-END
 module Metadata_view = struct
   type nonrec 'a t = t

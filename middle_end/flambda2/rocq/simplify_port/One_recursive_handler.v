@@ -44,7 +44,7 @@ Definition print (ppf : Format.formatter)
     "@[<hov 1>(@[<hv 1>(params@ %a)@]@ @[<hv 1>(is_cold@ %b)@]@ @[<hv 1>(handler@ %a)@])@]"
     Bound_parameters.print params is_cold Flambda.Expr.print handler.
 
-(* PORT-GAP(update): 30, [{ t with handler }]. *)
+(* 30. [{ t with handler }]. *)
 Definition update_handler (t : One_recursive_handler.t)
     (handler : Flambda.Expr.t) : One_recursive_handler.t :=
   {| params := t.(params); handler := handler; is_cold := t.(is_cold) |}.

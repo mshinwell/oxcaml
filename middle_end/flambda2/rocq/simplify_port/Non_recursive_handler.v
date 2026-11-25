@@ -50,7 +50,7 @@ Definition create (cont : Continuation.t) (params : Bound_parameters.t)
        is_cold := is_cold
     |}.
 
-(* PORT-GAP(update): 37, [{ t with can_be_lifted }]. *)
+(* 37. [{ t with can_be_lifted }]. *)
 Definition update_can_be_lifted (t : Non_recursive_handler.t)
     (can_be_lifted : bool) : Non_recursive_handler.t :=
   {| cont := t.(cont);
@@ -86,7 +86,7 @@ Definition print (ppf : Format.formatter)
     Lifted_cont_params.print lifted_params is_exn_handler can_be_lifted
     is_cold Flambda.Expr.print handler.
 
-(* PORT-GAP(update): 59, [{ t with handler }]. *)
+(* 59. [{ t with handler }]. *)
 Definition update_handler (t : Non_recursive_handler.t)
     (handler : Flambda.Expr.t) : Non_recursive_handler.t :=
   {| cont := t.(cont);
@@ -105,7 +105,7 @@ Definition with_handler (handler : Flambda.Expr.t)
     (t : Non_recursive_handler.t) : M Non_recursive_handler.t :=
   ret (update_handler t handler).
 
-(* PORT-GAP(update): 75, [{ t with params; lifted_params; handler }]. *)
+(* 75. [{ t with params; lifted_params; handler }]. *)
 Definition update_params_lifted_params_handler
     (t : Non_recursive_handler.t) (params : Bound_parameters.t)
     (lifted_params : Lifted_cont_params.t) (handler : Flambda.Expr.t)

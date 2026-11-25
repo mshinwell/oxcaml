@@ -61,17 +61,16 @@ module LCS = Lifted_constant_state
 OCAML*)
 
 (* 36-121 *)
-(* PORT-GAP(type): the ten types are defined together in the compiler, with
-   records whose fields have the same names, inline records, a labelled
-   tuple and indices that are polymorphic variants. In Rocq, the form of
-   decl/Simplified_expr.v: a record is a type of one constructor [mk_T]
-   that takes the fields by place, a constructor with an inline record
-   takes its fields by place, [simplified_handler_] is abstract (it holds
-   [t] and is held in the abstract [Continuation.Map.t]), with its maker
-   and its eliminator, and a type that has the name of a function or of a
-   field has one [_] after it. The OCaml definition is the compiler's text,
-   whole: the directive of [t] below puts it at this place of the extracted
-   file. *)
+(* The ten types are defined together in the compiler, with records whose
+   fields have the same names, inline records, a labelled tuple and indices
+   that are polymorphic variants. In Rocq, the form of decl/Simplified_expr.v:
+   a record is a type of one constructor [mk_T] that takes the fields by
+   place, a constructor with an inline record takes its fields by place,
+   [simplified_handler_] is abstract (it holds [t] and is held in the abstract
+   [Continuation.Map.t]), with its maker and its eliminator, and a type that
+   has the name of a function or of a field has one [_] after it. The OCaml
+   definition is the compiler's text, whole: the directive of [t] below puts
+   it at this place of the extracted file. *)
 Inductive simplified_defining_expr : Type :=
 | mk_simplified_defining_expr :
     list Simplified_named.binding_to_place -> Removed_operations.t ->

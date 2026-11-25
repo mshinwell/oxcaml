@@ -28,7 +28,7 @@ From SimplifyPort.decl Require Coercion Downwards_acc Flambda2_types List
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 
-(* 16-18 *)
+(* 17-19 *)
 From SimplifyPort.abbrev.simplify_simple Require Import Port_abbreviations.
 (*OCAML
 module DA = Downwards_acc
@@ -36,7 +36,7 @@ module T = Flambda2_types
 module TE = T.Typing_env
 OCAML*)
 
-(* PORT-GAP(verbatim): 20, the exception of the file. *)
+(* 21. The exception of the file. *)
 (*OCAML
 exception Simple_not_in_scope
 OCAML*)

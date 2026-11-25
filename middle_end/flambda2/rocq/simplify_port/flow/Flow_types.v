@@ -64,9 +64,9 @@ End Cont_arg.
 
 (* 42-75 *)
 Module Mutable_prim.
-  (* PORT-GAP(type): 43-63, a variant with inline records: in Rocq the
-     fields are by place, as in decl/Flow_types.v; the extracted file has
-     the compiler's definition, which the directive of [t] holds. *)
+  (* 43-63. A variant with inline records: in Rocq the fields are by place, as
+     in decl/Flow_types.v; the extracted file has the compiler's definition,
+     which the directive of [t] holds. *)
   Inductive t_ : Type :=
     | Is_int (_ : Variable_.t)
     | Get_tag (_ : Variable_.t)
@@ -377,11 +377,11 @@ Module Continuation_param_aliases.
     | No_wrapper
     | Wrapper_needed.
 
-  (* PORT-GAP(type): 272-277, a record whose last field has the name of the
-     type above. Rocq has one name space, and the type keeps the name (Rocq
-     prints its definition): the record is a type of one constructor here,
-     its fields by place, and the extracted file has the compiler's
-     definition, which the directive of [t] holds. *)
+  (* 272-277. A record whose last field has the name of the type above. Rocq
+     has one name space, and the type keeps the name (Rocq prints its
+     definition): the record is a type of one constructor here, its fields by
+     place, and the extracted file has the compiler's definition, which the
+     directive of [t] holds. *)
   Inductive t_ : Type :=
     | Build_t (removed_aliased_params_and_extra_params : Variable_.Set_.t)
         (lets_to_introduce : Variable_.Lmap.t Simple.t)

@@ -44,11 +44,12 @@ Import Flambda.Import_.
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 
+(* 17 *)
 (*OCAML
 open! Flambda.Import
 OCAML*)
 
-(* 18-23 *)
+(* 18-23 and 43 *)
 From SimplifyPort.abbrev.call_site_inlining_decision Require Import Port_abbreviations.
 (*OCAML
 module DE = Downwards_env

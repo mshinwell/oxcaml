@@ -31,6 +31,7 @@ From SimplifyPort.decl Require Apply_cont_rewrite_id Bound_parameter
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 
+(* 17 *)
 (*OCAML
 open! Simplify_import
 OCAML*)
@@ -64,7 +65,7 @@ Module Extra_param_and_args.
          args := Apply_cont_rewrite_id.Map.empty
       |}.
 
-  (* PORT-GAP(update): 47, [{ t with args }]. *)
+  (* 47. [{ t with args }]. *)
   Definition update_args (t : Extra_param_and_args.t)
       (args : Apply_cont_rewrite_id.Map.t EPA.Extra_arg.t)
       : Extra_param_and_args.t :=

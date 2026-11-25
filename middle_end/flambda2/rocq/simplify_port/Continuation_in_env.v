@@ -27,8 +27,8 @@ From SimplifyPort.decl Require Are_rebuilding_terms Bound_parameters
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 
-(* PORT-GAP(verbatim): 17-28, the type is the compiler's text: its
-   constructors have inline records, which Rocq cannot print. *)
+(* 17-28. The type is the compiler's text: its constructors have inline
+   records, which Rocq cannot print. *)
 (*OCAML
 type t =
   | Linearly_used_and_inlinable of
@@ -44,10 +44,10 @@ type t =
   | Invalid of { arity : [`Unarized] Flambda_arity.t }
 OCAML*)
 
-(* PORT-GAP(type): 17-28, the fields of the inline records are taken by
-   place, as in decl/Continuation_in_env.v: a constructor is built by a
-   function of the tuple of its fields, and the type is matched by one
-   function for each constructor. *)
+(* 17-28. The fields of the inline records are taken by place, as in
+   decl/Continuation_in_env.v: a constructor is built by a function of the
+   tuple of its fields, and the type is matched by one function for each
+   constructor. *)
 Inductive t : Type :=
 | Linearly_used_and_inlinable :
     Bound_parameters.t -> Rebuilt_expr.t -> Name_occurrences.t ->

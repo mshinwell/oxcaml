@@ -61,14 +61,14 @@ End Action.
 (* Type def *)
 (* ******** *)
 
-(* PORT-GAP(type): 44-63, the constructors of [t] have inline records, which
-   Rocq cannot print, and the type must stand after the module [Action]: in
-   Rocq it is [t_], with the fields by place (a constructor is built by a
-   function of the tuple of its fields, and the type is matched by one
-   function for each constructor), and [t] is that type, printed as the
-   compiler's definition. The compiler's comment on each field stands after
-   the type of that field: [history] (47); [always_inline] (52),
-   [previous_history] (55), [variables] (58), [continuations] (61). *)
+(* 44-63. The constructors of [t] have inline records, which Rocq cannot
+   print, and the type must stand after the module [Action]: in Rocq it is
+   [t_], with the fields by place (a constructor is built by a function of the
+   tuple of its fields, and the type is matched by one function for each
+   constructor), and [t] is that type, printed as the compiler's definition.
+   The compiler's comment on each field stands after the type of that field:
+   [history] (47); [always_inline] (52), [previous_history] (55), [variables]
+   (58), [continuations] (61). *)
 Inductive t_ : Type :=
 | First_pass :
     list Action.t

@@ -35,11 +35,6 @@ Local Open Scope Z_scope.
 Local Open Scope list_scope.
 
 (* 15 *)
-(* PORT-GAP(verbatim): 354, [exception Match_failure], and 390, [module HV =
-   Hashtbl.Make (Variable)], are the compiler's lines; they stand at the
-   head of the extracted file, not inside the modules
-   [Matching_for_unique_handler] and [Match_permutable_parameters] (a
-   verbatim block cannot stand inside a module). *)
 (*OCAML
 open! Flambda.Import
 OCAML*)
@@ -49,6 +44,11 @@ From SimplifyPort.abbrev.rebuilt_expr Require Import Port_abbreviations.
 (*OCAML
 module ART = Are_rebuilding_terms
 OCAML*)
+(* 354 and 390. [exception Match_failure] and [module HV = Hashtbl.Make
+   (Variable)] are the compiler's lines; they stand at the head of the
+   extracted file, not inside the modules [Matching_for_unique_handler] and
+   [Match_permutable_parameters] (a verbatim block cannot stand inside a
+   module). *)
 (*OCAML
 exception Match_failure
 
@@ -81,7 +81,7 @@ Record t : Type :=
    fields and functions): Rocq extracts it as [let is_cold t = t.is_cold],
    after the type, and its Rocq type is not in the monad. *)
 
-(* PORT-GAP(update): 38, [{ t with is_cold = true }]. *)
+(* 38. [{ t with is_cold = true }]. *)
 Definition update_is_cold (t : Rebuilt_expr.t) (is_cold : bool)
     : Rebuilt_expr.t :=
   {| expr := t.(expr);
@@ -344,10 +344,10 @@ End Function_params_and_body.
 (* 193-252 *)
 Module Continuation_handler.
   (* 194-202 *)
-  (* PORT-GAP(type): the type has an inline record. In Rocq it is the
-     inductive type [t_], whose constructor takes the fields by place; the
-     OCaml definition is the compiler's text, which the directive of [t]
-     puts at this place of the extracted module. *)
+  (* The type has an inline record. In Rocq it is the inductive type [t_],
+     whose constructor takes the fields by place; the OCaml definition is the
+     compiler's text, which the directive of [t] puts at this place of the
+     extracted module. *)
   Inductive t_ : Type :=
   | Continuation_handler :
       Bound_parameters.t -> Flambda.expr -> Name_occurrences.t -> bool ->
