@@ -45,6 +45,11 @@
    were compiled against. If one is another, or if a unit of the build cannot be
    compared ([compare_loaded]), it stops and writes nothing.
 
+   EVERY FILE AND EVERY TABLE IS COMPUTED BEFORE THE FIRST IS WRITTEN: what
+   fails while something is read or computed leaves OUT_DIR as it was. Only the
+   writing itself is after that (a disk that is full): if it fails, the status
+   is not 0 and OUT_DIR may hold some of the new files beside old ones.
+
    declgen --parameters FILE.cmt
 
    For a test of the count of ARITIES.tsv: prints each value that the
@@ -572,36 +577,31 @@ let () =
         rocq, Buffer.contents b)
       results
   in
-  (* nothing is written before this line *)
-  List.iter
-    (fun (rocq, contents) ->
-      write_file (Filename.concat out_dir (rocq ^ ".v")) contents)
-    files;
-  (* what an earlier run wrote and this one does not *)
-  Array.iter
-    (fun f ->
-      if
-        Filename.check_suffix f ".v"
-        && not (Hashtbl.mem names (Filename.chop_suffix f ".v"))
-      then Sys.remove (Filename.concat out_dir f))
-    (Sys.readdir out_dir);
+  (* the tables: the name of each and its whole text *)
   let tsv file rows =
-    write_file
-      (Filename.concat out_dir file)
-      (String.concat ""
-         (List.map (fun r -> r ^ "\n") (List.sort_uniq compare rows)))
+    ( file,
+      String.concat ""
+        (List.map (fun r -> r ^ "\n") (List.sort_uniq compare rows)) )
   in
-  tsv "INDEX.tsv"
-    (List.map
-       (fun (o, r, k, a, p) -> Printf.sprintf "%s\t%s\t%s\t%d\t%s" o r k a p)
-       !Decl_out.index);
-  tsv "ARITIES.tsv" arities;
-  tsv "UPDATES.tsv" (List.concat_map (fun (_, updates, _) -> updates) donors);
-  tsv "DONOR-TOKENS.tsv"
-    (List.filter_map
-       (fun (source, _, _) -> Option.bind source Donors.tokens)
-       donors);
-  tsv "DONOR-ITEMS.tsv" (List.concat_map (fun (_, _, items) -> items) donors);
+  let index =
+    tsv "INDEX.tsv"
+      (List.map
+         (fun (o, r, k, a, p) -> Printf.sprintf "%s\t%s\t%s\t%d\t%s" o r k a p)
+         !Decl_out.index)
+  in
+  let arities = tsv "ARITIES.tsv" arities in
+  let updates =
+    tsv "UPDATES.tsv" (List.concat_map (fun (_, updates, _) -> updates) donors)
+  in
+  let tokens =
+    tsv "DONOR-TOKENS.tsv"
+      (List.filter_map
+         (fun (source, _, _) -> Option.bind source Donors.tokens)
+         donors)
+  in
+  let items =
+    tsv "DONOR-ITEMS.tsv" (List.concat_map (fun (_, _, items) -> items) donors)
+  in
   (* the modules that the files give to their functors, where a module type with
      a name is wanted: in OCaml and in Rocq *)
   let rocq_module comps =
@@ -618,27 +618,61 @@ let () =
     | Some n -> rocq_module modc ^ "." ^ n
     | None -> ""
   in
-  tsv "FUNCTOR-ARGUMENTS.tsv"
-    (List.map
-       (fun (file, f, mt, given) ->
-         Printf.sprintf "%s\t%s\t%s\t%s\t%s\t%s" file f (Print.ocaml_name mt)
-           (Print.ocaml_name given) (rocq_modtype mt) (rocq_module given))
-       !Uses.functor_arguments);
-  tsv "VARIANTS.tsv"
-    (List.map
-       (fun (ty, arity, ctors, hidden) ->
-         Printf.sprintf "%s\t%d\t%s\t%s" ty arity (String.concat " " ctors)
-           (if hidden then "a later type has one of these names" else ""))
-       !Decl_out.variants);
-  tsv "NOT-DECLARED.tsv"
-    (List.map (fun (o, why) -> Printf.sprintf "%s\t%s" o why) !Decl_out.left
-    @ List.map
-        (fun (place, what) ->
-          Printf.sprintf
-            "%s (%s)\tmade with a functor of outside inside a functor of the \
-             file: it depends on that functor's parameter"
-            what place)
-        !Uses.inside_functor);
+  let functor_arguments =
+    tsv "FUNCTOR-ARGUMENTS.tsv"
+      (List.map
+         (fun (file, f, mt, given) ->
+           Printf.sprintf "%s\t%s\t%s\t%s\t%s\t%s" file f (Print.ocaml_name mt)
+             (Print.ocaml_name given) (rocq_modtype mt) (rocq_module given))
+         !Uses.functor_arguments)
+  in
+  let variants =
+    tsv "VARIANTS.tsv"
+      (List.map
+         (fun (ty, arity, ctors, hidden) ->
+           Printf.sprintf "%s\t%d\t%s\t%s" ty arity (String.concat " " ctors)
+             (if hidden then "a later type has one of these names" else ""))
+         !Decl_out.variants)
+  in
+  let not_declared =
+    tsv "NOT-DECLARED.tsv"
+      (List.map (fun (o, why) -> Printf.sprintf "%s\t%s" o why) !Decl_out.left
+      @ List.map
+          (fun (place, what) ->
+            Printf.sprintf
+              "%s (%s)\tmade with a functor of outside inside a functor of the \
+               file: it depends on that functor's parameter"
+              what place)
+          !Uses.inside_functor)
+  in
+  let tables =
+    [ index;
+      arities;
+      updates;
+      tokens;
+      items;
+      functor_arguments;
+      variants;
+      not_declared ]
+  in
+  (* NOTHING IS WRITTEN OR REMOVED BEFORE THIS LINE, and nothing of the build or
+     of the sources is read after it: every file and every table is whole in
+     [files] and [tables]. *)
+  List.iter
+    (fun (rocq, contents) ->
+      write_file (Filename.concat out_dir (rocq ^ ".v")) contents)
+    files;
+  (* what an earlier run wrote and this one does not *)
+  Array.iter
+    (fun f ->
+      if
+        Filename.check_suffix f ".v"
+        && not (Hashtbl.mem names (Filename.chop_suffix f ".v"))
+      then Sys.remove (Filename.concat out_dir f))
+    (Sys.readdir out_dir);
+  List.iter
+    (fun (file, contents) -> write_file (Filename.concat out_dir file) contents)
+    tables;
   List.iter prerr_endline (List.sort_uniq compare !warnings);
   List.iter
     (fun (file, f, what) ->
