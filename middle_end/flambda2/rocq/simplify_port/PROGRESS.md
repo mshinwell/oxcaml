@@ -18,7 +18,7 @@ compiler's own definitions; alone: no interface).
 | `continuation_shortcut.ml` | 63 | 5 | 5 | loose:2 | yes | strict |
 | `env/closure_info.ml` | 76 | 5 | 5 | loose:1 | yes | strict |
 | `env/continuation_uses.ml` | 158 | 17 | 17 | loose:3 | yes | strict |
-| `env/continuation_uses_env.ml` | 167 | 16 | 16 | loose:2 papp:1 record-order:1 | yes | strict |
+| `env/continuation_uses_env.ml` | 167 | 16 | 16 | loose:2 record-order:1 | yes | strict |
 | `env/continuation_uses_env_intf.ml` | 39 | 0 | 0 | loose:1 | yes | alone |
 | `env/downwards_acc.ml` | 342 | 63 | 63 | loose:4 verbatim:1 record-order:1 | yes | strict |
 | `env/downwards_env.ml` | 945 | 102 | 102 | loose:9 type:1 verbatim:3 papp:1 record-order:2 | yes | strict |
@@ -27,9 +27,9 @@ compiler's own definitions; alone: no interface).
 | `env/upwards_acc.ml` | 183 | 40 | 40 | loose:2 | yes | strict |
 | `env/upwards_env.ml` | 211 | 21 | 21 | loose:2 type:1 | yes | strict |
 | `expr_builder.ml` | 800 | 25 | 25 | loose:8 | yes | strict |
-| `flow/control_flow_graph.ml` | 476 | 9 | 9 | verbatim:1 decl:1 | yes | strict |
+| `flow/control_flow_graph.ml` | 476 | 9 | 9 | verbatim:1 | yes | strict |
 | `flow/data_flow_graph.ml` | 451 | 11 | 11 | loose:5 | yes | strict |
-| `flow/dominator_graph.ml` | 359 | 14 | 14 | decl:1 | yes | strict |
+| `flow/dominator_graph.ml` | 359 | 14 | 14 | none | yes | strict |
 | `flow/flow.ml` | 16 | 0 | 0 | none | yes | strict |
 | `flow/flow_acc.ml` | 638 | 32 | 32 | loose:2 | yes | strict |
 | `flow/flow_analysis.ml` | 211 | 7 | 4 | verbatim:1 init:3 papp:1 | yes | strict |
@@ -49,7 +49,7 @@ compiler's own definitions; alone: no interface).
 | `number_adjuncts.ml` | 1035 | 2 | 2 | loose:3 init:3 | yes | strict |
 | `one_recursive_handler.ml` | 30 | 3 | 3 | none | yes | strict |
 | `original_handlers.ml` | 97 | 6 | 6 | loose:2 | yes | strict |
-| `rebuilt_expr.ml` | 753 | 22 | 21 | loose:9 type:1 init:2 decl:1 papp:1 record-order:1 | yes | strict |
+| `rebuilt_expr.ml` | 753 | 22 | 21 | loose:9 type:1 init:2 decl:1 record-order:1 | yes | strict |
 | `rebuilt_static_const.ml` | 522 | 44 | 44 | loose:5 type:1 init:2 record-order:5 | yes | strict |
 | `simplified_expr.ml` | 185 | 9 | 9 | verbatim:1 | yes | strict |
 | `simplified_named.ml` | 100 | 6 | 6 | loose:1 | yes | strict |
@@ -59,7 +59,7 @@ compiler's own definitions; alone: no interface).
 | `simplify_binary_primitive.ml` | 1270 | 12 | 12 | loose:21 verbatim:1 init:1 | yes | strict |
 | `simplify_coercion.ml` | 25 | 1 | 1 | none | yes | strict |
 | `simplify_common.ml` | 479 | 10 | 10 | loose:2 | yes | strict |
-| `simplify_expr.ml` | 231 | 7 | 7 | loose:1 type:2 papp:1 | yes | strict |
+| `simplify_expr.ml` | 231 | 7 | 7 | loose:1 type:2 | yes | strict |
 | `simplify_extcall.ml` | 239 | 9 | 9 | loose:2 | yes | strict |
 | `simplify_import.ml` | 67 | 1 | 1 | none | yes | strict |
 | `simplify_let_cont_expr.ml` | 2039 | 36 | 36 | loose:2 type:5 record-order:2 | yes | strict |
@@ -75,7 +75,7 @@ compiler's own definitions; alone: no interface).
 | `simplify_set_of_closures_context.ml` | 375 | 18 | 18 | loose:1 verbatim:1 | yes | strict |
 | `simplify_simple.ml` | 65 | 4 | 4 | none | yes | strict |
 | `simplify_static_const.ml` | 483 | 6 | 6 | loose:1 | yes | strict |
-| `simplify_switch_expr.ml` | 1096 | 26 | 26 | loose:10 type:2 decl:1 record-order:1 | yes | strict |
+| `simplify_switch_expr.ml` | 1096 | 26 | 26 | loose:10 type:2 record-order:1 | yes | strict |
 | `simplify_ternary_primitive.ml` | 116 | 8 | 8 | none | yes | strict |
 | `simplify_unary_primitive.ml` | 1106 | 35 | 35 | loose:16 | yes | strict |
 | `simplify_variadic_primitive.ml` | 186 | 4 | 4 | loose:2 | yes | strict |
@@ -87,7 +87,7 @@ compiler's own definitions; alone: no interface).
 | `unboxing/unboxers.ml` | 260 | 0 | 0 | loose:1 init:10 record-order:1 | yes | strict |
 | `unboxing/unboxing_epa.ml` | 553 | 15 | 15 | loose:1 | yes | strict |
 | `unboxing/unboxing_types.ml` | 185 | 6 | 6 | type:1 verbatim:2 | yes | strict |
-| **total: 78 files of 78** | 26900 | 930 | 926 | 283 marks | 78 | 78 |
+| **total: 78 files of 78** | 26900 | 930 | 926 | 277 marks | 78 | 78 |
 
 Gaps by kind, all files:
 
@@ -98,7 +98,7 @@ Gaps by kind, all files:
 - verbatim: 14
 - init: 22
 - order: 0
-- decl: 5
-- papp: 5
+- decl: 2
+- papp: 2
 - record-order: 23
 - update: 0
