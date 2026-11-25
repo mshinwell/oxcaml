@@ -393,7 +393,7 @@ Module Binary_arith_like (N : Binary_arith_like_sig).
        [compare] and [print] are ported, and the set with its six values is
        a list in the increasing order of [compare], without two equal
        elements. *)
-    (* 116-124 *)
+    (* 118-126 *)
     Definition compare (t1 t2 : t) : M int :=
       match t1, t2 with
       | Simple simple1, Simple simple2 => Simple.compare simple1 simple2
@@ -405,7 +405,7 @@ Module Binary_arith_like (N : Binary_arith_like_sig).
       | Exactly _, (Simple _ | Prim _) => ret 1
       end.
 
-    (* 126 *)
+    (* 128 *)
     Definition print (_ : Format.formatter) (_ : t) : M unit :=
       fatal_error "Not implemented".
 
@@ -504,7 +504,7 @@ Module Binary_arith_like (N : Binary_arith_like_sig).
           end
         in
         let* '(ty, simple_opt) :=
-          (* 171, [is]: a word of Rocq, it gets one [_]. *)
+          (* 166, [is]: a word of Rocq, it gets one [_]. *)
           let* is_ :=
             let! tmp3 := Possible_result.Set_.elements possible_results in
             List.filter_map
@@ -542,9 +542,9 @@ Module Binary_arith_like (N : Binary_arith_like_sig).
           SPR.create named false dacc
         end
     in
-    (* 190-243. In the compiler: [op nums ~folder ~other_side]. *)
+    (* 190-240. In the compiler: [op nums ~folder ~other_side]. *)
     (* PORT-GAP(loose): 190-240, the function is used for the two sides
-       (263 and 269), at two types of numbers and of sets, and a local
+       (264 and 270), at two types of numbers and of sets, and a local
        function that stays in the extracted text ([let&]) has one type. It
        is Rocq's own [let], with the two types as its first arguments: one
        function here, but in the extracted text Rocq writes its body at
@@ -643,8 +643,8 @@ Module Binary_arith_like (N : Binary_arith_like_sig).
       | None => result_unknown tt
       end
     in
-    (* 244-275: each of the first three cases has [when N.ok_to_evaluate
-       denv]; where the answer is no, the case that follows them (272-273)
+    (* 241-275: each of the first three cases has [when N.ok_to_evaluate
+       denv]; where the answer is no, the case that follows them (273-274)
        is taken. *)
     match proof1, proof2 with
     | T.Known_result nums1, T.Known_result nums2 =>

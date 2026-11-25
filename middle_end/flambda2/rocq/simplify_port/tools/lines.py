@@ -147,7 +147,10 @@ WHAT THE TOOL DOES NOT ESTABLISH.
   name, kind and modules. The body of the definition is not read.
 - Anything about the definitions that are not judged: those in a functor
   or a module type of the file, and those that the donor has under no
-  such name. The line of numbers says how many they are.
+  such name. The line of numbers says how many they are. Their notes
+  are compared with nothing, and they were NOT read as a whole when
+  this tool was written (two of them, in a functor, were found wrong
+  when that work was reviewed, and mended).
 - WHICH OF TWO ITEMS of one name a definition follows. The donor may
   define a name twice in one module (the later hiding the earlier), and
   it may have a type and a value of one name, either of which a
@@ -155,14 +158,20 @@ WHAT THE TOOL DOES NOT ESTABLISH.
   tool cannot tell which of the two is meant, so the note of the other
   one passes.
 - That a NOTE INSIDE a definition names the right lines. It is checked
-  only to lie inside the lines of its item. Whether it begins and ends
-  where a part of the item does (GUIDE.md, section 1, has the form of
-  such a note) is checked by NO TOOL. When this tool was written, every
-  note inside was read once by hand against the donor: the line of Rocq
+  only to lie inside the lines of its item, and only in a definition
+  that the tool judges: these are the notes that the line of numbers
+  counts. Whether such a note begins and ends where a part of the item
+  does (GUIDE.md, section 1, has the form of such a note) is checked by
+  NO TOOL. When this tool was written, each of the notes that the line
+  counts was read once by hand against the donor: the line of Rocq
   after the note against the donor's lines at the two ends of its range
   and just outside them. The notes that scans of the layout of the
   donor's text doubted (the scans are not kept in the tree) were read
-  in full. Nothing repeats that reading.
+  in full. A note inside a definition that is NOT judged is compared
+  with nothing and is not counted; there were nine (four in
+  Simplify_binary_primitive.v, five in Simplify_switch_expr.v), and
+  they were read when that work was reviewed. Nothing repeats these
+  readings.
 - Of a CLAUSE [with NAME ..]: that its body is a port of those lines,
   as for a definition. A clause whose line does not begin with [with]
   (one that follows the end of another function on one line) is not
@@ -172,8 +181,11 @@ WHAT THE TOOL DOES NOT ESTABLISH.
   are defined together) is not read: the note of the Inductive is all
   that is judged of them.
 - The lines that a mark names ([PORT-GAP(sort): 12-13, words]), but for
-  the mark that begins a group: they are compared with nothing. They
-  were read once by hand, as the notes inside were.
+  the mark that begins a group: they are compared with nothing. What
+  was read once by hand, when this tool was written: the lines that
+  each mark names FIRST (199 marks name lines), and 85 further numbers
+  of lines in the words of marks and notes, which a search of the text
+  found. A number of a line that the search did not find was not read.
 - The notes that stand before no definition (before a block of OCaml or a
   directive: make given), or inside a sentence that is no Definition and
   no Fixpoint.

@@ -68,10 +68,16 @@ files beside the donors first. Points marked HUMAN are the human's to judge.
   argument) names the lines where that piece stands. `make lines` checks
   a note inside a definition (the note of a clause is not one) ONLY to
   lie inside the lines of its item. Whether it begins and ends where a
-  part does is checked by NO TOOL: when `tools/lines.py` was written,
-  every note inside was read once by hand against the donor (the Rocq
-  line after it against the two ends of its range), and so were the
-  lines that the marks name. Nothing repeats that reading.
+  part does is checked by NO TOOL. When `tools/lines.py` was written,
+  these were read once by hand against the donor (the Rocq line after
+  the note against the two ends of its range): each note inside a
+  definition that the tool judges (the notes that its line of numbers
+  counts); the nine notes inside definitions that it does not judge;
+  the lines that each mark names first, and the further numbers of
+  lines in the words of marks and notes that a search of the text
+  found. NOT read as a whole: the notes BEFORE the definitions that the
+  tool does not judge (in a functor or a module type of the file; with
+  no item of that name in the donor). Nothing repeats that reading.
 - The donor's COMMENTS stay at their places, in the donor's words (one
   that begins `CR` may be left out): `make comments` lists the ones that
   are missing and the headers that differ.
