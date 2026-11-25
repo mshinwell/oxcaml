@@ -41,13 +41,17 @@
    ([Arities.tree_source]) has one row that says so, with [-] for the lines.
 
    DONOR-TOKENS.tsv: one row for each donor: the file, the number of tokens
-   that the compiler's own lexer reads in it (comments left out), and the
-   MD5 digest of the characters of those tokens, one after the other,
-   without white space (a string may hold some). tools/given.py reads the
-   donors with a lexer of its own; it wants the characters of its tokens to
-   have this digest, so that it leaves out the same comments and loses no
-   character. The two lexers do not cut the characters into the same
-   tokens (a label [~f:] is one token here). *)
+   that the compiler's own lexer reads in it (comments left out), and a
+   checksum: the MD5 of the characters of those tokens that are not white
+   space, one after the other, with nothing between one token and the next
+   (the white space inside a string is left out too). tools/given.py reads
+   the donors with a lexer of its own and wants this checksum for its own
+   tokens: then it reads the same characters that are not white space,
+   outside comments, as the compiler's lexer. The checksum is no identity
+   of the tokens or of the source: it does not show where a token ends
+   (the two lexers do not cut the characters into the same tokens: a label
+   [~f:] is one token here), and it does not show the white space of a
+   string. *)
 
 let line (l : Location.t) = l.loc_start.pos_lnum
 
@@ -115,7 +119,8 @@ let read cmt_file : string option * string list =
 
 let is_white c = c = ' ' || c = '\t' || c = '\n' || c = '\r' || c = '\012'
 
-(* The number of tokens of a text and the digest of their characters. *)
+(* The number of tokens of a text and the checksum of their characters
+   that are not white space. *)
 let tokens_of_text name text =
   let lexbuf = Lexing.from_string text in
   Lexing.set_filename lexbuf name;

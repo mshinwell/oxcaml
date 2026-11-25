@@ -297,14 +297,19 @@ the fourth column. Today: 157 rows, of 25 donors; no donor is "not read".
 
 `DONOR-TOKENS.tsv` has one row for each donor, in three columns: the file;
 the number of tokens that the compiler's own lexer reads in it (comments
-left out); and the MD5 digest of the characters of those tokens, one after
-the other, without white space. `tools/given.py` reads the donors with a
-lexer of its own, and at each run it wants the characters of its tokens to
-have this digest: then it has left out the same comments as the compiler
-and lost no character of the donor. The two lexers do not cut the
-characters into the same tokens (a label with its colon is one token of
-the compiler's lexer, three of the tool's), so the numbers of tokens are
-not compared. Today: 78 rows, 118437 tokens.
+left out); and a checksum, the MD5 of the characters of those tokens that
+are not white space, one after the other, with nothing between one token
+and the next (the white space inside a string is left out too).
+`tools/given.py` reads the donors with a lexer of its own, and at each run
+it wants this checksum for its own tokens: then it reads the same
+characters that are not white space, outside comments, as the compiler's
+lexer. The checksum is no identity of the tokens or of the source. It does
+not show where a token ends: the two lexers do not cut the characters into
+the same tokens (a label with its colon is one token of the compiler's
+lexer, three of the tool's), so the numbers of tokens are not compared.
+And it does not show the white space of a string; the tool's own
+comparisons keep that (a string is one token with all its characters).
+Today: 78 rows, 118437 tokens.
 
 For a test: `declgen --updates FILE.cmt` prints the rows of one typed
 tree, whatever its source is; `declgen --tokens FILE.ml` prints the row of

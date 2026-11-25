@@ -198,8 +198,9 @@ $(B)/check/port_%.cmi: runtime/port_%.ml tools/check.sh
 # it (a block of OCaml, the strings of a directive of the extraction):
 # each text is the lines of the compiler's file that the note before it
 # names, or the setter of a record update, or the form of a type whose
-# definition the file gives, or stands under a mark; a mark over text that
-# can be checked is an error. tools/given.py says how, and what it does
+# definition the file gives, or stands under a mark; a mark verbatim, type
+# or update is an error if every text under it is checked so (a mark init,
+# decl or unported may stay). tools/given.py says how, and what it does
 # not establish. It reads decl/UPDATES.tsv and decl/DONOR-TOKENS.tsv, and
 # nothing that Rocq or OCaml makes: [make given] alone does not ask Rocq
 # for the dependencies of the files.

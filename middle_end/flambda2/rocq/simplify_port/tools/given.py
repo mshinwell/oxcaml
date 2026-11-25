@@ -70,16 +70,25 @@ DIFFERENCE (D1 to D5, below) that was used, or why nothing holds; and the
 marks over it.
 
 EVERYTHING IS COMPARED AS WORDS: the tokens of OCaml, in order. White
-space, line breaks and comments are not compared. THE TOKENS are read by
-this file, not by the compiler's lexer. For each donor,
-decl/DONOR-TOKENS.tsv has the MD5 digest of the characters of the tokens
-that the compiler's own lexer read in it (tools/declgen/donors.ml), and at
-each run the tool wants the same digest for its own tokens of that donor:
-then it has left out the same comments and lost no character. If the
-digest differs (the donor has changed, or the tool misreads it), or one
-of the two tables of decl/ is not there or has rows of another width,
-that is an error, and no text of the file holds R1, R2 or R3. The given
-text itself, in the .v, is read by the tool's tokens only.
+space, line breaks and comments between the tokens are not compared. A
+string is one token with all its characters: the white space INSIDE a
+string of a given text is compared with the donor's.
+
+THE TOKENS are read by this file, not by the compiler's lexer. For each
+donor, decl/DONOR-TOKENS.tsv has a CHECKSUM: the MD5 of the characters
+that are not white space, in the tokens that the compiler's own lexer
+read in the donor, comments left out (tools/declgen/donors.ml). At each
+run the tool wants the same checksum for its own tokens of that donor.
+That shows that the tool reads the same characters that are not white
+space, outside comments, as the compiler's lexer. It is no identity of
+the tokens or of the source: it does not show that the two lexers cut the
+characters into the same tokens (they do not: a label, an attribute, a
+type variable), and it says nothing of the white space inside a string,
+which it leaves out on both sides. If the checksum differs (the donor
+has changed, or the tool misreads it), or one of the two tables of decl/
+is not there or has rows of another width, that is an error, and no text
+of the file holds R1, R2 or R3. The given text itself, in the .v, is
+read by the tool's tokens only.
 
 THE NOTE OF LINES is a comment of the ported file that has lines of the
 donor and nothing before them: (* 12 *), (* 12-20 *), (* 12-20 and 43 *),
@@ -366,8 +375,10 @@ def words(s):
 
 
 def digest(toks):
-    """The MD5 digest of the characters of the tokens, without white
-    space: what decl/DONOR-TOKENS.tsv has for the compiler's lexer."""
+    """The checksum of the tokens: the MD5 of their characters that are
+    not white space (inside a string too), with nothing between one token
+    and the next. decl/DONOR-TOKENS.tsv has it for the tokens of the
+    compiler's lexer."""
     chars = WHITE.sub("", "".join(t for t, _ in toks))
     return hashlib.md5(chars.encode("latin-1", "replace")).hexdigest()
 
@@ -398,7 +409,7 @@ class Donor(object):
         elif row != digest(self.tokens):
             self.why = (
                 "the tool does not read %s as the compiler's lexer did when decl/DONOR-TOKENS.tsv "
-                "was made (another digest of the characters of the tokens): the file has changed, "
+                "was made (another checksum of the characters that are not white space): the file has changed, "
                 "or the tool misreads it" % rel
             )
         for f in updates.get(rel, []):
@@ -1314,8 +1325,11 @@ def records_of(rd):
 
 def check_inlined(rd, donor, t):
     """An Extract Inlined Constant that is no setter."""
+    # the classes and the forms have no string of OCaml: they are read
+    # with single white space. The tokens are cut from the text as it
+    # stands: white space inside a string of the text is kept.
     s = " ".join(t.strings[0].split())
-    toks = words(s)
+    toks = words(t.strings[0])
     ok, d5 = own_name(t.name, s)
     if ok:
         t.holds = "its own name%s" % d5

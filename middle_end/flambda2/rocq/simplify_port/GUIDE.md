@@ -318,13 +318,16 @@ fuel was enough, and that it holds of the OCAML code is NOT established now
   lines, `(* 12-20 *)`, `(* 12-20 and 43. Words. *)`; it stands before the
   text, and only comments and sentences without a body (`Parameter`,
   `Inductive`, `Record`, the `Definition` of the directive) stand
-  between. A text that is none of these needs a mark (section 5); a mark
-  over text that `make given` can check is an error. `GIVEN_ALL=1 make
-  given` prints one line for each text: what holds, and by which of the
-  differences that are allowed. The header of the tool says what it does
-  NOT establish: above all, that the ported code USES the setter, the
-  maker or the number where the compiler has the update, the construction
-  or the number.
+  between. A text that is none of these needs a mark over it:
+  `verbatim`, `type`, `update`, `init`, `decl` or `unported` (section 5).
+  A mark `verbatim`, `type` or `update` is an error if EVERY text under it
+  holds one of these (the mark is not needed: a note of lines is enough);
+  a mark `init`, `decl` or `unported` may stay over text that holds.
+  `GIVEN_ALL=1 make given` prints one line for each text: what holds, and
+  by which of the differences that are allowed. The header of the tool
+  says what it does NOT establish: above all, that the ported code USES
+  the setter, the maker or the number where the compiler has the update,
+  the construction or the number.
 - An exception of the file: `exception E` verbatim, `Parameter E : exception
   unit.` and `Extract Inlined Constant E => "((fun () -> E), (function E ->
   Some () | _ -> None))".`
@@ -380,9 +383,9 @@ M r.` and `Extract Constant f => "fun _ -> Misc.fatal_error
 beside line: say what differs; an attribute such as `[@inline]` that is not
 kept); `order` (you are not sure of the order of evaluation); `type`,
 `verbatim` and `update` (OCaml text of the file, or a setter, that `make
-given` cannot check: section 4; over text that it can check the mark is
-an error, and the note of lines is enough); `papp`; `record-order`
-(section 2); `init` (a top-level value
+given` cannot check: section 4; such a mark is an error if `make given`
+checks EVERY text under it, and the note of lines is enough then); `papp`;
+`record-order` (section 2); `init` (a top-level value
 that the compiler computes with effects when the module starts: a
 `Parameter`, its OCaml text verbatim, and `Extract Inlined Constant x =>
 "x".`); `decl`. Prefer a marked
