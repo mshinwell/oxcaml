@@ -72,7 +72,9 @@ A PARTIAL APPLICATION WITHOUT pappN (a definition that is one: [Definition
 g : .. := M.f a.]) is seen only through its mark: when a mark names F and
 no [pappN F] follows in the definition, the use is the first F after the
 mark, and N is the number of arguments that follow it, AS WORDS: a name, a
-number, a string, a group in brackets. If the application ends with
+number, a string, a group in brackets. (For a declared function only: a
+mark that names a function of the file wants a [pappN] of it.) If the
+application ends with
 anything but a closing bracket, a full stop, [;] [,] [|] [:] [=>] or one of
 [+ * / < > = ++ :: && ||], N is not known and the mark stays. (A word that
 is not an argument of F can only make N too large.) A plain partial
@@ -89,12 +91,14 @@ makes is followed. What it does not see: a name that Rocq reads otherwise
 because a nearer module or variable has the same name. A name with a
 module that is not found in the table does not pass.
 
-A FUNCTION OF THE FILE is NOT CHECKED (the guide wants no mark for it): a
-name without a module that FILE.v binds, anywhere, by [Definition f],
-[Fixpoint f], [with f (] or Rocq's own [let f]; or a name under a module
-that FILE.v defines. A name without a module that the file does not bind
-so (a variable: an argument, a [let!], a pattern) does not pass: what it
-is bound to is not known.
+A FUNCTION OF THE FILE: a name without a module that FILE.v binds,
+anywhere, by [Definition f], [Fixpoint f], [with f (] or Rocq's own [let
+f]; or a name under a module that FILE.v defines. The lint does not judge
+it, and leaves a mark that names it alone: its listing says "of the file:
+for make papp", and the second step judges the use and its mark (below). A
+name without a module that the file does not bind so (a variable: an
+argument, a [let!], a pattern) does not pass: what it is bound to is not
+known.
 
 THE EXTRACTED DEFINITIONS (--extracted). This is a SECOND STEP after the
 lint and no check by itself: it looks only at the uses that the lint
@@ -130,7 +134,32 @@ file:
   in runs nothing), and the count stops at a parameter that is not plain.
   (Rocq's extraction prints its functions with one group.) Each
   definition that is found must have more parameters than the use gives
-  arguments."""
+  arguments.
+
+A FUNCTION OF THE FILE IN THE SECOND STEP. The definition that is linked is
+the one of the file's own extracted text, extracted/DIR/foo.ml for
+DIR/Foo.v. It is looked for there by the same lookup, in the module where
+FILE.v binds the name, and must have more parameters than N AS THE ROCQ USE
+WRITES IT. That N is safe: the extraction takes arguments away (the fuel is
+a proposition, erased from the definition and from the use) and adds none,
+so the OCaml use gives at most N arguments. It is stricter than needed by
+what is erased: when this was written the 15 such uses were all [papp1 f
+fuel], which in OCaml is the bare name f and runs nothing. The module: for
+[f], the modules of FILE.v that are open at its ONE binding by Definition,
+Fixpoint or [with f (] ([Module M.] .. [End M.], as words; a [Section] is
+no module); for [M.f], M. The use FAILS, closed, for:
+- a local function (bound by Rocq's own [let]): the tool does not look
+  inside a definition;
+- a name that the file binds more than once, or both ways;
+- a binding inside a functor or a module type of the file, or under a
+  module that is no structure in the extracted text (the application of a
+  functor);
+- no extracted file, no definition found there, parameters that cannot be
+  counted, or no more parameters than N (a definition that is another name
+  or an application has 0).
+A use that fails and has no mark is an error; one that fails and has the
+mark is printed ("keeps its mark"); one that passes and has the mark is an
+error (the mark is not needed)."""
 import collections
 import os
 import re
@@ -141,6 +170,7 @@ PPATH = r"%s(?:\.%s)*" % (PNAME, PNAME)
 TOOLS = os.path.dirname(os.path.abspath(__file__))
 DECL = os.path.join(TOOLS, "..", "decl")
 ABBREV = os.path.join(TOOLS, "..", "abbrev")
+PORT = os.path.join(TOOLS, "..")
 EXTRACTED = os.path.join(TOOLS, "..", "extracted")
 SIMPLIFY = "middle_end/flambda2/simplify/"
 
@@ -288,9 +318,9 @@ IN_DECL = None
 
 # A use: where it is, how the listing shows it, whether it is written
 # without pappN, the arguments it gives (None: not counted), the function
-# as written, and the verdict (None for a function of the file; else
-# whether it passes, why, the Rocq name in the table).
-Use = collections.namedtuple("Use", "pos shown plain n name verdict")
+# as written, the verdict (None for a function of the file; else whether it
+# passes, why, the Rocq name in the table), and whether a mark names it.
+Use = collections.namedtuple("Use", "pos shown plain n name verdict marked")
 
 PAPP = re.compile(r"(?<![A-Za-z_0-9'])papp([1-4])(?![A-Za-z_0-9'])")
 FUNCTION = re.compile(r"\s+(%s)(?![A-Za-z_0-9'.])" % PPATH)
@@ -427,7 +457,9 @@ def analyse(path, raw):
         )
         return n < int(definition), why, found
 
-    uses = [Use(pos, "papp%d %s" % (n, f), False, n, f, verdict(n, f)) for pos, n, f in papps]
+    uses = [
+        Use(pos, "papp%d %s" % (n, f), False, n, f, verdict(n, f), False) for pos, n, f in papps
+    ]
     # each mark: the names in its square brackets, and where its definition ends
     covered = set()
     stop_re = re.compile(r"\.\s*\n")
@@ -479,26 +511,33 @@ def analyse(path, raw):
                 else:
                     v = verdict(n, name)
                     shown = "%s, %d argument%s counted as words" % (name, n, "" if n == 1 else "s")
-                mine = [Use(m.start(), shown, True, n, name, v)]
+                if v is None:
+                    # (the first F after the mark may be its own binding)
+                    lines.append(
+                        "%s names %s, a function of the file, of which no pappN follows in the definition"
+                        % (where, name)
+                    )
+                    bad += 1
+                    continue
+                mine = [Use(m.start(), shown, True, n, name, v, False)]
                 uses.append(mine[0])
-            failing = [u for u in mine if u.verdict is not None and not u.verdict[0]]
-            for u in failing:
+            # a mark stays for a use that does not pass, and for a function
+            # of the file (the second step judges that one)
+            staying = [u for u in mine if u.verdict is None or not u.verdict[0]]
+            for u in staying:
                 covered.add(u.pos)
-            if failing:
+            if staying:
                 continue
             bad += 1
-            if mine[0].verdict is None:
-                lines.append("%s names %s, a function of the file: no mark" % (where, name))
-            else:
-                lines.append(
-                    "%s names %s, which needs none: %s: %s"
-                    % (where, name, mine[0].shown, mine[0].verdict[1])
-                )
-    uses.sort(key=lambda u: u.pos)
+            lines.append(
+                "%s names %s, which needs none: %s: %s"
+                % (where, name, mine[0].shown, mine[0].verdict[1])
+            )
+    uses = [u._replace(marked=u.pos in covered) for u in sorted(uses, key=lambda u: u.pos)]
     for u in uses:
         if os.environ.get("LINT_PAPP_ALL"):
             word = (
-                "of the file"
+                "of the file: for make papp"
                 if u.verdict is None
                 else "not counted"
                 if u.n is None
@@ -647,18 +686,122 @@ def extracted_definitions(text, modules, name):
     return out
 
 
+SENTENCE = re.compile(r"(?m)^[ \t]*(Module\s+Type|Module|Section|End)\s+(%s)([^.]*)\." % PNAME)
+
+
+def rocq_modules(text, pos):
+    """The modules of FILE.v that are open at pos, from the outermost, as
+    words; None if one of them is a functor or a module type."""
+    stack = []
+    for m in SENTENCE.finditer(text, 0, pos):
+        kind = " ".join(m.group(1).split())
+        if kind == "End":
+            if stack and stack[-1][0] == m.group(2):
+                stack.pop()
+        elif kind == "Section":
+            stack.append((m.group(2), "section"))
+        elif ":=" in m.group(3):
+            pass  # [Module A := P.] is one sentence
+        elif kind == "Module Type" or "(" in m.group(3):
+            stack.append((m.group(2), None))
+        else:
+            stack.append((m.group(2), "module"))
+    if any(kind is None for _, kind in stack):
+        return None
+    return [name for name, kind in stack if kind == "module"]
+
+
+def of_the_file(path, text, u):
+    """(whether it passes, why) for a use of a function of the file, by
+    the file's own extracted text."""
+    if u.n is None:
+        return False, "its arguments could not be counted"
+    parts = u.name.split(".")
+    f = parts[-1]
+    if len(parts) > 1:
+        modules = parts[:-1]
+    else:
+        ahead = r"(?<![A-Za-z_0-9'.])"
+        behind = r"(?![A-Za-z_0-9'.])"
+        margin = [
+            m.start()
+            for m in re.finditer(
+                r"%s(?:(?:Definition|Fixpoint)\s+%s%s|with\s+%s\s*[({])"
+                % (ahead, re.escape(f), behind, re.escape(f)),
+                text,
+            )
+        ]
+        local = re.findall(r"%slet\s+%s%s" % (ahead, re.escape(f), behind), text)
+        if local and not margin:
+            return False, (
+                "%s is a local function (Rocq's own let), which the tool does not look up" % f
+            )
+        if len(margin) + len(local) != 1:
+            return False, "the file binds %s %d times: the words do not say which the use reaches" % (
+                f,
+                len(margin) + len(local),
+            )
+        modules = rocq_modules(text, margin[0])
+        if modules is None:
+            return False, "%s is bound inside a functor or a module type of the file" % f
+    rel = os.path.relpath(os.path.abspath(path), os.path.abspath(PORT))
+    rel = os.path.join(os.path.dirname(rel), os.path.basename(rel)[:-2].lower() + ".ml")
+    shown = "extracted/" + rel
+    try:
+        ml = open(os.path.join(EXTRACTED, rel)).read()
+    except IOError:
+        return False, "%s is not there" % shown
+    found = extracted_definitions(ml, modules, f)
+    inside = ".".join(modules) if modules else "the file"
+    if not found:
+        return False, "no definition of %s is found among the items of %s in %s" % (f, inside, shown)
+    if None in found:
+        return False, "the parameters of %s in %s could not be counted" % (f, shown)
+    k = min(found)
+    why = "%s has %d parameter%s in %s, and is given %d argument%s" % (
+        f,
+        k,
+        "" if k == 1 else "s",
+        shown,
+        u.n,
+        "" if u.n == 1 else "s",
+    )
+    return k > u.n, why
+
+
 def main(files):
     bad = 0
     checked = 0
+    own = 0
+    kept = 0
     by_place = None
     for path in files:
-        uses, _, errors = analyse(path, open(path).read())
+        raw = open(path).read()
+        uses, _, errors = analyse(path, raw)
         if errors:
             print("%s: the lint has %d error%s here: run tools/lint.py %s" % (
                 path, errors, "" if errors == 1 else "s", path))
             bad += 1
         for line, u in uses:
-            if u.verdict is None or not u.verdict[0] or u.verdict[2] is None:
+            if u.verdict is None:
+                # a function of the file: the use and its mark
+                own += 1
+                here = "%s:%d: %s" % (path, line, u.shown)
+                passes, why = of_the_file(path, blank(raw, False), u)
+                if passes and u.marked:
+                    print("%s has the mark PORT-GAP(papp) and needs none: %s" % (here, why))
+                    bad += 1
+                elif not passes and u.marked:
+                    print("%s keeps its mark PORT-GAP(papp): %s" % (here, why))
+                    kept += 1
+                elif not passes:
+                    print(
+                        "%s has no mark PORT-GAP(papp) with [%s] before it, and is not known to run nothing: %s"
+                        % (here, u.name, why)
+                    )
+                    bad += 1
+                continue
+            if not u.verdict[0] or u.verdict[2] is None:
                 continue
             wrapper, _, where, ocaml = TABLE[u.verdict[2]]
             source = where.split(":")[0]
@@ -727,8 +870,19 @@ def main(files):
                     )
                     bad += 1
     print(
-        "papp: %d use%s of functions of the ported files of Simplify, compared with the definitions in extracted/: %s"
-        % (checked, "" if checked == 1 else "s", "%d wrong" % bad if bad else "each has more parameters than it is given")
+        "papp: %d use%s of functions of other ported files of Simplify and %d of functions of the file itself, "
+        "compared with the definitions in extracted/: %s"
+        % (
+            checked,
+            "" if checked == 1 else "s",
+            own,
+            "%d wrong" % bad
+            if bad
+            else "each has more parameters than it is given"
+            if not kept
+            else "%d have more parameters than they are given, %d keep%s the mark"
+            % (checked + own - kept, kept, "s" if kept == 1 else ""),
+        )
     )
     return 1 if bad else 0
 

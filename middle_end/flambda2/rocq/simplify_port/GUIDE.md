@@ -134,10 +134,22 @@ step after the lint, and no check by itself: for each use that the lint
 passes of a function of a ported file of Simplify, it looks for the
 definition in `extracted/`, in the module where the compiler has it, and
 wants more parameters there too; what it does not find there is an error.
-A ported recursive function passed as a value (`~simplify_expr`) is `papp1
-simplify_expr fuel`, without a mark: the lint takes a name without a module
-for a function of the file if the file binds it by `Definition`,
-`Fixpoint`, `with` or `let`.
+A FUNCTION OF THE FILE that is given its first arguments by `pappN` (a
+ported recursive function passed as a value, `~simplify_expr`, is `papp1
+simplify_expr fuel`) is checked by `make papp`, not by the lint: the
+definition in the file's own extracted text, in the module where the file
+binds the name by `Definition`, `Fixpoint` or `with`, must have more
+parameters than the use gives arguments. The fuel counts as an argument
+here, though the extraction erases it: that only makes the rule stricter.
+A use that `make papp` cannot pass has the mark, which says what the
+extracted text has: a local function (Rocq's own `let`), which the tool
+does not look up; a definition that is another name or an application; a
+function inside a functor; a function with no more parameters than it is
+given. `make papp` prints each such mark that stays, and a mark that is not
+needed is an error there. The mark of a function of the file stands before
+a `pappN` of it: without `pappN` a function of the file that is given its
+first arguments is a `let&` value with no mark (above), and the lint does
+not read such a place through a mark as it does for a declared function.
 
 | OCaml | Rocq |
 |---|---|

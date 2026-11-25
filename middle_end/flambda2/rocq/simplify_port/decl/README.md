@@ -307,7 +307,10 @@ column 4 with a place under `middle_end/flambda2/simplify/`, it looks for
 the definition in the extracted file, in the module where the table has
 the compiler's definition and nowhere else, as words, and wants more
 parameters there too. A definition that it does not find there, or whose
-parameters it cannot count, is an error.
+parameters it cannot count, is an error. (`make papp` also judges each
+`pappN` of a function of the file itself, by the file's own extracted
+text; the table has no part in that: `tools/papp.py` and GUIDE.md section
+2.)
 
 The count. OCaml takes the parameters that ONE function literal writes
 together as a GROUP, and runs nothing of the function until the group is
