@@ -88,6 +88,16 @@
 # before it is NO, and the gate has then failed: (10) to (13) say "not
 # asked".
 #
+# MAKE IS CALLED WITHOUT WHAT THE ENVIRONMENT SAYS TO EVERY MAKE: the
+# variables MAKEFLAGS, MFLAGS, GNUMAKEFLAGS and MAKEFILES are taken out of
+# the environment of the two calls, make list in (4) and the make of (10).
+# With MAKEFLAGS=-i make goes on after a command that fails and exits 0;
+# with -n it runs nothing and exits 0; a file of MAKEFILES is read before
+# the Makefile. "make exits 0" would then not say that the commands of the
+# Makefile ran and ended well. The other variables of the environment are
+# left as they are: the Makefile takes the names of programs from it (ROCQ,
+# OCAMLC, OCAMLFORMAT, PYTHON).
+#
 # WHERE GIT IS ASKED AND FAILS, THE ANSWER IS NO. What git status says is
 # taken by a command that stands alone, and its status is read (in a pipe
 # the failure would be lost, and a git status that says nothing because it
@@ -104,7 +114,8 @@
 # not there. If it is not given, a new directory is made under the
 # temporary directory (TMPDIR, or /tmp); the second line that the gate
 # prints names it. It keeps decl.log, the decl/ that was made (decl/), the
-# generator as it was compiled (declgen/), shells.log and make.log. What an
+# generator as it was compiled (declgen/), list.log (what make list said),
+# shells.log and make.log. What an
 # earlier run of the gate left there under these names is removed first, so
 # the gate can be called again with the same LOG_DIR; to keep the logs of
 # several commits, give each call its own. In the folder of the port the
@@ -159,7 +170,7 @@ if [ -n "$why" ]; then
 fi
 if [ $given = yes ]; then mkdir -p "$logs"; else logs=$(mktemp -d "$logs/tmp.XXXXXXXXXX"); fi
 rm -rf "$logs/decl" "$logs/declgen"
-rm -f "$logs/decl.log" "$logs/decl.made" "$logs/decl.tracked" "$logs/shells.log" "$logs/make.log"
+rm -f "$logs/decl.log" "$logs/decl.made" "$logs/decl.tracked" "$logs/list.log" "$logs/shells.log" "$logs/make.log"
 no=0
 # answer N WHAT yes|NO [FOUND] : one line; counts the answers NO
 answer() {
@@ -242,16 +253,23 @@ done
 if [ $bad = 0 ] && [ $n -gt 0 ]; then a=yes; found="$n files"; else a=NO; found="$bad of $n files:$(echo "$which" | cut -d' ' -f1-6)"; fi
 answer 3 "each file that a file of decl/ says it follows has, in the commit, the text (Git blob) that the file of decl/ names" $a "$found"
 
+# run_make ARGUMENT... : make, without what the environment says to every
+# make
+run_make() { env -u MAKEFLAGS -u MFLAGS -u GNUMAKEFLAGS -u MAKEFILES make "$@"; }
+
 # (4) and (5)
 # on_disk DIR : are the files on the disk under DIR the tracked ones
 on_disk() {
   [ "$(find "$1" -type f | LC_ALL=C sort)" = "$(git ls-files "$1" | LC_ALL=C sort)" ]
 }
-listed=$(make -s list | cut -f3 | LC_ALL=C sort)
+rc=0
+run_make -s list > "$logs/list.log" 2>&1 || rc=$?
+listed=$(cut -f3 "$logs/list.log" | LC_ALL=C sort)
 tracked=$(git ls-files extracted | grep '\.ml$' | LC_ALL=C sort) || true
 others=$(git ls-files extracted | grep -v '\.ml$' | one_line) || true
 found="$(echo "$tracked" | grep -c . || true) tracked .ml files, $(echo "$listed" | grep -c . || true) lines of make list; the other tracked files: ${others:-none}"
-if [ "$listed" = "$tracked" ] && [ -n "$tracked" ] && [ "$others" = extracted/.ocamlformat ] && on_disk extracted; then a=yes
+if [ $rc != 0 ]; then found="make list exits $rc; $found"; fi
+if [ $rc = 0 ] && [ "$listed" = "$tracked" ] && [ -n "$tracked" ] && [ "$others" = extracted/.ocamlformat ] && on_disk extracted; then a=yes
 else a=NO; found="$found; on the disk and not tracked, or tracked and not on the disk: $( { find extracted -type f; git ls-files extracted; } | LC_ALL=C sort | uniq -u | one_line)"; fi
 answer 4 "the tracked .ml files under extracted/ are those of make list, the one other file there is .ocamlformat, and the disk has the same files" $a "$found"
 tracked=$(git ls-files runtime | grep '\.ml$' | LC_ALL=C sort | one_line) || true
@@ -302,7 +320,7 @@ elif [ -e _build ]; then
   for n in 11 12 13; do echo "gate: ($n) not asked: the make is not run"; done
 else
   start=$(date +%s); rc=0
-  make -j1 CMI_ROOT="$build" > "$logs/make.log" 2>&1 || rc=$?
+  run_make -j1 CMI_ROOT="$build" > "$logs/make.log" 2>&1 || rc=$?
   took=$(( $(date +%s) - start ))
   if [ $rc = 0 ]; then a=yes; found="$took seconds"; else a=NO; found="exit status $rc after $took seconds: $(tail -1 "$logs/make.log" | cut -c1-200)"; fi
   answer 10 "make, from nothing, exits 0" $a "$found"
