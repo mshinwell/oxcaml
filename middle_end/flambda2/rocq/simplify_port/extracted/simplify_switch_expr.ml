@@ -1105,48 +1105,34 @@ let recognize_mergeable_argument machine_width scrutinee0 required_names dbg arg
                              (Simple.must_be_const simple)
                              RWC.is_tagged_immediate))
                       args
-                  then
-                    single_kind P.Array_kind.Immediates
-                      P.Array_load_kind.Immediates
-                  else single_kind P.Array_kind.Values P.Array_load_kind.Values
+                  then single_kind P.Array_kind.Immediates Immediates
+                  else single_kind P.Array_kind.Values Values
                 | Naked_number nn -> (
                   match nn with
                   | Naked_immediate ->
-                    single_kind P.Array_kind.Naked_ints
-                      P.Array_load_kind.Naked_ints
+                    single_kind P.Array_kind.Naked_ints Naked_ints
                   | Naked_float32 ->
-                    single_kind P.Array_kind.Naked_float32s
-                      P.Array_load_kind.Naked_float32s
+                    single_kind P.Array_kind.Naked_float32s Naked_float32s
                   | Naked_float ->
-                    single_kind P.Array_kind.Naked_floats
-                      P.Array_load_kind.Naked_floats
+                    single_kind P.Array_kind.Naked_floats Naked_floats
                   | Naked_int8 ->
-                    single_kind P.Array_kind.Naked_int8s
-                      P.Array_load_kind.Naked_int8s
+                    single_kind P.Array_kind.Naked_int8s Naked_int8s
                   | Naked_int16 ->
-                    single_kind P.Array_kind.Naked_int16s
-                      P.Array_load_kind.Naked_int16s
+                    single_kind P.Array_kind.Naked_int16s Naked_int16s
                   | Naked_int32 ->
-                    single_kind P.Array_kind.Naked_int32s
-                      P.Array_load_kind.Naked_int32s
+                    single_kind P.Array_kind.Naked_int32s Naked_int32s
                   | Naked_int64 ->
-                    single_kind P.Array_kind.Naked_int64s
-                      P.Array_load_kind.Naked_int64s
+                    single_kind P.Array_kind.Naked_int64s Naked_int64s
                   | Naked_nativeint ->
-                    single_kind P.Array_kind.Naked_nativeints
-                      P.Array_load_kind.Naked_nativeints
+                    single_kind P.Array_kind.Naked_nativeints Naked_nativeints
                   | Naked_vec128 ->
-                    single_kind P.Array_kind.Naked_vec128s
-                      P.Array_load_kind.Naked_vec128s
+                    single_kind P.Array_kind.Naked_vec128s Naked_vec128s
                   | Naked_vec256 ->
-                    single_kind P.Array_kind.Naked_vec256s
-                      P.Array_load_kind.Naked_vec256s
+                    single_kind P.Array_kind.Naked_vec256s Naked_vec256s
                   | Naked_vec512 ->
-                    single_kind P.Array_kind.Naked_vec512s
-                      P.Array_load_kind.Naked_vec512s
+                    single_kind P.Array_kind.Naked_vec512s Naked_vec512s
                   | Naked_mask ->
-                    single_kind P.Array_kind.Naked_masks
-                      P.Array_load_kind.Naked_masks)
+                    single_kind P.Array_kind.Naked_masks Naked_masks)
                 | Region -> None
                 | Rec_info -> None))
           | None -> None)

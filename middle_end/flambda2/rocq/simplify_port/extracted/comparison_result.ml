@@ -235,8 +235,8 @@ let create prim comparison_results =
       (fun _ _ -> None)
       (fun kind0 c ->
         match c with
-        | P.Yielding_bool _ -> None
-        | P.Yielding_int_like_compare_functions signed0 ->
+        | Yielding_bool _ -> None
+        | Yielding_int_like_compare_functions signed0 ->
           Some
             { lhs = lhs0;
               rhs = rhs0;
@@ -298,7 +298,7 @@ let convert_result_compared_to_tagged_zero t0 =
     in
     let make_result =
      fun new_op ->
-      let prim = P.Int_comp (kind0, P.Yielding_bool new_op) in
+      let prim = P.Int_comp (kind0, Yielding_bool new_op) in
       Some (P.Binary (prim, lhs0, rhs0))
     in
     (fun f__1 f__2 f__3 f__4 f__5 f__6 x__0 ->
@@ -312,19 +312,15 @@ let convert_result_compared_to_tagged_zero t0 =
       (fun _ -> make_result (P.Eq : _ P.comparison))
       (fun _ -> make_result (P.Neq : _ P.comparison))
       (fun s ->
-        match s with
-        | P.Signed -> make_result (P.Lt signed0)
-        | P.Unsigned -> None)
+        match s with P.Signed -> make_result (Lt signed0) | P.Unsigned -> None)
       (fun s ->
         match s with
-        | P.Signed -> make_result (P.Gt signed0)
+        | P.Signed -> make_result (Gt signed0)
         | P.Unsigned -> make_result (P.Neq : _ P.comparison))
       (fun s ->
         match s with
-        | P.Signed -> make_result (P.Le signed0)
+        | P.Signed -> make_result (Le signed0)
         | P.Unsigned -> make_result (P.Eq : _ P.comparison))
       (fun s ->
-        match s with
-        | P.Signed -> make_result (P.Ge signed0)
-        | P.Unsigned -> None)
+        match s with P.Signed -> make_result (Ge signed0) | P.Unsigned -> None)
       op

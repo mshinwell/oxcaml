@@ -148,13 +148,13 @@ let simplify_comparison dbg dacc cont tagged_prim float_prim boxed_int_prim a b
       T.prove_is_a_boxed_or_tagged_number tenv b_ty )
   in
   match m with
-  | T.Proved b0 -> (
+  | Proved b0 -> (
     match b0 with
     | Boxed (_, t0, _) -> (
       match t0 with
       | Naked_float32 -> (
         match m0 with
-        | T.Proved b1 -> (
+        | Proved b1 -> (
           match b1 with
           | Boxed (_, t3, _) -> (
             match t3 with
@@ -181,11 +181,11 @@ let simplify_comparison dbg dacc cont tagged_prim float_prim boxed_int_prim a b
             )
           | Tagged_immediate ->
             (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown)
-        | T.Unknown ->
+        | Unknown ->
           (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown)
       | Naked_float -> (
         match m0 with
-        | T.Proved b1 -> (
+        | Proved b1 -> (
           match b1 with
           | Boxed (_, t3, _) -> (
             match t3 with
@@ -212,11 +212,11 @@ let simplify_comparison dbg dacc cont tagged_prim float_prim boxed_int_prim a b
             )
           | Tagged_immediate ->
             (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown)
-        | T.Unknown ->
+        | Unknown ->
           (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown)
       | Naked_int32 -> (
         match m0 with
-        | T.Proved b1 -> (
+        | Proved b1 -> (
           match b1 with
           | Boxed (_, t3, _) -> (
             match t3 with
@@ -243,11 +243,11 @@ let simplify_comparison dbg dacc cont tagged_prim float_prim boxed_int_prim a b
             )
           | Tagged_immediate ->
             (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown)
-        | T.Unknown ->
+        | Unknown ->
           (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown)
       | Naked_int64 -> (
         match m0 with
-        | T.Proved b1 -> (
+        | Proved b1 -> (
           match b1 with
           | Boxed (_, t3, _) -> (
             match t3 with
@@ -274,11 +274,11 @@ let simplify_comparison dbg dacc cont tagged_prim float_prim boxed_int_prim a b
             )
           | Tagged_immediate ->
             (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown)
-        | T.Unknown ->
+        | Unknown ->
           (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown)
       | Naked_nativeint -> (
         match m0 with
-        | T.Proved b1 -> (
+        | Proved b1 -> (
           match b1 with
           | Boxed (_, t3, _) -> (
             match t3 with
@@ -305,68 +305,68 @@ let simplify_comparison dbg dacc cont tagged_prim float_prim boxed_int_prim a b
             )
           | Tagged_immediate ->
             (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown)
-        | T.Unknown ->
+        | Unknown ->
           (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown)
       | Naked_vec128 -> (
         match m0 with
-        | T.Proved b1 -> (
+        | Proved b1 -> (
           match b1 with
           | Boxed (_, _, _) ->
             (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown
           | Tagged_immediate ->
             (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown)
-        | T.Unknown ->
+        | Unknown ->
           (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown)
       | Naked_vec256 -> (
         match m0 with
-        | T.Proved b1 -> (
+        | Proved b1 -> (
           match b1 with
           | Boxed (_, _, _) ->
             (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown
           | Tagged_immediate ->
             (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown)
-        | T.Unknown ->
+        | Unknown ->
           (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown)
       | Naked_vec512 -> (
         match m0 with
-        | T.Proved b1 -> (
+        | Proved b1 -> (
           match b1 with
           | Boxed (_, _, _) ->
             (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown
           | Tagged_immediate ->
             (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown)
-        | T.Unknown ->
+        | Unknown ->
           (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown)
       | Naked_mask -> (
         match m0 with
-        | T.Proved b1 -> (
+        | Proved b1 -> (
           match b1 with
           | Boxed (_, _, _) ->
             (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown
           | Tagged_immediate ->
             (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown)
-        | T.Unknown ->
+        | Unknown ->
           (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown))
     | Tagged_immediate -> (
       match m0 with
-      | T.Proved b1 -> (
+      | Proved b1 -> (
         match b1 with
         | Boxed (_, _, _) ->
           (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown
         | Tagged_immediate ->
           simplify_comparison_of_tagged_immediates dbg dacc tagged_prim cont a b
         )
-      | T.Unknown ->
+      | Unknown ->
         (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown))
-  | T.Unknown -> (
+  | Unknown -> (
     match m0 with
-    | T.Proved b0 -> (
+    | Proved b0 -> (
       match b0 with
       | Boxed (_, _, _) ->
         (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown
       | Tagged_immediate ->
         (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown)
-    | T.Unknown ->
+    | Unknown ->
       (fun x__1 -> Unchanged { return_types = x__1 }) Or_unknown.Unknown)
 
 (** val simplify_caml_array_make : DA.t -> T.t -> T.t -> t coq_M **)
@@ -380,11 +380,11 @@ let simplify_caml_array_make dacc len_ty init_value_ty =
         (Flambda_kind.With_subkind.anything (T.kind init_value_ty))
     else
       match T.prove_is_or_is_not_a_boxed_float typing_env init_value_ty with
-      | T.Proved b ->
+      | Proved b ->
         if b
         then Or_unknown_or_bottom.Ok Flambda_kind.With_subkind.naked_float
         else Or_unknown_or_bottom.Unknown
-      | T.Unknown -> Or_unknown_or_bottom.Unknown
+      | Unknown -> Or_unknown_or_bottom.Unknown
   in
   let type_of_returned_array =
     T.mutable_array element_kind len_ty Alloc_mode.For_types.heap

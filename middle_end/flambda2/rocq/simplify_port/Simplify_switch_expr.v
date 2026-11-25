@@ -44,6 +44,7 @@ From SimplifyPort.decl Require Alloc_mode Apply_cont_rewrite_id
    Flambda.static_const_or_code
    Flambda2_types.Join_analysis.simple_refined_at_join_
    Flambda_kind.Naked_number_kind.t Flambda_kind.t
+   Flambda_primitive.Array_load_kind.t
    Flambda_primitive.binary_float_arith_op
    Flambda_primitive.binary_primitive Flambda_primitive.unary_primitive
    Int_ids.Const.Descr.t Mutability.t Or_bottom.t Or_unknown.t

@@ -26,7 +26,7 @@ From SimplifyPort.decl Require Bound_var Coercion Current_unit Debuginfo
   Flambda Flambda_features List ListLabels Mutability Name Name_mode Option
   Or_invalid Or_variable Simple Simplified_named Symbol Variable_.
 (* CONSTRUCTORS-WITHOUT-MODULE: Flambda.static_const_or_code
-   Flambda2_types.to_lift *)
+   Flambda2_types.reification_result Flambda2_types.to_lift *)
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 

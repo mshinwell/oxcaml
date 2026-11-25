@@ -41,9 +41,10 @@ Targetint_32_64 Value_slot Variable_.
    Flambda2_types.boxed_or_tagged_number Flambda2_types.meet_shortcut
    Flambda2_types.proof_of_property Flambda2_types.reification_result
    Flambda_kind.Scannable_block_shape.t Flambda_kind.Standard_int.t
-   Flambda_primitive.binary_primitive Flambda_primitive.float_bitwidth
-   Flambda_primitive.t Flambda_primitive.unary_primitive
-   Flambda_primitive.variadic_primitive Or_unknown_or_bottom.t *)
+   Flambda_kind.Standard_int_or_float.t Flambda_primitive.binary_primitive
+   Flambda_primitive.float_bitwidth Flambda_primitive.t
+   Flambda_primitive.unary_primitive Flambda_primitive.variadic_primitive
+   Or_unknown_or_bottom.t *)
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 

@@ -367,7 +367,7 @@ let rebuild_let arg uacc after_rebuild =
                                   Bound_pattern.print let_bound
                                   Name_occurrences.print free_names_of_body)
                           (fun k ->
-                            let prim = P.Nullary (P.Invalid k) in
+                            let prim = P.Nullary (Invalid k) in
                             let simplified_defining_expr1 =
                               Simplified_named.create machine_width
                                 (Named.create_prim prim dbg)
@@ -506,7 +506,7 @@ let simplify_let0 simplify_expr simplify_function_body dacc let_expr down_to_up0
   | Simplified p -> (
     let simplify_named_result, removed_operations0 = p in
     match simplify_named_result with
-    | Or_invalid.Ok simplify_named_result0 ->
+    | Ok simplify_named_result0 ->
       let dacc1 = Simplify_named_result.dacc simplify_named_result0 in
       let closure_info0 = DE.closure_info (DA.denv dacc1) in
       let lifted_constants_from_defining_expr0 =
@@ -534,7 +534,7 @@ let simplify_let0 simplify_expr simplify_function_body dacc let_expr down_to_up0
              at_unit_toplevel0 closure_info0 rewrite_id0 simplified_body)
       in
       simplify_expr dacc3 body down_to_up1
-    | Or_invalid.Invalid ->
+    | Invalid ->
       down_to_up0 original_dacc
         (SE.notify_removed removed_operations0
            (SE.simplified_invalid

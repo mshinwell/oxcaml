@@ -59,9 +59,9 @@ let create_lifted_constant acc pat static_const =
       match Rebuilt_static_const.to_const static_const with
       | Some t -> (
         match t with
-        | Flambda.Code _ -> dacc0
-        | Flambda.Deleted_code -> dacc0
-        | Flambda.Static_const static_const0 ->
+        | Code _ -> dacc0
+        | Deleted_code -> dacc0
+        | Static_const static_const0 ->
           DA.consider_constant_for_sharing dacc0 symbol static_const0)
       | None -> dacc0
     in
@@ -298,8 +298,8 @@ let removed_operations min_name_mode original dacc0 result =
                   t0
                 in
                 match named0 with
-                | Simplified_named.Simple _ -> false
-                | Simplified_named.Prim (rewritten_prim, _) ->
+                | Simple _ -> false
+                | Prim (rewritten_prim, _) ->
                   let c =
                     Flambda_primitive.compare_primitive_application
                       (fun original_simple rewritten_simple ->
@@ -313,8 +313,8 @@ let removed_operations min_name_mode original dacc0 result =
                       original_prim rewritten_prim
                   in
                   c = 0
-                | Simplified_named.Set_of_closures (_, _) -> false
-                | Simplified_named.Rec_info _ -> false)
+                | Set_of_closures (_, _) -> false
+                | Rec_info _ -> false)
               (fun _ -> false)
               binding)
           (Simplify_named_result.bindings_to_place result0)

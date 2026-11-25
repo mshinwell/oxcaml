@@ -787,12 +787,12 @@ functor
         (fun _ -> always_some I.Num.mul)
         (fun t0 ->
           match t0 with
-          | Scalar.Signedness.Signed -> I.Num.div n1 n2
-          | Scalar.Signedness.Unsigned -> I.Num.unsigned_div n1 n2)
+          | Signed -> I.Num.div n1 n2
+          | Unsigned -> I.Num.unsigned_div n1 n2)
         (fun t0 ->
           match t0 with
-          | Scalar.Signedness.Signed -> I.Num.mod_ n1 n2
-          | Scalar.Signedness.Unsigned -> I.Num.unsigned_mod n1 n2)
+          | Signed -> I.Num.mod_ n1 n2
+          | Unsigned -> I.Num.unsigned_mod n1 n2)
         (fun _ -> always_some I.Num.and_)
         (fun _ -> always_some I.Num.or_)
         (fun _ -> always_some I.Num.xor)
@@ -872,10 +872,7 @@ functor
           then The_other_side
           else if
             Num.equal rhs (Num.minus_one machine_width)
-            &&
-            match signedness with
-            | Scalar.Signedness.Signed -> true
-            | Scalar.Signedness.Unsigned -> false
+            && match signedness with Signed -> true | Unsigned -> false
           then Negation_of_the_other_side
           else Cannot_simplify)
         (fun signedness ->
@@ -885,10 +882,7 @@ functor
           then Exactly (Num.zero machine_width)
           else if
             Num.equal rhs (Num.minus_one machine_width)
-            &&
-            match signedness with
-            | Scalar.Signedness.Signed -> true
-            | Scalar.Signedness.Unsigned -> false
+            && match signedness with Signed -> true | Unsigned -> false
           then Exactly (Num.zero machine_width)
           else Cannot_simplify)
         (fun _ -> symmetric_op_one_side_unknown machine_width And rhs)
@@ -919,12 +913,12 @@ functor
         (fun _ -> symmetric_op_one_side_unknown machine_width Mul lhs)
         (fun t0 ->
           match t0 with
-          | Scalar.Signedness.Signed -> Cannot_simplify
-          | Scalar.Signedness.Unsigned -> Cannot_simplify)
+          | Signed -> Cannot_simplify
+          | Unsigned -> Cannot_simplify)
         (fun t0 ->
           match t0 with
-          | Scalar.Signedness.Signed -> Cannot_simplify
-          | Scalar.Signedness.Unsigned -> Cannot_simplify)
+          | Signed -> Cannot_simplify
+          | Unsigned -> Cannot_simplify)
         (fun _ -> symmetric_op_one_side_unknown machine_width And lhs)
         (fun _ -> symmetric_op_one_side_unknown machine_width Or lhs)
         (fun _ -> symmetric_op_one_side_unknown machine_width Xor lhs)
@@ -1993,8 +1987,8 @@ let recover_comparison_primitive dacc prim arg1 arg2 =
       (fun _ _ -> None)
       (fun const0 ->
         match Const.descr const0 with
-        | Int_ids.Const.Descr.Naked_immediate _ -> None
-        | Int_ids.Const.Descr.Tagged_immediate i ->
+        | Naked_immediate _ -> None
+        | Tagged_immediate i ->
           if
             Target_ocaml_int.equal i
               (Target_ocaml_int.zero (DE.machine_width (DA.denv dacc)))
@@ -2009,19 +2003,19 @@ let recover_comparison_primitive dacc prim arg1 arg2 =
               (fun _ _ -> None)
               (fun _ -> None)
           else None
-        | Int_ids.Const.Descr.Naked_float32 _ -> None
-        | Int_ids.Const.Descr.Naked_float _ -> None
-        | Int_ids.Const.Descr.Naked_int8 _ -> None
-        | Int_ids.Const.Descr.Naked_int16 _ -> None
-        | Int_ids.Const.Descr.Naked_int32 _ -> None
-        | Int_ids.Const.Descr.Naked_int64 _ -> None
-        | Int_ids.Const.Descr.Naked_nativeint _ -> None
-        | Int_ids.Const.Descr.Naked_vec128 _ -> None
-        | Int_ids.Const.Descr.Naked_vec256 _ -> None
-        | Int_ids.Const.Descr.Naked_vec512 _ -> None
-        | Int_ids.Const.Descr.Naked_mask _ -> None
-        | Int_ids.Const.Descr.Null -> None
-        | Int_ids.Const.Descr.Poison (_, _) -> None)
+        | Naked_float32 _ -> None
+        | Naked_float _ -> None
+        | Naked_int8 _ -> None
+        | Naked_int16 _ -> None
+        | Naked_int32 _ -> None
+        | Naked_int64 _ -> None
+        | Naked_nativeint _ -> None
+        | Naked_vec128 _ -> None
+        | Naked_vec256 _ -> None
+        | Naked_vec512 _ -> None
+        | Naked_mask _ -> None
+        | Null -> None
+        | Poison (_, _) -> None)
   in
   let try_both_directions =
    fun op0 swapped_op ->

@@ -1274,18 +1274,18 @@ let type_value_slots_and_make_lifting_decision_for_one_set dacc0
          match
            T.never_holds_locally_allocated_values (DA.typing_env dacc0) var
          with
-         | T.Proved u ->
+         | Proved u ->
            let () = u in
            true
-         | T.Unknown -> false)
+         | Unknown -> false)
        | Alloc_mode.For_types.Heap_or_local -> (
          match
            T.never_holds_locally_allocated_values (DA.typing_env dacc0) var
          with
-         | T.Proved u ->
+         | Proved u ->
            let () = u in
            true
-         | T.Unknown -> false)
+         | Unknown -> false)
   in
   let value_slot_permits_lifting =
    fun _ simple ->

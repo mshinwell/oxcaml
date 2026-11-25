@@ -26,9 +26,9 @@ From SimplifyPort.decl Require Alloc_mode Bound_pattern Bound_var Continuation
   Linkage_name Name Name_mode Or_unknown Or_unknown_or_bottom
   Removed_operations Simple Symbol Variable_.
 (* CONSTRUCTORS-WITHOUT-MODULE: Apply_expr.Result_continuation.t
-   Flambda2_types.boxed_or_tagged_number Flambda_kind.Boxable_number.t
-   Flambda_primitive.binary_primitive Flambda_primitive.comparison
-   Flambda_primitive.comparison_behaviour
+   Flambda2_types.boxed_or_tagged_number Flambda2_types.proof_of_property
+   Flambda_kind.Boxable_number.t Flambda_primitive.binary_primitive
+   Flambda_primitive.comparison Flambda_primitive.comparison_behaviour
    Flambda_primitive.equality_comparison
    Flambda_primitive.signed_or_unsigned Flambda_primitive.unary_primitive *)
 Local Open Scope string_scope.

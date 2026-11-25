@@ -29,8 +29,9 @@ From SimplifyPort.decl Require Bound_pattern Bound_static Bound_var
   Removed_operations Simple Simplified_named Simplify_common Simplify_named
   Simplify_named_result Variable_.
 (* CONSTRUCTORS-WITHOUT-MODULE: Closure_info.in_or_out_of_closure_
-   Flambda.Invalid.t Flambda.named Name_mode.Or_absent.t Named_rewrite.t
-   Or_unknown.t Simplified_named.or_rewritten
+   Flambda.Invalid.t Flambda.named Flambda_primitive.nullary_primitive
+   Name_mode.Or_absent.t Named_rewrite.Prim_rewrite.t Named_rewrite.t
+   Or_invalid.t Or_unknown.t Simplified_named.or_rewritten
    Simplified_named.simplified_named *)
 Local Open Scope string_scope.
 Local Open Scope Z_scope.

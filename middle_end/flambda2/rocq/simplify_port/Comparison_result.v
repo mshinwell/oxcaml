@@ -23,8 +23,9 @@
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Flambda_kind Flambda_primitive Format Simple
   Variable_.
-(* CONSTRUCTORS-WITHOUT-MODULE: Flambda_primitive.equality_comparison
-   Flambda_primitive.unary_primitive *)
+(* CONSTRUCTORS-WITHOUT-MODULE: Flambda_primitive.comparison
+   Flambda_primitive.comparison_behaviour
+   Flambda_primitive.equality_comparison Flambda_primitive.unary_primitive *)
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 

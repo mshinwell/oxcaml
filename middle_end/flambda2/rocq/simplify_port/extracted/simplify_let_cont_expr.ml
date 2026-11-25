@@ -663,9 +663,7 @@ let add_phantom_params_bindings uacc handler0 new_phantom_params =
         let kind = K.With_subkind.kind (BP.kind param) in
         let var = Bound_var.create param_var param_uid Name_mode.phantom in
         let let_bound = Bound_pattern.singleton var in
-        let prim =
-          Flambda_primitive.Nullary (Flambda_primitive.Optimised_out kind)
-        in
+        let prim = Flambda_primitive.Nullary (Optimised_out kind) in
         let named = Named.create_prim prim Debuginfo.none in
         let simplified_defining_expr =
           Simplified_named.create machine_width named

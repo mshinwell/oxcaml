@@ -37,9 +37,9 @@ let simplify_array_set array_kind array_set_kind dacc original_term dbg array
   | Ok array_kind1 ->
     let () =
       match array_kind1 with
-      | P.Array_kind.Immediates -> ()
-      | P.Array_kind.Gc_ignorable_values -> ()
-      | P.Array_kind.Values -> (
+      | Immediates -> ()
+      | Gc_ignorable_values -> ()
+      | Values -> (
         match array_set_kind with
         | P.Array_set_kind.Immediates ->
           Misc.fatal_errorf
@@ -126,19 +126,19 @@ let simplify_array_set array_kind array_set_kind dacc original_term dbg array
              array set kind %a (original array kind %a):@ %a"
             P.Array_kind.print array_kind1 P.Array_set_kind.print array_set_kind
             P.Array_kind.print orig_array_kind Named.print original_term)
-      | P.Array_kind.Naked_floats -> ()
-      | P.Array_kind.Naked_float32s -> ()
-      | P.Array_kind.Naked_ints -> ()
-      | P.Array_kind.Naked_int8s -> ()
-      | P.Array_kind.Naked_int16s -> ()
-      | P.Array_kind.Naked_int32s -> ()
-      | P.Array_kind.Naked_int64s -> ()
-      | P.Array_kind.Naked_nativeints -> ()
-      | P.Array_kind.Naked_vec128s -> ()
-      | P.Array_kind.Naked_vec256s -> ()
-      | P.Array_kind.Naked_vec512s -> ()
-      | P.Array_kind.Naked_masks -> ()
-      | P.Array_kind.Unboxed_product _ -> ()
+      | Naked_floats -> ()
+      | Naked_float32s -> ()
+      | Naked_ints -> ()
+      | Naked_int8s -> ()
+      | Naked_int16s -> ()
+      | Naked_int32s -> ()
+      | Naked_int64s -> ()
+      | Naked_nativeints -> ()
+      | Naked_vec128s -> ()
+      | Naked_vec256s -> ()
+      | Naked_vec512s -> ()
+      | Naked_masks -> ()
+      | Unboxed_product _ -> ()
     in
     let named =
       Named.create_prim

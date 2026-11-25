@@ -36,7 +36,8 @@ From SimplifyPort.decl Require Array Bound_var Comparison_result
    Flambda_primitive.binary_float_arith_op
    Flambda_primitive.binary_int_arith_op Flambda_primitive.binary_primitive
    Flambda_primitive.comparison Flambda_primitive.unary_float_arith_op
-   Flambda_primitive.unary_int_arith_op Or_bottom.t Or_unknown_or_bottom.t *)
+   Flambda_primitive.unary_int_arith_op Int_ids.Const.Descr.t Or_bottom.t
+   Or_unknown_or_bottom.t Scalar.Signedness.t *)
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 

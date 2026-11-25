@@ -28,6 +28,8 @@ From SimplifyPort.decl Require Bound_pattern Bound_static Bound_var
   Simplified_named Simplify_common Simplify_named_result Simplify_primitive
   Simplify_rec_info_expr Simplify_set_of_closures Simplify_static_const
   Specialization_cost Stdlib_ Variable_.
+(* CONSTRUCTORS-WITHOUT-MODULE: Flambda.static_const_or_code
+   Simplified_named.simplified_named *)
 Local Open Scope string_scope.
 Local Open Scope Z_scope.
 

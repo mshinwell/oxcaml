@@ -261,13 +261,13 @@ let try_to_reify dacc dbg term bound_to kind_of_bound_to allow_lifting =
       typing_env ty
   in
   match reify_result with
-  | T.Lift to_lift ->
+  | Lift to_lift ->
     if Name_mode.is_normal occ_kind && allow_lifting
     then
       let static_const = create_static_const dacc dbg to_lift in
       lift dacc ty bound_to0 static_const
     else Or_invalid.Ok term, dacc
-  | T.Simple simple ->
+  | Simple simple ->
     if Simple.equal simple (Simple.var bound_to0)
     then Or_invalid.Ok term, dacc
     else
@@ -280,5 +280,5 @@ let try_to_reify dacc dbg term bound_to kind_of_bound_to allow_lifting =
       ( Or_invalid.Ok
           (Simplified_named.create machine_width (Named.create_simple simple)),
         dacc0 )
-  | T.Cannot_reify -> Or_invalid.Ok term, dacc
-  | T.Invalid -> Or_invalid.Invalid, dacc
+  | Cannot_reify -> Or_invalid.Ok term, dacc
+  | Invalid -> Or_invalid.Invalid, dacc

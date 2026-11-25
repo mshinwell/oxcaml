@@ -505,41 +505,41 @@ module Make_simplify_int_conv = struct
           let () = assert (n_Num_Set_cardinal is_ > 0) in
           let machine_width = DE.machine_width (DA.denv dacc) in
           match dst with
-          | K.Standard_int_or_float.Tagged_immediate ->
+          | Tagged_immediate ->
             for_kind n_Num_Set_fold_to_immediates Target_ocaml_int.Set.add
               Target_ocaml_int.Set.empty
               (fun t -> n_Num_to_immediate t machine_width)
               T.these_tagged_immediates dacc original_term result_var is_
-          | K.Standard_int_or_float.Naked_immediate ->
+          | Naked_immediate ->
             for_kind n_Num_Set_fold_to_immediates Target_ocaml_int.Set.add
               Target_ocaml_int.Set.empty
               (fun t -> n_Num_to_immediate t machine_width)
               T.these_naked_immediates dacc original_term result_var is_
-          | K.Standard_int_or_float.Naked_float32 ->
+          | Naked_float32 ->
             for_kind n_Num_Set_fold_to_float32s Float32.Set.add
               Float32.Set.empty n_Num_to_naked_float32 T.these_naked_float32s
               dacc original_term result_var is_
-          | K.Standard_int_or_float.Naked_float ->
+          | Naked_float ->
             for_kind n_Num_Set_fold_to_floats Float.Set.add Float.Set.empty
               n_Num_to_naked_float T.these_naked_floats dacc original_term
               result_var is_
-          | K.Standard_int_or_float.Naked_int8 ->
+          | Naked_int8 ->
             for_kind n_Num_Set_fold_to_int8s Numeric_types.Int8.Set.add
               Numeric_types.Int8.Set.empty n_Num_to_naked_int8
               T.these_naked_int8s dacc original_term result_var is_
-          | K.Standard_int_or_float.Naked_int16 ->
+          | Naked_int16 ->
             for_kind n_Num_Set_fold_to_int16s Numeric_types.Int16.Set.add
               Numeric_types.Int16.Set.empty n_Num_to_naked_int16
               T.these_naked_int16s dacc original_term result_var is_
-          | K.Standard_int_or_float.Naked_int32 ->
+          | Naked_int32 ->
             for_kind n_Num_Set_fold_to_int32s Int32.Set.add Int32.Set.empty
               n_Num_to_naked_int32 T.these_naked_int32s dacc original_term
               result_var is_
-          | K.Standard_int_or_float.Naked_int64 ->
+          | Naked_int64 ->
             for_kind n_Num_Set_fold_to_int64s Int64.Set.add Int64.Set.empty
               n_Num_to_naked_int64 T.these_naked_int64s dacc original_term
               result_var is_
-          | K.Standard_int_or_float.Naked_nativeint ->
+          | Naked_nativeint ->
             let machine_width0 = DE.machine_width (DA.denv dacc) in
             for_kind n_Num_Set_fold_to_nativeints Targetint_32_64.Set.add
               Targetint_32_64.Set.empty
@@ -1571,24 +1571,15 @@ let simplify_unary_primitive dacc original_prim prim arg arg_ty dbg result_var =
         | Float64 -> simplify_float_arith_op op)
       (fun src dst ->
         match src with
-        | K.Standard_int_or_float.Tagged_immediate ->
-          Simplify_int_conv_tagged_immediate.simplify dst
-        | K.Standard_int_or_float.Naked_immediate ->
-          Simplify_int_conv_naked_immediate.simplify dst
-        | K.Standard_int_or_float.Naked_float32 ->
-          Simplify_int_conv_naked_float32.simplify dst
-        | K.Standard_int_or_float.Naked_float ->
-          Simplify_int_conv_naked_float.simplify dst
-        | K.Standard_int_or_float.Naked_int8 ->
-          Simplify_int_conv_naked_int8.simplify dst
-        | K.Standard_int_or_float.Naked_int16 ->
-          Simplify_int_conv_naked_int16.simplify dst
-        | K.Standard_int_or_float.Naked_int32 ->
-          Simplify_int_conv_naked_int32.simplify dst
-        | K.Standard_int_or_float.Naked_int64 ->
-          Simplify_int_conv_naked_int64.simplify dst
-        | K.Standard_int_or_float.Naked_nativeint ->
-          Simplify_int_conv_naked_nativeint.simplify dst)
+        | Tagged_immediate -> Simplify_int_conv_tagged_immediate.simplify dst
+        | Naked_immediate -> Simplify_int_conv_naked_immediate.simplify dst
+        | Naked_float32 -> Simplify_int_conv_naked_float32.simplify dst
+        | Naked_float -> Simplify_int_conv_naked_float.simplify dst
+        | Naked_int8 -> Simplify_int_conv_naked_int8.simplify dst
+        | Naked_int16 -> Simplify_int_conv_naked_int16.simplify dst
+        | Naked_int32 -> Simplify_int_conv_naked_int32.simplify dst
+        | Naked_int64 -> Simplify_int_conv_naked_int64.simplify dst
+        | Naked_nativeint -> Simplify_int_conv_naked_nativeint.simplify dst)
       (fun _ -> simplify_boolean_not)
       (fun reinterpret -> simplify_reinterpret_64_bit_word reinterpret)
       (fun _ -> simplify_reinterpret_boxed_vector)

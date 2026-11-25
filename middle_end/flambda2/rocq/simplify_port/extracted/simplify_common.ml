@@ -410,7 +410,7 @@ let apply_cont_use_kind context apply_cont =
         false
   in
   match Continuation.sort (AC.continuation apply_cont) with
-  | Continuation.Sort.Normal_or_exn -> (
+  | Normal_or_exn -> (
     match Apply_cont.trap_action apply_cont with
     | Some t ->
       (fun f__1 f__2 x__0 ->
@@ -470,15 +470,15 @@ let apply_cont_use_kind context apply_cont =
                 false)
         t
     | None -> default)
-  | Continuation.Sort.Return ->
+  | Return ->
     (fun x__1 ->
       (Continuation_use_kind.Non_inlinable { escaping = x__1 }
         : Continuation_use_kind.t))
       false
-  | Continuation.Sort.Define_root_symbol ->
+  | Define_root_symbol ->
     let () = assert (Option.is_none (Apply_cont.trap_action apply_cont)) in
     default
-  | Continuation.Sort.Toplevel_return ->
+  | Toplevel_return ->
     (fun x__1 ->
       (Continuation_use_kind.Non_inlinable { escaping = x__1 }
         : Continuation_use_kind.t))
