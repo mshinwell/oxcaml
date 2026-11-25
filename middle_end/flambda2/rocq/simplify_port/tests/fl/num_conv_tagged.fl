@@ -1,0 +1,111 @@
+(******************************************************************************
+ *                                  OxCaml                                    *
+ * -------------------------------------------------------------------------- *
+ *                               MIT License                                  *
+ *                                                                            *
+ * Copyright (c) 2026 Jane Street Group LLC                                   *
+ * opensource-contacts@janestreet.com                                         *
+ *                                                                            *
+ * Permission is hereby granted, free of charge, to any person obtaining a    *
+ * copy of this software and associated documentation files (the "Software"), *
+ * to deal in the Software without restriction, including without limitation  *
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,   *
+ * and/or sell copies of the Software, and to permit persons to whom the      *
+ * Software is furnished to do so, subject to the following conditions:       *
+ *                                                                            *
+ * The above copyright notice and this permission notice shall be included    *
+ * in all copies or substantial portions of the Software.                     *
+ *                                                                            *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR *
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,   *
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL    *
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER *
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING    *
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER        *
+ * DEALINGS IN THE SOFTWARE.                                                  *
+ ******************************************************************************)
+
+(* num_conv_tagged.fl : conversions of numbers (Num_conv) with a tagged
+   integer on one side: from a tagged integer to a float, to a 32-bit float
+   and to an untagged integer, and from an untagged integer to a tagged one.
+   The translation from Lambda never makes these: it untags first and tags
+   last, with other primitives.
+   Here: each of the four on a constant (Simplify folds it), one on an
+   argument that has two possible values, one on an unknown argument.
+   The functions of the extracted Simplify that this test is meant to enter:
+   ENTERS number_adjuncts.For_tagged_immediates.Num.to_naked_float
+   ENTERS number_adjuncts.For_tagged_immediates.Num.to_naked_float32
+   ENTERS number_adjuncts.For_tagged_immediates.Num.to_immediate
+   ENTERS number_adjuncts.For_naked_immediates.Num.to_immediate *)
+let code size(8)
+      tagged_to_float_0 (param : imm tagged)
+        my_closure &my_alloc_region my_depth
+        -> k * e
+        : float boxed =
+  let x = %num_conv.[tagged_imm].[`float`] (3) in
+  let res = %box_num.`float`.my_alloc_region (x) in
+  cont k (res)
+in
+let $Tagged_to_float = closure tagged_to_float_0 @tagged_to_float &toplevel in
+let code size(8)
+      tagged_to_float32_0 (param : imm tagged)
+        my_closure &my_alloc_region my_depth
+        -> k * e
+        : float32 boxed =
+  let x = %num_conv.[tagged_imm].[`float32`] (-4) in
+  let res = %box_num.fnt32.my_alloc_region (x) in
+  cont k (res)
+in
+let $Tagged_to_float32 =
+  closure tagged_to_float32_0 @tagged_to_float32 &toplevel
+in
+let code size(8)
+      tagged_to_imm_0 (param : imm tagged)
+        my_closure &my_alloc_region my_depth
+        -> k * e
+        : imm tagged =
+  let x = %num_conv.[tagged_imm].[`imm`] (5) in
+  let res = %tag_imm (x) in
+  cont k (res)
+in
+let $Tagged_to_imm = closure tagged_to_imm_0 @tagged_to_imm &toplevel in
+let code size(8)
+      imm_to_tagged_0 (param : imm tagged)
+        my_closure &my_alloc_region my_depth
+        -> k * e
+        : imm tagged =
+  let x = %num_conv.[`imm`].[tagged_imm] (6i) in
+  cont k (x)
+in
+let $Imm_to_tagged = closure imm_to_tagged_0 @imm_to_tagged &toplevel in
+let code size(8)
+      set_to_float_0 (b : imm tagged)
+        my_closure &my_alloc_region my_depth
+        -> k * e
+        : float boxed =
+  let untagged = %untag_imm (b) in
+  (switch untagged
+     | 0 -> k1 (7)
+     | 1 -> k1 (-8))
+    where k1 (n : imm tagged) =
+      let x = %num_conv.[tagged_imm].[`float`] (n) in
+      let res = %box_num.`float`.my_alloc_region (x) in
+      cont k (res)
+in
+let $Set_to_float = closure set_to_float_0 @set_to_float &toplevel in
+let code size(8)
+      unknown_to_float_0 (n : imm tagged)
+        my_closure &my_alloc_region my_depth
+        -> k * e
+        : float boxed =
+  let x = %num_conv.[tagged_imm].[`float`] (n) in
+  let res = %box_num.`float`.my_alloc_region (x) in
+  cont k (res)
+in
+let $Unknown_to_float = closure unknown_to_float_0 @unknown_to_float &toplevel
+in
+let $camlNum_conv_tagged =
+  Block 0 ($Tagged_to_float, $Tagged_to_float32, $Tagged_to_imm,
+           $Imm_to_tagged, $Set_to_float, $Unknown_to_float)
+in
+cont done ($camlNum_conv_tagged)

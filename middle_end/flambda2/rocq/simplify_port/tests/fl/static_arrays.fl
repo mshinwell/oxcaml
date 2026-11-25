@@ -1,0 +1,111 @@
+(******************************************************************************
+ *                                  OxCaml                                    *
+ * -------------------------------------------------------------------------- *
+ *                               MIT License                                  *
+ *                                                                            *
+ * Copyright (c) 2026 Jane Street Group LLC                                   *
+ * opensource-contacts@janestreet.com                                         *
+ *                                                                            *
+ * Permission is hereby granted, free of charge, to any person obtaining a    *
+ * copy of this software and associated documentation files (the "Software"), *
+ * to deal in the Software without restriction, including without limitation  *
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,   *
+ * and/or sell copies of the Software, and to permit persons to whom the      *
+ * Software is furnished to do so, subject to the following conditions:       *
+ *                                                                            *
+ * The above copyright notice and this permission notice shall be included    *
+ * in all copies or substantial portions of the Software.                     *
+ *                                                                            *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR *
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,   *
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL    *
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER *
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING    *
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER        *
+ * DEALINGS IN THE SOFTWARE.                                                  *
+ ******************************************************************************)
+
+(* static_arrays.fl : static constants that are arrays of naked numbers, in
+   the term that Simplify receives. The translation from Lambda never makes
+   one (it gives a primitive that makes an immutable array); Simplify makes
+   them itself when it lifts such an array, by another path.
+   Here: one array of each kind that the text form has, two arrays with a
+   variable among their elements, and functions that read them (Simplify
+   puts the constant in the place of a read at a constant index, and of the
+   length).
+   The function of the extracted Simplify that this test is meant to enter:
+   ENTERS simplify_static_const.rebuild_naked_number_array *)
+let $Floats = Float_array [|0x1p+0; 0x1.4p+1; -0x1.8p+0|] in
+let $Float32s = Float32_array [|0x1.8p+0s; 0x1.4p+1s|] in
+let $Ints = Int_array [|1; -2; 3|] in
+let $Int8s = Int8_array [|1s; -128s|] in
+let $Int16s = Int16_array [|1S; -32768S|] in
+let $Int32s = Int32_array [|1l; -2147483648l|] in
+let $Int64s = Int64_array [|1L; -9223372036854775808L|] in
+let $Nativeints = Nativeint_array [|1n; -2n|] in
+let $Vec128s = Vec128_array [|vec128[1L:2L]; vec128[3L:4L]|] in
+let $Vec256s = Vec256_array [|vec256[1L:2L:3L:4L]|] in
+let $Vec512s = Vec512_array [|vec512[1L:2L:3L:4L:5L:6L:7L:8L]|] in
+let opaque = %opaque (5) in
+let untagged = %untag_imm (opaque) in
+let as_float = %num_conv.[`imm`].[`float`] (untagged) in
+let as_int64 = %num_conv.[`imm`].[`int64`] (untagged) in
+let $Floats_var = Float_array [|as_float; 0x1p+1|] in
+let $Int64s_var = Int64_array [|7L; as_int64|] in
+let code size(8)
+      read_float_0 (param : imm tagged)
+        my_closure &my_alloc_region my_depth
+        -> k * e
+        : float boxed =
+  let x = %array_load.`float` ($Floats, 1) in
+  let res = %box_num.`float`.my_alloc_region (x) in
+  cont k (res)
+in
+let $Read_float = closure read_float_0 @read_float &toplevel in
+let code size(8)
+      read_int32_0 (i : imm tagged)
+        my_closure &my_alloc_region my_depth
+        -> k * e
+        : int32 boxed =
+  let x = %array_load.`int32` ($Int32s, i) in
+  let res = %box_num.`int32`.my_alloc_region (x) in
+  cont k (res)
+in
+let $Read_int32 = closure read_int32_0 @read_int32 &toplevel in
+let code size(8)
+      read_int8_0 (param : imm tagged)
+        my_closure &my_alloc_region my_depth
+        -> k * e
+        : imm tagged =
+  let x = %array_load.`int8` ($Int8s, 1) in
+  let y = %num_conv.[`int8`].[`imm`] (x) in
+  let z = %tag_imm (y) in
+  cont k (z)
+in
+let $Read_int8 = closure read_int8_0 @read_int8 &toplevel in
+let code size(8)
+      read_var_0 (param : imm tagged)
+        my_closure &my_alloc_region my_depth
+        -> k * e
+        : int64 boxed =
+  let x = %array_load.`int64` ($Int64s_var, 0) in
+  let res = %box_num.`int64`.my_alloc_region (x) in
+  cont k (res)
+in
+let $Read_var = closure read_var_0 @read_var &toplevel in
+let code size(3)
+      length_0 (param : imm tagged)
+        my_closure &my_alloc_region my_depth
+        -> k * e
+        : imm tagged =
+  let n = %array_length.`int64` ($Int64s) in
+  cont k (n)
+in
+let $Length = closure length_0 @length &toplevel in
+let $camlStatic_arrays =
+  Block 0 ($Floats, $Float32s, $Ints, $Int8s, $Int16s, $Int32s, $Int64s,
+           $Nativeints, $Vec128s, $Vec256s, $Vec512s, $Floats_var,
+           $Int64s_var, $Read_float, $Read_int32, $Read_int8, $Read_var,
+           $Length)
+in
+cont done ($camlStatic_arrays)

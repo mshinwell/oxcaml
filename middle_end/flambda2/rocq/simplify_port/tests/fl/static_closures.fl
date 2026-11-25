@@ -1,0 +1,101 @@
+(******************************************************************************
+ *                                  OxCaml                                    *
+ * -------------------------------------------------------------------------- *
+ *                               MIT License                                  *
+ *                                                                            *
+ * Copyright (c) 2026 Jane Street Group LLC                                   *
+ * opensource-contacts@janestreet.com                                         *
+ *                                                                            *
+ * Permission is hereby granted, free of charge, to any person obtaining a    *
+ * copy of this software and associated documentation files (the "Software"), *
+ * to deal in the Software without restriction, including without limitation  *
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,   *
+ * and/or sell copies of the Software, and to permit persons to whom the      *
+ * Software is furnished to do so, subject to the following conditions:       *
+ *                                                                            *
+ * The above copyright notice and this permission notice shall be included    *
+ * in all copies or substantial portions of the Software.                     *
+ *                                                                            *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR *
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,   *
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL    *
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER *
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING    *
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER        *
+ * DEALINGS IN THE SOFTWARE.                                                  *
+ ******************************************************************************)
+
+(* static_closures.fl : sets of closures that are static constants in the
+   term that Simplify receives. The translation from Lambda makes such a
+   set in classic mode only, where Simplify does not run; Simplify makes
+   them itself when it lifts closures, and it does not simplify them again.
+   So no OCaml source brings Simplify to the code that simplifies them.
+   Here: a closed function; a function that calls it twice (Simplify
+   inlines the two calls); a set of two functions that call each other and
+   share a value slot (Simplify puts the constant in the place of the slot).
+   The functions of the extracted Simplify that this test is meant to enter:
+   ENTERS rebuilt_static_const.Group.add
+   ENTERS simplify_set_of_closures.simplify_lifted_set_of_closures0 *)
+let code size(3)
+      incr_0 (x : imm tagged)
+        my_closure &my_alloc_region my_depth
+        -> k * e
+        : imm tagged =
+  let y = %int_barith.add (x, 1) in
+  cont k (y)
+in
+let $Incr = closure incr_0 @incr &toplevel in
+let code size(5)
+      twice_0 (x : imm tagged)
+        my_closure &my_alloc_region my_depth
+        -> k * e
+        : imm tagged =
+  (apply direct(incr_0 &my_alloc_region)
+     ($Incr : imm tagged -> imm tagged) (x) -> k1 * e)
+    where k1 (y : imm tagged) =
+      apply direct(incr_0 &my_alloc_region)
+        ($Incr : imm tagged -> imm tagged) (y) -> k * e
+in
+let $Twice = closure twice_0 @twice &toplevel in
+let code rec size(18)
+      odd_0 (n : imm tagged)
+        my_closure &my_alloc_region my_depth
+        -> k * e
+        : imm tagged =
+  let limit = %project_value_slot.[odd].[limit] (my_closure) in
+  let prim = %phys_eq (n, limit) in
+  switch prim
+    | 0 -> k1
+    | 1 -> k (0)
+    where k1 =
+      let m = %int_barith.sub (n, 1) in
+      apply direct(even_0 &my_alloc_region)
+        ($Even ~ depth my_depth -> succ my_depth
+         : imm tagged -> imm tagged)
+          (m)
+          -> k * e
+and code rec size(18)
+      even_0 (n : imm tagged)
+        my_closure &my_alloc_region my_depth
+        -> k * e
+        : imm tagged =
+  let limit = %project_value_slot.[even].[limit] (my_closure) in
+  let prim = %phys_eq (n, limit) in
+  switch prim
+    | 0 -> k1
+    | 1 -> k (1)
+    where k1 =
+      let m = %int_barith.sub (n, 1) in
+      apply direct(odd_0 &my_alloc_region)
+        ($Odd ~ depth my_depth -> succ my_depth
+         : imm tagged -> imm tagged)
+          (m)
+          -> k * e
+and set_of_closures
+      $Even = closure even_0 @even &toplevel
+  and $Odd = closure odd_0 @odd &toplevel
+  with { limit = 0 }
+  end
+in
+let $camlStatic_closures = Block 0 ($Incr, $Twice, $Even, $Odd) in
+cont done ($camlStatic_closures)

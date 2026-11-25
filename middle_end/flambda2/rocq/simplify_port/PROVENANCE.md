@@ -29,6 +29,7 @@ comes from outside this repository.
 | `Simplify_apply_cont_expr.v` | `middle_end/flambda2/simplify/simplify_apply_cont_expr.ml` | transcribed |
 | `extracted/DIR/foo.ml` | written by `make` from `DIR/Foo.v`: Rocq's extraction, then ocamlformat; the header is that of `middle_end/flambda2/simplify/DIR/foo.ml`; the text between `(*OCAML` lines of the `.v` file is copied as it is | generated |
 | `PROGRESS.md` | written by `tools/progress.sh` | generated |
+| `tests/fl/*.fl`, `tests/fl/run.sh`, `tests/fl/README.md` | none. The six terms were written for the port, by hand. Their syntax was learnt from the compiler's parser of the text form (`middle_end/flambda2/parser/`: the grammar and the names of the parameters of primitives) and from what a compiler prints with `-drawfexpr` and `-dfexpr` for three small OCaml files written for the purpose; the code of the tests follows the form of that printed text. Five `.fl` files of the compiler's tests were read (`middle_end/flambda2/tests/new_syntax*.fl`, `formatting_test.fl`); no line was taken from them, only the names `k` and `e` of the two continuations of a piece of code and the form of the last two lines. The other `.fl` files of the tests were not read before the terms were written. Two messages of the compiler are quoted in quotation marks ("Symbol .. not bound in typing environment", "Kind .. doesn't match expected kind"). | original |
 
 A file `DIR/Foo.v` that is not in this table follows
 `middle_end/flambda2/simplify/DIR/foo.ml` (`make list` prints the pairs) and

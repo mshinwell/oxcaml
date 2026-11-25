@@ -444,6 +444,13 @@ Build the compiler there before and after the swap (`make boot-compiler`,
 the swap the compiler of stage 1 holds the extracted Simplify and compiles
 all of stage 2, so an object file that differs is a file that the two
 Simplifys do not treat alike. Never commit that tree.
+TERMS THAT NO OCAML SOURCE GIVES (`tests/fl/`; not part of `make`): the
+compiler's test tool `fexprc` reads a term in Flambda's text form and runs
+Simplify on it. `tests/fl/run.sh` runs six such terms through a copy of
+`fexprc` built with the compiler's Simplify and one built in the scratch
+tree after the swap, and compares the exit status, the output and the
+messages. `tests/fl/README.md` says how the copies are built, which
+functions each test is for, and what to know to write another.
 
 ## 7. What Rocq's text looks like, and known problems to look at later
 

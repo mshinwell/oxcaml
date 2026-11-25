@@ -1,0 +1,41 @@
+(******************************************************************************
+ *                                  OxCaml                                    *
+ * -------------------------------------------------------------------------- *
+ *                               MIT License                                  *
+ *                                                                            *
+ * Copyright (c) 2026 Jane Street Group LLC                                   *
+ * opensource-contacts@janestreet.com                                         *
+ *                                                                            *
+ * Permission is hereby granted, free of charge, to any person obtaining a    *
+ * copy of this software and associated documentation files (the "Software"), *
+ * to deal in the Software without restriction, including without limitation  *
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,   *
+ * and/or sell copies of the Software, and to permit persons to whom the      *
+ * Software is furnished to do so, subject to the following conditions:       *
+ *                                                                            *
+ * The above copyright notice and this permission notice shall be included    *
+ * in all copies or substantial portions of the Software.                     *
+ *                                                                            *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR *
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,   *
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL    *
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER *
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING    *
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER        *
+ * DEALINGS IN THE SOFTWARE.                                                  *
+ ******************************************************************************)
+
+(* extra_boxed_var.fl : a static boxed number whose content is a variable.
+   THIS TERM STOPS SIMPLIFY WITH A FATAL ERROR, with the compiler's own
+   Simplify too: simplify_static_const.ml looks the variable up with the
+   kind of values, and here the variable is a naked float ("Kind .. doesn't
+   match expected kind"). The extracted Simplify must stop in the same way,
+   with the same message: the message prints the downwards accumulator, so
+   it compares the printers of the two Simplifys too. The test is kept for
+   that. It is meant to enter no function of the list. *)
+let hidden_tagged = %opaque (41) in
+let hidden_naked = %untag_imm (hidden_tagged) in
+let f = %num_conv.[`imm`].[`float`] (hidden_naked) in
+let $F = f : float boxed in
+let $camlExtra_boxed_var = Block 0 ($F) in
+cont done ($camlExtra_boxed_var)
