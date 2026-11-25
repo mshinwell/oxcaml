@@ -16,7 +16,8 @@ read, what is taken, for how many declarations and in which files.
 | `monad/real/Port_monad.v`, `monad/real/Kit_refuses.v`, `monad/id/Port_monad.v` | none | original |
 | `runtime/port_monad.ml`, `runtime/port_abbreviations.ml` (empty) | none | original |
 | `abbrev/FILE/Port_abbreviations.v` | the lines `module A = P` of the compiler's file that the ported file FILE follows (its abbreviations of modules), as Rocq's `Module A := P.` | transcribed |
-| `Makefile`, `GUIDE.md`, `PROVENANCE.md`, `.gitignore` | none | original |
+| `Makefile`, `GUIDE.md`, `PROVENANCE.md`, `README.md`, `.gitignore` | none | original |
+| `dune` | none; its one stanza, `(include_subdirs no)`, is a stanza of dune that dune files of the compiler also have (`middle_end/flambda2/tests/dune`) | original |
 | `tools/assemble.sh`, `tools/progress.sh`, `tools/lint.py`, `tools/comments.py`, `tools/linktest.sh`, `tools/aliases.py`, `tools/samecode.sh`, `tools/papp.py`, `tools/given.py`, `tools/lines.py` | none | original |
 | `tools/check.sh` | none; its list of include directories and `-open` flags is after `middle_end/flambda2/simplify/dune` | original |
 | `tools/declgen/*` | none; it reads the compiled interfaces and typed trees of a build of the compiler, with the compiler's own library (`compiler-libs`); for the standard library it reads the compiled interfaces of the library of the OCaml that made the build (last section) | original |

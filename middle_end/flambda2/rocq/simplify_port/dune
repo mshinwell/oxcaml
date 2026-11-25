@@ -1,0 +1,8 @@
+; The port of Simplify to Rocq (README.md) is built by its own Makefile.
+; No .ml file here is compiled by the compiler's dune build.
+; middle_end/flambda2/dune groups modules from its subdirectories. This
+; stanza excludes this folder and its subdirectories from that group, so
+; their files do not contribute modules to it or cause duplicate-module-
+; name errors in it. This does not exclude the folder from dune build @fmt.
+
+(include_subdirs no)

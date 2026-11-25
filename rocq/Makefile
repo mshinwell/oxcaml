@@ -903,6 +903,16 @@ FLAMBDA2_LISTED := $(patsubst $(FLAMBDA2_DIR)/%,%,$(FLAMBDA2) \
   $(FLAMBDA2_EXTRACT))
 FLAMBDA2_TYPES_LISTED := $(patsubst $(FLAMBDA2_DIR)/%,%,$(FLAMBDA2_TYPES))
 
+# One folder under middle_end/flambda2/rocq/ is not looked at by this recipe:
+# simplify_port/, the port of Simplify to Rocq (README.md there). Its .v
+# files are in no list of this file and are not compiled by it: the folder
+# has its own Makefile, which compiles and checks them, and its own rules
+# for the names and the heads of its files (most of them follow a file of
+# the compiler and begin with that file's header). So the recipe does not
+# walk that folder when it finds the .v files: none of its checks sees a
+# file there. Nothing else is left out: every other folder is walked as
+# before, and so is a folder of that name that is not directly under
+# middle_end/flambda2/rocq/.
 layout:
 	@set -eu; \
 	  layout_dir=$$(mktemp -d); \
@@ -940,8 +950,8 @@ layout:
 	  done; \
 	  printf '%s\n' $(FLAMBDA2_LISTED) $(FLAMBDA2_TYPES_LISTED) \
 	    | LC_ALL=C sort > "$$layout_dir/listed"; \
-	  find . -name '*.v' | sed 's,^\./,,' | LC_ALL=C sort \
-	    > "$$layout_dir/found"; \
+	  find . -path ./simplify_port -prune -o -name '*.v' -print \
+	    | sed 's,^\./,,' | LC_ALL=C sort > "$$layout_dir/found"; \
 	  LC_ALL=C comm -13 "$$layout_dir/listed" "$$layout_dir/found" \
 	    > "$$layout_dir/unlisted"; \
 	  if [ -s "$$layout_dir/unlisted" ]; then bad=1; \

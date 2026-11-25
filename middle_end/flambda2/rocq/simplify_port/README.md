@@ -1,0 +1,53 @@
+# The port of Simplify to Rocq
+
+This folder holds a port to Rocq of the compiler's Simplify
+(`middle_end/flambda2/simplify/`, 78 files). Each file `DIR/foo.ml` of the
+compiler has here a Rocq file `DIR/Foo.v` that follows it definition by
+definition, and the OCaml file that Rocq's extraction makes of that Rocq
+file, `extracted/DIR/foo.ml`. Where to read on:
+
+- `GUIDE.md`: how a file is ported and what the folder's checks ask;
+- `PROGRESS.md`: where each of the 78 files stands (made by `make`);
+- `PROVENANCE.md`: where each file of the folder comes from;
+- `decl/README.md`: the declarations of what the port calls of the rest of
+  the compiler, which a program makes from the compiler's interfaces.
+
+## Who owns it
+
+Every file under this folder belongs to one stream of the Rocq work, the
+port of Simplify, and that stream alone edits it: for a change here, ask
+that stream. The port edits no file outside this folder.
+
+## How it is built
+
+Not by `rocq/Makefile`. No `.v` file of this folder is in a list of that
+file, `make -C rocq all` does not compile one, and its check of the layout
+and of the licence heads does not look inside this folder (the comment
+before the recipe `layout` there says so). The names and the heads of the
+files here follow this folder's own rules (`GUIDE.md`, section 1): most
+files follow a file of the compiler and begin with that file's header.
+
+The folder has its own `Makefile`. In this folder:
+
+    make -j1 CMI_ROOT=ROOT
+
+where `ROOT` is the `_build/default` of a dune build of this repository
+(the compiled interfaces of the compiler, which the check of the types
+reads). It needs Rocq, OCaml, ocamlformat and Python on the path. Use one
+build job. It builds the port against both monads of `monad/` and extracts
+OCaml from the identity-monad build. OCaml checks each extracted file
+against the compiler's interfaces. The default target also runs the text
+checks (`make given`, `make lines` and `make papp`), regenerates
+`PROGRESS.md` and checks the comments. Build copies, compiled Rocq files
+and type-checking outputs are under `_build/` here. The head of the
+`Makefile` lists the targets.
+
+The extracted files are not compiled by the build of the compiler, nor is
+any other `.ml` file of this folder. The file `dune` here has one stanza,
+`(include_subdirs no)`: it takes the folder and its subdirectories out of
+the group of modules that `middle_end/flambda2/dune` makes of its
+subdirectories. The folder is not excluded from `dune build @fmt`;
+formatting remains enabled for its extracted files and runtime.
+`tools/linktest.sh` says how a compiler is built with the extracted files
+in the place of its own Simplify, in a scratch tree (`GUIDE.md`, section
+6).
