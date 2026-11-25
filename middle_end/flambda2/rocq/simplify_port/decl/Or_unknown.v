@@ -17,8 +17,8 @@
 (* GENERATED, not written by hand: the declarations of what the port of
    Simplify uses of the compiler's module [Or_unknown], after its interface
    middle_end/flambda2/lattices/or_unknown.mli
-   at commit ecc5c0d968c892b4312065caef0f19ffffa042a9. Made by tools/declgen (see decl/README.md): a
-   change is made there, not here. *)
+   (Git blob 81bd96a166afa225b3b2e50a182d1baef9d27c96). Made by tools/declgen
+   (see decl/README.md): a change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Format.

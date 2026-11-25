@@ -17,8 +17,8 @@
 (* GENERATED, not written by hand: the declarations of what the port of
    Simplify uses of the compiler's module [Call_site_inlining_decision_type], after its interface
    middle_end/flambda2/simplify_shared/call_site_inlining_decision_type.mli
-   at commit ecc5c0d968c892b4312065caef0f19ffffa042a9. Made by tools/declgen (see decl/README.md): a
-   change is made there, not here. *)
+   (Git blob 465a09254439076fd9989fd15681196c52f997fc). Made by tools/declgen
+   (see decl/README.md): a change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Cost_metrics Format Stdlib_.

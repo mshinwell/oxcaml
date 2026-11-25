@@ -17,8 +17,8 @@
 (* GENERATED, not written by hand: the declarations of what the port of
    Simplify uses of the compiler's module [Apply_cont_expr], after its interface
    middle_end/flambda2/terms/apply_cont_expr.mli
-   at commit ecc5c0d968c892b4312065caef0f19ffffa042a9. Made by tools/declgen (see decl/README.md): a
-   change is made there, not here. *)
+   (Git blob e56c33f7cd0d9e550d187f8b7471053bda7b54ac). Made by tools/declgen
+   (see decl/README.md): a change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Continuation Debuginfo Simple Trap_action.

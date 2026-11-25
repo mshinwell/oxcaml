@@ -15,8 +15,8 @@
 (* GENERATED, not written by hand: the declarations of what the port of
    Simplify uses of the compiler's module [Coercion], after its interface
    middle_end/flambda2/term_basics/coercion.mli
-   at commit ecc5c0d968c892b4312065caef0f19ffffa042a9. Made by tools/declgen (see decl/README.md): a
-   change is made there, not here. *)
+   (Git blob 347d9f6ea67f454eec9c5478597afc374071ab12). Made by tools/declgen
+   (see decl/README.md): a change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Int_ids Name_occurrences.

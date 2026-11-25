@@ -17,8 +17,8 @@
 (* GENERATED, not written by hand: the declarations of what the port of
    Simplify uses of the compiler's module [Continuation_uses], after its interface
    middle_end/flambda2/simplify/env/continuation_uses.mli
-   at commit ecc5c0d968c892b4312065caef0f19ffffa042a9. Made by tools/declgen (see decl/README.md): a
-   change is made there, not here. *)
+   (Git blob a5065182320d738fb2bdefd9efec6e9fe8d6e790). Made by tools/declgen
+   (see decl/README.md): a change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Apply_cont_rewrite_id Continuation Flambda2_types Flambda_arity Format One_continuation_use.

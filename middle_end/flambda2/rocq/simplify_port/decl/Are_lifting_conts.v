@@ -16,8 +16,8 @@
 (* GENERATED, not written by hand: the declarations of what the port of
    Simplify uses of the compiler's module [Are_lifting_conts], after its interface
    middle_end/flambda2/simplify/are_lifting_conts.mli
-   at commit ecc5c0d968c892b4312065caef0f19ffffa042a9. Made by tools/declgen (see decl/README.md): a
-   change is made there, not here. *)
+   (Git blob c1e9983a7ad171967bfd45f8a10becaab682b1e5). Made by tools/declgen
+   (see decl/README.md): a change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Continuation Continuation_uses Format.

@@ -17,8 +17,8 @@
 (* GENERATED, not written by hand: the declarations of what the port of
    Simplify uses of the compiler's module [Apply_expr], after its interface
    middle_end/flambda2/terms/apply_expr.mli
-   at commit ecc5c0d968c892b4312065caef0f19ffffa042a9. Made by tools/declgen (see decl/README.md): a
-   change is made there, not here. *)
+   (Git blob 1a015c08ae8d76c3376e32950a3adeb9b8024128). Made by tools/declgen
+   (see decl/README.md): a change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Alloc_mode Call_kind Continuation Flambda_arity Format Inlined_attribute.

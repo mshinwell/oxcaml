@@ -17,11 +17,13 @@
    Simplify uses of the standard library's module [ListLabels]. Its names and
    types are read from the compiled interface of that module in the
    standard library of the OCaml that built the compiler, not from this
-   tree's stdlib/ (PROVENANCE.md, last section). The header above is that
-   of this tree's file of the same name,
+   tree's stdlib/ (PROVENANCE.md, last section): the compiled interface
+   that the files of the build import by the MD5 digest
+   43b801e513a8dd4facd34a1a8f3eb12b. The header above is that of this
+   tree's file of the same name,
    stdlib/listLabels.mli
-   at commit ecc5c0d968c892b4312065caef0f19ffffa042a9. Made by tools/declgen (see decl/README.md): a
-   change is made there, not here. *)
+   (Git blob cfc3cfff0f067e70acb5c808efd89a52f0c1b47a). Made by tools/declgen
+   (see decl/README.md): a change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
 

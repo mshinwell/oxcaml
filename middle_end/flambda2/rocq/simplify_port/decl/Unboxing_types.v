@@ -17,8 +17,8 @@
 (* GENERATED, not written by hand: the declarations of what the port of
    Simplify uses of the compiler's module [Unboxing_types], after its interface
    middle_end/flambda2/simplify/unboxing/unboxing_types.mli
-   at commit ecc5c0d968c892b4312065caef0f19ffffa042a9. Made by tools/declgen (see decl/README.md): a
-   change is made there, not here. *)
+   (Git blob 490502e8e46d360279dda3dec9d2a9d63a0e366f). Made by tools/declgen
+   (see decl/README.md): a change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Apply_cont_rewrite_id Bound_parameter Continuation_extra_params_and_args Flambda_debug_uid Flambda_kind Format Function_slot Tag Value_slot Variable_.

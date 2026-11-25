@@ -17,11 +17,13 @@
    Simplify uses of the standard library's module [Queue]. Its names and
    types are read from the compiled interface of that module in the
    standard library of the OCaml that built the compiler, not from this
-   tree's stdlib/ (PROVENANCE.md, last section). The header above is that
-   of this tree's file of the same name,
+   tree's stdlib/ (PROVENANCE.md, last section): the compiled interface
+   that the files of the build import by the MD5 digest
+   3b321c1bad5b935cfbf4767b238e4180. The header above is that of this
+   tree's file of the same name,
    stdlib/queue.mli
-   at commit ecc5c0d968c892b4312065caef0f19ffffa042a9. Made by tools/declgen (see decl/README.md): a
-   change is made there, not here. *)
+   (Git blob 636456d520c9ff8e11e2ce8a579de3e075f64010). Made by tools/declgen
+   (see decl/README.md): a change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
 

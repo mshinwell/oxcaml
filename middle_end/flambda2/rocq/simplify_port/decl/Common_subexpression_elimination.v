@@ -17,8 +17,8 @@
 (* GENERATED, not written by hand: the declarations of what the port of
    Simplify uses of the compiler's module [Common_subexpression_elimination], after its interface
    middle_end/flambda2/simplify/common_subexpression_elimination.mli
-   at commit ecc5c0d968c892b4312065caef0f19ffffa042a9. Made by tools/declgen (see decl/README.md): a
-   change is made there, not here. *)
+   (Git blob 389479cc2ad2b27c935f978673051b09879f0207). Made by tools/declgen
+   (see decl/README.md): a change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Apply_cont_rewrite_id Bound_parameters Continuation_extra_params_and_args Flambda2_types Flambda_primitive Format Name_occurrences Scope Simple.

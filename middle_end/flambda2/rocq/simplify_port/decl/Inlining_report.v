@@ -15,8 +15,8 @@
 (* GENERATED, not written by hand: the declarations of what the port of
    Simplify uses of the compiler's module [Inlining_report], after its interface
    middle_end/flambda2/simplify_shared/inlining_report.mli
-   at commit ecc5c0d968c892b4312065caef0f19ffffa042a9. Made by tools/declgen (see decl/README.md): a
-   change is made there, not here. *)
+   (Git blob 4fa3d7d53a4340ed1983df70e81c177620837e8d). Made by tools/declgen
+   (see decl/README.md): a change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Apply_expr Are_rebuilding_terms Call_site_inlining_decision_type Code_metadata Function_decl_inlining_decision_type Inlined_debuginfo Inlining_history.

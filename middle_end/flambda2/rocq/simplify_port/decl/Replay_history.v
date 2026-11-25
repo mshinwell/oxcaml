@@ -16,8 +16,8 @@
 (* GENERATED, not written by hand: the declarations of what the port of
    Simplify uses of the compiler's module [Replay_history], after its interface
    middle_end/flambda2/simplify/env/replay_history.mli
-   at commit ecc5c0d968c892b4312065caef0f19ffffa042a9. Made by tools/declgen (see decl/README.md): a
-   change is made there, not here. *)
+   (Git blob d9c5f5f15495addeaff2557fb82ef6e0c861f482). Made by tools/declgen
+   (see decl/README.md): a change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Apply_expr Call_site_inlining_decision_type Continuation Format Variable_.

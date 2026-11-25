@@ -17,8 +17,8 @@
 (* GENERATED, not written by hand: the declarations of what the port of
    Simplify uses of the compiler's module [Simplify_static_const], after its interface
    middle_end/flambda2/simplify/simplify_static_const.mli
-   at commit ecc5c0d968c892b4312065caef0f19ffffa042a9. Made by tools/declgen (see decl/README.md): a
-   change is made there, not here. *)
+   (Git blob 035a6d8c9c83506029bf142be3116e405ab58f4b). Made by tools/declgen
+   (see decl/README.md): a change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Bound_static Downwards_acc Flambda Rebuilt_static_const Simplify_common.

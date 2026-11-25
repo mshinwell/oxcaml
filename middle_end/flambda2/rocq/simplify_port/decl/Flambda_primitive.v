@@ -19,8 +19,8 @@
 (* GENERATED, not written by hand: the declarations of what the port of
    Simplify uses of the compiler's module [Flambda_primitive], after its interface
    middle_end/flambda2/terms/flambda_primitive.mli
-   at commit ecc5c0d968c892b4312065caef0f19ffffa042a9. Made by tools/declgen (see decl/README.md): a
-   change is made there, not here. *)
+   (Git blob 868bcbe80843f6bfae23359280ad58f76e732c28). Made by tools/declgen
+   (see decl/README.md): a change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Alloc_mode Asttypes Flambda_kind Format Function_slot Inlined_attribute Inlined_debuginfo Lambda Mutability Name Name_occurrences Or_unknown Scalar Simple Tag Target_ocaml_int Value_slot Variable_.

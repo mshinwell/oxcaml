@@ -16,8 +16,8 @@
 (* GENERATED, not written by hand: the declarations of what the port of
    Simplify uses of the compiler's module [Lifted_cont_params], after its interface
    middle_end/flambda2/simplify/lifted_cont_params.mli
-   at commit ecc5c0d968c892b4312065caef0f19ffffa042a9. Made by tools/declgen (see decl/README.md): a
-   change is made there, not here. *)
+   (Git blob fced26a860fc5e662f51bb4cdbb025b33cfb1e45). Made by tools/declgen
+   (see decl/README.md): a change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Bound_parameter Bound_parameters Format Renaming Replay_history Simple.

@@ -17,8 +17,8 @@
 (* GENERATED, not written by hand: the declarations of what the port of
    Simplify uses of the compiler's module [Reg_width_const], after its interface
    middle_end/flambda2/identifiers/reg_width_const.mli
-   at commit ecc5c0d968c892b4312065caef0f19ffffa042a9. Made by tools/declgen (see decl/README.md): a
-   change is made there, not here. *)
+   (Git blob 1e110909f930e11ca6c3a2675dfd2780b23675b3). Made by tools/declgen
+   (see decl/README.md): a change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Flambda_kind Format Int32 Int64 Int_ids Numeric_types Stdlib_ Target_ocaml_int Target_system Targetint_32_64 Vector_types.

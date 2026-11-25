@@ -15,8 +15,8 @@
 (* GENERATED, not written by hand: the declarations of what the port of
    Simplify uses of the compiler's module [Inlining_arguments], after its interface
    middle_end/flambda2/terms/inlining_arguments.mli
-   at commit ecc5c0d968c892b4312065caef0f19ffffa042a9. Made by tools/declgen (see decl/README.md): a
-   change is made there, not here. *)
+   (Git blob 2756e1eab083a86fa026dfc0a9f8c0a9f3c6f5c9). Made by tools/declgen
+   (see decl/README.md): a change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Stdlib_.

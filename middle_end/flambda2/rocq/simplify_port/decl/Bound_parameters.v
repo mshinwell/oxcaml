@@ -17,8 +17,8 @@
 (* GENERATED, not written by hand: the declarations of what the port of
    Simplify uses of the compiler's module [Bound_parameters], after its interface
    middle_end/flambda2/bound_identifiers/bound_parameters.mli
-   at commit ecc5c0d968c892b4312065caef0f19ffffa042a9. Made by tools/declgen (see decl/README.md): a
-   change is made there, not here. *)
+   (Git blob 8a1178e6a19e64b99ea6920fe3a2fdb7b8236cd4). Made by tools/declgen
+   (see decl/README.md): a change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Bound_parameter Flambda_arity Format Int_ids Name_occurrences Renaming Variable_.

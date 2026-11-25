@@ -17,11 +17,13 @@
    Simplify uses of the standard library's module [Int32]. Its names and
    types are read from the compiled interface of that module in the
    standard library of the OCaml that built the compiler, not from this
-   tree's stdlib/ (PROVENANCE.md, last section). The header above is that
-   of this tree's file of the same name,
+   tree's stdlib/ (PROVENANCE.md, last section): the compiled interface
+   that the files of the build import by the MD5 digest
+   eb4f33ed29b560525b336e79955fa30a. The header above is that of this
+   tree's file of the same name,
    stdlib/int32.mli
-   at commit ecc5c0d968c892b4312065caef0f19ffffa042a9. Made by tools/declgen (see decl/README.md): a
-   change is made there, not here. *)
+   (Git blob cadf7ebecfc26b6bd157edde532193fc2f843c60). Made by tools/declgen
+   (see decl/README.md): a change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Stdlib_.

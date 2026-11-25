@@ -18,11 +18,13 @@
    Simplify uses of the standard library's module [Float]. Its names and
    types are read from the compiled interface of that module in the
    standard library of the OCaml that built the compiler, not from this
-   tree's stdlib/ (PROVENANCE.md, last section). The header above is that
-   of this tree's file of the same name,
+   tree's stdlib/ (PROVENANCE.md, last section): the compiled interface
+   that the files of the build import by the MD5 digest
+   982b5c7843be6c7a654d37077ab2df6f. The header above is that of this
+   tree's file of the same name,
    stdlib/float.mli
-   at commit ecc5c0d968c892b4312065caef0f19ffffa042a9. Made by tools/declgen (see decl/README.md): a
-   change is made there, not here. *)
+   (Git blob 25b73a59c73891c2aa1feffc934af2683a23b9e9). Made by tools/declgen
+   (see decl/README.md): a change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Stdlib_.

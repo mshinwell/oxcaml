@@ -19,11 +19,12 @@
 
 (* GENERATED, not written by hand: the declarations of the modules that
    middle_end/flambda2/simplify/rebuilt_expr.ml
-   at commit ecc5c0d968c892b4312065caef0f19ffffa042a9 makes for itself by applying a functor of another
-   part of the compiler, and of what the file uses of them. The port keeps
-   the definitions of these modules as they are in the file, and the
-   realisations name them as the file does. Made by tools/declgen (see
-   decl/README.md): a change is made there, not here. *)
+   (Git blob d4549799a5871e659aab0a2992fcaea921fadc5c) makes for itself by
+   applying a functor of another part of the compiler, and of what the
+   file uses of them. The port keeps the definitions of these modules as
+   they are in the file, and the realisations name them as the file does.
+   Made by tools/declgen (see decl/README.md): a change is made there,
+   not here. *)
 
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Variable_.

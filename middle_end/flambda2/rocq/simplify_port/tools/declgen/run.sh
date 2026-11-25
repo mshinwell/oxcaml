@@ -27,16 +27,23 @@
 #******************************************************************************
 
 # run.sh BUILD_ROOT [UNIT ...] : makes decl/ again (run from simplify_port/).
-# BUILD_ROOT is the _build/default of a build of the compiler at the commit
-# of the sources. With no UNIT, every file of Simplify is read; with units
-# (Simplify_expr ...), only those files, and no question of crs.ml (that
-# run does not make the decl/ of the tree). One process at a time.
+# BUILD_ROOT is the _build/default of a build of the compiler from the
+# sources of this tree. No commit is given: what is written depends on what
+# is read, and the generator stops, and writes nothing, if the build
+# compiled another text than the tree has (decl/README.md). With no UNIT,
+# every file of Simplify is read; with units (Simplify_expr ...), only those
+# files, and no question of crs.ml (that run does not make the decl/ of the
+# tree). DECL_OUT=DIR in the environment: the files are written into DIR,
+# which is made, and not into decl/ (to compare them with decl/).
+# DECLGEN_BUILD=DIR: the generator is compiled in DIR (build.sh). One process
+# at a time.
 set -e
 B=$1; shift
 H=$(cd $(dirname $0) && pwd)
 O=$B/middle_end/flambda2/simplify/.flambda2_simplify.objs/byte
 ROOT=$(cd $H/../../../../../.. && pwd)
-COMMIT=${COMMIT:-ecc5c0d968c892b4312065caef0f19ffffa042a9}
+OUT=${DECL_OUT:-decl}
+D=${DECLGEN_BUILD:-$H/../../_build/declgen}
 if [ $# = 0 ]; then
   CMTS=$(ls $O/flambda2_simplify__*.cmt | LC_ALL=C sort)
 else
@@ -44,5 +51,5 @@ else
   export DECLGEN_SOME_FILES=1
 fi
 $H/build.sh
-mkdir -p decl
-$H/../../_build/declgen/declgen $B $ROOT decl $COMMIT $CMTS
+mkdir -p $OUT
+$D/declgen $B $ROOT $OUT $CMTS

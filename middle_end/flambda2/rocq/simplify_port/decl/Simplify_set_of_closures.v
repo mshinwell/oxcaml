@@ -17,8 +17,8 @@
 (* GENERATED, not written by hand: the declarations of what the port of
    Simplify uses of the compiler's module [Simplify_set_of_closures], after its interface
    middle_end/flambda2/simplify/simplify_set_of_closures.mli
-   at commit ecc5c0d968c892b4312065caef0f19ffffa042a9. Made by tools/declgen (see decl/README.md): a
-   change is made there, not here. *)
+   (Git blob 1100ae26c219b7adf2df61a1e0329d6a0ac2aae8). Made by tools/declgen
+   (see decl/README.md): a change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Alloc_mode Bound_name Bound_pattern Bound_static Code Code_id Downwards_acc Flambda Function_slot Rebuilt_static_const Simplify_common Simplify_named_result Symbol.

@@ -18,7 +18,9 @@ One file for each compilation unit of OCaml that the 78 files of
 `middle_end/flambda2/simplify/` use, named as the unit (`Downwards_acc.v`,
 `Flambda.v`, `List.v`), and one for each file of Simplify itself (whole
 interface). A sub-module of OCaml is a `Module` of the file. Each file begins
-with the header of the interface that it follows, then names it and the commit.
+with the header of the interface that it follows, then names that file and
+says which text of it was read (the section "What a file says that it was
+made from"): no commit is named.
 Two interfaces have no header (`backend/debug/dwarf/dwarf_flags/dwarf_flags.mli`
 and `utils/target_system.mli`): their files say so in its place.
 Four files have, under the header or under those words, a QUESTION FOR A
@@ -56,8 +58,9 @@ the two other files are of the compiler's modules and keep their own
 headers. The comment GENERATED of each of these 19 files says it: that
 the module is the standard library's, that its names and types are read
 from the compiled interface of that module in the library of the OCaml
-that built the compiler, and that the header above the comment is that of
-the tree's file of the same name. The comment before such a declaration
+that built the compiler (and which one, by its digest), and that the
+header above the comment is that of the tree's file of the same name. The
+comment before such a declaration
 (one for a whole family
 of a function of formats) names the library's file, without a line; the
 words of the comment are not that file's text: they are the name and the
@@ -92,11 +95,82 @@ one); what is declared of a module local to a file (`FILE__local.v`) when
 that module is inside another module of its file, or when its definition,
 copied from the file, does not compile apart from it.
 
-`BUILD_ROOT` is the `_build/default` of a dune build of the compiler at the
-commit of the sources (its `.cmt` and `.cmi` files are read; nothing is
+`BUILD_ROOT` is the `_build/default` of a dune build of the compiler FROM
+THE SOURCES OF THIS TREE (its `.cmt` and `.cmi` files are read; nothing is
 written there). The generator is OCaml and is compiled against the
 `compiler-libs` of the OCaml that made that build (`ocamlfind` in the path).
-The same inputs give the same bytes.
+With `DECL_OUT=DIR` in the environment `run.sh` writes into `DIR` and not
+into `decl/`, and with `DECLGEN_BUILD=DIR` it compiles the generator in
+`DIR` and not under `_build/` (to compare what is made with what is
+committed, and to make nothing in the folder).
+
+## What a file says that it was made from
+
+NO COMMIT IS GIVEN TO THE GENERATOR, AND NONE IS WRITTEN. What it writes
+depends on what it reads and on nothing else: the same sources and a build
+of them by the same OCaml give the same bytes, at whatever commit the tree
+is and wherever the build is. So `decl/` can be made again from any
+commit's own build and compared with what that commit has; and a change of
+the compiler changes only the files of `decl/` whose inputs changed.
+
+The comment GENERATED of each file names the file that it follows and then
+the text of that file, as `(Git blob ID)`: the name that Git gives the
+bytes of a file (the SHA-1 of the word `blob`, the length and the bytes;
+`tools/declgen/blob.ml` computes it, Git is not called). For a commit C,
+
+    git rev-parse C:PATH
+
+prints the name of the text that PATH has at C, and `git log
+--find-object=ID -- PATH` lists the commits that brought that text or took
+it away. The 222 files name: the interface of the compiler's module (196
+files); the file of Simplify whose own modules are declared (the 7 files
+`FILE__local.v`); the tree's `stdlib/NAME.mli`, whose header the file
+carries (19 files).
+
+THE BUILD MUST BE A BUILD OF THOSE TEXTS, AND THE GENERATOR ASKS. A typed
+tree (`.cmt`, `.cmti`) keeps the name of the text that the compiler read
+and the MD5 digest of it. Before it writes a file the generator compares
+that digest with the text of the tree (or with the copy that the build
+made of it, which is one line that names the file and then the file), for:
+
+- the typed tree of each of the 78 files of Simplify;
+- the interface of every unit of the build whose compiled interface the
+  compiler's library loaded for it (277 today: the 196 that have a file
+  here, and 81 that only stand in the types of others);
+- each implementation that it reads for `ARITIES.tsv`.
+
+It also compares the digest of each compiled interface that was loaded
+with the digest by which the 78 typed trees import that unit: a compiled
+interface that was made again after a file of Simplify was compiled is
+found so. IF ONE THING DIFFERS IT SAYS WHICH, WRITES NO FILE AND EXITS
+WITH STATUS 2 (`the build compiled another text of PATH`). So the text
+that a file names by its blob is the text from which the build compiled
+what was read.
+
+WHAT IS NOT COMPARED. The generator prints the numbers when it ends, and
+one line `not compared:` for each unit of the build that it could not
+compare, with the reason.
+
+- 16 units of the build have no file in the tree: each is the list of the
+  modules of a library, which dune writes (such as
+  `flambda2_terms.ml-gen`: a line `module A = Lib__A` for each module `A`
+  of the library `Lib`). Nothing asks what they hold.
+- THE STANDARD LIBRARY. Its compiled interfaces are not of the build (the
+  paragraph before "To make them again", and `PROVENANCE.md`, last
+  section), so there is no text of the tree to compare (69 units are
+  loaded; 19 have a file here). The comment GENERATED of each of the 19
+  files says which compiled interface was read, by the MD5 digest that
+  every compiled file which imports it keeps (`ocamlobjinfo` prints it
+  beside the name of the unit). The generator has it from the compiled
+  interfaces that were loaded and compares it, as above, with the one
+  that the 78 typed trees keep. THAT DIGEST CHANGES IF THE LIBRARY OF THE
+  OCAML THAT MAKES THE BUILD CHANGES: the 19 files are then made again,
+  and say so. The blob beside it is that of the tree's `stdlib/NAME.mli`,
+  of which the header alone is taken. The generator does not compare that
+  header with the header of the library that was read (`PROVENANCE.md`
+  says what was compared once, by hand).
+- Named in no file: the OCaml that made the build, and the text of the
+  generator itself.
 
 ## What is read, and how a thing is found
 

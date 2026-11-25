@@ -17,8 +17,8 @@
 (* GENERATED, not written by hand: the declarations of what the port of
    Simplify uses of the compiler's module [Simplify_primitive_result], after its interface
    middle_end/flambda2/simplify/simplify_primitive_result.mli
-   at commit ecc5c0d968c892b4312065caef0f19ffffa042a9. Made by tools/declgen (see decl/README.md): a
-   change is made there, not here. *)
+   (Git blob 1dea7ab57db4e71765153039cbd77b63af8da506). Made by tools/declgen
+   (see decl/README.md): a change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Bound_var Downwards_acc Flambda Flambda_kind Or_invalid Simplified_named.

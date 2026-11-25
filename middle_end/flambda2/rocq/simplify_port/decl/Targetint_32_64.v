@@ -19,8 +19,8 @@
 (* GENERATED, not written by hand: the declarations of what the port of
    Simplify uses of the compiler's module [Targetint_32_64], after its interface
    middle_end/flambda2/numbers/targetint_32_64.mli
-   at commit ecc5c0d968c892b4312065caef0f19ffffa042a9. Made by tools/declgen (see decl/README.md): a
-   change is made there, not here. *)
+   (Git blob 5ab59bc3c194fab0f33c2898eb4a9e009166ecc0). Made by tools/declgen
+   (see decl/README.md): a change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Format Or_null Seq Stdlib_ Target_system.

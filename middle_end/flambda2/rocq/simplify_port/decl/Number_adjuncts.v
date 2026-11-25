@@ -17,8 +17,8 @@
 (* GENERATED, not written by hand: the declarations of what the port of
    Simplify uses of the compiler's module [Number_adjuncts], after its interface
    middle_end/flambda2/simplify/number_adjuncts.mli
-   at commit ecc5c0d968c892b4312065caef0f19ffffa042a9. Made by tools/declgen (see decl/README.md): a
-   change is made there, not here. *)
+   (Git blob 55de0362a9c8c80e72df1e219ea8828b3022aa5c). Made by tools/declgen
+   (see decl/README.md): a change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Alloc_mode Flambda Flambda2_types Flambda_kind Format Numeric_types Or_null Reg_width_const Seq Target_ocaml_int Target_system Targetint_32_64.

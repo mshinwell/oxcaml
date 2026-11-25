@@ -25,7 +25,7 @@
  * DEALINGS IN THE SOFTWARE.                                                  *
  ******************************************************************************)
 
-(* declgen BUILD_ROOT SOURCE_ROOT OUT_DIR COMMIT FILE.cmt ...
+(* declgen BUILD_ROOT SOURCE_ROOT OUT_DIR FILE.cmt ...
 
    Writes, into OUT_DIR, one file of Rocq for each compilation unit that the
    given files of Simplify use, and for each of those files itself: the
@@ -35,6 +35,14 @@
    header of a file that crs.ml names it writes that file's question for a human
    (none when DECLGEN_SOME_FILES is in the environment: run.sh sets it for a run
    on some of the files).
+
+   What it writes depends on what it reads and on nothing else: no commit is
+   given to it, and each file says which text it follows by the name that Git
+   gives that text ([Blob]). SOURCE_ROOT must be the sources of which BUILD_ROOT
+   is a build. Before a file is written, the text from which the build compiled
+   each file that was read is compared with the tree's ([Src.compiled_from]),
+   and the compiled interfaces that were loaded with those that the given typed
+   trees were compiled against. If one is another, it stops and writes nothing.
 
    declgen --parameters FILE.cmt
 
@@ -52,44 +60,112 @@
 open Common
 module SS = Set.Make (String)
 
-(* Where the interface of a unit is in the sources of the tree, and whether that
-   file is the one from which the build compiled the interface that is read. It
-   is not for a unit of the standard library: the build read the library of the
-   OCaml that built the compiler, and the file is the tree's own of the same
-   name (Src.source_path). *)
-let source_of_unit u =
+(* The typed tree of the interface of a unit: that of its [.mli] file, or of its
+   [.ml] file if it has no other. *)
+let typed_tree_of_unit u =
   let find ext =
     try Some (Load_path.find_normalized (u ^ ext)) with Not_found -> None
   in
-  match match find ".cmti" with Some f -> Some f | None -> find ".cmt" with
+  match find ".cmti" with Some f -> Some f | None -> find ".cmt"
+
+(* Where the interface of a unit is in the sources of the tree, and whether the
+   text of that file is the text from which the build compiled the interface
+   that is read: the compiler's own digest of what it read says so
+   ([Src.compiled_from]; the build compiles some files from a copy, [misc.mli],
+   which is utils/misc.mli). It is not for a unit of the standard library: the
+   build read the library of the OCaml that built the compiler, and the file is
+   the tree's own of the same name (Src.source_path). *)
+let source_of_unit u =
+  match typed_tree_of_unit u with
   | None -> None
   | Some f -> (
     match Cmt_format.read_cmt f with
     | exception _ -> None
     | cmt -> (
-      let found s =
-        match Src.source_path s with Some (rel, true) -> Some rel | _ -> None
-      in
-      (* the build compiles some files from a copy ([misc.mli], which is
-         utils/misc.mli): the places inside name the file itself *)
-      let inside =
-        match cmt.cmt_annots with
-        | Interface { sig_items = item :: _; _ } ->
-          Some item.sig_loc.loc_start.pos_fname
-        | Implementation { str_items = item :: _; _ } ->
-          Some item.str_loc.loc_start.pos_fname
-        | _ -> None
-      in
-      match Option.bind cmt.cmt_sourcefile found with
-      | Some rel -> Some (rel, true)
-      | None -> (
-        match Option.bind inside found with
-        | Some rel -> Some (rel, true)
-        | None -> Option.bind cmt.cmt_sourcefile Src.source_path)))
+      if Src.of_the_build f
+      then
+        match Src.compiled_from ~file:f cmt with
+        | Tree rel -> Some (rel, true)
+        | Another_text _ | Of_the_build _ | No_text _ | Not_named -> None
+      else
+        match Option.bind cmt.cmt_sourcefile Src.source_path with
+        | Some (rel, _) -> Some (rel, false)
+        | None -> None))
 
-let no_source =
-  [ "(* This file follows an interface whose source was not found: see the";
-    "   comment below. *)" ]
+(* Every compiled interface that was loaded, against the tree. For a unit of the
+   build, the text from which its interface was compiled is compared
+   ([Src.compiled_from], which keeps what was compiled from another text). The
+   result: how many were compiled from the text of the tree; the others of the
+   build, which cannot be compared, each with the reason (a text that the build
+   wrote); and how many are of the library of the OCaml that made the build. *)
+let compare_loaded loaded =
+  let of_tree = ref 0 in
+  let of_library = ref 0 in
+  let others = ref [] in
+  List.iter
+    (fun (u, _) ->
+      match Load_path.find_normalized (u ^ ".cmi") with
+      | exception Not_found -> ()
+      | cmi when not (Src.of_the_build cmi) -> incr of_library
+      | _ -> (
+        match typed_tree_of_unit u with
+        | None -> others := (u ^ ": no typed tree of it") :: !others
+        | Some f -> (
+          match Cmt_format.read_cmt f with
+          | exception _ ->
+            others := (u ^ ": its typed tree could not be read") :: !others
+          | cmt -> (
+            match Src.compiled_from ~file:f cmt with
+            | Tree _ -> incr of_tree
+            | Another_text _ -> ()
+            | Of_the_build s ->
+              others
+                := (s ^ ": the build wrote it, the tree has no such file")
+                   :: !others
+            | No_text s ->
+              others
+                := (s ^ ": neither the tree nor the build has it") :: !others
+            | Not_named ->
+              others := (u ^ ": its typed tree names no source") :: !others))))
+    loaded;
+  !of_tree, List.sort compare !others, !of_library
+
+(* The comment under the header of a file of declarations: what the file is, and
+   the text that it follows, by the name that Git gives that text. *)
+let head_of_compiler ~name ~rel ~blob =
+  [ "(* GENERATED, not written by hand: the declarations of what the port of";
+    Printf.sprintf
+      "   Simplify uses of the compiler's module [%s], after its interface" name;
+    "   " ^ rel;
+    Printf.sprintf "   (Git blob %s). Made by tools/declgen" blob;
+    "   (see decl/README.md): a change is made there, not here. *)" ]
+
+let head_of_local ~rel ~blob =
+  [ "(* GENERATED, not written by hand: the declarations of the modules that";
+    "   " ^ rel;
+    Printf.sprintf "   (Git blob %s) makes for itself by" blob;
+    "   applying a functor of another part of the compiler, and of what the";
+    "   file uses of them. The port keeps the definitions of these modules as";
+    "   they are in the file, and the realisations name them as the file does.";
+    "   Made by tools/declgen (see decl/README.md): a change is made there,";
+    "   not here. *)" ]
+
+(* [digest]: the MD5 digest by which every compiled file that imports the
+   interface names it ([ocamlobjinfo] prints it). *)
+let head_of_library ~name ~rel ~blob ~digest =
+  [ "(* GENERATED, not written by hand: the declarations of what the port of";
+    Printf.sprintf
+      "   Simplify uses of the standard library's module [%s]. Its names and"
+      name;
+    "   types are read from the compiled interface of that module in the";
+    "   standard library of the OCaml that built the compiler, not from this";
+    "   tree's stdlib/ (PROVENANCE.md, last section): the compiled interface";
+    "   that the files of the build import by the MD5 digest";
+    Printf.sprintf "   %s. The header above is that of this" digest;
+    "   tree's file of the same name,";
+    "   " ^ rel;
+    Printf.sprintf "   (Git blob %s). Made by tools/declgen" blob;
+    "   (see decl/README.md): a change is made there, not here. *)" ]
 
 let no_header =
   [ "(* The interface that this file follows has no header: see the comment";
@@ -231,14 +307,22 @@ let () =
   build_root := Sys.argv.(1);
   source_root := Sys.argv.(2);
   let out_dir = Sys.argv.(3) in
-  let commit = Sys.argv.(4) in
-  let cmts = Array.to_list (Array.sub Sys.argv 5 (Array.length Sys.argv - 5)) in
+  let cmts = Array.to_list (Array.sub Sys.argv 4 (Array.length Sys.argv - 4)) in
+  List.iter
+    (fun f ->
+      if not (Src.of_the_build f)
+      then
+        failwith
+          (Printf.sprintf "%s is no file of the build root %s" f !build_root))
+    cmts;
   let scanned = ref SS.empty in
   let last = ref None in
+  let given_imports = ref [] in
   List.iter
     (fun f ->
       let cmt = Uses.scan f in
       scanned := SS.add cmt.cmt_modname !scanned;
+      given_imports := (f, cmt.cmt_imports) :: !given_imports;
       last := Some cmt)
     cmts;
   (match !last with
@@ -250,16 +334,67 @@ let () =
     if (!Tr.changed || not same) && n < 12 then loop (n + 1) else results, n
   in
   let results, passes = loop 1 in
+  (* IS THE BUILD A BUILD OF THESE SOURCES? What is found otherwise is kept in
+     [stale]. First the compiled interfaces that were loaded: the text of each,
+     and that each is the one that the given typed trees were compiled
+     against. *)
+  let loaded = Env.imports () in
+  let of_tree, others, of_library = compare_loaded loaded in
+  List.iter
+    (fun (f, imports) ->
+      List.iter
+        (fun (u, digest) ->
+          match digest, List.assoc_opt u loaded with
+          | Some d, Some (Some d') when not (String.equal d d') ->
+            stale
+              := Printf.sprintf
+                   "%s was compiled against another compiled interface of %s \
+                    than the one that is read"
+                   (Filename.basename f) u
+                 :: !stale
+          | _ -> ())
+        imports)
+    !given_imports;
   (* the file whose header the file of a unit carries, and whether it is the
      file from which the build compiled the interface that is read *)
+  let sources = Hashtbl.create 97 in
   let source_of u =
-    match Hashtbl.find_opt Sigs.locals u with
-    | Some (_, file) -> Some file, true
-    | None -> (
-      match source_of_unit u with
-      | Some (rel, compiled) -> Some rel, compiled
-      | None -> None, true)
+    match Hashtbl.find_opt sources u with
+    | Some found -> found
+    | None ->
+      let found =
+        match Hashtbl.find_opt Sigs.locals u with
+        | Some (_, file) -> Some file, true
+        | None -> (
+          match source_of_unit u with
+          | Some (rel, compiled) -> Some rel, compiled
+          | None -> None, true)
+      in
+      Hashtbl.replace sources u found;
+      found
   in
+  List.iter (fun (u, _, _) -> ignore (source_of u)) results;
+  (* then what is read of the typed trees of implementations: for each declared
+     value, the parameters of its realisation and of its definition; and the
+     given files themselves: their record updates, their tokens and their
+     items *)
+  let arities =
+    List.map
+      (fun (comps, ocaml, rocq, wrapper) ->
+        let definition, where = Arities.row comps in
+        Printf.sprintf "%s\t%s\t%d\t%s\t%s" ocaml rocq wrapper definition where)
+      !Decl_out.values
+  in
+  let donors = List.map Donors.read cmts in
+  if !stale <> []
+  then (
+    prerr_endline
+      "declgen: the build that is read is no build of these sources:";
+    List.iter
+      (fun why -> prerr_endline ("  " ^ why))
+      (List.sort_uniq compare !stale);
+    prerr_endline "No file is written.";
+    exit 2);
   (* the questions for a human, checked before any file is written: what a row
      says of its file against what is about to be written *)
   let without_line place =
@@ -300,115 +435,101 @@ let () =
     else Crs.checked ~known
   in
   let names = Hashtbl.create 97 in
-  List.iter
-    (fun (u, body, deps) ->
-      let rocq = Sigs.unit_rocq u in
-      (match Hashtbl.find_opt names rocq with
-      | Some u' ->
-        failwith (Printf.sprintf "two units for %s.v: %s and %s" rocq u u')
-      | None -> Hashtbl.replace names rocq u);
-      let source, compiled = source_of u in
-      (* a unit of the standard library, and no other, has a file that the build
-         did not compile *)
-      let of_library =
-        is_stdlib_unit u || starts_with ~prefix:"Camlinternal" u
-      in
-      if of_library && compiled
-      then
-        failwith
-          (Printf.sprintf
-             "%s is a unit of the standard library, and the tree's stdlib/ \
-              file of the same name does not stand for its interface (%s)"
-             u
-             (Option.value ~default:"no source found" source));
-      if (not of_library) && not compiled
-      then
-        failwith
-          (Printf.sprintf
-             "%s is no unit of the standard library, and its interface was not \
-              compiled from a file of the tree (%s)"
-             u
-             (Option.value ~default:"no source found" source));
-      let header =
-        match source with
-        | Some rel -> ( match Src.header rel with [] -> no_header | h -> h)
-        | None -> no_source
-      in
-      let b = Buffer.create (String.length body + 4096) in
-      List.iter (fun l -> Buffer.add_string b (l ^ "\n")) header;
-      (match List.assoc_opt rocq crs with
-      | Some lines ->
+  let files =
+    List.map
+      (fun (u, body, deps) ->
+        let rocq = Sigs.unit_rocq u in
+        (match Hashtbl.find_opt names rocq with
+        | Some u' ->
+          failwith (Printf.sprintf "two units for %s.v: %s and %s" rocq u u')
+        | None -> Hashtbl.replace names rocq u);
+        let source, compiled = source_of u in
+        (* a unit of the standard library, and no other, has a file that the
+           build did not compile *)
+        let of_library =
+          is_stdlib_unit u || starts_with ~prefix:"Camlinternal" u
+        in
+        if of_library && compiled
+        then
+          failwith
+            (Printf.sprintf
+               "%s is a unit of the standard library, and the tree's stdlib/ \
+                file of the same name does not stand for its interface (%s)"
+               u
+               (Option.value ~default:"no source found" source));
+        if (not of_library) && not compiled
+        then
+          failwith
+            (Printf.sprintf
+               "%s is no unit of the standard library, and its interface was \
+                not compiled from a file of the tree (%s)"
+               u
+               (Option.value ~default:"no source found" source));
+        (* the text that the file follows, and the name that Git gives it *)
+        let rel =
+          match source with
+          | Some rel -> rel
+          | None ->
+            failwith
+              (Printf.sprintf
+                 "%s: no file of the tree was found from which the build \
+                  compiled its interface, so its file of declarations can name \
+                  none"
+                 u)
+        in
+        let blob =
+          match Src.blob rel with
+          | Some blob -> blob
+          | None -> failwith (Printf.sprintf "%s could not be read" rel)
+        in
+        let header = match Src.header rel with [] -> no_header | h -> h in
+        let b = Buffer.create (String.length body + 4096) in
+        let add_lines lines =
+          List.iter (fun l -> Buffer.add_string b (l ^ "\n")) lines
+        in
+        add_lines header;
+        (match List.assoc_opt rocq crs with
+        | Some lines ->
+          Buffer.add_char b '\n';
+          add_lines lines
+        | None -> ());
         Buffer.add_char b '\n';
-        List.iter (fun l -> Buffer.add_string b (l ^ "\n")) lines
-      | None -> ());
-      if is_local_unit u
-      then
-        Buffer.add_string b
-          (Printf.sprintf
-             "\n\
-              (* GENERATED, not written by hand: the declarations of the \
-              modules that\n\
-             \   %s\n\
-             \   at commit %s makes for itself by applying a functor of another\n\
-             \   part of the compiler, and of what the file uses of them. The \
-              port keeps\n\
-             \   the definitions of these modules as they are in the file, and \
-              the\n\
-             \   realisations name them as the file does. Made by \
-              tools/declgen (see\n\
-             \   decl/README.md): a change is made there, not here. *)\n\n"
-             (Option.value ~default:"(source not found)" source)
-             commit)
-      else if not compiled
-      then
-        Buffer.add_string b
-          (Printf.sprintf
-             "\n\
-              (* GENERATED, not written by hand: the declarations of what the \
-              port of\n\
-             \   Simplify uses of the standard library's module [%s]. Its \
-              names and\n\
-             \   types are read from the compiled interface of that module in \
-              the\n\
-             \   standard library of the OCaml that built the compiler, not \
-              from this\n\
-             \   tree's stdlib/ (PROVENANCE.md, last section). The header \
-              above is that\n\
-             \   of this tree's file of the same name,\n\
-             \   %s\n\
-             \   at commit %s. Made by tools/declgen (see decl/README.md): a\n\
-             \   change is made there, not here. *)\n\n"
-             (short_unit u)
-             (Option.value ~default:"(source not found)" source)
-             commit)
-      else
-        Buffer.add_string b
-          (Printf.sprintf
-             "\n\
-              (* GENERATED, not written by hand: the declarations of what the \
-              port of\n\
-             \   Simplify uses of the compiler's module [%s], after its \
-              interface\n\
-             \   %s\n\
-             \   at commit %s. Made by tools/declgen (see decl/README.md): a\n\
-             \   change is made there, not here. *)\n\n"
-             (short_unit u)
-             (Option.value ~default:"(source not found)" source)
-             commit);
-      Buffer.add_string b "From SimplifyPort Require Import Port_monad.\n";
-      let deps = SS.elements (SS.remove u deps) in
-      if deps <> []
-      then
-        Buffer.add_string b
-          (Printf.sprintf "From SimplifyPort.decl Require %s.\n"
-             (String.concat " "
-                (List.sort compare (List.map Sigs.unit_rocq deps))));
-      Buffer.add_char b '\n';
-      Buffer.add_string b body;
-      (* the file ends with a module of its own name: see [no_open] *)
-      Buffer.add_string b (no_open ~local:(is_local_unit u) rocq);
-      write_file (Filename.concat out_dir (rocq ^ ".v")) (Buffer.contents b))
-    results;
+        add_lines
+          (if is_local_unit u
+           then head_of_local ~rel ~blob
+           else if not compiled
+           then
+             let digest =
+               match List.assoc_opt u loaded with
+               | Some (Some digest) -> Digest.to_hex digest
+               | _ ->
+                 failwith
+                   (Printf.sprintf
+                      "%s: the digest of its compiled interface is not known" u)
+             in
+             head_of_library ~name:(short_unit u) ~rel ~blob ~digest
+           else head_of_compiler ~name:(short_unit u) ~rel ~blob);
+        Buffer.add_char b '\n';
+        Buffer.add_string b "From SimplifyPort Require Import Port_monad.\n";
+        let deps = SS.elements (SS.remove u deps) in
+        if deps <> []
+        then
+          Buffer.add_string b
+            (Printf.sprintf "From SimplifyPort.decl Require %s.\n"
+               (String.concat " "
+                  (List.sort compare (List.map Sigs.unit_rocq deps))));
+        Buffer.add_char b '\n';
+        Buffer.add_string b body;
+        (* the file ends with a module of its own name: see [no_open] *)
+        Buffer.add_string b (no_open ~local:(is_local_unit u) rocq);
+        rocq, Buffer.contents b)
+      results
+  in
+  (* nothing is written before this line *)
+  List.iter
+    (fun (rocq, contents) ->
+      write_file (Filename.concat out_dir (rocq ^ ".v")) contents)
+    files;
   (* what an earlier run wrote and this one does not *)
   Array.iter
     (fun f ->
@@ -427,17 +548,7 @@ let () =
     (List.map
        (fun (o, r, k, a, p) -> Printf.sprintf "%s\t%s\t%s\t%d\t%s" o r k a p)
        !Decl_out.index);
-  (* for each declared value: the parameters of its realisation and of its
-     definition *)
-  tsv "ARITIES.tsv"
-    (List.map
-       (fun (comps, ocaml, rocq, wrapper) ->
-         let definition, where = Arities.row comps in
-         Printf.sprintf "%s\t%s\t%d\t%s\t%s" ocaml rocq wrapper definition where)
-       !Decl_out.values);
-  (* the given files themselves: their record updates, their tokens and their
-     items *)
-  let donors = List.map Donors.read cmts in
+  tsv "ARITIES.tsv" arities;
   tsv "UPDATES.tsv" (List.concat_map (fun (_, updates, _) -> updates) donors);
   tsv "DONOR-TOKENS.tsv"
     (List.filter_map
@@ -492,4 +603,11 @@ let () =
     (List.length results)
     (List.length !Decl_out.index)
     (List.length !Decl_out.left)
-    passes
+    passes;
+  Printf.printf
+    "%d compiled interfaces of the build were loaded: %d were compiled from \
+     the text of the tree, %d could not be compared (named below); %d more are \
+     of the library of the OCaml that made the build\n"
+    (of_tree + List.length others)
+    of_tree (List.length others) of_library;
+  List.iter (fun why -> Printf.printf "not compared: %s\n" why) others

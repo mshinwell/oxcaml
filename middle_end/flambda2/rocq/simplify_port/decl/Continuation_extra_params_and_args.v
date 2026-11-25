@@ -17,8 +17,8 @@
 (* GENERATED, not written by hand: the declarations of what the port of
    Simplify uses of the compiler's module [Continuation_extra_params_and_args], after its interface
    middle_end/flambda2/simplify/continuation_extra_params_and_args.mli
-   at commit ecc5c0d968c892b4312065caef0f19ffffa042a9. Made by tools/declgen (see decl/README.md): a
-   change is made there, not here. *)
+   (Git blob 26e254eeca3281320c3558670becbbffd9e1ada9). Made by tools/declgen
+   (see decl/README.md): a change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Apply_cont_rewrite_id Bound_parameter Bound_parameters Flambda_primitive Format Or_invalid Simple Variable_.

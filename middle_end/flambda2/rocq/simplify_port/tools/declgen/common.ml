@@ -35,9 +35,15 @@
 (* The [_build/default] of the build that is read. *)
 let build_root = ref ""
 
-(* The root of the sources of the same commit (for headers and the text of
-   declarations). *)
+(* The root of the sources that the build compiled (for headers, the text of
+   declarations, and the comparison of [Src.compiled_from]). *)
 let source_root = ref ""
+
+(* What shows that the build which is read is no build of these sources: a file
+   that it compiled from another text than the tree has, a compiled interface
+   that is not the one that a given typed tree was compiled against. One
+   sentence for each. The generator stops on any, before it writes a file. *)
+let stale : string list ref = ref []
 
 let fix_dir d =
   if d = ""

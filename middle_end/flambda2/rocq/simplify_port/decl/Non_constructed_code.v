@@ -17,8 +17,8 @@
 (* GENERATED, not written by hand: the declarations of what the port of
    Simplify uses of the compiler's module [Non_constructed_code], after its interface
    middle_end/flambda2/simplify/non_constructed_code.mli
-   at commit ecc5c0d968c892b4312065caef0f19ffffa042a9. Made by tools/declgen (see decl/README.md): a
-   change is made there, not here. *)
+   (Git blob 7b7d0c0bfb59659cdb091aa1516503cabf7d383b). Made by tools/declgen
+   (see decl/README.md): a change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Alloc_mode Code0 Code_id Code_metadata Cost_metrics Debuginfo First_complex_local_param Flambda_arity Format Function_decl_inlining_decision_type Inline_attribute Inlining_arguments Inlining_history Lambda Loopify_attribute Name_occurrences Or_unknown_or_bottom Poll_attribute Recursive Regalloc_attribute Regalloc_param_attribute Renaming Result_types Zero_alloc_attribute.

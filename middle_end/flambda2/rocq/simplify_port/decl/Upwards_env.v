@@ -17,8 +17,8 @@
 (* GENERATED, not written by hand: the declarations of what the port of
    Simplify uses of the compiler's module [Upwards_env], after its interface
    middle_end/flambda2/simplify/env/upwards_env.mli
-   at commit ecc5c0d968c892b4312065caef0f19ffffa042a9. Made by tools/declgen (see decl/README.md): a
-   change is made there, not here. *)
+   (Git blob 9b09d13d4c5af67ac44f6fc4b5d8e2ebc698fc7c). Made by tools/declgen
+   (see decl/README.md): a change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Apply_cont_rewrite Are_rebuilding_terms Bound_parameters Continuation Continuation_in_env Continuation_shortcut Cost_metrics Flambda_arity Format Name_occurrences Or_unknown Rebuilt_expr Simple Target_system.

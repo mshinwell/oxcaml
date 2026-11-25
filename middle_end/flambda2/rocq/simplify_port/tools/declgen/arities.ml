@@ -80,72 +80,41 @@ let stdlib_reason =
   "not read: the standard library of the tree is compiled by the tree's own \
    compiler"
 
-let read_file path =
-  try Some (In_channel.with_open_bin path In_channel.input_all)
-  with Sys_error _ -> None
-
 (* The file of the tree that a typed tree was made from, when the text that the
-   build read is the text of the tree: either the file itself, or a copy that
-   the build made of it, which is the line [# 1 "FILE"] and then the file. A
+   build read is the text of the tree ([Src.compiled_from], which keeps what the
+   build compiled from another text; [file] is the file of the typed tree). A
    list of the modules of a library, which the build writes ([module A =
    Lib__A], perhaps an empty module, and no more), has no file in the tree: it
    is accepted, and has no definition of a value. *)
-let tree_source (cmt : Cmt_format.cmt_infos) (str : Typedtree.structure) =
-  match cmt.cmt_sourcefile, cmt.cmt_source_digest with
-  | Some s, Some d -> (
-    match read_file (Filename.concat !source_root s) with
-    | Some text ->
-      if String.equal (Digest.string text) d
-      then Ok s
-      else
-        Error (Printf.sprintf "not read: the build read another text of %s" s)
-    | None -> (
-      match read_file (Filename.concat !build_root s) with
-      | None -> Error (Printf.sprintf "not read: the source %s was not found" s)
-      | Some text when not (String.equal (Digest.string text) d) ->
-        Error (Printf.sprintf "not read: the build read another text of %s" s)
-      | Some text -> (
-        let copy_of =
-          match String.index_opt text '\n' with
-          | None -> None
-          | Some i -> (
-            match
-              Scanf.sscanf_opt (String.sub text 0 i) "# 1 %S%!" (fun r -> r)
-            with
-            | None -> None
-            | Some rel -> (
-              let rest = String.sub text (i + 1) (String.length text - i - 1) in
-              match read_file (Filename.concat !source_root rel) with
-              | Some t when String.equal t rest -> Some rel
-              | _ -> None))
-        in
-        match copy_of with
-        | Some rel -> Ok rel
-        | None ->
-          let only_aliases =
-            List.for_all
-              (fun (item : Typedtree.structure_item) ->
-                match item.str_desc with
-                | Tstr_module { mb_expr = { mod_desc = Tmod_ident _; _ }; _ }
-                | Tstr_module
-                    { mb_expr =
-                        { mod_desc = Tmod_structure { str_items = []; _ }; _ };
-                      _
-                    }
-                | Tstr_attribute _ ->
-                  true
-                | _ -> false)
-              str.str_items
-          in
-          if only_aliases
-          then Ok s
-          else
-            Error
-              (Printf.sprintf
-                 "not read: %s is written by the build, it is no file of the \
-                  tree"
-                 s))))
-  | _ -> Error "not read: the typed tree does not name its source"
+let tree_source ~file (cmt : Cmt_format.cmt_infos) (str : Typedtree.structure) =
+  match Src.compiled_from ~file cmt with
+  | Tree rel -> Ok rel
+  | Another_text s ->
+    Error (Printf.sprintf "not read: the build read another text of %s" s)
+  | No_text s ->
+    Error (Printf.sprintf "not read: the source %s was not found" s)
+  | Of_the_build s ->
+    let only_aliases =
+      List.for_all
+        (fun (item : Typedtree.structure_item) ->
+          match item.str_desc with
+          | Tstr_module { mb_expr = { mod_desc = Tmod_ident _; _ }; _ }
+          | Tstr_module
+              { mb_expr = { mod_desc = Tmod_structure { str_items = []; _ }; _ };
+                _
+              }
+          | Tstr_attribute _ ->
+            true
+          | _ -> false)
+        str.str_items
+    in
+    if only_aliases
+    then Ok s
+    else
+      Error
+        (Printf.sprintf
+           "not read: %s is written by the build, it is no file of the tree" s)
+  | Not_named -> Error "not read: the typed tree does not name its source"
 
 (* For each unit: its structure, or why it was not read; and its file. *)
 let units : (string, modval) Hashtbl.t = Hashtbl.create 97
@@ -299,7 +268,7 @@ and read_unit u : modval =
           | cmt -> (
             match cmt.cmt_annots with
             | Implementation str -> (
-              match tree_source cmt str with
+              match tree_source ~file:f cmt str with
               | Ok file ->
                 Hashtbl.replace unit_file u file;
                 eval_structure { unit_name = u; env = [] } str

@@ -15,8 +15,8 @@
 (* GENERATED, not written by hand: the declarations of what the port of
    Simplify uses of the compiler's module [Symbol_projection], after its interface
    middle_end/flambda2/term_basics/symbol_projection.mli
-   at commit ecc5c0d968c892b4312065caef0f19ffffa042a9. Made by tools/declgen (see decl/README.md): a
-   change is made there, not here. *)
+   (Git blob c3941dc58f9538394038fd0cef5428c5d96ac9f2). Made by tools/declgen
+   (see decl/README.md): a change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Flambda_kind Format Function_slot Name_occurrences Symbol Target_ocaml_int Value_slot.

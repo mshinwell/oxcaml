@@ -15,8 +15,8 @@
 (* GENERATED, not written by hand: the declarations of what the port of
    Simplify uses of the compiler's module [Mutable_unboxing], after its interface
    middle_end/flambda2/simplify/flow/mutable_unboxing.mli
-   at commit ecc5c0d968c892b4312065caef0f19ffffa042a9. Made by tools/declgen (see decl/README.md): a
-   change is made there, not here. *)
+   (Git blob e27855aa03b44fce9567db452fba597e8265097d). Made by tools/declgen
+   (see decl/README.md): a change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Continuation Control_flow_graph Dominator_graph Flow_types Format Name Simple Target_system.

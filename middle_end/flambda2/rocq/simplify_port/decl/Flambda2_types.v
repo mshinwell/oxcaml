@@ -17,8 +17,8 @@
 (* GENERATED, not written by hand: the declarations of what the port of
    Simplify uses of the compiler's module [Flambda2_types], after its interface
    middle_end/flambda2/types/flambda2_types.mli
-   at commit ecc5c0d968c892b4312065caef0f19ffffa042a9. Made by tools/declgen (see decl/README.md): a
-   change is made there, not here. *)
+   (Git blob fc25fd91715a9446cedf37513203629d8471ee4a). Made by tools/declgen
+   (see decl/README.md): a change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Alloc_mode Apply_cont_rewrite_id Bound_name Bound_parameters Code_id Compilation_unit Continuation Continuation_use_kind Empty_array_kind Flambda_arity Flambda_kind Format Function_slot Int32 Int64 Name Name_mode Name_occurrences Numeric_types Or_bottom Or_unknown Or_unknown_or_bottom Rec_info_expr Reg_width_const Scope Simple String_info Symbol Symbol_projection Tag Target_ocaml_int Target_system Targetint_32_64 Value_slot Variable_ Vector_types.

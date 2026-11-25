@@ -27,14 +27,17 @@
 #******************************************************************************
 
 # build.sh : compiles the generator of decl/ (one process) into
-# simplify_port/_build/declgen/declgen. It needs the compiler's own library
-# (compiler-libs) of the OCaml that built the compiler whose interfaces are
-# read. This file follows no file of the compiler.
+# simplify_port/_build/declgen/declgen; or into DIR/declgen, if
+# DECLGEN_BUILD=DIR is in the environment (for a run that must make nothing
+# in the folder; DIR is for this alone: the compiled files in it are
+# removed first). It needs the compiler's own
+# library (compiler-libs) of the OCaml that built the compiler whose
+# interfaces are read. This file follows no file of the compiler.
 set -e
 H=$(cd $(dirname $0) && pwd)
-D=$H/../../_build/declgen
+D=${DECLGEN_BUILD:-$H/../../_build/declgen}
 mkdir -p $D
-SRC="common.ml sigs.ml uses.ml tr.ml print.ml src.ml decl_out.ml emit_types.ml walk.ml arities.ml donors.ml crs.ml declgen.ml"
+SRC="common.ml sigs.ml uses.ml tr.ml print.ml blob.ml src.ml decl_out.ml emit_types.ml walk.ml arities.ml donors.ml crs.ml declgen.ml"
 for f in $SRC; do cp $H/$f $D/; done
 cd $D && rm -f *.cm* *.o
 ocamlfind ocamlopt -package compiler-libs.common,str -linkpkg $SRC -o declgen

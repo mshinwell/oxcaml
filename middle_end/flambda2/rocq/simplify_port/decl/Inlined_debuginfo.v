@@ -29,8 +29,8 @@
 (* GENERATED, not written by hand: the declarations of what the port of
    Simplify uses of the compiler's module [Inlined_debuginfo], after its interface
    middle_end/flambda2/term_basics/inlined_debuginfo.mli
-   at commit ecc5c0d968c892b4312065caef0f19ffffa042a9. Made by tools/declgen (see decl/README.md): a
-   change is made there, not here. *)
+   (Git blob 21876a2d144f23879b3bcbf37c36bcaf75c59ed9). Made by tools/declgen
+   (see decl/README.md): a change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Code_id Debuginfo Format.

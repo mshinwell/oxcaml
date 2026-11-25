@@ -17,8 +17,8 @@
 (* GENERATED, not written by hand: the declarations of what the port of
    Simplify uses of the compiler's module [Name_occurrences], after its interface
    middle_end/flambda2/nominal/name_occurrences.mli
-   at commit ecc5c0d968c892b4312065caef0f19ffffa042a9. Made by tools/declgen (see decl/README.md): a
-   change is made there, not here. *)
+   (Git blob a4b061d0ab6c15f06a19aa2af9dccad687f6fdee). Made by tools/declgen
+   (see decl/README.md): a change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Code_id Code_id_or_symbol Continuation Format Name Name_mode Num_occurrences Symbol Value_slot Variable_.

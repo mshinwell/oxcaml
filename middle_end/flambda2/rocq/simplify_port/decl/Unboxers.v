@@ -17,8 +17,8 @@
 (* GENERATED, not written by hand: the declarations of what the port of
    Simplify uses of the compiler's module [Unboxers], after its interface
    middle_end/flambda2/simplify/unboxing/unboxers.mli
-   at commit ecc5c0d968c892b4312065caef0f19ffffa042a9. Made by tools/declgen (see decl/README.md): a
-   change is made there, not here. *)
+   (Git blob bb3eb9c007469643d535f5a042816846970d9a1a). Made by tools/declgen
+   (see decl/README.md): a change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Flambda2_types Flambda_kind Flambda_primitive Function_slot Name_mode Reg_width_const Simple Target_ocaml_int Value_slot.

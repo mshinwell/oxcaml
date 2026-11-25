@@ -17,8 +17,8 @@
 (* GENERATED, not written by hand: the declarations of what the port of
    Simplify uses of the compiler's module [Continuation_in_env], after its interface
    middle_end/flambda2/simplify/continuation_in_env.mli
-   at commit ecc5c0d968c892b4312065caef0f19ffffa042a9. Made by tools/declgen (see decl/README.md): a
-   change is made there, not here. *)
+   (Git blob f40cc9896e87a86a08f14579e932f1ba87d1256f). Made by tools/declgen
+   (see decl/README.md): a change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Are_rebuilding_terms Bound_parameters Cost_metrics Flambda_arity Format Name_occurrences Or_unknown Rebuilt_expr.

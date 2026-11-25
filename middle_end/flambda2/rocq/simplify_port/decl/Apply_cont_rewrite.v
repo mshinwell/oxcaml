@@ -17,8 +17,8 @@
 (* GENERATED, not written by hand: the declarations of what the port of
    Simplify uses of the compiler's module [Apply_cont_rewrite], after its interface
    middle_end/flambda2/simplify/apply_cont_rewrite.mli
-   at commit ecc5c0d968c892b4312065caef0f19ffffa042a9. Made by tools/declgen (see decl/README.md): a
-   change is made there, not here. *)
+   (Git blob 28aef855d018e479c40e5f1c433b69d79ac502aa). Made by tools/declgen
+   (see decl/README.md): a change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Apply_cont_rewrite_id Bound_parameter Bound_parameters Bound_var Code_size Continuation_extra_params_and_args Exn_continuation Flambda Flambda_arity Format Or_invalid Simple Target_system.

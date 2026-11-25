@@ -17,8 +17,8 @@
 (* GENERATED, not written by hand: the declarations of what the port of
    Simplify uses of the compiler's module [Simple], after its interface
    middle_end/flambda2/term_basics/simple.mli
-   at commit ecc5c0d968c892b4312065caef0f19ffffa042a9. Made by tools/declgen (see decl/README.md): a
-   change is made there, not here. *)
+   (Git blob 22fdec392db2024d83b184e8bf61ae912133aeac). Made by tools/declgen
+   (see decl/README.md): a change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Coercion Debuginfo Flambda_kind Format Int_ids Name_occurrences Or_null Reg_width_const Symbol Target_ocaml_int Target_system Variable_.

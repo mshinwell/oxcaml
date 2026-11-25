@@ -5,8 +5,13 @@ One line for each file or family of files of this folder. Kinds:
 function by function; it carries that file's header), `generated` (made by a
 program from files of this repository), `copy`, `original` (written for the
 port; follows no file of the compiler; MIT header of
-`middle_end/flambda2/rocq/`). The donor commit of every transcribed and
-generated file is ecc5c0d968c892b4312065caef0f19ffffa042a9. ONE THING
+`middle_end/flambda2/rocq/`). The donor commit of the port as it stands is
+ecc5c0d968c892b4312065caef0f19ffffa042a9: every transcribed file follows
+its donor as it is at that commit, and its first comment says so. A file
+of `decl/` names no commit: each names the text that it was made from, by
+the name that Git gives that text, and the generator stops if the build
+that it reads was not made from the texts of the tree (`decl/README.md`,
+the section "What a file says that it was made from"). ONE THING
 HERE DOES NOT COME FROM THIS REPOSITORY: the types of the standard
 library's values in 20 files of `decl/`. The last section says what is
 read, what is taken, for how many declarations and in which files.
@@ -21,7 +26,7 @@ read, what is taken, for how many declarations and in which files.
 | `tools/assemble.sh`, `tools/progress.sh`, `tools/lint.py`, `tools/comments.py`, `tools/linktest.sh`, `tools/aliases.py`, `tools/samecode.sh`, `tools/papp.py`, `tools/given.py`, `tools/lines.py` | none | original |
 | `tools/check.sh` | none; its list of include directories and `-open` flags is after `middle_end/flambda2/simplify/dune` | original |
 | `tools/declgen/*` | none; it reads the compiled interfaces and typed trees of a build of the compiler, with the compiler's own library (`compiler-libs`); for the standard library it reads the compiled interfaces of the library of the OCaml that made the build (last section) | original |
-| `decl/*.v` | written by `tools/declgen` from the compiled interface of the compiler's module of the same name; each begins with the header of that interface (`decl/README.md`). For the 18 files of units of the standard library that declare something the compiled interface is NOT made from this tree (last section); the header is that of the tree's own `stdlib/NAME.mli` (also in `Lazy.v`, which declares nothing). Two files of the compiler's own modules (`Numeric_types.v`, `Rebuilt_expr__local.v`) also hold declarations whose types come from those interfaces, through what the module includes or applies of the library; they keep the header of the compiler's file | generated |
+| `decl/*.v` | written by `tools/declgen` from the compiled interface of the compiler's module of the same name; each begins with the header of that interface and names the text of that interface by its Git blob (`decl/README.md`). For the 18 files of units of the standard library that declare something the compiled interface is NOT made from this tree (last section); the header is that of the tree's own `stdlib/NAME.mli` (also in `Lazy.v`, which declares nothing). Two files of the compiler's own modules (`Numeric_types.v`, `Rebuilt_expr__local.v`) also hold declarations whose types come from those interfaces, through what the module includes or applies of the library; they keep the header of the compiler's file | generated |
 | `decl/INDEX.tsv`, `decl/NOT-DECLARED.tsv`, `decl/FUNCTOR-ARGUMENTS.tsv`, `decl/VARIANTS.tsv` | written by `tools/declgen` with the `.v` files, from the compiled interfaces and the typed trees of the compiler (`decl/README.md` says what each holds) | generated |
 | `decl/ARITIES.tsv` | written by `tools/declgen` from the typed trees of the implementations of the compiler's modules (`decl/README.md`, last section) | generated |
 | `decl/UPDATES.tsv`, `decl/DONOR-TOKENS.tsv`, `decl/DONOR-ITEMS.tsv` | written by `tools/declgen` (`donors.ml`) about the 78 files of `middle_end/flambda2/simplify/`: the first and the third from their typed trees (names and numbers of lines, no text), the second from their text as the compiler's lexer reads it (for each file a number and a digest, no text) (`decl/README.md`, the section before the last) | generated |
@@ -90,10 +95,10 @@ compared once, for the audit of the origin of the port at checkpoint 11:
 in the tree's `stdlib/NAME.mli` and in the installed `.mli` file of that
 name that was inspected for that audit, it is the same bytes for all 19
 (14 lines; 15 for `Float`). That compares the two sets of files as they
-were inspected then. It does not show which compiled interfaces
-`tools/declgen` read when `decl/` was made, nor from which sources they
-were compiled; and `make` does not repeat it, since the other library is
-not here.
+were inspected then. Each of the 19 files now names the compiled
+interface that `tools/declgen` read, by its digest (`decl/README.md`);
+that does not show from which sources it was compiled. And `make` does
+not repeat the comparison, since the other library is not here.
 
 HOW MANY: the rows of `decl/INDEX.tsv` whose place is under `stdlib/`.
 

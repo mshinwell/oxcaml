@@ -15,8 +15,8 @@
 (* GENERATED, not written by hand: the declarations of what the port of
    Simplify uses of the compiler's module [Simplify_quaternary_primitive], after its interface
    middle_end/flambda2/simplify/simplify_quaternary_primitive.ml
-   at commit ecc5c0d968c892b4312065caef0f19ffffa042a9. Made by tools/declgen (see decl/README.md): a
-   change is made there, not here. *)
+   (Git blob afeb4d62a3bb9fc1aad212ee1075edb0bc4b33a8). Made by tools/declgen
+   (see decl/README.md): a change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Alloc_mode Bound_var Debuginfo Downwards_acc Flambda2_types Flambda_primitive Simple Simplify_primitive_result.

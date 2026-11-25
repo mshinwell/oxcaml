@@ -15,8 +15,8 @@
 (* GENERATED, not written by hand: the declarations of what the port of
    Simplify uses of the compiler's module [Flow_analysis], after its interface
    middle_end/flambda2/simplify/flow/flow_analysis.mli
-   at commit ecc5c0d968c892b4312065caef0f19ffffa042a9. Made by tools/declgen (see decl/README.md): a
-   change is made there, not here. *)
+   (Git blob 44f1094bb1b90e6d13e3439552deabd16e4218d0). Made by tools/declgen
+   (see decl/README.md): a change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Code_id Continuation Continuation_callsite_map Flambda2_types Flow_types Name_occurrences Or_unknown Target_system.

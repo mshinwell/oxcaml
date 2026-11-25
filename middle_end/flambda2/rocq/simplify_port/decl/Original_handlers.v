@@ -16,8 +16,8 @@
 (* GENERATED, not written by hand: the declarations of what the port of
    Simplify uses of the compiler's module [Original_handlers], after its interface
    middle_end/flambda2/simplify/original_handlers.mli
-   at commit ecc5c0d968c892b4312065caef0f19ffffa042a9. Made by tools/declgen (see decl/README.md): a
-   change is made there, not here. *)
+   (Git blob 26eb0db79a6ee8a77881fb8a944f88d4b4dbac9c). Made by tools/declgen
+   (see decl/README.md): a change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Bound_parameters Continuation Format Lifted_cont_params Non_recursive_handler One_recursive_handler.

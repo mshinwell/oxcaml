@@ -17,8 +17,8 @@
 (* GENERATED, not written by hand: the declarations of what the port of
    Simplify uses of the compiler's module [Downwards_env], after its interface
    middle_end/flambda2/simplify/env/downwards_env.mli
-   at commit ecc5c0d968c892b4312065caef0f19ffffa042a9. Made by tools/declgen (see decl/README.md): a
-   change is made there, not here. *)
+   (Git blob 5a02885b0ec916d5e0528afb2331b74689153c7e). Made by tools/declgen
+   (see decl/README.md): a change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Alloc_mode Apply_cont_rewrite_id Apply_expr Are_rebuilding_terms Bound_name Bound_parameters Bound_var Call_site_inlining_decision_type Closure_info Code Code_id Code_metadata Code_or_metadata Common_subexpression_elimination Comparison_result Compilation_unit Continuation Debuginfo Exported_code Flambda Flambda2_types Flambda_kind Flambda_primitive Format Inlined_attribute Inlined_debuginfo Inlining_arguments Inlining_history Inlining_state Lifted_constant_state Lifted_cont_params Loopify_state Name Name_mode Replay_history Scope Simple Specialization_cost Symbol Symbol_projection Target_system Variable_.

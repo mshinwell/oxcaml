@@ -216,7 +216,7 @@ let read cmt_file : string option * string list * string list =
     in
     match cmt.cmt_annots with
     | Implementation str -> (
-      match Arities.tree_source cmt str with
+      match Arities.tree_source ~file:cmt_file cmt str with
       | Ok source -> Some source, updates_of source str, items_of source str
       | Error why -> no named why)
     | _ -> no named "not read: no typed tree of an implementation")
@@ -247,7 +247,7 @@ let tokens_of_text name text =
 (* The row of DONOR-TOKENS.tsv of a file of the tree; none if the tree does not
    have the file (a list of modules that the build writes). *)
 let tokens source =
-  match Arities.read_file (Filename.concat !Common.source_root source) with
+  match Src.read_file (Filename.concat !Common.source_root source) with
   | None -> None
   | Some text -> (
     match tokens_of_text source text with
@@ -280,7 +280,7 @@ let print_items cmt_file =
 
 (* For a test ([declgen --tokens FILE.ml]): the row of one file. *)
 let print_tokens file =
-  match Arities.read_file file with
+  match Src.read_file file with
   | None -> Printf.printf "%s\t-\tnot read: no such file\n" file
   | Some text -> (
     match tokens_of_text file text with

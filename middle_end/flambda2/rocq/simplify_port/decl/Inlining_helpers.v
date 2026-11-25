@@ -17,8 +17,8 @@
 (* GENERATED, not written by hand: the declarations of what the port of
    Simplify uses of the compiler's module [Inlining_helpers], after its interface
    middle_end/flambda2/simplify_shared/inlining_helpers.mli
-   at commit ecc5c0d968c892b4312065caef0f19ffffa042a9. Made by tools/declgen (see decl/README.md): a
-   change is made there, not here. *)
+   (Git blob bd55cb71e8213a7a361953458e55dd45bb730a02). Made by tools/declgen
+   (see decl/README.md): a change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Alloc_mode Bound_parameters Code_id Continuation Debuginfo Exn_continuation Flambda Flambda_arity Flambda_kind Rec_info_expr Renaming Simple Trap_action Variable_.

@@ -17,8 +17,8 @@
 (* GENERATED, not written by hand: the declarations of what the port of
    Simplify uses of the compiler's module [Build_unboxing_denv], after its interface
    middle_end/flambda2/simplify/unboxing/build_unboxing_denv.mli
-   at commit ecc5c0d968c892b4312065caef0f19ffffa042a9. Made by tools/declgen (see decl/README.md): a
-   change is made there, not here. *)
+   (Git blob 83d12c69ae3b48bad3b4dc53711f4bfdcc63fe2a). Made by tools/declgen
+   (see decl/README.md): a change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Downwards_env Unboxing_types Variable_.

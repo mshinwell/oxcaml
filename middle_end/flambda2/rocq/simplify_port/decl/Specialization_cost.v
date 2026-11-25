@@ -16,8 +16,8 @@
 (* GENERATED, not written by hand: the declarations of what the port of
    Simplify uses of the compiler's module [Specialization_cost], after its interface
    middle_end/flambda2/simplify/specialization_cost.mli
-   at commit ecc5c0d968c892b4312065caef0f19ffffa042a9. Made by tools/declgen (see decl/README.md): a
-   change is made there, not here. *)
+   (Git blob ea9ce24b63280ede75c6eea41a96383f66fbc24b). Made by tools/declgen
+   (see decl/README.md): a change is made there, not here. *)
 
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Apply_cont_rewrite_id Bound_var Cost_metrics Flambda2_types Flambda_primitive Format Original_handlers Set_of_closures Switch_expr.
