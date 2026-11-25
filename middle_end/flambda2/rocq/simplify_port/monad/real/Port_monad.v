@@ -26,15 +26,28 @@
  ******************************************************************************)
 
 (* THE MONAD OF THE PORT OF SIMPLIFY, ITS REAL IMPLEMENTATION: the one that
-   says what a ported function does (the world, fatal errors, exceptions, the
-   fuel). Every ported function and every declared function of OxCaml answers
-   in [M]. This file follows no file of the compiler. Read GUIDE.md first.
+   says what a ported function does. A computation is run with a fuel, from
+   a state of OCaml; it returns a value, or raises an exception, or is out of
+   fuel. A fatal error is the exception [Misc.Fatal_error], as in OCaml.
+   Every ported function and every declared function of OxCaml answers in
+   [M]. This file follows no file of the compiler. Read GUIDE.md first.
 
    The ported files are compiled twice, against two files of this name with
    the same operations and notations: this one, and monad/id/Port_monad.v, in
    which [M A] is [A] and from which Rocq extracts the OCaml. Nothing is
    extracted from this one, and statements about the port are statements
-   about this one. *)
+   about this one.
+
+   WHAT IS DEFINED HERE AND IS A PARAMETER THERE. The exceptions ([exn],
+   [exception], [exn_make], [exn_match], [Fatal_error], [Not_found],
+   [Division_by_zero], [assert_failure]) are definitions of this file, so
+   that their laws are theorems; so are the fatal errors, the handlers and
+   the fuel. What is a parameter here too: the state ([ocaml_state]), the
+   printing of a fatal error, references, lazy values, arrays, OCaml's
+   polymorphic comparisons and its physical equality. This file has no
+   [Axiom]. The laws of what it defines, and the rules by which a statement
+   about a ported function is proved, are in Kit_laws.v. What a proof
+   assumes of a parameter is a contract (contracts/README.md). *)
 
 From Stdlib Require Export String List ZArith Bool.
 (* The extraction is loaded only so that Rocq reads the directives of the
@@ -49,69 +62,150 @@ Set Implicit Arguments.
 #[export] Unset Elimination Schemes.
 
 (* ------------------------------------------------------------------ *)
-(* The world                                                          *)
+(* The state                                                          *)
 (* ------------------------------------------------------------------ *)
 
 (* Everything mutable in the OCaml program that the port does not define:
    the counters from which [Int_ids] and the other modules make new names,
    the contents of every reference and table, the flags, the channels. It
    is not described in this version: the declared functions are parameters
-   that read and change it. *)
+   that read and change it.
+   NOT IN IT: what OCaml's runtime keeps of the last exception that was
+   raised (its backtrace). Here a raise changes no state, and a handler that
+   lets an exception go on lets the same value go on; OCaml writes that
+   record at each. [Printexc.get_raw_backtrace] and
+   [Printexc.raise_with_backtrace] are parameters like the others
+   (decl/Printexc.v): what they do with that record, the model does not
+   say. So no statement speaks of a backtrace. *)
 Parameter ocaml_state : Type.
 
-(* The fuel is what the recursions that Rocq cannot see to end go down on
-   (see [fuel] below). It is not changed by any operation. *)
-Record world : Type := {
-  world_fuel : nat;
-  world_state : ocaml_state
+(* ------------------------------------------------------------------ *)
+(* The values of OCaml's type [exn]                                   *)
+(* ------------------------------------------------------------------ *)
+
+(* What the value of an exception carries: nothing, or a string. *)
+Inductive exn_payload : Type :=
+| Payload_unit
+| Payload_string (s : string).
+
+(* A value of OCaml's type [exn]: the name of its constructor and what it
+   carries. Two values of the same name that carry the same are ONE value
+   here: so two exceptions of OCaml must have two names. *)
+Inductive exn : Type := Exn (name : string) (carried : exn_payload).
+
+(* THE TYPES THAT AN EXCEPTION CAN CARRY: [unit] (a constant exception) and
+   [string]. For such a type, how a value of it is put into an [exn_payload]
+   and found again, with the proof that it is found. It is given by the TYPE
+   and not by the exception: two exceptions that carry the same type carry
+   it in the same way. An exception that carries another type needs one more
+   constructor of [exn_payload] and one more instance here. ONLY THIS FILE
+   MAKES AN INSTANCE: with a second one for a type, two files could carry
+   that type in two ways. [make exceptions] (tools/exceptions.py) checks
+   that no file of decl/ and no ported file names the class. *)
+Class Carried (P : Type) : Type := Make_carried {
+  exn_carry : P -> exn_payload;
+  exn_carried : exn_payload -> option P;
+  exn_carried_carry : forall p : P, exn_carried (exn_carry p) = Some p
 }.
 
-(* A value of OCaml's type [exn], and a declared exception constructor whose
-   argument has type [P] ([unit] for a constant exception). *)
-Parameter exn : Type.
-Parameter exception : Type -> Type.
-Parameter exn_make : forall {P : Type}, exception P -> P -> exn.
-Parameter exn_match : forall {P : Type}, exception P -> exn -> option P.
+#[export] Instance Carried_unit : Carried unit :=
+  {| exn_carry := fun _ => Payload_unit;
+     exn_carried := fun c =>
+       match c with Payload_unit => Some tt | Payload_string _ => None end;
+     exn_carried_carry := fun p => match p with tt => eq_refl end |}.
+
+#[export] Instance Carried_string : Carried string :=
+  {| exn_carry := Payload_string;
+     exn_carried := fun c =>
+       match c with Payload_string s => Some s | Payload_unit => None end;
+     exn_carried_carry := fun _ => eq_refl |}.
+
+(* An exception constructor whose argument has type [P] ([unit] for a
+   constant exception): ITS NAME, and no more. An exception of the kit is a
+   definition (below). A DECLARED exception is a parameter of this type
+   ([Parameter E : exception T.] in decl/ and in the ported files): it has a
+   name, which Rocq does not know; a proof that needs the name takes it as a
+   contract (contracts/README.md). TWO DECLARATIONS OF ONE EXCEPTION OF
+   OCAML (one in decl/, one in the ported file that has the exception) are
+   two parameters; with one name they are one exception, and a handler for
+   the one takes what the other raises ([exn_match_same_name] in
+   Kit_laws.v). An exception can be declared for any type [T]; it can be
+   raised, made a value of, or handled only if [T] is a type that an
+   exception can carry: Rocq refuses the other uses (Kit_refuses.v). *)
+Record exception (P : Type) : Type := Make_exception {
+  exception_name : string
+}.
+
+(* The value [E p]. *)
+Definition exn_make {P : Type} {C : Carried P} (e : exception P) (p : P)
+    : exn :=
+  Exn (exception_name e) (exn_carry p).
+
+(* What a handler for [e] asks of a value [x] that its body raised: [Some p]
+   if [x] is [e] carrying [p], and then the handler takes it; else [None],
+   and [x] goes on. It looks at the name first. *)
+Definition exn_match {P : Type} {C : Carried P} (e : exception P) (x : exn)
+    : option P :=
+  match x with
+  | Exn name carried =>
+    if String.eqb name (exception_name e) then exn_carried carried else None
+  end.
 
 (* The exception [Misc.Fatal_error], which [Misc.fatal_error] raises after it
-   has printed the message, and OCaml's [Not_found]. *)
-Parameter Fatal_error : exception unit.
-Parameter Not_found : exception unit.
+   has printed the message; OCaml's [Not_found]; and [Assert_failure], which
+   a failed assertion raises. ([Division_by_zero] is below, with the
+   division.) They are definitions: their names are known, and Rocq computes
+   that a handler for one of them does not take another.
+   PORT-GAP(loose): OCaml's [Assert_failure] carries the place of the
+   assertion that failed; here it carries nothing, so two assertions that
+   fail are not told apart. *)
+Definition Fatal_error : exception unit :=
+  {| exception_name := "Misc.Fatal_error" |}.
+Definition Not_found : exception unit := {| exception_name := "Not_found" |}.
+Definition Assert_failure : exception unit :=
+  {| exception_name := "Assert_failure" |}.
 
 (* ------------------------------------------------------------------ *)
 (* The monad                                                          *)
 (* ------------------------------------------------------------------ *)
 
-(* How a computation ends. The world is kept in every case but the last:
-   OCaml does not undo a write when an exception passes. *)
+(* How a computation ends. The state is kept in every case but the last:
+   OCaml does not undo a write when an exception passes. A FATAL ERROR HAS
+   NO END OF ITS OWN: it is the exception [Misc.Fatal_error], as it is in
+   OCaml, and such a run ends [Raised] with the value of that exception
+   ([fatal_exn] in Kit_laws.v). *)
 Inductive result (A : Type) : Type :=
-| Returned (a : A) (w : world)
-| Fatal (message : string) (w : world)
-| Raised (e : exn) (w : world)
+| Returned (a : A) (s : ocaml_state)
+| Raised (e : exn) (s : ocaml_state)
 | Out_of_fuel.
 
 Arguments Returned {A}.
-Arguments Fatal {A}.
 Arguments Raised {A}.
 Arguments Out_of_fuel {A}.
 
-(* A computation. It is an inductive type, not an abbreviation of a function
+(* A computation: a function of THE FUEL, a number, and of the state. The
+   fuel is what the recursions that Rocq cannot see to end go down on (see
+   [fuel] below). No end holds it: so no computation changes it, and
+   everything that one run runs is run with the same fuel. A computation may
+   look at it. It is an inductive type, not an abbreviation of a function
    type, so that no function of the port can be taken for a computation or
    a computation for a function: only the operations of this file make and
    run one. The ported files never write [Make_M] or [run]. *)
-Inductive M (A : Type) : Type := Make_M (f : world -> result A).
+Inductive M (A : Type) : Type :=
+  Make_M (f : nat -> ocaml_state -> result A).
 
-Definition run {A : Type} (m : M A) (w : world) : result A :=
-  match m with Make_M f => f w end.
+(* [run m n s]: how [m] ends when it is run with the fuel [n] from the state
+   [s]. *)
+Definition run {A : Type} (m : M A) (n : nat) (s : ocaml_state) : result A :=
+  match m with Make_M f => f n s end.
 
-Definition ret {A : Type} (a : A) : M A := Make_M (fun w => Returned a w).
+Definition ret {A : Type} (a : A) : M A := Make_M (fun _ s => Returned a s).
 
 Definition bind {A B : Type} (m : M A) (k : A -> M B) : M B :=
-  Make_M (fun w =>
-    match run m w with
-    | Returned a w => run (k a) w
-    | Fatal message w => Fatal message w
-    | Raised e w => Raised e w
+  Make_M (fun n s =>
+    match run m n s with
+    | Returned a s => run (k a) n s
+    | Raised e s => Raised e s
     | Out_of_fuel => Out_of_fuel
     end).
 
@@ -174,21 +268,35 @@ Inductive fmt_args : Type :=
 
 (* What [Misc.fatal_error] and [Misc.fatal_errorf] do before they raise:
    they print the message, which runs the printers given for [%a]. A printer
-   is a declared function like any other: it may change the world or raise.
-   Nothing is stated of it. *)
+   is a declared function like any other: it may change the state or raise.
+   Nothing is stated of it here (a contract: contracts/Port_monad.v). *)
 Parameter print_fatal_message : string -> fmt_args -> M unit.
 
-(* [Misc.fatal_error msg]. *)
+(* [raise e] for a value [e] of type [exn]. *)
+Definition raise_exn {A : Type} (e : exn) : M A :=
+  Make_M (fun _ s => Raised e s).
+
+(* [raise (E p)]; for a constant exception [raise_ E tt] is [raise E]. A
+   constant exception is declared with the string "E"; one with an argument
+   with the string "(fun x__1 -> E x__1)". *)
+Definition raise_ {P A : Type} {C : Carried P} (e : exception P) (p : P)
+    : M A :=
+  raise_exn (exn_make e p).
+
+(* [Misc.fatal_error msg]: the printing, then [raise Misc.Fatal_error]. So
+   it never returns, whatever the printing does (Kit_laws.v). That it ends in
+   a fatal error, and not in an exception that the printing raises, needs a
+   contract of the printing. *)
 Definition fatal_error {A : Type} (message : string) : M A :=
   bind (print_fatal_message "%s" (Fmt_cons message Fmt_nil))
-    (fun _ => Make_M (fun w => Fatal message w)).
+    (fun _ => raise_ Fatal_error tt).
 
 (* [Misc.fatal_errorf fmt a1 .. an]: [fatal_errorfN] for N arguments after
-   the format. In Rocq the message is the format. *)
+   the format. The end of the run does not hold the message. *)
 Definition fatal_errorf_args {A : Type} (format : string) (args : fmt_args)
     : M A :=
   bind (print_fatal_message format args)
-    (fun _ => Make_M (fun w => Fatal format w)).
+    (fun _ => raise_ Fatal_error tt).
 Definition fatal_errorf0 {A : Type} (format : string) : M A :=
   fatal_errorf_args format Fmt_nil.
 Definition fatal_errorf1 {A A1 : Type} (format : string)
@@ -258,88 +366,56 @@ Definition fatal_errorf16 {A A1 A2 A3 A4 A5 A6 A7 A8 A9 A10 A11 A12 A13 A14 A15 
 
 (* The value of [Assert_failure (file, line, column)] that a failed
    assertion raises. It is an exception like another: a handler for every
-   exception catches it, one for [Misc.Fatal_error] does not.
-   PORT-GAP(loose): OCaml's exception carries the place of the assertion
-   that failed; here ONE value stands for every place, so two assertions
-   that fail are not told apart. *)
-Parameter assert_failure : exn.
+   exception catches it, one for [Misc.Fatal_error] does not. *)
+Definition assert_failure : exn := exn_make Assert_failure tt.
 
 (* [assert b]. (The port assumes that the compiler is built with its
    assertions, as it is.) *)
 Definition assert_ (b : bool) : M unit :=
-  Make_M (fun w => if b then Returned tt w else Raised assert_failure w).
+  if b then ret tt else raise_exn assert_failure.
 
 (* [assert false]. *)
-Definition assert_false {A : Type} : M A :=
-  Make_M (fun w => Raised assert_failure w).
+Definition assert_false {A : Type} : M A := raise_exn assert_failure.
 
 (* ------------------------------------------------------------------ *)
-(* Exceptions                                                         *)
+(* Handlers                                                           *)
 (* ------------------------------------------------------------------ *)
-
-(* [raise (E p)]; for a constant exception [raise_ E tt] is [raise E]. A
-   constant exception is declared with the string "E"; one with an argument
-   with the string "(fun x__1 -> E x__1)". *)
-Definition raise_ {P A : Type} (e : exception P) (p : P) : M A :=
-  Make_M (fun w => Raised (exn_make e p) w).
-
-(* [raise e] for a value [e] that a handler caught. *)
-Definition raise_exn {A : Type} (e : exn) : M A :=
-  Make_M (fun w => Raised e w).
-
-(* Which handler takes the end of a computation. A fatal error is the
-   exception [Misc.Fatal_error]. *)
-Definition caught {P A : Type} (e : exception P) (r : result A)
-    : option (P * world) :=
-  match r with
-  | Raised x w =>
-    match exn_match e x with
-    | Some p => Some (p, w)
-    | None => None
-    end
-  | Fatal _ w =>
-    match exn_match e (exn_make Fatal_error tt) with
-    | Some p => Some (p, w)
-    | None => None
-    end
-  | Returned _ _ | Out_of_fuel => None
-  end.
 
 (* [try body () with E p -> handler p]. *)
-Definition try_with {P A : Type} (body : unit -> M A) (e : exception P)
-    (handler : P -> M A) : M A :=
-  Make_M (fun w =>
-    let r := run (body tt) w in
-    match caught e r with
-    | Some (p, w) => run (handler p) w
-    | None => r
+Definition try_with {P A : Type} {C : Carried P} (body : unit -> M A)
+    (e : exception P) (handler : P -> M A) : M A :=
+  Make_M (fun n s =>
+    match run (body tt) n s with
+    | Raised x s =>
+      match exn_match e x with
+      | Some p => run (handler p) n s
+      | None => Raised x s
+      end
+    | r => r
     end).
 
 (* [try body () with e -> handler e]: every exception. *)
 Definition try_with_any {A : Type} (body : unit -> M A)
     (handler : exn -> M A) : M A :=
-  Make_M (fun w =>
-    match run (body tt) w with
-    | Raised x w => run (handler x) w
-    | Fatal _ w => run (handler (exn_make Fatal_error tt)) w
+  Make_M (fun n s =>
+    match run (body tt) n s with
+    | Raised x s => run (handler x) n s
     | r => r
     end).
 
 (* [match body () with exception E p -> handler p | x -> k x]: only what
    [body] raises is caught, not what [k] raises. *)
-Definition match_exn {P A B : Type} (body : unit -> M A) (e : exception P)
-    (handler : P -> M B) (k : A -> M B) : M B :=
-  Make_M (fun w =>
-    let r := run (body tt) w in
-    match caught e r with
-    | Some (p, w) => run (handler p) w
-    | None =>
-      match r with
-      | Returned a w => run (k a) w
-      | Fatal message w => Fatal message w
-      | Raised x w => Raised x w
-      | Out_of_fuel => Out_of_fuel
+Definition match_exn {P A B : Type} {C : Carried P} (body : unit -> M A)
+    (e : exception P) (handler : P -> M B) (k : A -> M B) : M B :=
+  Make_M (fun n s =>
+    match run (body tt) n s with
+    | Returned a s => run (k a) n s
+    | Raised x s =>
+      match exn_match e x with
+      | Some p => run (handler p) n s
+      | None => Raised x s
       end
+    | Out_of_fuel => Out_of_fuel
     end).
 
 (* ------------------------------------------------------------------ *)
@@ -353,8 +429,12 @@ Definition match_exn {P A B : Type} (body : unit -> M A) (e : exception P)
    fuel is a proposition, which Rocq's extraction erases: the OCaml function
    is the compiler's [let rec], and it does not run out. No axiom is used
    here. What this file says of a function can only be about runs for which
-   the fuel of the world was enough; that it holds of the extracted OCaml
-   is not established (GUIDE.md, section 7). *)
+   the fuel was enough; that it holds of the extracted OCaml is not
+   established (GUIDE.md, section 8).
+   The fuel of a run is the number that [run] takes. [let_fuel! fuel in k]
+   is [k] with that number as a value of type [fuel]: a function that it
+   makes with that value (a function given its fuel only) holds the fuel of
+   the run. *)
 Inductive fuel : Type :=
 | Out
 | More (fuel : fuel).
@@ -366,9 +446,9 @@ Fixpoint fuel_of_nat (n : nat) : fuel :=
   end.
 
 Definition get_fuel (_ : unit) : M fuel :=
-  Make_M (fun w => Returned (fuel_of_nat (world_fuel w)) w).
+  Make_M (fun n s => Returned (fuel_of_nat n) s).
 
-Definition out_of_fuel {A : Type} : M A := Make_M (fun _ => Out_of_fuel).
+Definition out_of_fuel {A : Type} : M A := Make_M (fun _ _ => Out_of_fuel).
 
 Notation "'recursive!' f 'in' k" :=
   (match f with Out => out_of_fuel | More f => k end)
@@ -389,7 +469,7 @@ Fixpoint while_fuel (n : nat) (cond : unit -> M bool) (body : unit -> M unit)
   end.
 
 Definition while_ (cond : unit -> M bool) (body : unit -> M unit) : M unit :=
-  Make_M (fun w => run (while_fuel (world_fuel w) cond body) w).
+  Make_M (fun n s => run (while_fuel n cond body) n s).
 
 (* ------------------------------------------------------------------ *)
 (* References and lazy values                                         *)
@@ -456,7 +536,8 @@ Notation "a <>? b" := (int_neq a b) (at level 70, no associativity).
 
 (* OCaml's [a / b] and [a mod b] on integers: they round towards zero and
    raise [Division_by_zero]. *)
-Parameter Division_by_zero : exception unit.
+Definition Division_by_zero : exception unit :=
+  {| exception_name := "Division_by_zero" |}.
 Definition int_div (a b : int) : M int :=
   if Z.eqb b 0 then raise_ Division_by_zero tt else ret (Z.quot a b).
 Definition int_mod (a b : int) : M int :=

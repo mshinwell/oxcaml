@@ -40,10 +40,24 @@ Fail Definition stored_by_papp : M unit :=
   let* action := papp1 (fun _ : unit => tick tt) tt in
   ret tt.
 
-(* A computation is not a function of the world for the ported files. *)
-Fail Definition run_by_hand (w : world) : result unit := tick tt w.
+(* A computation is not a function of the fuel and of the state for the
+   ported files. *)
+Fail Definition run_by_hand (n : nat) (s : ocaml_state) : result unit :=
+  tick tt n s.
 
 (* A function is not a computation. *)
 Fail Definition function_as_computation : M unit :=
-  let* x := (fun w : world => Returned tt w) in
+  let* x := (fun (n : nat) (s : ocaml_state) => Returned tt s) in
   ret x.
+
+(* An exception can be DECLARED for any type. It can be raised, made a value
+   of, or handled only if its type is one that an exception can carry: one
+   that has an instance of [Carried] in the kit ([unit], [string]). *)
+Parameter Carries_a_pair : exception (nat * nat).
+Fail Definition raises_a_pair : M unit := raise_ Carries_a_pair (0, 0).
+Fail Definition value_of_a_pair : exn := exn_make Carries_a_pair (0, 0).
+Fail Definition handles_a_pair : M unit :=
+  try_with (fun _ => ret tt) Carries_a_pair (fun _ => ret tt).
+Fail Definition matches_a_pair : M unit :=
+  match_exn (fun _ => ret tt) Carries_a_pair (fun _ => ret tt)
+    (fun _ => ret tt).
