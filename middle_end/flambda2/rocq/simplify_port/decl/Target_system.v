@@ -1,6 +1,10 @@
 (* The interface that this file follows has no header: see the comment
    below. *)
 
+(* CR mshinwell: The is_32_bit and Machine_width declarations follow
+   utils/target_system.mli, which has no leading notice; the donor-header rule
+   supplies none. What notice should this generated file carry? *)
+
 (* GENERATED, not written by hand: the declarations of what the port of
    Simplify uses of the compiler's module [Target_system], after its interface
    utils/target_system.mli

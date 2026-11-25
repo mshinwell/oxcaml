@@ -29,7 +29,8 @@
 # run.sh BUILD_ROOT [UNIT ...] : makes decl/ again (run from simplify_port/).
 # BUILD_ROOT is the _build/default of a build of the compiler at the commit
 # of the sources. With no UNIT, every file of Simplify is read; with units
-# (Simplify_expr ...), only those files. One process at a time.
+# (Simplify_expr ...), only those files, and no question of crs.ml (that
+# run does not make the decl/ of the tree). One process at a time.
 set -e
 B=$1; shift
 H=$(cd $(dirname $0) && pwd)
@@ -40,6 +41,7 @@ if [ $# = 0 ]; then
   CMTS=$(ls $O/flambda2_simplify__*.cmt | LC_ALL=C sort)
 else
   CMTS=$(for u in "$@"; do echo $O/flambda2_simplify__$u.cmt; done)
+  export DECLGEN_SOME_FILES=1
 fi
 $H/build.sh
 mkdir -p decl

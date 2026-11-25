@@ -61,8 +61,15 @@ os.chdir(work)
 
 def requires(path):
     out = []
+    question = False
     for l in open(path):
-        m = re.match(r"From SimplifyPort\.decl Require (.*)\.$", l.strip())
+        s = l.strip()
+        # a question for a human at the head of the file
+        # (tools/declgen/crs.ml): its lines are words, not sentences
+        if question or s.startswith("(* CR "):
+            question = not s.endswith("*)")
+            continue
+        m = re.match(r"From SimplifyPort\.decl Require (.*)\.$", s)
         if m:
             out += m.group(1).split()
     return out

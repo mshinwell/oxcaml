@@ -186,8 +186,14 @@ class Decl:
         stack = [file_module]
         self.modules.add((file_module,))
         skip = 0
+        question = False
         for line in open(path).read().split("\n"):
             s = line.strip()
+            # a question for a human at the head of the file
+            # (tools/declgen/crs.ml): its lines are words, not sentences
+            if question or s.startswith("(* CR "):
+                question = not s.endswith("*)")
+                continue
             m = re.match(r"Module\s+(Type\s+)?(%s)(.*)$" % NAME, s)
             if m:
                 rest = m.group(3).strip()

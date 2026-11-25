@@ -103,6 +103,13 @@ for f in sorted(os.listdir("decl")):
     i = 0
     while i < len(lines):
         l = lines[i].strip()
+        # a question for a human at the head of the file (tools/declgen/crs.ml):
+        # its lines are words, not sentences
+        if l.startswith("(* CR "):
+            while not lines[i].rstrip().endswith("*)"):
+                i += 1
+            i += 1
+            continue
         where = "decl/%s:%d" % (f, i + 1)
         before = len(checks)
         group_before = cur_group if (cur_group is not None and cur_ok) else None

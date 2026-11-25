@@ -21,6 +21,24 @@ interface). A sub-module of OCaml is a `Module` of the file. Each file begins
 with the header of the interface that it follows, then names it and the commit.
 Two interfaces have no header (`backend/debug/dwarf/dwarf_flags/dwarf_flags.mli`
 and `utils/target_system.mli`): their files say so in its place.
+Four files have, under the header or under those words, a QUESTION FOR A
+HUMAN: one comment that begins with the word `CR` and the name of who is
+asked. They are those two files (which header should they have?) and
+`Numeric_types.v` and `Rebuilt_expr__local.v` (see the next paragraph: who
+is to be credited for what they have of the standard library?). The words
+are rows of `tools/declgen/crs.ml` and are nowhere else: the generator
+writes them, and that file says how a question is changed, added or taken
+away. THE WORDS ARE WRITTEN BY HAND and name things of the file. So each
+row says the same things once more as data: the file whose notice the file
+of `decl/` carries, whether that file has one, and what the file of
+`decl/` declares (all of it, or what it has of the standard library). The
+generator compares this with what it is about to write, and if it is no
+longer so it STOPS AND WRITES NO FILE: the words are then read again and
+the row mended. What it does not compare: the other words of a question.
+`tools/aliases.py`, `tools/declgen/check_realisations.py` and
+`tools/declgen/compile_all.py`, which read these files line by line, leave
+such a comment out: a comment whose first line begins with the mark of a
+comment and then `CR`, whole, and nothing else.
 
 THE STANDARD LIBRARY IS NOT READ FROM THIS TREE. The compiled interfaces
 of `List`, `Option`, `Format` and the other units of the standard library

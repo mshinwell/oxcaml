@@ -12,6 +12,11 @@
 (*                                                                        *)
 (**************************************************************************)
 
+(* CR mshinwell: HV.key, t, create, find and replace use the building OCaml's
+   Hashtbl.S names and types (stdlib/hashtbl.mli counterpart). The donor rule
+   keeps the notice of middle_end/flambda2/simplify/rebuilt_expr.ml. Are
+   additional standard-library credits needed for this portion? *)
+
 (* GENERATED, not written by hand: the declarations of the modules that
    middle_end/flambda2/simplify/rebuilt_expr.ml
    at commit ecc5c0d968c892b4312065caef0f19ffffa042a9 makes for itself by applying a functor of another

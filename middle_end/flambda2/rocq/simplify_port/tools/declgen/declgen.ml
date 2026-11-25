@@ -31,7 +31,10 @@
    given files of Simplify use, and for each of those files itself: the
    declarations of decl/README.md. Also INDEX.tsv, ARITIES.tsv,
    NOT-DECLARED.tsv, and the three tables of donors.ml about the given files
-   themselves, UPDATES.tsv, DONOR-TOKENS.tsv and DONOR-ITEMS.tsv.
+   themselves, UPDATES.tsv, DONOR-TOKENS.tsv and DONOR-ITEMS.tsv. Under the
+   header of a file that crs.ml names it writes that file's question for a human
+   (none when DECLGEN_SOME_FILES is in the environment: run.sh sets it for a run
+   on some of the files).
 
    declgen --parameters FILE.cmt
 
@@ -257,6 +260,45 @@ let () =
       | Some (rel, compiled) -> Some rel, compiled
       | None -> None, true)
   in
+  (* the questions for a human, checked before any file is written: what a row
+     says of its file against what is about to be written *)
+  let without_line place =
+    match String.rindex_opt place ':' with
+    | Some i
+      when i + 1 < String.length place
+           && String.for_all
+                (fun c -> c >= '0' && c <= '9')
+                (String.sub place (i + 1) (String.length place - i - 1)) ->
+      String.sub place 0 i
+    | _ -> place
+  in
+  let known file =
+    match List.find_opt (fun (u, _, _) -> Sigs.unit_rocq u = file) results with
+    | None -> None
+    | Some (u, _, _) ->
+      let source, _ = source_of u in
+      let header =
+        match source with Some rel -> Src.header rel <> [] | None -> false
+      in
+      let declared =
+        List.filter_map
+          (fun (ocaml, rocq, _, _, place) ->
+            if starts_with ~prefix:(file ^ ".") rocq
+            then Some (ocaml, without_line place)
+            else None)
+          !Decl_out.index
+      in
+      Some { Crs.source; header; declared }
+  in
+  let crs =
+    if Sys.getenv_opt "DECLGEN_SOME_FILES" <> None
+    then (
+      prerr_endline
+        "a run on some of the files of Simplify: no question of crs.ml is \
+         written";
+      [])
+    else Crs.checked ~known
+  in
   let names = Hashtbl.create 97 in
   List.iter
     (fun (u, body, deps) ->
@@ -294,6 +336,11 @@ let () =
       in
       let b = Buffer.create (String.length body + 4096) in
       List.iter (fun l -> Buffer.add_string b (l ^ "\n")) header;
+      (match List.assoc_opt rocq crs with
+      | Some lines ->
+        Buffer.add_char b '\n';
+        List.iter (fun l -> Buffer.add_string b (l ^ "\n")) lines
+      | None -> ());
       if is_local_unit u
       then
         Buffer.add_string b

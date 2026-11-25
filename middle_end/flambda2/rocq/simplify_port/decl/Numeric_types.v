@@ -14,6 +14,12 @@
 (*                                                                        *)
 (**************************************************************************)
 
+(* CR mshinwell: The inherited Int32/Int64 declarations use the building OCaml's
+   standard-library names and types (stdlib/int32.mli and stdlib/int64.mli
+   counterparts). The donor rule keeps the notice of
+   middle_end/flambda2/numbers/numeric_types.mli. Are additional
+   standard-library credits needed for this portion? *)
+
 (* GENERATED, not written by hand: the declarations of what the port of
    Simplify uses of the compiler's module [Numeric_types], after its interface
    middle_end/flambda2/numbers/numeric_types.mli
