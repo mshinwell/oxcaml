@@ -146,6 +146,36 @@ let emit_instances comps params rname place =
         add_index applied iname "type" (List.length params) place)
       (List.sort compare l)
 
+(* The coercions [(x :> T)] that the files of Simplify write of a value
+   of this type, a private abbreviation: one function for each type that a
+   coercion gives. It is pure (a coercion runs nothing), and its name is
+   the generator's, as [mk_C] is: no value of the compiler. *)
+let emit_coercions comps place =
+  match Hashtbl.find_opt Uses.coercions (key comps) with
+  | None -> ()
+  | Some (_, targets) ->
+    let _, name = Print.split_last comps in
+    let ocaml = Print.ocaml_name comps in
+    List.iter
+      (fun (text, ty) ->
+        let last =
+          match List.rev (String.split_on_char '.' text) with s :: _ -> s | [] -> text
+        in
+        match Print.pp (Tr.tr ty) with
+        | exception Tr.Unsupported why ->
+          warn "the coercion of %s to %s is not declared: %s" ocaml text why
+        | _ when not (Sigs.is_identifier last) ->
+          warn "the coercion of %s to %s is not declared: the type is no name" ocaml text
+        | target ->
+          let cname = claim (Printf.sprintf "coerce_%s_to_%s" name last) in
+          line "(* %s  the coercion (x :> %s) of this private type *)" place text;
+          line "Parameter %s : %s -> %s." cname (Print.global_name `Type comps) target;
+          extract cname (Printf.sprintf "(fun (x__1 : %s) -> (x__1 :> %s))" ocaml text);
+          add_index
+            (Printf.sprintf "(x :> %s) of %s" text ocaml)
+            cname "coercion" 1 place)
+      (List.sort (fun (a, _) (b, _) -> compare a b) !targets)
+
 (* An abstract type: the parameter and its directive. *)
 let declare_abstract comps (decl : Types.type_declaration) params rname place =
   let k = key comps in
@@ -179,7 +209,8 @@ let emit_type ?gap ~canon modc name =
         (match gap with
         | Some why -> line "(* PORT-GAP(type): %s. *)" why
         | None -> ());
-        declare_abstract comps decl params rname place
+        declare_abstract comps decl params rname place;
+        emit_coercions comps place
       in
       let definition body =
         let binders =
@@ -188,7 +219,8 @@ let emit_type ?gap ~canon modc name =
         line "Definition %s %s: Type := %s." rname binders body;
         extract_type rname ocaml (List.length params);
         add_index ocaml rname "type" (List.length params) place;
-        emit_instances comps params rname place
+        emit_instances comps params rname place;
+        emit_coercions comps place
       in
       match canon, decl.type_manifest, decl.type_private with
       | Some target, _, _ ->

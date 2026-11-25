@@ -108,6 +108,18 @@ OCaml name, Rocq name, kind, number of arguments, interface and line.
   `Int_ids.Coercion.t`, also when its constructors are private): the two are
   one type in Rocq as in OCaml. A private abbreviation (`type t = private
   int`) stays abstract: it is not equal to its definition.
+- A coercion of a private abbreviation (`(x :> int)`, where `x` is a NAME
+  whose type is the private abbreviation `M.t`), where a file of Simplify
+  writes one: a pure function, `Parameter coerce_t_to_int : t -> int.`,
+  realised by the function that writes the coercion with both types
+  (`(fun (x__1 : M.t) -> (x__1 :> int))`): a coercion runs nothing. It is
+  declared directly after the type, in the module by whose name the file
+  has the type, and once for each type that such a coercion gives; its name
+  is the generator's, made of the last names of the two types. `INDEX.tsv`
+  has it with the kind `coercion`. The typed tree keeps the type that a
+  coercion gives and not the type of what is coerced, so only the coercion
+  of a name is read; another one is said when the generator runs, and has
+  no declaration.
 - A variant that Simplify builds or matches: an `Inductive` with the
   compiler's constructors, and always an `Extract Inductive` that gives each
   constructor its qualified name in OCaml (so a constructor that had to take

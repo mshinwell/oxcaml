@@ -27,8 +27,9 @@
 
 (* What the files of Simplify use of other compilation units: every value,
    every constructor built or matched, every field read, built or written,
-   every type written, every exception. Read from the typed trees. This
-   file follows no file of the compiler. *)
+   every type written, every exception, every coercion of a private
+   abbreviation. Read from the typed trees. This file follows no file of
+   the compiler. *)
 
 open Typedtree
 open Common
@@ -61,6 +62,13 @@ let use_applied comps n =
 
 (* The module types of other units that the files name. *)
 let modtypes : (string, string list) Hashtbl.t = Hashtbl.create 17
+
+(* The coercions [(x :> T)] that the files write of a name whose type is a
+   private abbreviation: key of that type, as the file has it -> its name,
+   and each type that a coercion gives, with its text in OCaml. *)
+let coercions :
+    (string, string list * (string * Types.type_expr) list ref) Hashtbl.t =
+  Hashtbl.create 7
 
 let cur_file = ref ""
 
@@ -101,6 +109,54 @@ let rec canon_type env p =
   | exception Not_found -> p
 
 let type_comps env p = comps_of_path (canon_type (env_of env) p)
+
+(* Whether a type is a private abbreviation ([type t = private int]), or
+   an abbreviation of one. *)
+let rec private_abbreviation env (p : Path.t) =
+  match Env.find_type p env with
+  | { type_manifest = Some _;
+      type_private = Asttypes.Private;
+      type_kind = Type_abstract _;
+      _
+    } ->
+    true
+  | { type_manifest = Some ty; type_kind = Type_abstract _; _ } -> (
+    match Types.get_desc ty with
+    | Tconstr (p', _, _) -> private_abbreviation env p'
+    | _ -> false)
+  | _ -> false
+  | exception Not_found -> false
+
+(* A coercion [(e :> T)]. The typed tree keeps the type that the coercion
+   gives, not the type of [e]: it is read only where [e] is a name, whose
+   type the name has. Another coercion is said, and not declared. *)
+let coercion (e : expression) (target : core_type) =
+  let not_read why =
+    warn "a coercion that is not declared (%s, line %d): %s" !cur_file
+      e.exp_loc.loc_start.pos_lnum why
+  in
+  match e.exp_desc with
+  | Texp_ident (_, _, vd) -> (
+    let env = env_of e.exp_env in
+    match Types.get_desc vd.val_type with
+    | Tconstr (p, [], _) when private_abbreviation env p -> (
+      match comps_of_path (source_path env p) with
+      | Some comps ->
+        ignore (type_use comps);
+        let text = Format.asprintf "%a" Printtyp.type_expr target.ctyp_type in
+        let l =
+          match Hashtbl.find_opt coercions (key comps) with
+          | Some (_, l) -> l
+          | None ->
+            let l = ref [] in
+            Hashtbl.replace coercions (key comps) (comps, l);
+            l
+        in
+        if not (List.mem_assoc text !l) then l := (text, target.ctyp_type) :: !l
+      | None -> not_read "the type of the name is not a global name")
+    | _ ->
+      not_read "the type of the name is not a private abbreviation without parameters")
+  | _ -> not_read "it is not the coercion of a name"
 
 let exception_comps env (p : Path.t) =
   match p with
@@ -612,6 +668,10 @@ let iterator =
     | `Type -> ignore (type_use comps)
   in
   let expr sub (e : expression) =
+    List.iter
+      (fun (extra, _, _) ->
+        match extra with Texp_coerce (_, target) -> coercion e target | _ -> ())
+      e.exp_extra;
     (match e.exp_desc with
     | Texp_ident (p, _, _) -> (
       let p = source_path (env_of e.exp_env) p in

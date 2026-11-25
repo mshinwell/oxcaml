@@ -14,6 +14,8 @@
 (fun x__1 x__2 x__3 -> { Unboxing_types.epa = x__1; decision = x__2; kind = x__3 })	Unboxing_types.mk_field_decision	maker	3	unboxing_types.mli:66
 (fun x__1 x__2 x__3 x__4 -> { Simplified_expr.at_unit_toplevel = x__1; handlers_from_the_outside_to_the_inside = x__2; original_invariant_params = x__3; invariant_extra_params = x__4 })	Simplified_expr.mk_simplified_let_cont_handlers	maker	4	simplified_expr.mli:81
 (fun x__1 x__2 x__3 x__4 x__5 x__6 x__7 -> { Simplified_expr.params = x__1; simplified_handler = x__2; is_exn_handler = x__3; is_cold = x__4; extra_params_and_args = x__5; invariant_extra_params_and_args = x__6; rewrite_ids = x__7 })	Simplified_expr.mk_simplified_handler_	maker	7	simplified_expr.mli:59
+(x :> int) of Continuation.t	Continuation.coerce_t_to_int	coercion	1	continuation.mli:19
+(x :> int) of Simple.t	Simple.coerce_t_to_int	coercion	1	int_ids.mli:200
 Alloc_mode.For_allocations.Heap	Alloc_mode.For_allocations.Heap	constructor	1	alloc_mode.mli:84
 Alloc_mode.For_allocations.Heap { alloc_region }	Alloc_mode.For_allocations.Heap, argument 1	inline field	0	alloc_mode.mli:84
 Alloc_mode.For_allocations.Local	Alloc_mode.For_allocations.Local	constructor	2	alloc_mode.mli:84

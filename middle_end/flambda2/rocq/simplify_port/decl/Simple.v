@@ -26,6 +26,9 @@ From SimplifyPort.decl Require Coercion Debuginfo Flambda_kind Format Int_ids Na
 (* int_ids.mli:200  type t = private Table_by_int_id.Id.t *)
 Definition t : Type := Int_ids.Simple.t.
 Extract Inlined Constant t => "Simple.t".
+(* int_ids.mli:200  the coercion (x :> int) of this private type *)
+Parameter coerce_t_to_int : t -> int.
+Extract Inlined Constant coerce_t_to_int => "(fun (x__1 : Simple.t) -> (x__1 :> int))".
 (* module T = Int_ids.Simple.T: declared again here under this name. *)
 Module T.
   (* int_ids.mli:204  include Container_types.S_plus_iterator with type t := t *)

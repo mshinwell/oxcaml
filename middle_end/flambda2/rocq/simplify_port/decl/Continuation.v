@@ -26,6 +26,9 @@ From SimplifyPort.decl Require Format Or_null Seq.
 (* continuation.mli:19  type t = private Table_by_int_id.Id.t *)
 Parameter t : Type.
 Extract Inlined Constant t => "Continuation.t".
+(* continuation.mli:19  the coercion (x :> int) of this private type *)
+Parameter coerce_t_to_int : t -> int.
+Extract Inlined Constant coerce_t_to_int => "(fun (x__1 : Continuation.t) -> (x__1 :> int))".
 Module T.
   (* continuation.mli:23  include Container_types.S with type t := t *)
   Definition t : Type := Continuation.t.
