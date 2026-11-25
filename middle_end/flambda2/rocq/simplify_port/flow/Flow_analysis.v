@@ -116,10 +116,11 @@ Definition analyze (speculative : option bool) (print_name : option string)
      then
        (* PORT-GAP(papp): [Continuation_callsite_map.print] is given its first
           argument only, and its definition has ONE parameter
-          (middle_end/flambda2/identifiers/continuation_callsite_map.ml:18, `let
-          print pp = Continuation.Map.print (Apply_cont_rewrite_id.Map.print
-          pp)`): the use runs the definition, which makes two partial
-          applications, as the compiler's own use at this place does. *)
+          (middle_end/flambda2/identifiers/continuation_callsite_map.ml:18: it
+          gives its argument to the printer of one map, and the result to
+          the printer of the other): the use runs the definition, which
+          makes those two partial applications, as the compiler's own use
+          at this place does. *)
        let! tmp2 := papp1 Continuation_callsite_map.print Continuation.print in
        Format.eprintf4 "PRESOURCE:@
 spec:%a@

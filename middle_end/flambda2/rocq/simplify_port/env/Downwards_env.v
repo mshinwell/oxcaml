@@ -552,9 +552,10 @@ Definition create (round : int)
 (* 282 *)
 (* PORT-GAP(papp): [TE.resolver] is given its first argument only, and its
    definition has ONE parameter
-   (middle_end/flambda2/types/env/typing_env.ml:337, `let resolver t =
-   t.resolver`): the use runs the definition, which reads a field, as the
-   compiler's own use at this place does. *)
+   (middle_end/flambda2/types/env/typing_env.ml:337: it takes the
+   environment and gives back one of its fields): the use runs the
+   definition, which reads that field, as the compiler's own use at this
+   place does. *)
 Definition resolver (t : Downwards_env.t) : M resolver_ :=
   papp1 TE.resolver t.(Downwards_env.typing_env).
 

@@ -457,8 +457,12 @@ Parameter phys_not_equal : forall {A : Type}, A -> A -> M bool.
    [~simplify_expr]): [let! tmp1 := papp1 f a in]. In OCaml it is [f a].
    The types say that at least one argument is still to come, so the
    result is a function and never a computation. This is right for OCaml
-   under the assumption that the whole port makes of a declared function:
-   it does nothing until it has all the arguments of its interface. *)
+   where the DEFINITION of [f] has more parameters than the use gives it
+   arguments: OCaml then runs nothing of [f]. The interface does not say
+   how many parameters the definition has. tools/lint.py checks it for
+   each use of a declared function, against decl/ARITIES.tsv (GUIDE.md,
+   section 2); a use for which it does not hold, or is not known, has the
+   mark PORT-GAP(papp), which says what runs there. *)
 Definition papp1 {A B C : Type} (f : A -> B -> C) (a : A) : M (B -> C) :=
   ret (f a).
 Definition papp2 {A1 A2 B C : Type} (f : A1 -> A2 -> B -> C) (a1 : A1)
