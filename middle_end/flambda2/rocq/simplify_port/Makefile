@@ -91,13 +91,13 @@ ID_V := $(B)/id/Port_monad.v $(addprefix $(B)/id/,$(SRC))
 EXTRACTED := $(foreach p,$(PORTED),$(call extracted,$(p)))
 CHECKED := $(foreach p,$(PORTED),$(call checked,$(p)))
 
-.PHONY: all real id extract check given papp table comments list clean
+.PHONY: all real id extract check given lines papp table comments list clean
 all: real id extract check table comments
 
 real: $(REAL_V:.v=.vo)
 id: $(ID_V:.v=.vo)
 extract: $(EXTRACTED)
-check: given $(CHECKED) papp
+check: given lines $(CHECKED) papp
 
 list:
 	@$(foreach p,$(PORTED),echo '$(p).v	$(call donor,$(p))	$(call extracted,$(p))';)
@@ -128,8 +128,10 @@ $(B)/id/depend: $(ID_V)
 ifneq ($(MAKECMDGOALS),clean)
 ifneq ($(MAKECMDGOALS),list)
 ifneq ($(MAKECMDGOALS),given)
+ifneq ($(MAKECMDGOALS),lines)
 -include $(B)/real/depend
 -include $(B)/id/depend
+endif
 endif
 endif
 endif
@@ -206,6 +208,16 @@ $(B)/check/port_%.cmi: runtime/port_%.ml tools/check.sh
 # for the dependencies of the files.
 given:
 	$(PYTHON) tools/given.py $(addsuffix .v,$(PORTED))
+
+# The note of lines before each definition of a ported file: the lines
+# where the compiler's file defines the thing of that name, which
+# decl/DONOR-ITEMS.tsv has from the typed tree. tools/lines.py says how,
+# which definitions it does not judge, and what it does not establish. It
+# reads that table and decl/DONOR-TOKENS.tsv, and nothing that Rocq or
+# OCaml makes: [make lines] alone does not ask Rocq for the dependencies
+# of the files.
+lines:
+	$(PYTHON) tools/lines.py $(addsuffix .v,$(PORTED))
 
 # A function that is given its first arguments only (pappN) runs nothing
 # if its definition has more parameters. tools/lint.py checks that against

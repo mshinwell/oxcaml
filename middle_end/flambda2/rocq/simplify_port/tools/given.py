@@ -581,7 +581,9 @@ class Text(object):
 
 class Reading(object):
     """A ported file: its given texts, each with the note and the marks
-    that stand over it; its marks; what could not be read."""
+    that stand over it; its marks; what could not be read. And, for
+    tools/lines.py, the lines of the group that is open where each
+    sentence begins, and the lines of the note that began that group."""
 
     def __init__(self, path, raw):
         self.path = path
@@ -589,6 +591,8 @@ class Reading(object):
         self.errors = []  # (line, words)
         self.texts = []
         self.marks = []
+        self.over = {}  # where a sentence begins -> the lines of its group, or None
+        self.begun = {}  # where a sentence begins -> the lines of the note that began its group
         lines = raw.split("\n")
         # the blocks, as tools/assemble.sh reads them: whole lines
         blocks = []
@@ -653,12 +657,14 @@ class Reading(object):
         events.sort(key=lambda e: e[0])
         # the note and the marks that stand over each text (THE GROUPS)
         note = None
+        first = None  # the lines of the note that began the group, if a note did
         marks = []
         seen = False  # the group has a text
         beside = False  # only comments since the last note or mark
         for pos, what, x in events:
             if what == "note":
                 note, marks, seen, beside = x, [], False, True
+                first = x
             elif what == "mark":
                 self.marks.append(x)
                 if beside:
@@ -666,15 +672,22 @@ class Reading(object):
                     note = x.lines or note
                 else:
                     note, marks, seen = x.lines, [x], False
+                    first = None
                 beside = True
             elif what == "comment":
                 if seen:
                     note, marks, seen, beside = None, [], False, False
+                    first = None
             elif what == "sentence":
+                self.over[pos] = note
+                self.begun[pos] = first
                 beside = False
                 if not x:
                     note, marks, seen = None, [], False
+                    first = None
             else:
+                self.over[pos] = note
+                self.begun[pos] = first
                 x.note = note
                 x.marks = list(marks)
                 x.modules = papp.rocq_modules(self.text, self.spans, pos)

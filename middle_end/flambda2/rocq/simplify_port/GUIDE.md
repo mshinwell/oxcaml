@@ -34,9 +34,42 @@ files beside the donors first. Points marked HUMAN are the human's to judge.
   of the head and a line of the library do not name the same module).
 - The compiler's definitions in the compiler's ORDER, each under its NAME,
   with its arguments' names; before each, a comment with the donor's lines
-  (`(* 19-29 *)`). The donor's COMMENTS stay at their places, in the
-  donor's words (one that begins `CR` may be left out): `make comments`
-  lists the ones that are missing and the headers that differ.
+  (`(* 19-29 *)`): THE NOTE OF LINES. It is ONE range, from the first line
+  of the donor's definition of that name to its last (not its first lines
+  only); words may follow a full stop (`(* 19-29. Words. *)`; a colon
+  there makes it a plain comment). For things that the donor defines
+  together (`let rec f .. and g ..`), the lines of the one, or of all
+  together. `make lines` (`tools/lines.py`, a part of `make check`)
+  compares the note before each `Definition`, `Fixpoint`, `Inductive`,
+  `Record` and `Module` with the lines that the donor's typed tree has
+  for the thing of that name and kind in that module
+  (`decl/DONOR-ITEMS.tsv`), as tokens, so that lines of comment at either
+  end are free; a definition that the donor has and that has no note is
+  an error. The note counts for all the sentences of its group (an
+  `Inductive t_` and the `Definition t` after it). `Module X := ..`
+  sentences that follow one another may have one note, the lines of all
+  of them (the donor has nothing else between them). NOT JUDGED, and
+  listed by `LINES_ALL=1 make lines`: a definition in a functor or a
+  module type of the file; a name that the donor does not have (a
+  helper); a `Definition` whose text a directive gives (`make given`).
+- A note INSIDE a definition names WHOLE LINES of the part that the Rocq
+  text after it follows, from the line where the part begins to the line
+  where it ends (parts that follow one another: from the first line of
+  the first to the last line of the last). A `let .. in` goes from the
+  line of its `let` to the line of its `in`, also when the `in` stands
+  alone on its line; an arm of a match is named with the lines of its
+  pattern, or its body alone; the note before a `with f` clause of a
+  `Fixpoint` is the lines of the donor's `and f ..`. A comment that
+  speaks of one piece of the text (`(* 12: words *)`: a pattern, the
+  parameters of a function, one argument) names the lines where that
+  piece stands. `make lines` checks a note inside a definition ONLY to
+  lie inside the lines of its item. Whether it begins and ends where a
+  part does is checked by NO TOOL: when `tools/lines.py` was written, the
+  notes inside that scans of the donor's layout doubted were read by hand
+  and mended; the scans are not kept, and the other notes were not read.
+- The donor's COMMENTS stay at their places, in the donor's words (one
+  that begins `CR` may be left out): `make comments` lists the ones that
+  are missing and the headers that differ.
 - Arguments are BY PLACE: no labels, in the order of the `.mli` (of the
   definition, if the function is not exported); the check compiles with
   `-nolabels`. HUMAN: the extracted definitions have no labels.
