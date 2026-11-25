@@ -19,7 +19,9 @@
    ecc5c0d968c892b4312065caef0f19ffffa042a9, function by function under the
    compiler's names; the numbers in the comments are the lines of that file.
    What is not from that file: the form (the monad, the temporaries [tmpN]
-   and their order) is that of GUIDE.md. No proof. *)
+   and their order) is that of GUIDE.md. The labels [~l:] at the calls are
+   the compiler's, written for the reader only: Rocq throws them away and
+   nothing checks them (GUIDE.md, section 1). No proof. *)
 
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Import Simplify_import.
@@ -76,7 +78,7 @@ Definition make_inlined_body (callee : option Simple.t)
         in
         let* coercion_from_callee_to_unrolled_callee :=
           let! tmp1 := Rec_info_expr.var my_depth in
-          Coercion.change_depth rec_info tmp1
+          Coercion.change_depth ~from:rec_info ~to_:tmp1
         in
         let* callee :=
           Simple.apply_coercion_exn callee
@@ -109,14 +111,17 @@ Definition make_inlined_body (callee : option Simple.t)
     let! tmp4 := List.rev args in
     let! tmp5 := List.rev params in
     ListLabels.fold_left2
-      (fun (expr : Expr.t) (param : Bound_parameter.t) (arg : Simple.t) =>
+      ~f:(fun (expr : Expr.t) (param : Bound_parameter.t) (arg : Simple.t) =>
         let* '(param_var, param_uid) := BP.var_and_uid param in
         let* var := Bound_var.create param_var param_uid Name_mode.normal in
         let! tmp1 := Named.create_simple arg in
         let! tmp2 := Bound_pattern.singleton var in
-        let! tmp3 := Let.create tmp2 tmp1 expr Or_unknown.Unknown in
+        let! tmp3 :=
+          Let.create tmp2 tmp1 ~body:expr
+            ~free_names_of_body:Or_unknown.Unknown
+        in
         Expr.create_let tmp3)
-      body tmp5 tmp4
+      ~init:body tmp5 tmp4
   in
   (* 70-80 *)
   let& bind_depth :=
@@ -128,14 +133,22 @@ Definition make_inlined_body (callee : option Simple.t)
       Bound_pattern.singleton tmp1
     in
     let! tmp1 := Named.create_rec_info rec_info in
-    let! tmp2 := Let.create bound tmp1 body Or_unknown.Unknown in
+    let! tmp2 :=
+      Let.create bound tmp1 ~body:body ~free_names_of_body:Or_unknown.Unknown
+    in
     Expr.create_let tmp2
   in
   (* 81-84 *)
-  Inlining_helpers.make_inlined_body callee called_code_id region_inlined_into
-    params args my_closure my_alloc_mode my_depth rec_info body
-    exn_continuation return_continuation apply_exn_continuation
-    apply_return_continuation bind_params bind_depth Expr.apply_renaming.
+  Inlining_helpers.make_inlined_body ~callee:callee
+    ~called_code_id:called_code_id region_inlined_into ~params:params
+    ~args:args ~my_closure:my_closure ~my_alloc_mode:my_alloc_mode
+    ~my_depth:my_depth ~rec_info:rec_info ~body:body
+    ~exn_continuation:exn_continuation
+    ~return_continuation:return_continuation
+    ~apply_exn_continuation:apply_exn_continuation
+    ~apply_return_continuation:apply_return_continuation
+    ~bind_params:bind_params ~bind_depth:bind_depth
+    ~apply_renaming:Expr.apply_renaming.
 
 (* 86-102 *)
 Definition wrap_inlined_body_for_exn_extra_args
@@ -151,7 +164,10 @@ Definition wrap_inlined_body_for_exn_extra_args
   let& apply_cont_create :=
     fun (_ : unit) (trap_action : Trap_action.t) (cont : Continuation.t)
         (args : Simple.List.t) (dbg : Debuginfo.t) =>
-    let! tmp1 := Apply_cont.create (Some trap_action) cont args dbg in
+    let! tmp1 :=
+      Apply_cont.create ~trap_action:(Some trap_action) cont ~args:args
+        ~dbg:dbg
+    in
     Expr.create_apply_cont tmp1
   in
   (* 91-99 *)
@@ -161,16 +177,20 @@ Definition wrap_inlined_body_for_exn_extra_args
         (is_exn_handler is_cold : bool) =>
     let* handler :=
       let! tmp1 := handler tt in
-      Continuation_handler.create handler_params tmp1 Or_unknown.Unknown
-        is_exn_handler is_cold
+      Continuation_handler.create handler_params ~handler:tmp1
+        ~free_names_of_handler:Or_unknown.Unknown
+        ~is_exn_handler:is_exn_handler ~is_cold:is_cold
     in
     let! tmp1 := body tt in
-    Let_cont.create_non_recursive cont handler tmp1 Or_unknown.Unknown
+    Let_cont.create_non_recursive cont handler ~body:tmp1
+      ~free_names_of_body:Or_unknown.Unknown
   in
   (* 100-102 *)
-  Inlining_helpers.wrap_inlined_body_for_exn_extra_args tt extra_args
-    apply_exn_continuation apply_return_continuation result_arity
-    make_inlined_body apply_cont_create let_cont_create.
+  Inlining_helpers.wrap_inlined_body_for_exn_extra_args tt
+    ~extra_args:extra_args ~apply_exn_continuation:apply_exn_continuation
+    ~apply_return_continuation:apply_return_continuation
+    ~result_arity:result_arity ~make_inlined_body:make_inlined_body
+    ~apply_cont_create:apply_cont_create ~let_cont_create:let_cont_create.
 
 (* 103-181 *)
 Definition inline (dacc : DA.t) (apply : Apply.t) (unroll_to : option int)
@@ -235,11 +255,14 @@ Definition inline (dacc : DA.t) (apply : Apply.t) (unroll_to : option int)
     Lambda.Maybe_alloc_stack
   | Alloc_mode.For_applications.Not_alloc_stack _, Lambda.Not_alloc_stack =>
     (* 146-148 *)
-    let* denv := DE.enter_inlined_apply code apply was_inline_always denv in
+    let* denv :=
+      DE.enter_inlined_apply ~called_code:code ~apply:apply
+        ~was_inline_always:was_inline_always denv
+    in
     let* params_and_body := Code.params_and_body code in
     (* 150-181 *)
     Function_params_and_body.pattern_match params_and_body
-      (fun return_continuation exn_continuation params body my_closure _
+      ~f:(fun return_continuation exn_continuation params body my_closure _
            my_alloc_mode my_depth _ =>
         (* 162-168 *)
         (* PORT-GAP(loose): the compiler gives its
@@ -252,10 +275,13 @@ Definition inline (dacc : DA.t) (apply : Apply.t) (unroll_to : option int)
               (apply_return_continuation : Apply.Result_continuation.t) =>
           let! tmp1 := Bound_parameters.to_list params in
           let! tmp2 := Code.code_id code in
-          make_inlined_body callee tmp2 unroll_to tmp1 args my_closure
-            my_alloc_mode my_depth rec_info body exn_continuation
-            return_continuation apply_exn_continuation
-            apply_return_continuation region_inlined_into
+          make_inlined_body ~callee:callee ~called_code_id:tmp2
+            ~unroll_to:unroll_to ~params:tmp1 ~args:args
+            ~my_closure:my_closure ~my_alloc_mode:my_alloc_mode
+            ~my_depth:my_depth ~rec_info:rec_info ~body:body
+            ~exn_continuation:exn_continuation
+            ~return_continuation:return_continuation apply_exn_continuation
+            apply_return_continuation ~region_inlined_into:region_inlined_into
         in
         (* 169-180 *)
         (* PORT-GAP(loose): the compiler's second case is the
@@ -268,12 +294,14 @@ Definition inline (dacc : DA.t) (apply : Apply.t) (unroll_to : option int)
           match extra_args with
           | [] =>
             let! tmp1 := Exn_continuation.exn_handler apply_exn_continuation in
-            make_inlined_body tt tmp1 apply_return_continuation
+            make_inlined_body tt ~apply_exn_continuation:tmp1
+              ~apply_return_continuation:apply_return_continuation
           | _ :: _ =>
             let! tmp1 := Code.result_arity code in
-            wrap_inlined_body_for_exn_extra_args extra_args
-              apply_exn_continuation apply_return_continuation tmp1
-              make_inlined_body
+            wrap_inlined_body_for_exn_extra_args ~extra_args:extra_args
+              ~apply_exn_continuation:apply_exn_continuation
+              ~apply_return_continuation:apply_return_continuation
+              ~result_arity:tmp1 ~make_inlined_body:make_inlined_body
           end
         in
         let! tmp1 := DA.with_denv dacc denv in
