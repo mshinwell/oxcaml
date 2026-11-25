@@ -27,26 +27,24 @@
 
 (* declgen BUILD_ROOT SOURCE_ROOT OUT_DIR COMMIT FILE.cmt ...
 
-   Writes, into OUT_DIR, one file of Rocq for each compilation unit that
-   the given files of Simplify use, and for each of those files itself: the
+   Writes, into OUT_DIR, one file of Rocq for each compilation unit that the
+   given files of Simplify use, and for each of those files itself: the
    declarations of decl/README.md. Also INDEX.tsv, ARITIES.tsv,
-   NOT-DECLARED.tsv, and the three tables of donors.ml about the given
-   files themselves, UPDATES.tsv, DONOR-TOKENS.tsv and DONOR-ITEMS.tsv.
+   NOT-DECLARED.tsv, and the three tables of donors.ml about the given files
+   themselves, UPDATES.tsv, DONOR-TOKENS.tsv and DONOR-ITEMS.tsv.
 
    declgen --parameters FILE.cmt
 
    For a test of the count of ARITIES.tsv: prints each value that the
-   implementation FILE.cmt binds at its top, and the number of its
-   parameters by the rule of arities.ml. It writes no file.
+   implementation FILE.cmt binds at its top, and the number of its parameters by
+   the rule of arities.ml. It writes no file.
 
-   declgen --updates FILE.cmt
-   declgen --tokens FILE.ml
-   declgen --items FILE.cmt
+   declgen --updates FILE.cmt declgen --tokens FILE.ml declgen --items FILE.cmt
 
-   For a test of the three tables of donors.ml: prints the rows of the
-   record updates of one typed tree, or the row of the tokens of one file,
-   or the rows of the items of one typed tree. They write no file.
-   This file follows no file of the compiler. *)
+   For a test of the three tables of donors.ml: prints the rows of the record
+   updates of one typed tree, or the row of the tokens of one file, or the rows
+   of the items of one typed tree. They write no file. This file follows no file
+   of the compiler. *)
 
 open Common
 module SS = Set.Make (String)
@@ -55,7 +53,7 @@ let source_of_unit u =
   let find ext =
     try Some (Load_path.find_normalized (u ^ ext)) with Not_found -> None
   in
-  match (match find ".cmti" with Some f -> Some f | None -> find ".cmt") with
+  match match find ".cmti" with Some f -> Some f | None -> find ".cmt" with
   | None -> None
   | Some f -> (
     match Cmt_format.read_cmt f with
@@ -79,7 +77,8 @@ let source_of_unit u =
       | None -> (
         match Option.bind inside found with
         | Some rel -> Some rel
-        | None -> Option.map fst (Option.bind cmt.cmt_sourcefile Src.source_path))))
+        | None ->
+          Option.map fst (Option.bind cmt.cmt_sourcefile Src.source_path))))
 
 let no_source =
   [ "(* This file follows an interface whose source was not found: see the";
@@ -107,31 +106,30 @@ let units () =
 (* The last lines of the file of declarations [rocq].
 
    In an extracted file Rocq writes [open U] for each file [U] of which it
-   prints a name, and then prints the names of [U] without [U.]. In OCaml
-   that [open] brings every name of the real module [U]: more than the
-   declarations have, so Rocq does not know of them. A name that Rocq
-   prints short, or a name in a realisation, could then mean something of
-   [U] instead (after [open Simple], [List] is [Simple.List]).
+   prints a name, and then prints the names of [U] without [U.]. In OCaml that
+   [open] brings every name of the real module [U]: more than the declarations
+   have, so Rocq does not know of them. A name that Rocq prints short, or a name
+   in a realisation, could then mean something of [U] instead (after [open
+   Simple], [List] is [Simple.List]).
 
-   Rocq does not write [open U] when [U] has at its top a module with the
-   name of a file in use, and [U] is itself in use where it would be
-   opened. So each file ends with an empty module of its own name: no
-   extracted file opens a file of declarations, and Rocq prints each of
-   its names in full. *)
+   Rocq does not write [open U] when [U] has at its top a module with the name
+   of a file in use, and [U] is itself in use where it would be opened. So each
+   file ends with an empty module of its own name: no extracted file opens a
+   file of declarations, and Rocq prints each of its names in full. *)
 let no_open ~local rocq =
   let why =
     if local
     then
-      [ "(* Not in the file of Simplify: an empty module with the name of \
-         this file.";
-        "   With it Rocq's extraction writes no [open] of this file, which \
-         is not a";
+      [ "(* Not in the file of Simplify: an empty module with the name of this \
+         file.";
+        "   With it Rocq's extraction writes no [open] of this file, which is \
+         not a";
         "   module of OCaml, and prints each of its names in full. *)" ]
     else
-      [ "(* Not in the interface: an empty module with the name of this \
-         file. With";
-        "   it Rocq's extraction does not open this file's module in the \
-         files that";
+      [ "(* Not in the interface: an empty module with the name of this file. \
+         With";
+        "   it Rocq's extraction does not open this file's module in the files \
+         that";
         "   use it, and prints each of its names in full. So what the real \
          module";
         "   has, and these declarations do not have, hides no other name \
@@ -152,7 +150,8 @@ let pass scanned =
     SS.filter (fun k -> not (String.contains k '.')) !Walk.forced
   in
   let all =
-    SS.elements (SS.union forced_units (SS.union (SS.of_list (units ())) scanned))
+    SS.elements
+      (SS.union forced_units (SS.union (SS.of_list (units ())) scanned))
   in
   let results =
     List.filter_map
@@ -187,8 +186,8 @@ let pass scanned =
   Hashtbl.iter (Hashtbl.replace Decl_out.native_before) Decl_out.native_now;
   results, same
 
-(* A file is written only if its text has changed, so that what depends
-   on it is not made again for nothing. *)
+(* A file is written only if its text has changed, so that what depends on it is
+   not made again for nothing. *)
 let write_file path contents =
   let same =
     Sys.file_exists path
@@ -249,7 +248,8 @@ let () =
     (fun (u, body, deps) ->
       let rocq = Sigs.unit_rocq u in
       (match Hashtbl.find_opt names rocq with
-      | Some u' -> failwith (Printf.sprintf "two units for %s.v: %s and %s" rocq u u')
+      | Some u' ->
+        failwith (Printf.sprintf "two units for %s.v: %s and %s" rocq u u')
       | None -> Hashtbl.replace names rocq u);
       let source =
         match Hashtbl.find_opt Sigs.locals u with
@@ -268,39 +268,41 @@ let () =
         Buffer.add_string b
           (Printf.sprintf
              "\n\
-              (* GENERATED, not written by hand: the declarations of the modules \
-              that\n\
+              (* GENERATED, not written by hand: the declarations of the \
+              modules that\n\
              \   %s\n\
              \   at commit %s makes for itself by applying a functor of another\n\
              \   part of the compiler, and of what the file uses of them. The \
               port keeps\n\
              \   the definitions of these modules as they are in the file, and \
               the\n\
-             \   realisations name them as the file does. Made by tools/declgen \
-              (see\n\
+             \   realisations name them as the file does. Made by \
+              tools/declgen (see\n\
              \   decl/README.md): a change is made there, not here. *)\n\n"
              (Option.value ~default:"(source not found)" source)
              commit)
       else
-      Buffer.add_string b
-        (Printf.sprintf
-           "\n\
-            (* GENERATED, not written by hand: the declarations of what the port \
-            of\n\
-           \   Simplify uses of the compiler's module [%s], after its interface\n\
-           \   %s\n\
-           \   at commit %s. Made by tools/declgen (see decl/README.md): a\n\
-           \   change is made there, not here. *)\n\n"
-           (short_unit u)
-           (Option.value ~default:"(source not found)" source)
-           commit);
+        Buffer.add_string b
+          (Printf.sprintf
+             "\n\
+              (* GENERATED, not written by hand: the declarations of what the \
+              port of\n\
+             \   Simplify uses of the compiler's module [%s], after its \
+              interface\n\
+             \   %s\n\
+             \   at commit %s. Made by tools/declgen (see decl/README.md): a\n\
+             \   change is made there, not here. *)\n\n"
+             (short_unit u)
+             (Option.value ~default:"(source not found)" source)
+             commit);
       Buffer.add_string b "From SimplifyPort Require Import Port_monad.\n";
       let deps = SS.elements (SS.remove u deps) in
       if deps <> []
       then
         Buffer.add_string b
           (Printf.sprintf "From SimplifyPort.decl Require %s.\n"
-             (String.concat " " (List.sort compare (List.map Sigs.unit_rocq deps))));
+             (String.concat " "
+                (List.sort compare (List.map Sigs.unit_rocq deps))));
       Buffer.add_char b '\n';
       Buffer.add_string b body;
       (* the file ends with a module of its own name: see [no_open] *)
@@ -310,43 +312,51 @@ let () =
   (* what an earlier run wrote and this one does not *)
   Array.iter
     (fun f ->
-      if Filename.check_suffix f ".v"
-         && not (Hashtbl.mem names (Filename.chop_suffix f ".v"))
+      if
+        Filename.check_suffix f ".v"
+        && not (Hashtbl.mem names (Filename.chop_suffix f ".v"))
       then Sys.remove (Filename.concat out_dir f))
     (Sys.readdir out_dir);
   let tsv file rows =
-    write_file (Filename.concat out_dir file)
-      (String.concat "" (List.map (fun r -> r ^ "\n") (List.sort_uniq compare rows)))
+    write_file
+      (Filename.concat out_dir file)
+      (String.concat ""
+         (List.map (fun r -> r ^ "\n") (List.sort_uniq compare rows)))
   in
   tsv "INDEX.tsv"
     (List.map
        (fun (o, r, k, a, p) -> Printf.sprintf "%s\t%s\t%s\t%d\t%s" o r k a p)
        !Decl_out.index);
-  (* for each declared value: the parameters of its realisation and of
-     its definition *)
+  (* for each declared value: the parameters of its realisation and of its
+     definition *)
   tsv "ARITIES.tsv"
     (List.map
        (fun (comps, ocaml, rocq, wrapper) ->
          let definition, where = Arities.row comps in
          Printf.sprintf "%s\t%s\t%d\t%s\t%s" ocaml rocq wrapper definition where)
        !Decl_out.values);
-  (* the given files themselves: their record updates, their tokens and
-     their items *)
+  (* the given files themselves: their record updates, their tokens and their
+     items *)
   let donors = List.map Donors.read cmts in
   tsv "UPDATES.tsv" (List.concat_map (fun (_, updates, _) -> updates) donors);
   tsv "DONOR-TOKENS.tsv"
-    (List.filter_map (fun (source, _, _) -> Option.bind source Donors.tokens) donors);
+    (List.filter_map
+       (fun (source, _, _) -> Option.bind source Donors.tokens)
+       donors);
   tsv "DONOR-ITEMS.tsv" (List.concat_map (fun (_, _, items) -> items) donors);
-  (* the modules that the files give to their functors, where a module
-     type with a name is wanted: in OCaml and in Rocq *)
+  (* the modules that the files give to their functors, where a module type with
+     a name is wanted: in OCaml and in Rocq *)
   let rocq_module comps =
     match comps with
-    | u :: mods -> String.concat "." (Sigs.unit_rocq u :: Print.modules_rocq u mods)
+    | u :: mods ->
+      String.concat "." (Sigs.unit_rocq u :: Print.modules_rocq u mods)
     | [] -> ""
   in
   let rocq_modtype comps =
     let modc, name = Print.split_last comps in
-    match Hashtbl.find_opt Sigs.modtype_rocq (key (modc @ [modtype_component name])) with
+    match
+      Hashtbl.find_opt Sigs.modtype_rocq (key (modc @ [modtype_component name]))
+    with
     | Some n -> rocq_module modc ^ "." ^ n
     | None -> ""
   in
@@ -379,4 +389,7 @@ let () =
         file f what)
     (List.sort_uniq compare !Uses.not_followed);
   Printf.printf "%d files, %d declarations, %d not declared, %d passes\n"
-    (List.length results) (List.length !Decl_out.index) (List.length !Decl_out.left) passes
+    (List.length results)
+    (List.length !Decl_out.index)
+    (List.length !Decl_out.left)
+    passes

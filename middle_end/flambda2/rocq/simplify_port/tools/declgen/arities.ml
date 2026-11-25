@@ -25,42 +25,38 @@
  * DEALINGS IN THE SOFTWARE.                                                  *
  ******************************************************************************)
 
+(* The number of parameters that the DEFINITION of a declared value takes before
+   it does anything else, read from the typed tree of the implementation: the
+   rows of ARITIES.tsv. This file follows no file of the compiler.
 
-(* The number of parameters that the DEFINITION of a declared value takes
-   before it does anything else, read from the typed tree of the
-   implementation: the rows of ARITIES.tsv. This file follows no file of
-   the compiler.
+   What it reads: the typed trees ([.cmt]) of the build; and the bytes of the
+   source files, of the tree and of the build's copies, only to compare them
+   with the digest that each typed tree has of its source ([tree_source]). It
+   writes none of the text of a source: a row has names and numbers from the
+   typed tree, and the place.
 
-   What it reads: the typed trees ([.cmt]) of the build; and the bytes of
-   the source files, of the tree and of the build's copies, only to compare
-   them with the digest that each typed tree has of its source
-   ([tree_source]). It writes none of the text of a source: a row has
-   names and numbers from the typed tree, and the place.
+   Why: the port gives a declared function its first arguments only ([papp1 f
+   a]), which in OCaml runs nothing of [f] as long as [f] is written with more
+   parameters than it is given. The interface cannot say so ([val f : a -> b ->
+   c] may be [let f a = work (); fun b -> ...]); the definition can.
 
-   Why: the port gives a declared function its first arguments only
-   ([papp1 f a]), which in OCaml runs nothing of [f] as long as [f] is
-   written with more parameters than it is given. The interface cannot say
-   so ([val f : a -> b -> c] may be [let f a = work (); fun b -> ...]); the
-   definition can.
-
-   The count ([parameters], below, has the reason). OCaml takes the
-   parameters that one function literal writes together as one group, and
-   the cases of a [function] after them are one more of the group. For
-   [let f = E]: if [E] is [fun p1 .. pn -> B], [n]; one more if [B] is the
-   cases of a [function]; and, if [B] is itself a function literal (a
-   second group), the count of [B], but only when each of [p1 .. pn] is
-   inert: a variable or [_], and no default. Anything else is 0 (another
-   name, an application, a [let] before the [fun]): that is 0 by this
-   rule of what is written, and does not say that the value is no
-   function. For [external f : .. = "p"]: the number of arguments of the
+   The count ([parameters], below, has the reason). OCaml takes the parameters
+   that one function literal writes together as one group, and the cases of a
+   [function] after them are one more of the group. For [let f = E]: if [E] is
+   [fun p1 .. pn -> B], [n]; one more if [B] is the cases of a [function]; and,
+   if [B] is itself a function literal (a second group), the count of [B], but
+   only when each of [p1 .. pn] is inert: a variable or [_], and no default.
+   Anything else is 0 (another name, an application, a [let] before the [fun]):
+   that is 0 by this rule of what is written, and does not say that the value is
+   no function. For [external f : .. = "p"]: the number of arguments of the
    primitive.
 
-   The definition is found by the names: the unit, then each module, then
-   the value, with the last binding of a name in a structure. A module that
-   is another module is followed; an [include] is followed into the module
-   that it includes; the application of a functor is followed into the body
-   of the functor, where the parameter stands for the argument. What cannot
-   be followed is said in the row. *)
+   The definition is found by the names: the unit, then each module, then the
+   value, with the last binding of a name in a structure. A module that is
+   another module is followed; an [include] is followed into the module that it
+   includes; the application of a functor is followed into the body of the
+   functor, where the parameter stands for the argument. What cannot be followed
+   is said in the row. *)
 
 open Common
 
@@ -88,12 +84,12 @@ let read_file path =
   try Some (In_channel.with_open_bin path In_channel.input_all)
   with Sys_error _ -> None
 
-(* The file of the tree that a typed tree was made from, when the text that
-   the build read is the text of the tree: either the file itself, or a
-   copy that the build made of it, which is the line [# 1 "FILE"] and then
-   the file. A list of the modules of a library, which the build writes
-   ([module A = Lib__A], perhaps an empty module, and no more), has no file
-   in the tree: it is accepted, and has no definition of a value. *)
+(* The file of the tree that a typed tree was made from, when the text that the
+   build read is the text of the tree: either the file itself, or a copy that
+   the build made of it, which is the line [# 1 "FILE"] and then the file. A
+   list of the modules of a library, which the build writes ([module A =
+   Lib__A], perhaps an empty module, and no more), has no file in the tree: it
+   is accepted, and has no definition of a value. *)
 let tree_source (cmt : Cmt_format.cmt_infos) (str : Typedtree.structure) =
   match cmt.cmt_sourcefile, cmt.cmt_source_digest with
   | Some s, Some d -> (
@@ -101,7 +97,8 @@ let tree_source (cmt : Cmt_format.cmt_infos) (str : Typedtree.structure) =
     | Some text ->
       if String.equal (Digest.string text) d
       then Ok s
-      else Error (Printf.sprintf "not read: the build read another text of %s" s)
+      else
+        Error (Printf.sprintf "not read: the build read another text of %s" s)
     | None -> (
       match read_file (Filename.concat !build_root s) with
       | None -> Error (Printf.sprintf "not read: the source %s was not found" s)
@@ -112,7 +109,9 @@ let tree_source (cmt : Cmt_format.cmt_infos) (str : Typedtree.structure) =
           match String.index_opt text '\n' with
           | None -> None
           | Some i -> (
-            match Scanf.sscanf_opt (String.sub text 0 i) "# 1 %S%!" (fun r -> r) with
+            match
+              Scanf.sscanf_opt (String.sub text 0 i) "# 1 %S%!" (fun r -> r)
+            with
             | None -> None
             | Some rel -> (
               let rest = String.sub text (i + 1) (String.length text - i - 1) in
@@ -129,7 +128,8 @@ let tree_source (cmt : Cmt_format.cmt_infos) (str : Typedtree.structure) =
                 match item.str_desc with
                 | Tstr_module { mb_expr = { mod_desc = Tmod_ident _; _ }; _ }
                 | Tstr_module
-                    { mb_expr = { mod_desc = Tmod_structure { str_items = []; _ }; _ };
+                    { mb_expr =
+                        { mod_desc = Tmod_structure { str_items = []; _ }; _ };
                       _
                     }
                 | Tstr_attribute _ ->
@@ -142,7 +142,8 @@ let tree_source (cmt : Cmt_format.cmt_infos) (str : Typedtree.structure) =
           else
             Error
               (Printf.sprintf
-                 "not read: %s is written by the build, it is no file of the tree"
+                 "not read: %s is written by the build, it is no file of the \
+                  tree"
                  s))))
   | _ -> Error "not read: the typed tree does not name its source"
 
@@ -155,7 +156,8 @@ let has_module (sg : Types.signature) name =
   List.find_map
     (fun (item : Types.signature_item) ->
       match item with
-      | Sig_module (id, _, _, _, _) when String.equal (Ident.name id) name -> Some id
+      | Sig_module (id, _, _, _, _) when String.equal (Ident.name id) name ->
+        Some id
       | _ -> None)
     sg
 
@@ -202,9 +204,9 @@ let rec eval ctx (me : Typedtree.module_expr) : modval =
   | Tmod_constraint (me, _, _, _) -> eval ctx me
   | Tmod_unpack _ -> Unknown "not read: a module that is made from a value"
 
-(* The modules of a structure stand in its environment under their
-   identifiers: those that it binds, and those that an [include] or an
-   [open] of a module expression brings. *)
+(* The modules of a structure stand in its environment under their identifiers:
+   those that it binds, and those that an [include] or an [open] of a module
+   expression brings. *)
 and eval_structure ctx (str : Typedtree.structure) : modval =
   let ctx' = { ctx with env = ctx.env } in
   let binding (mb : Typedtree.module_binding) =
@@ -255,16 +257,19 @@ and eval_path ctx (p : Path.t) : modval =
 and lookup_module (m : modval) (name : string) : modval =
   match m with
   | Unknown _ -> m
-  | Functor _ -> Unknown "not read: a module inside a functor that is not applied"
+  | Functor _ ->
+    Unknown "not read: a module inside a functor that is not applied"
   | Struct (ctx, items) ->
     let rec go (items : Typedtree.structure_item list) =
       match items with
-      | [] -> Unknown (Printf.sprintf "not read: no module %s in the structure" name)
+      | [] ->
+        Unknown (Printf.sprintf "not read: no module %s in the structure" name)
       | item :: rest -> (
         let id =
           match item.str_desc with
           | Tstr_module mb -> binds_module mb name
-          | Tstr_recmodule mbs -> List.find_map (fun mb -> binds_module mb name) mbs
+          | Tstr_recmodule mbs ->
+            List.find_map (fun mb -> binds_module mb name) mbs
           | Tstr_include incl -> has_module incl.incl_type name
           | _ -> None
         in
@@ -301,7 +306,8 @@ and read_unit u : modval =
               | Error why -> Unknown why)
             | _ ->
               Unknown
-                (Printf.sprintf "not read: no typed tree of an implementation of %s"
+                (Printf.sprintf
+                   "not read: no typed tree of an implementation of %s"
                    (short_unit u))))
     in
     Hashtbl.replace units u m;
@@ -311,7 +317,8 @@ and read_unit u : modval =
 let rec lookup_value (m : modval) (name : string) : found =
   match m with
   | Unknown why -> Not_read why
-  | Functor _ -> Not_read "not read: a value inside a functor that is not applied"
+  | Functor _ ->
+    Not_read "not read: a value inside a functor that is not applied"
   | Struct (ctx, items) ->
     let binds (vb : Typedtree.value_binding) =
       List.exists
@@ -320,7 +327,8 @@ let rec lookup_value (m : modval) (name : string) : found =
     in
     let rec go (items : Typedtree.structure_item list) =
       match items with
-      | [] -> Not_read (Printf.sprintf "not read: no definition of %s was found" name)
+      | [] ->
+        Not_read (Printf.sprintf "not read: no definition of %s was found" name)
       | item :: rest -> (
         match item.str_desc with
         | Tstr_value (_, vbs) when List.exists binds vbs -> (
@@ -333,8 +341,8 @@ let rec lookup_value (m : modval) (name : string) : found =
           | _ ->
             Not_read
               (Printf.sprintf
-                 "not read: %s is bound by a pattern that is not its name alone" name)
-          )
+                 "not read: %s is bound by a pattern that is not its name alone"
+                 name))
         | Tstr_primitive vd when String.equal (Ident.name vd.val_id) name -> (
           match vd.val_val.val_kind with
           | Val_prim p -> Prim (ctx, p.prim_arity, vd.val_loc)
@@ -345,10 +353,10 @@ let rec lookup_value (m : modval) (name : string) : found =
     in
     go (List.rev items)
 
-(* A parameter whose taking in runs nothing: a variable or [_], with or
-   without a type ([(x : t)] is [_ as x] in the typed tree) or a label. A
-   pattern that is matched ([lazy x], [Some x], a record, a tuple, [()])
-   and an optional parameter with a default are not. *)
+(* A parameter whose taking in runs nothing: a variable or [_], with or without
+   a type ([(x : t)] is [_ as x] in the typed tree) or a label. A pattern that
+   is matched ([lazy x], [Some x], a record, a tuple, [()]) and an optional
+   parameter with a default are not. *)
 let rec inert_pattern (p : Typedtree.pattern) =
   match p.pat_desc with
   | Tpat_any | Tpat_var _ -> true
@@ -362,16 +370,15 @@ let inert (param : Typedtree.function_param) =
 
 (* The parameters that a function literal takes before it runs anything.
 
-   OCaml takes the parameters of ONE function literal together
-   ([Texp_function] has the arity of what is written): [fun (lazy x) y ->
-   ..] forces nothing until it has both, and the cases of a [function]
-   after the parameters are one more of them. A function literal that is
-   the whole body of another is a second group: when the first group is
-   full, OCaml matches its patterns and computes its defaults, and then
-   gives the inner function. So [fun (lazy x) -> fun y -> ..] forces its
-   argument when it has one, and [fun (Some x) -> fun y -> ..] can fail
-   then. The count goes on into such a body only if every parameter so far
-   is inert. *)
+   OCaml takes the parameters of ONE function literal together ([Texp_function]
+   has the arity of what is written): [fun (lazy x) y -> ..] forces nothing
+   until it has both, and the cases of a [function] after the parameters are one
+   more of them. A function literal that is the whole body of another is a
+   second group: when the first group is full, OCaml matches its patterns and
+   computes its defaults, and then gives the inner function. So [fun (lazy x) ->
+   fun y -> ..] forces its argument when it has one, and [fun (Some x) -> fun y
+   -> ..] can fail then. The count goes on into such a body only if every
+   parameter so far is inert. *)
 let rec parameters (e : Typedtree.expression) : int =
   match e.exp_desc with
   | Texp_function (params, body) -> (
@@ -379,12 +386,12 @@ let rec parameters (e : Typedtree.expression) : int =
     +
     match body with
     | Tfunction_cases _ -> 1
-    | Tfunction_body e' -> if List.for_all inert params then parameters e' else 0)
+    | Tfunction_body e' ->
+      if List.for_all inert params then parameters e' else 0)
   | _ -> 0
 
-(* For a test of the count ([declgen --parameters FILE.cmt]): each value
-   that the implementation binds at its top by a name alone, and its
-   number. *)
+(* For a test of the count ([declgen --parameters FILE.cmt]): each value that
+   the implementation binds at its top by a name alone, and its number. *)
 let print_parameters cmt_file =
   match (Cmt_format.read_cmt cmt_file).cmt_annots with
   | Implementation str ->
@@ -403,7 +410,8 @@ let print_parameters cmt_file =
         | _ -> ())
       str.str_items
   | _ ->
-    prerr_endline "declgen --parameters: not the typed tree of an implementation";
+    prerr_endline
+      "declgen --parameters: not the typed tree of an implementation";
     exit 2
 
 let what (e : Typedtree.expression) =
@@ -412,15 +420,17 @@ let what (e : Typedtree.expression) =
   | Texp_apply _ -> "an application"
   | Texp_let _ -> "a [let]"
   | Texp_constant _ -> "a constant"
-  | Texp_construct _ | Texp_variant _ | Texp_tuple _ | Texp_record _ | Texp_array _ ->
+  | Texp_construct _ | Texp_variant _ | Texp_tuple _ | Texp_record _
+  | Texp_array _ ->
     "a value that is built"
   | Texp_match _ | Texp_ifthenelse _ | Texp_try _ -> "a choice"
   | Texp_lazy _ -> "a lazy value"
   | _ -> "another expression"
 
-(* A thing that a file of Simplify makes for itself with a functor of
-   outside ([Sigs.local_root]): found in the file by its identifier. *)
-let local_root unit_name (r : Sigs.local_root) : [`Module of modval | `Value of found] =
+(* A thing that a file of Simplify makes for itself with a functor of outside
+   ([Sigs.local_root]): found in the file by its identifier. *)
+let local_root unit_name (r : Sigs.local_root) :
+    [`Module of modval | `Value of found] =
   let rec search (m : modval) =
     match m with
     | Struct (ctx, items) when String.equal ctx.unit_name unit_name ->
@@ -443,7 +453,9 @@ let local_root unit_name (r : Sigs.local_root) : [`Module of modval | `Value of 
                 | Sig_module (id, _, _, _, _) when Ident.same id r.l_id ->
                   Some (`Module (eval_path ctx (Pident id)))
                 | Sig_value (id, _, _) when Ident.same id r.l_id ->
-                  Some (`Value (lookup_value (eval ctx incl.incl_mod) (Ident.name id)))
+                  Some
+                    (`Value
+                       (lookup_value (eval ctx incl.incl_mod) (Ident.name id)))
                 | _ -> None)
               incl.incl_type
           | _ -> None)
@@ -457,8 +469,8 @@ let local_root unit_name (r : Sigs.local_root) : [`Module of modval | `Value of 
     | Unknown why -> `Value (Not_read why)
     | _ -> `Value (Not_read "not read: the module was not found in the file"))
 
-(* The definition of the declared value of this name (the unit, the
-   modules, the value). *)
+(* The definition of the declared value of this name (the unit, the modules, the
+   value). *)
 let find (comps : string list) : found =
   let rec follow (m : modval) (rest : string list) : found =
     match rest with
@@ -493,9 +505,9 @@ let place ctx (loc : Location.t) =
   in
   Printf.sprintf "%s:%d" file loc.loc_start.pos_lnum
 
-(* The last two columns of the row of a declared value: the number of
-   parameters of its definition ([-] when no definition was read), and the
-   place of the definition or the reason. *)
+(* The last two columns of the row of a declared value: the number of parameters
+   of its definition ([-] when no definition was read), and the place of the
+   definition or the reason. *)
 let row (comps : string list) : string * string =
   let found =
     try find comps
@@ -510,4 +522,6 @@ let row (comps : string list) : string * string =
     ( string_of_int n,
       if n > 0
       then place ctx loc
-      else Printf.sprintf "%s: no function is written: %s" (place ctx loc) (what e) )
+      else
+        Printf.sprintf "%s: no function is written: %s" (place ctx loc) (what e)
+    )

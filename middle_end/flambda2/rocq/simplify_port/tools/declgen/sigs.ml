@@ -25,19 +25,19 @@
  * DEALINGS IN THE SOFTWARE.                                                  *
  ******************************************************************************)
 
-(* The signatures of the compiler's modules, and the names that their items
-   take in Rocq. This file follows no file of the compiler. *)
+(* The signatures of the compiler's modules, and the names that their items take
+   in Rocq. This file follows no file of the compiler. *)
 
 open Common
 module SS = Set.Make (String)
 
-(* The environment in which the files of Simplify are compiled (the
-   libraries that the build opens for them). *)
+(* The environment in which the files of Simplify are compiled (the libraries
+   that the build opens for them). *)
 let base_env : Env.t ref = ref Env.empty
 
-(* A thing that a file of Simplify makes for itself with a functor of
-   outside: its name under [FILE__local], the identifier that the file
-   gives it, the environment in which it stands, and its line. *)
+(* A thing that a file of Simplify makes for itself with a functor of outside:
+   its name under [FILE__local], the identifier that the file gives it, the
+   environment in which it stands, and its line. *)
 type local_root =
   { l_comps : string list;
     l_id : Ident.t;
@@ -61,7 +61,8 @@ let root_of comps =
   match comps with
   | u :: _ when is_local_unit u -> (
     match Hashtbl.find_opt locals u with
-    | Some (roots, _) -> List.find_opt (fun r -> is_prefix r.l_comps comps) roots
+    | Some (roots, _) ->
+      List.find_opt (fun r -> is_prefix r.l_comps comps) roots
     | None -> None)
   | _ -> None
 
@@ -77,8 +78,8 @@ let path_of_comps comps : Path.t =
         (Path.Pident r.l_id)
         (drop (List.length r.l_comps) comps)
     | None -> (
-      (* under a module type that is declared: under the module that
-         stands for it *)
+      (* under a module type that is declared: under the module that stands for
+         it *)
       let under =
         List.find_opt (fun (_, mt) -> is_prefix mt comps) !modtype_idents
       in
@@ -125,8 +126,8 @@ let module_shape comps =
     Hashtbl.replace shape_cache (key comps) s;
     s
 
-(* For a module that is an alias: the module that it names, as the
-   sources write it ([Flambda.Apply], itself an alias of [Apply_expr]). *)
+(* For a module that is an alias: the module that it names, as the sources write
+   it ([Flambda.Apply], itself an alias of [Apply_expr]). *)
 let alias_as_written comps =
   let env = !base_env in
   match Env.find_module (path_of_comps comps) env with
@@ -136,22 +137,72 @@ let alias_as_written comps =
 
 (* ---- names in Rocq ---- *)
 
-(* The name in Rocq of each module type that is declared (key of its name
-   in OCaml): it is not always the one that a module of that name would
-   have. *)
+(* The name in Rocq of each module type that is declared (key of its name in
+   OCaml): it is not always the one that a module of that name would have. *)
 let modtype_rocq : (string, string) Hashtbl.t = Hashtbl.create 17
 
 (* Words that Rocq does not take as names, and the names of the kit's types,
    which the declarations write unqualified. *)
 let reserved =
-  [ "at"; "as"; "by"; "cofix"; "else"; "end"; "exists"; "exists2"; "fix";
-    "for"; "forall"; "fun"; "if"; "in"; "let"; "match"; "Prop"; "return";
-    "SProp"; "then"; "Type"; "using"; "where"; "with"; "Set"; "Variable";
-    "Parameter"; "Definition"; "Axiom"; "Theorem"; "Fixpoint"; "Eval"; "IF";
-    "mod"; "Hypothesis"; "CoFixpoint"; "lazymatch"; "multimatch";
-    "discriminated"; "M"; "int"; "bool"; "unit"; "string"; "list"; "option";
-    "ref"; "lazy_t"; "exn"; "exception"; "tuple3"; "tuple4"; "tuple5";
-    "tuple6"; "fmt_args"; "prod"; "Z"; "nat"; "decl" ]
+  [ "at";
+    "as";
+    "by";
+    "cofix";
+    "else";
+    "end";
+    "exists";
+    "exists2";
+    "fix";
+    "for";
+    "forall";
+    "fun";
+    "if";
+    "in";
+    "let";
+    "match";
+    "Prop";
+    "return";
+    "SProp";
+    "then";
+    "Type";
+    "using";
+    "where";
+    "with";
+    "Set";
+    "Variable";
+    "Parameter";
+    "Definition";
+    "Axiom";
+    "Theorem";
+    "Fixpoint";
+    "Eval";
+    "IF";
+    "mod";
+    "Hypothesis";
+    "CoFixpoint";
+    "lazymatch";
+    "multimatch";
+    "discriminated";
+    "M";
+    "int";
+    "bool";
+    "unit";
+    "string";
+    "list";
+    "option";
+    "ref";
+    "lazy_t";
+    "exn";
+    "exception";
+    "tuple3";
+    "tuple4";
+    "tuple5";
+    "tuple6";
+    "fmt_args";
+    "prod";
+    "Z";
+    "nat";
+    "decl" ]
 
 let sanitize s = if List.mem s reserved then s ^ "_" else s
 
@@ -172,8 +223,8 @@ let unit_rocq u =
   then s ^ "_"
   else s
 
-(* A module inside a file: only what Rocq cannot read is renamed
-   ([Module Import] is a command of Rocq). *)
+(* A module inside a file: only what Rocq cannot read is renamed ([Module
+   Import] is a command of Rocq). *)
 let module_rocq s =
   if List.mem s reserved || s = "Import" || s = "Export" then s ^ "_" else s
 
@@ -184,8 +235,8 @@ type names =
 
 let names_cache : (string, names) Hashtbl.t = Hashtbl.create 97
 
-(* The values and the fields of records that the module declares: a type of
-   the same name as one of them gives way. *)
+(* The values and the fields of records that the module declares: a type of the
+   same name as one of them gives way. *)
 let names_of_module comps =
   match Hashtbl.find_opt names_cache (key comps) with
   | Some n -> n
@@ -220,28 +271,45 @@ let names_of_module comps =
 let operator_name s =
   let spell c =
     match c with
-    | '+' -> "plus" | '-' -> "minus" | '*' -> "star" | '/' -> "slash"
-    | '<' -> "lt" | '>' -> "gt" | '=' -> "eq" | '!' -> "bang" | '|' -> "bar"
-    | '&' -> "amp" | '@' -> "at" | '^' -> "hat" | '~' -> "tilde"
-    | ':' -> "colon" | '$' -> "dollar" | '.' -> "dot" | '%' -> "percent"
-    | '?' -> "question" | '#' -> "hash"
+    | '+' -> "plus"
+    | '-' -> "minus"
+    | '*' -> "star"
+    | '/' -> "slash"
+    | '<' -> "lt"
+    | '>' -> "gt"
+    | '=' -> "eq"
+    | '!' -> "bang"
+    | '|' -> "bar"
+    | '&' -> "amp"
+    | '@' -> "at"
+    | '^' -> "hat"
+    | '~' -> "tilde"
+    | ':' -> "colon"
+    | '$' -> "dollar"
+    | '.' -> "dot"
+    | '%' -> "percent"
+    | '?' -> "question"
+    | '#' -> "hash"
     | c -> String.make 1 c
   in
   let prefix, symbols =
-    let starts p = String.length s > String.length p && String.sub s 0 (String.length p) = p in
+    let starts p =
+      String.length s > String.length p && String.sub s 0 (String.length p) = p
+    in
     if starts "let"
     then "let_op", String.sub s 3 (String.length s - 3)
     else if starts "and"
     then "and_op", String.sub s 3 (String.length s - 3)
     else "op", s
   in
-  String.concat "_" (prefix :: List.map spell (List.of_seq (String.to_seq symbols)))
+  String.concat "_"
+    (prefix :: List.map spell (List.of_seq (String.to_seq symbols)))
 
 let value_rocq s = if is_identifier s then sanitize s else operator_name s
 
-(* The constructors of the variants that the module declares after the
-   type [name]: in OCaml such a constructor hides one of [name] that has
-   the same name. *)
+(* The constructors of the variants that the module declares after the type
+   [name]: in OCaml such a constructor hides one of [name] that has the same
+   name. *)
 let later_constructors modc name =
   match module_shape modc with
   | Signature sg ->
@@ -251,14 +319,14 @@ let later_constructors modc name =
         match item with
         | Sig_type (id, decl, _, _) ->
           if !after
-          then (
+          then
             match decl.type_kind with
             | Type_variant (cds, _) ->
               List.iter
                 (fun (cd : Types.constructor_declaration) ->
                   acc := SS.add (Ident.name cd.cd_id) !acc)
                 cds
-            | _ -> ())
+            | _ -> ()
           else if Ident.name id = name
           then after := true
         | _ -> ())

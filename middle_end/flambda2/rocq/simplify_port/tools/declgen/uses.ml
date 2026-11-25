@@ -25,11 +25,10 @@
  * DEALINGS IN THE SOFTWARE.                                                  *
  ******************************************************************************)
 
-(* What the files of Simplify use of other compilation units: every value,
-   every constructor built or matched, every field read, built or written,
-   every type written, every exception, every coercion of a private
-   abbreviation. Read from the typed trees. This file follows no file of
-   the compiler. *)
+(* What the files of Simplify use of other compilation units: every value, every
+   constructor built or matched, every field read, built or written, every type
+   written, every exception, every coercion of a private abbreviation. Read from
+   the typed trees. This file follows no file of the compiler. *)
 
 open Typedtree
 open Common
@@ -50,9 +49,9 @@ let types : (string, type_use) Hashtbl.t = Hashtbl.create 997
 
 let exceptions : (string, string list) Hashtbl.t = Hashtbl.create 17
 
-(* For a value that the files apply: the numbers of arguments that they
-   give it (key of the name). A function with a format is declared once for
-   each number of arguments that may follow the format. *)
+(* For a value that the files apply: the numbers of arguments that they give it
+   (key of the name). A function with a format is declared once for each number
+   of arguments that may follow the format. *)
 let applied : (string, int list) Hashtbl.t = Hashtbl.create 97
 
 let use_applied comps n =
@@ -64,8 +63,8 @@ let use_applied comps n =
 let modtypes : (string, string list) Hashtbl.t = Hashtbl.create 17
 
 (* The coercions [(x :> T)] that the files write of a name whose type is a
-   private abbreviation: key of that type, as the file has it -> its name,
-   and each type that a coercion gives, with its text in OCaml. *)
+   private abbreviation: key of that type, as the file has it -> its name, and
+   each type that a coercion gives, with its text in OCaml. *)
 let coercions :
     (string, string list * (string * Types.type_expr) list ref) Hashtbl.t =
   Hashtbl.create 7
@@ -75,7 +74,8 @@ let cur_file = ref ""
 let use_value comps =
   match Hashtbl.find_opt values (key comps) with
   | Some (_, files) -> files := SS.add !cur_file !files
-  | None -> Hashtbl.replace values (key comps) (comps, ref (SS.singleton !cur_file))
+  | None ->
+    Hashtbl.replace values (key comps) (comps, ref (SS.singleton !cur_file))
 
 let type_use comps =
   match Hashtbl.find_opt types (key comps) with
@@ -92,8 +92,8 @@ let type_use comps =
     Hashtbl.replace types (key comps) u;
     u
 
-(* The type that declares the constructors: [type t = M.t = A | B] is
-   followed to [M.t]. *)
+(* The type that declares the constructors: [type t = M.t = A | B] is followed
+   to [M.t]. *)
 let rec canon_type env p =
   let p = norm_type env p in
   match Env.find_type p env with
@@ -110,8 +110,8 @@ let rec canon_type env p =
 
 let type_comps env p = comps_of_path (canon_type (env_of env) p)
 
-(* Whether a type is a private abbreviation ([type t = private int]), or
-   an abbreviation of one. *)
+(* Whether a type is a private abbreviation ([type t = private int]), or an
+   abbreviation of one. *)
 let rec private_abbreviation env (p : Path.t) =
   match Env.find_type p env with
   | { type_manifest = Some _;
@@ -127,9 +127,9 @@ let rec private_abbreviation env (p : Path.t) =
   | _ -> false
   | exception Not_found -> false
 
-(* A coercion [(e :> T)]. The typed tree keeps the type that the coercion
-   gives, not the type of [e]: it is read only where [e] is a name, whose
-   type the name has. Another coercion is said, and not declared. *)
+(* A coercion [(e :> T)]. The typed tree keeps the type that the coercion gives,
+   not the type of [e]: it is read only where [e] is a name, whose type the name
+   has. Another coercion is said, and not declared. *)
 let coercion (e : expression) (target : core_type) =
   let not_read why =
     warn "a coercion that is not declared (%s, line %d): %s" !cur_file
@@ -155,7 +155,8 @@ let coercion (e : expression) (target : core_type) =
         if not (List.mem_assoc text !l) then l := (text, target.ctyp_type) :: !l
       | None -> not_read "the type of the name is not a global name")
     | _ ->
-      not_read "the type of the name is not a private abbreviation without parameters")
+      not_read
+        "the type of the name is not a private abbreviation without parameters")
   | _ -> not_read "it is not the coercion of a name"
 
 let exception_comps env (p : Path.t) =
@@ -201,14 +202,13 @@ let pseudo = ref ""
 
 let functor_depth = ref 0
 
-(* The plain modules of the file that the place is inside, innermost
-   first. *)
+(* The plain modules of the file that the place is inside, innermost first. *)
 let enclosing : string list ref = ref []
 
 let in_root = ref false
 
-(* The environments at the end of the structures that the place is
-   inside, innermost first. *)
+(* The environments at the end of the structures that the place is inside,
+   innermost first. *)
 let final_envs : Env.t list ref = ref []
 
 let roots : Sigs.local_root list ref = ref []
@@ -236,13 +236,13 @@ let rec strip (me : module_expr) =
 
 (* ---- what a functor of the file uses of the modules that it is given ---- *)
 
-(* A file of Simplify that has a functor of its own and applies it
-   ([Edge (Name.Map) (Name.Set)] in data_flow_graph.ml) uses, of the
-   modules that it gives, what the body of the functor uses of its
-   parameters: [Src_map.find] is then [Name.Map.find]. The module that is
-   given may itself be made in the file (a structure written in the place,
-   the result of another functor of the file), so the modules of the file
-   are followed. What a module of the file is: *)
+(* A file of Simplify that has a functor of its own and applies it ([Edge
+   (Name.Map) (Name.Set)] in data_flow_graph.ml) uses, of the modules that it
+   gives, what the body of the functor uses of its parameters: [Src_map.find] is
+   then [Name.Map.find]. The module that is given may itself be made in the file
+   (a structure written in the place, the result of another functor of the
+   file), so the modules of the file are followed. What a module of the file
+   is: *)
 type modval =
   | Path of Env.t * Path.t  (** a module with a name, in an environment *)
   | Under of Ident.t * string list
@@ -261,27 +261,26 @@ let modules : (Ident.t * modval) list ref = ref []
 (* The functors of the file: the parameters in order, and the body. *)
 let functors : (Ident.t * (Ident.t option list * modval)) list ref = ref []
 
-(* What the bodies use of a parameter: the parameter, the names under it,
-   and whether the thing is a value or a type. *)
+(* What the bodies use of a parameter: the parameter, the names under it, and
+   whether the thing is a value or a type. *)
 let param_uses : (Ident.t * string list * [`Value | `Type]) list ref = ref []
 
 (* The applications of a functor of the file: the functor and what it is
    given. *)
 let applications : (Ident.t * modval list) list ref = ref []
 
-(* Where the module type of a parameter, or of a module under it, has a
-   name ([Lhs : Container_types.S]): the parameter, the modules under it,
-   and the module type. *)
+(* Where the module type of a parameter, or of a module under it, has a name
+   ([Lhs : Container_types.S]): the parameter, the modules under it, and the
+   module type. *)
 let param_modtypes : (Ident.t * string list * string list) list ref = ref []
 
-(* The modules that the files give where a functor of theirs wants a
-   module type that has a name: file, functor, module type, module. For
-   the whole run. *)
+(* The modules that the files give where a functor of theirs wants a module type
+   that has a name: file, functor, module type, module. For the whole run. *)
 let functor_arguments : (string * string * string list * string list) list ref =
   ref []
 
-(* What a functor of the file uses of a module that could not be
-   followed: file, functor, what. *)
+(* What a functor of the file uses of a module that could not be followed: file,
+   functor, what. *)
 let not_followed : (string * string * string) list ref = ref []
 
 let find_ident id l =
@@ -318,7 +317,9 @@ and apply f args =
   | Some (ps, body) when List.length ps = List.length args ->
     let sigma =
       List.concat
-        (List.map2 (fun p a -> match p with Some p -> [p, a] | None -> []) ps args)
+        (List.map2
+           (fun p a -> match p with Some p -> [p, a] | None -> [])
+           ps args)
     in
     Some (subst sigma body)
   | _ -> None
@@ -333,22 +334,23 @@ let rec modval_of_path env (p : Path.t) =
   | Papply _ | Pextra_ty _ -> Unknown
 
 let add_param_modtype param names mt =
-  if not
-       (List.exists
-          (fun (p, n, m) -> Ident.same p param && n = names && m = mt)
-          !param_modtypes)
+  if
+    not
+      (List.exists
+         (fun (p, n, m) -> Ident.same p param && n = names && m = mt)
+         !param_modtypes)
   then param_modtypes := (param, names, mt) :: !param_modtypes
 
 let add_param_use param names kind =
-  if not
-       (List.exists
-          (fun (p, n, k) -> Ident.same p param && n = names && k = kind)
-          !param_uses)
+  if
+    not
+      (List.exists
+         (fun (p, n, k) -> Ident.same p param && n = names && k = kind)
+         !param_uses)
   then param_uses := (param, names, kind) :: !param_uses
 
-(* The values and the types that a module type names, each with the
-   modules above it; and the module types of other units that are named
-   on the way. *)
+(* The values and the types that a module type names, each with the modules
+   above it; and the module types of other units that are named on the way. *)
 let rec items_of_modtype env (mty : Types.module_type) prefix acc =
   let acc =
     match mty with
@@ -375,8 +377,8 @@ let rec items_of_modtype env (mty : Types.module_type) prefix acc =
   | _ -> acc
   | exception _ -> acc
 
-(* The parameters of a functor (each with what its module type names) and
-   its body. *)
+(* The parameters of a functor (each with what its module type names) and its
+   body. *)
 let rec functor_of (me : module_expr) =
   match (strip me).mod_desc with
   | Tmod_functor (param, body) ->
@@ -407,19 +409,24 @@ let rec modval_of (me : module_expr) : modval =
            | _ -> None)
          str.str_items)
   | Tmod_apply _ -> (
-    match spine me [] with Some (f, args) -> Applied (f, args) | None -> Unknown)
+    match spine me [] with
+    | Some (f, args) -> Applied (f, args)
+    | None -> Unknown)
   | _ -> Unknown
 
 (* The functor of the file that is applied, and what it is given. *)
 and spine (me : module_expr) args =
   match (strip me).mod_desc with
   | Tmod_apply (f, arg, _) -> spine f (modval_of arg :: args)
-  | Tmod_ident (Pident id, _) when Option.is_some (find_ident id !functors) -> Some (id, args)
+  | Tmod_ident (Pident id, _) when Option.is_some (find_ident id !functors) ->
+    Some (id, args)
   | _ -> None
 
 (* A module of the file is defined. *)
 and module_defined id (me : module_expr) =
-  if Option.is_none (find_ident id !modules) && Option.is_none (find_ident id !functors)
+  if
+    Option.is_none (find_ident id !modules)
+    && Option.is_none (find_ident id !functors)
   then
     match functor_of me with
     | [], _ -> modules := (id, modval_of me) :: !modules
@@ -427,10 +434,12 @@ and module_defined id (me : module_expr) =
       List.iter
         (function
           | Some (p, _) ->
-            if not (List.exists (Ident.same p) !params) then params := p :: !params
+            if not (List.exists (Ident.same p) !params)
+            then params := p :: !params
           | None -> ())
         ps;
-      functors := (id, (List.map (Option.map fst) ps, modval_of body)) :: !functors;
+      functors
+        := (id, (List.map (Option.map fst) ps, modval_of body)) :: !functors;
       (* A module that is given to the functor must have all that the
          parameter's module type names: the functor uses all of it. *)
       List.iter
@@ -458,9 +467,9 @@ let indirect_use use kind env (p : Path.t) =
     | _ -> ())
   | _ -> ()
 
-(* What the file uses when it gives the module [v] where all that the
-   module type [mty] names is wanted: a first-class module ([(module
-   Coercion)] in rebuilt_expr.ml). *)
+(* What the file uses when it gives the module [v] where all that the module
+   type [mty] names is wanted: a first-class module ([(module Coercion)] in
+   rebuilt_expr.ml). *)
 let uses_of_whole use env (mty : Types.module_type) (v : modval) =
   List.iter
     (fun (names, kind) ->
@@ -482,9 +491,9 @@ let uses_of_whole use env (mty : Types.module_type) (v : modval) =
     (items_of_modtype env mty [] [])
 
 (* At the end of a file: what each application makes the file use. An
-   application inside another functor may give a module under that
-   functor's parameter: that is a use of the parameter, so this is done
-   until nothing is new. *)
+   application inside another functor may give a module under that functor's
+   parameter: that is a use of the parameter, so this is done until nothing is
+   new. *)
 let uses_of_applications use =
   let split names =
     match List.rev names with
@@ -510,7 +519,8 @@ let uses_of_applications use =
                       match project arg mods with
                       | Path (env, q) -> (
                         match
-                          comps_of_path (source_path (env_of env) (Path.Pdot (q, last)))
+                          comps_of_path
+                            (source_path (env_of env) (Path.Pdot (q, last)))
                         with
                         | Some comps -> use kind comps
                         | None -> ())
@@ -522,7 +532,8 @@ let uses_of_applications use =
                           not_followed
                             := ( !cur_file,
                                  Ident.name f,
-                                 String.concat "." (Ident.name param :: names) )
+                                 String.concat "." (Ident.name param :: names)
+                               )
                                :: !not_followed
                       | Struct _ | Applied _ | Own -> ())
                   !param_uses;
@@ -538,13 +549,15 @@ let uses_of_applications use =
                           if not (List.mem row !functor_arguments)
                           then functor_arguments := row :: !functor_arguments
                         | None -> ())
-                      | Under (param', names') -> add_param_modtype param' names' mt
+                      | Under (param', names') ->
+                        add_param_modtype param' names' mt
                       | Struct _ | Applied _ | Own | Unknown -> ())
                   !param_modtypes)
             ps args
         | _ -> ())
       !applications;
-    if List.length !param_uses + List.length !param_modtypes > before then round ()
+    if List.length !param_uses + List.length !param_modtypes > before
+    then round ()
   in
   round ()
 
@@ -579,7 +592,8 @@ let iterator =
     | Tmod_functor (param, _) ->
       (match param with
       | Named (Some id, _, _) ->
-        if not (List.exists (Ident.same id) !params) then params := id :: !params
+        if not (List.exists (Ident.same id) !params)
+        then params := id :: !params
       | Named (None, _, _) | Unit -> ());
       incr functor_depth;
       super.module_expr sub me;
@@ -593,7 +607,7 @@ let iterator =
   in
   let structure_item sub (si : structure_item) =
     match si.str_desc with
-    | Tstr_module ({ mb_id = Some id; _ } as mb) ->
+    | Tstr_module ({ mb_id = Some id; _ } as mb) -> (
       let name = Ident.name id in
       let me = strip mb.mb_expr in
       module_defined id mb.mb_expr;
@@ -622,7 +636,7 @@ let iterator =
           in_root := true;
           super.structure_item sub si;
           in_root := false)
-      else (
+      else
         match me.mod_desc with
         | Tmod_structure _ ->
           enclosing := name :: !enclosing;
@@ -635,24 +649,29 @@ let iterator =
       List.iter
         (fun (item : Types.signature_item) ->
           match item with
-          | Sig_value (id, _, _) -> register `Value (Ident.name id) id si.str_loc
-          | Sig_type (id, _, _, _) -> register `Type (Ident.name id) id si.str_loc
+          | Sig_value (id, _, _) ->
+            register `Value (Ident.name id) id si.str_loc
+          | Sig_type (id, _, _, _) ->
+            register `Type (Ident.name id) id si.str_loc
           | Sig_module (id, _, _, _, _) ->
             register `Module (Ident.name id) id si.str_loc
           | _ -> ())
         incl.incl_type;
       super.structure_item sub si
     | Tstr_include incl ->
-      (* [include X], where [X] is a module with a name: what the file
-         then names without [X.] is what [X] has *)
+      (* [include X], where [X] is a module with a name: what the file then
+         names without [X.] is what [X] has *)
       (match (strip incl.incl_mod).mod_desc with
       | Tmod_ident (p, _) -> (
-        match comps_of_path (source_module (env_of incl.incl_mod.mod_env) p) with
+        match
+          comps_of_path (source_module (env_of incl.incl_mod.mod_env) p)
+        with
         | Some comps ->
           List.iter
             (fun (item : Types.signature_item) ->
               match item with
-              | Sig_value (id, _, _) | Sig_type (id, _, _, _)
+              | Sig_value (id, _, _)
+              | Sig_type (id, _, _, _)
               | Sig_module (id, _, _, _, _) ->
                 local_idents := (id, comps @ [Ident.name id]) :: !local_idents
               | _ -> ())
@@ -670,7 +689,9 @@ let iterator =
   let expr sub (e : expression) =
     List.iter
       (fun (extra, _, _) ->
-        match extra with Texp_coerce (_, target) -> coercion e target | _ -> ())
+        match extra with
+        | Texp_coerce (_, target) -> coercion e target
+        | _ -> ())
       e.exp_extra;
     (match e.exp_desc with
     | Texp_ident (p, _, _) -> (
@@ -685,7 +706,8 @@ let iterator =
         use_applied comps
           (List.length
              (List.filter
-                (fun (_, a) -> match a with Arg _ -> true | Omitted _ -> false)
+                (fun (_, a) ->
+                  match a with Arg _ -> true | Omitted _ -> false)
                 args))
       | None -> ())
     | Texp_pack me -> (
@@ -742,7 +764,15 @@ let iterator =
     | _ -> ());
     super.module_type sub mt
   in
-  { super with expr; pat; typ; structure; structure_item; module_expr; module_type }
+  { super with
+    expr;
+    pat;
+    typ;
+    structure;
+    structure_item;
+    module_expr;
+    module_type
+  }
 
 (* Reads one typed tree. Returns the unit's name. *)
 let scan file =
@@ -771,6 +801,7 @@ let scan file =
       match kind with
       | `Value -> use_value comps
       | `Type -> ignore (type_use comps));
-  if !roots <> [] then Hashtbl.replace Sigs.locals !pseudo (List.rev !roots, !cur_file);
+  if !roots <> []
+  then Hashtbl.replace Sigs.locals !pseudo (List.rev !roots, !cur_file);
   local_idents := [];
   cmt

@@ -62,8 +62,8 @@ let need_type comps =
     Hashtbl.replace needed_types (key comps) comps;
     changed := true)
 
-(* Parameters of abstract types that are given a polymorphic variant
-   somewhere: an index that Rocq does not need. They are dropped. *)
+(* Parameters of abstract types that are given a polymorphic variant somewhere:
+   an index that Rocq does not need. They are dropped. *)
 let dropped : (string, int list) Hashtbl.t = Hashtbl.create 17
 
 let is_dropped k i =
@@ -76,12 +76,11 @@ let add_drop k i =
       (i :: Option.value ~default:[] (Hashtbl.find_opt dropped k));
     changed := true)
 
-(* The instances of a dropped index that the interfaces write
-   ([[`Unarized] Flambda_arity.t]): each is a named abbreviation of the
-   type ([t_Unarized]), whose string is the instance in OCaml. For the type
-   of this key: the end of the name, and for each parameter of the type in
-   OCaml the index that is written there, or [None] for a parameter that
-   Rocq has. *)
+(* The instances of a dropped index that the interfaces write ([[`Unarized]
+   Flambda_arity.t]): each is a named abbreviation of the type ([t_Unarized]),
+   whose string is the instance in OCaml. For the type of this key: the end of
+   the name, and for each parameter of the type in OCaml the index that is
+   written there, or [None] for a parameter that Rocq has. *)
 let instances : (string, (string * string option list) list) Hashtbl.t =
   Hashtbl.create 17
 
@@ -92,8 +91,8 @@ let add_instance k inst =
     Hashtbl.replace instances k (inst :: l);
     changed := true)
 
-(* The tags of a polymorphic variant type that is closed and has only
-   constant tags, all present: [[`A | `B]]. *)
+(* The tags of a polymorphic variant type that is closed and has only constant
+   tags, all present: [[`A | `B]]. *)
 let fixed_tags (ty : Types.type_expr) : string list option =
   match Types.get_desc ty with
   | Tvariant row ->
@@ -101,13 +100,14 @@ let fixed_tags (ty : Types.type_expr) : string list option =
     then None
     else
       let fields = Types.row_fields row in
-      if fields <> []
-         && List.for_all
-              (fun (_, f) ->
-                match Types.row_field_repr f with
-                | Rpresent None -> true
-                | _ -> false)
-              fields
+      if
+        fields <> []
+        && List.for_all
+             (fun (_, f) ->
+               match Types.row_field_repr f with
+               | Rpresent None -> true
+               | _ -> false)
+             fields
       then Some (List.sort compare (List.map fst fields))
       else None
   | _ -> None
@@ -161,34 +161,34 @@ let format_arity comps =
   | ["Stdlib"; "format6"] | ["CamlinternalFormatBasics"; "format6"] -> Some 6
   | _ -> None
 
-(* Can a parameter of this type be an index that Rocq does not need? Yes
-   for an abstract type, and for a GADT (whose constructors fix it). *)
+(* Can a parameter of this type be an index that Rocq does not need? Yes for an
+   abstract type, and for a GADT (whose constructors fix it). *)
 let is_abstract comps =
   match Env.find_type (Sigs.path_of_comps comps) !Sigs.base_env with
   | { type_kind = Type_abstract _; type_manifest = None; _ } -> true
   | { type_kind = Type_variant (cds, _); _ } ->
-    List.exists (fun (cd : Types.constructor_declaration) -> cd.cd_res <> None) cds
+    List.exists
+      (fun (cd : Types.constructor_declaration) -> cd.cd_res <> None)
+      cds
   | _ -> false
   | exception Not_found -> false
 
-(* While the items of a module that is an alias of another are written
-   under the alias: the other module, then the alias. A type of the other
-   module is then written as the type of the same name under the alias. *)
+(* While the items of a module that is an alias of another are written under the
+   alias: the other module, then the alias. A type of the other module is then
+   written as the type of the same name under the alias. *)
 let rewrite : (string list * string list) option ref = ref None
 
 let rewritten comps =
   match !rewrite with
   | None -> comps
-  | Some (target, alias) ->
+  | Some (target, alias) -> (
     let rec strip prefix l =
       match prefix, l with
       | [], rest -> Some rest
       | p :: prefix, x :: l when p = x -> strip prefix l
       | _ -> None
     in
-    (match strip target comps with
-     | Some [name] -> alias @ [name]
-     | _ -> comps)
+    match strip target comps with Some [name] -> alias @ [name] | _ -> comps)
 
 let resolve (p : Path.t) : tref =
   let p = source_path !Sigs.base_env p in
@@ -206,9 +206,11 @@ let resolve (p : Path.t) : tref =
     | Some (["Stdlib__Lazy"; "t"] | ["CamlinternalLazy"; "t"]) -> Kit "lazy_t"
     | Some comps -> (
       match format_arity comps with
-      | Some _ -> raise (Unsupported "a format outside the arguments of a function")
+      | Some _ ->
+        raise (Unsupported "a format outside the arguments of a function")
       | None -> Global (rewritten comps))
-    | None -> raise (Unsupported ("the type " ^ Path.name p ^ " is not a global name")))
+    | None ->
+      raise (Unsupported ("the type " ^ Path.name p ^ " is not a global name")))
 
 let rec chain (ty : Types.type_expr) acc =
   match Types.get_desc ty with
@@ -227,8 +229,7 @@ let format_of (ty : Types.type_expr) =
   | _ -> None
 
 (* The label of the argument, or the name of the field, whose type is being
-   translated: a tuple with labels that is written there is named after
-   it. *)
+   translated: a tuple with labels that is written there is named after it. *)
 let place : string option ref = ref None
 
 let with_place name f =
@@ -277,22 +278,25 @@ let rec tr (ty : Types.type_expr) : ty =
       need_type comps;
       let kept = List.filteri (fun i _ -> not (is_dropped k i)) args in
       let tags =
-        List.mapi (fun i a -> if is_dropped k i then fixed_tags a else None) args
+        List.mapi
+          (fun i a -> if is_dropped k i then fixed_tags a else None)
+          args
       in
-      let dropped_tags =
-        List.filteri (fun i _ -> is_dropped k i) tags
-      in
+      let dropped_tags = List.filteri (fun i _ -> is_dropped k i) tags in
       if dropped_tags = [] || List.exists (fun t -> t = None) dropped_tags
       then Constr (Global comps, List.map tr kept)
       else
         (* an instance of the index: its own name *)
         let suffix =
-          String.concat "_" (List.concat_map (fun t -> Option.get t) dropped_tags)
+          String.concat "_"
+            (List.concat_map (fun t -> Option.get t) dropped_tags)
         in
         let positional =
           List.map
             (Option.map (fun l ->
-                 "[ " ^ String.concat " | " (List.map (fun t -> "`" ^ t) l) ^ " ]"))
+                 "[ "
+                 ^ String.concat " | " (List.map (fun t -> "`" ^ t) l)
+                 ^ " ]"))
             tags
         in
         add_instance k (suffix, positional);
@@ -312,10 +316,9 @@ let rec tr (ty : Types.type_expr) : ty =
   | Tpackage _ -> raise (Unsupported "a first-class module")
   | Tlink _ | Tsubst _ -> raise (Unsupported "an inner node of a type")
 
-(* A function type: the type of Rocq, the labels of the arguments, and
-   whether the last argument is a format (it is then a [string], and the
-   caller declares one function for each number of arguments that may
-   follow the format). *)
+(* A function type: the type of Rocq, the labels of the arguments, and whether
+   the last argument is a format (it is then a [string], and the caller declares
+   one function for each number of arguments that may follow the format). *)
 and tr_arrow ty : ty * Asttypes.arg_label list * bool =
   let args, res = chain ty [] in
   let rec split before = function
@@ -336,7 +339,9 @@ and tr_arrow ty : ty * Asttypes.arg_label list * bool =
   | None ->
     let args' = List.map tr_arg args in
     let res' = tr_res res in
-    ( (if expands_to_arrow res then Arrow_pure (args', res') else Arrow (args', res')),
+    ( (if expands_to_arrow res
+       then Arrow_pure (args', res')
+       else Arrow (args', res')),
       List.map fst args,
       false )
   | Some (before, l, result, []) ->

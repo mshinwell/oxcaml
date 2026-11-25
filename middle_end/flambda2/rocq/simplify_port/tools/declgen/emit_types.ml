@@ -25,18 +25,17 @@
  * DEALINGS IN THE SOFTWARE.                                                  *
  ******************************************************************************)
 
-(* Variants and records: what Simplify takes apart is an inductive type or
-   a record of Rocq with the compiler's own names of constructors and
-   fields; what Rocq cannot take so is abstract, with a maker for each
-   constructor and one eliminator. This file follows no file of the
-   compiler. *)
+(* Variants and records: what Simplify takes apart is an inductive type or a
+   record of Rocq with the compiler's own names of constructors and fields; what
+   Rocq cannot take so is abstract, with a maker for each constructor and one
+   eliminator. This file follows no file of the compiler. *)
 
 open Common
 open Decl_out
 module SS = Set.Make (String)
 
-(* Types written as an inductive type or a record in an earlier pass: a
-   type may hold itself inside one of them. *)
+(* Types written as an inductive type or a record in an earlier pass: a type may
+   hold itself inside one of them. *)
 let mirrored : (string, unit) Hashtbl.t = Hashtbl.create 97
 
 let mirror comps =
@@ -48,7 +47,8 @@ let mirror comps =
 type ctor =
   { c_name : string;
     c_args : Tr.ty list;  (** by place *)
-    c_fields : (string * bool) list option;  (** an inline record: fields, mutable? *)
+    c_fields : (string * bool) list option;
+        (** an inline record: fields, mutable? *)
     c_res : Tr.ty option  (** a GADT's result *)
   }
 
@@ -122,8 +122,10 @@ let structural self (sh : shape) : string option =
   | Variant ctors ->
     if List.exists (fun c -> c.c_res <> None) ctors
     then Some "it is a GADT"
-    else if List.exists (fun c -> List.exists (refused_place self) c.c_args) ctors
-    then Some "it holds itself inside an abstract type or to the left of an arrow"
+    else if
+      List.exists (fun c -> List.exists (refused_place self) c.c_args) ctors
+    then
+      Some "it holds itself inside an abstract type or to the left of an arrow"
     else None
 
 let types_of (sh : shape) =
@@ -131,9 +133,9 @@ let types_of (sh : shape) =
   | Record fields -> List.map (fun (_, t, _) -> t) fields
   | Variant ctors -> List.concat_map (fun c -> c.c_args) ctors
 
-(* A name that a constructor or a field can take as it is. (A name that a
-   value or a type took in this pass does not count: the value or the type
-   gives way in the next.) *)
+(* A name that a constructor or a field can take as it is. (A name that a value
+   or a type took in this pass does not count: the value or the type gives way
+   in the next.) *)
 let free s = (not (List.mem s Sigs.reserved)) && not (SS.mem s !native)
 
 let distinct l = List.length (List.sort_uniq compare l) = List.length l
@@ -144,13 +146,12 @@ let binders params =
 let applied rname params = String.concat " " (rname :: params)
 
 let implicit name params =
-  if params <> []
-  then line "Arguments %s {%s}." name (String.concat " " params)
+  if params <> [] then line "Arguments %s {%s}." name (String.concat " " params)
 
 let xs n = List.init n (fun i -> Printf.sprintf "x__%d" (i + 1))
 
-(* In OCaml: the constructor applied to the binders, as a term and as a
-   pattern (they are the same text). *)
+(* In OCaml: the constructor applied to the binders, as a term and as a pattern
+   (they are the same text). *)
 let ocaml_ctor modc c =
   let name = Print.ocaml_name (modc @ [c.c_name]) in
   let vars = xs (List.length c.c_args) in
@@ -167,7 +168,9 @@ let ocaml_record modc fields =
   let qualify i f = if i = 0 then Print.ocaml_name (modc @ [f]) else f in
   Printf.sprintf "{ %s }"
     (String.concat "; "
-       (List.mapi (fun i ((f, _, _), x) -> qualify i f ^ " = " ^ x) (List.combine fields vars)))
+       (List.mapi
+          (fun i ((f, _, _), x) -> qualify i f ^ " = " ^ x)
+          (List.combine fields vars)))
 
 let rec vars_of acc (ty : Tr.ty) =
   match ty with
@@ -187,9 +190,9 @@ let wanted comps =
     not (SS.is_empty u.built && SS.is_empty u.matched && SS.is_empty u.fields)
   | None -> false
 
-(* One variant of a definition: its constructors are named. Returns the
-   rows of the inductive type. A constructor with an inline record takes
-   the fields by place, in the order of the type. *)
+(* One variant of a definition: its constructors are named. Returns the rows of
+   the inductive type. A constructor with an inline record takes the fields by
+   place, in the order of the type. *)
 let prepare_variant ~params modc rname ctors place =
   let self_ty = applied rname params in
   List.map
@@ -201,8 +204,9 @@ let prepare_variant ~params modc rname ctors place =
           c.c_name)
         else claim (Sigs.sanitize c.c_name)
       in
-      add_index (Print.ocaml_name (modc @ [c.c_name])) cname "constructor"
-        (List.length c.c_args) place;
+      add_index
+        (Print.ocaml_name (modc @ [c.c_name]))
+        cname "constructor" (List.length c.c_args) place;
       (match c.c_fields with
       | Some fs ->
         List.iteri
@@ -220,11 +224,11 @@ let prepare_variant ~params modc rname ctors place =
 
 (* The directive of a mirrored variant: Rocq prints each constructor by the
    compiler's qualified name. With an inline record, the constructor is a
-   function of the tuple of its arguments, and the match is a function of
-   one function for each constructor, then the scrutinee. The same when a
-   later type of the module has a constructor of the same name, which
-   hides this one in OCaml: the strings then say the type. [arity]: the
-   number of parameters of the type in OCaml. *)
+   function of the tuple of its arguments, and the match is a function of one
+   function for each constructor, then the scrutinee. The same when a later type
+   of the module has a constructor of the same name, which hides this one in
+   OCaml: the strings then say the type. [arity]: the number of parameters of
+   the type in OCaml. *)
 let extract_inductive modc name rname ocaml_type arity ctors =
   let hidden = Sigs.later_constructors modc name in
   let is_hidden c = SS.mem c.c_name hidden in
@@ -236,7 +240,9 @@ let extract_inductive modc name rname ocaml_type arity ctors =
            List.map (fun c -> Print.ocaml_name (modc @ [c.c_name])) ctors,
            List.exists is_hidden ctors )
          :: !variants;
-  let special = List.exists (fun c -> c.c_fields <> None || is_hidden c) ctors in
+  let special =
+    List.exists (fun c -> c.c_fields <> None || is_hidden c) ctors
+  in
   let annotated =
     if arity = 0
     then ocaml_type
@@ -277,7 +283,8 @@ let extract_inductive modc name rname ocaml_type arity ctors =
                         else String.concat " " (xs (List.length c.c_args))))
                    ctors)))
   in
-  directive "Extract Inductive %s => %s [ %s ]%s." rname (Print.quote ocaml_type)
+  directive "Extract Inductive %s => %s [ %s ]%s." rname
+    (Print.quote ocaml_type)
     (String.concat " " (List.map (fun c -> Print.quote (ctor_string c)) ctors))
     match_string
 
@@ -303,41 +310,54 @@ let emit_record ~params modc rname fields place =
         extract sname
           (Printf.sprintf "(fun x__1 x__2 -> x__1.%s <- x__2)"
              (Print.ocaml_name (modc @ [f])));
-        add_index (Print.ocaml_name (modc @ [f]) ^ " <-") sname "field setter" 2 place))
+        add_index
+          (Print.ocaml_name (modc @ [f]) ^ " <-")
+          sname "field setter" 2 place))
     fields
 
 (* The makers and the eliminator of a type that stays abstract. *)
 let emit_makers ~params ~private_ modc name rname (sh : shape) place =
-  let self_ty = Tr.Constr (Tr.Global (modc @ [name]), List.map (fun p -> Tr.Var p) params) in
+  let self_ty =
+    Tr.Constr (Tr.Global (modc @ [name]), List.map (fun p -> Tr.Var p) params)
+  in
   let res_var = if List.mem "Res" params then "Res_" else "Res" in
   let maker mname args result real =
     (* OCaml makes no value of a private type outside its module *)
-    if not private_ then
-    let mname = claim mname in
-    let tys = args @ [result] in
-    line "Parameter %s : %s%s." mname
-      (forall (List.fold_left vars_of [] tys))
-      (String.concat " -> " (List.map Print.pp_arg tys));
-    extract mname real;
-    add_index real mname "maker" (List.length args) place
+    if not private_
+    then (
+      let mname = claim mname in
+      let tys = args @ [result] in
+      line "Parameter %s : %s%s." mname
+        (forall (List.fold_left vars_of [] tys))
+        (String.concat " -> " (List.map Print.pp_arg tys));
+      extract mname real;
+      add_index real mname "maker" (List.length args) place)
   in
   let lam n body =
-    if n = 0 then body else Printf.sprintf "(fun %s -> %s)" (String.concat " " (xs n)) body
+    if n = 0
+    then body
+    else Printf.sprintf "(fun %s -> %s)" (String.concat " " (xs n)) body
   in
   let eliminator cases real =
     let ename = claim ("match_" ^ rname) in
     let branch args =
       let args = if args = [] then [Tr.Constr (Tr.Kit "unit", [])] else args in
-      "(" ^ String.concat " -> " (List.map Print.pp_arg args) ^ " -> M " ^ res_var ^ ")"
+      "("
+      ^ String.concat " -> " (List.map Print.pp_arg args)
+      ^ " -> M " ^ res_var ^ ")"
     in
     line "Parameter %s : %s%s -> %s -> M %s." ename
-      (forall (List.fold_left vars_of [] (self_ty :: List.concat cases) @ [res_var]))
+      (forall
+         (List.fold_left vars_of [] (self_ty :: List.concat cases) @ [res_var]))
       (Print.pp_arg self_ty)
       (String.concat " -> " (List.map branch cases))
       res_var;
     extract ename real;
-    add_index ("match on " ^ Print.ocaml_name (modc @ [name])) ename "eliminator"
-      (1 + List.length cases) place
+    add_index
+      ("match on " ^ Print.ocaml_name (modc @ [name]))
+      ename "eliminator"
+      (1 + List.length cases)
+      place
   in
   match sh with
   | Variant ctors ->
@@ -352,12 +372,15 @@ let emit_makers ~params ~private_ modc name rname (sh : shape) place =
       eliminator
         (List.map (fun c -> c.c_args) ctors)
         (Printf.sprintf "(fun x__0 %s -> match x__0 with %s)"
-           (String.concat " " (List.mapi (fun i _ -> Printf.sprintf "f__%d" (i + 1)) ctors))
+           (String.concat " "
+              (List.mapi (fun i _ -> Printf.sprintf "f__%d" (i + 1)) ctors))
            (String.concat " | "
               (List.mapi
                  (fun i c ->
                    Printf.sprintf "%s -> f__%d %s" (ocaml_ctor modc c) (i + 1)
-                     (if c.c_args = [] then "()" else String.concat " " (xs (List.length c.c_args))))
+                     (if c.c_args = []
+                      then "()"
+                      else String.concat " " (xs (List.length c.c_args))))
                  ctors)))
   | Record fields ->
     let tys = List.map (fun (_, t, _) -> t) fields in
@@ -365,21 +388,21 @@ let emit_makers ~params ~private_ modc name rname (sh : shape) place =
     maker ("mk_" ^ rname) tys self_ty (lam n (ocaml_record modc fields));
     eliminator [tys]
       (Printf.sprintf "(fun x__0 f__1 -> let %s = x__0 in f__1 %s)"
-         (ocaml_record modc fields) (String.concat " " (xs n)))
+         (ocaml_record modc fields)
+         (String.concat " " (xs n)))
 
 (* ---- tuples with labels ---- *)
 
-(* Rocq has no label in a tuple, and OCaml refuses a tuple without its
-   labels. So each type of a tuple with labels that the interfaces write
-   is a type of its own here, with one constructor. Its directive makes
-   the tuple with its labels from a plain tuple, and takes it apart. The
-   type is declared in the module that writes it first, before the item
-   that writes it. Its name is that of the labelled argument or of the
-   field where it is first written, or else its own labels, then
-   [_tuple]. *)
+(* Rocq has no label in a tuple, and OCaml refuses a tuple without its labels.
+   So each type of a tuple with labels that the interfaces write is a type of
+   its own here, with one constructor. Its directive makes the tuple with its
+   labels from a plain tuple, and takes it apart. The type is declared in the
+   module that writes it first, before the item that writes it. Its name is that
+   of the labelled argument or of the field where it is first written, or else
+   its own labels, then [_tuple]. *)
 
-(* The labels and the types -> the module that declares the type, and its
-   name there. Kept from pass to pass. *)
+(* The labels and the types -> the module that declares the type, and its name
+   there. Kept from pass to pass. *)
 let labelled : (string, string list * string) Hashtbl.t = Hashtbl.create 17
 
 (* Those declared in this pass. *)
@@ -389,7 +412,9 @@ let rec ty_key (ty : Tr.ty) =
   match ty with
   | Var v -> "'" ^ v
   | Arrow (args, res) ->
-    "(" ^ String.concat " -> " (List.map ty_key args) ^ " -> M " ^ ty_key res ^ ")"
+    "("
+    ^ String.concat " -> " (List.map ty_key args)
+    ^ " -> M " ^ ty_key res ^ ")"
   | Arrow_pure (args, res) ->
     "(" ^ String.concat " -> " (List.map ty_key (args @ [res])) ^ ")"
   | Tuple l -> "(" ^ String.concat " * " (List.map ty_key l) ^ ")"
@@ -397,8 +422,8 @@ let rec ty_key (ty : Tr.ty) =
     let name = match r with Tr.Kit s -> s | Tr.Global comps -> key comps in
     "(" ^ String.concat " " (name :: List.map ty_key args) ^ ")"
 
-(* A type of OCaml as OCaml writes it, with the names that the
-   realisations have. *)
+(* A type of OCaml as OCaml writes it, with the names that the realisations
+   have. *)
 let rec ocaml_type (ty : Types.type_expr) =
   match Types.get_desc ty with
   | Tconstr (p, args, _) -> (
@@ -409,7 +434,9 @@ let rec ocaml_type (ty : Types.type_expr) =
         match comps_of_path p' with
         | Some comps -> Print.ocaml_name comps
         | None ->
-          raise (Tr.Unsupported ("the type " ^ Path.name p ^ " is not a global name")))
+          raise
+            (Tr.Unsupported ("the type " ^ Path.name p ^ " is not a global name"))
+        )
     in
     match args with
     | [] -> name
@@ -419,17 +446,21 @@ let rec ocaml_type (ty : Types.type_expr) =
     String.concat " * "
       (List.map
          (fun (label, t) ->
-           (match label with Some s -> s ^ ":" | None -> "") ^ ocaml_type_atom t)
+           (match label with Some s -> s ^ ":" | None -> "")
+           ^ ocaml_type_atom t)
          l)
   | Tvariant _ -> (
     match Tr.fixed_tags ty with
     | Some tags ->
       "[ " ^ String.concat " | " (List.map (fun t -> "`" ^ t) tags) ^ " ]"
-    | None -> raise (Tr.Unsupported "a polymorphic variant in a tuple with labels"))
+    | None ->
+      raise (Tr.Unsupported "a polymorphic variant in a tuple with labels"))
   | Tpoly (t, []) -> ocaml_type t
   | Tvar _ | Tunivar _ ->
     raise (Tr.Unsupported "a type variable in a tuple with labels")
-  | _ -> raise (Tr.Unsupported "a tuple with labels that holds a function or an object")
+  | _ ->
+    raise
+      (Tr.Unsupported "a tuple with labels that holds a function or an object")
 
 and ocaml_type_atom ty =
   match Types.get_desc ty with
@@ -449,7 +480,9 @@ let labelled_tuple (l : (string option * Types.type_expr) list) : Tr.ty =
   if List.fold_left vars_of [] tys <> []
   then raise (Tr.Unsupported "a type variable in a tuple with labels");
   let label_of (label, _) = match label with Some s -> s ^ ":" | None -> "" in
-  let k = String.concat " * " (List.map2 (fun c ty -> label_of c ^ ty_key ty) l tys) in
+  let k =
+    String.concat " * " (List.map2 (fun c ty -> label_of c ^ ty_key ty) l tys)
+  in
   let home, name =
     match Hashtbl.find_opt labelled k with
     | Some x -> x
@@ -461,7 +494,9 @@ let labelled_tuple (l : (string option * Types.type_expr) list) : Tr.ty =
         | None -> String.concat "_" (List.filter_map fst l)
       in
       let taken name =
-        Hashtbl.fold (fun _ (h, n) found -> found || (h = home && n = name)) labelled false
+        Hashtbl.fold
+          (fun _ (h, n) found -> found || (h = home && n = name))
+          labelled false
       in
       let rec fresh i =
         let name =
@@ -477,8 +512,8 @@ let labelled_tuple (l : (string option * Types.type_expr) list) : Tr.ty =
   let comps = home @ [name] in
   if home <> !Print.cur_mod
   then
-    warn "a tuple with labels (%s) is written in %s; its type is declared in %s" name
-      (key !Print.cur_mod) (key home)
+    warn "a tuple with labels (%s) is written in %s; its type is declared in %s"
+      name (key !Print.cur_mod) (key home)
   else if not (Hashtbl.mem labelled_now k)
   then (
     Hashtbl.replace labelled_now k ();
@@ -505,13 +540,15 @@ let labelled_tuple (l : (string option * Types.type_expr) list) : Tr.ty =
         line "Inductive %s : Type :=" rname;
         line "| %s : %s." cname
           (String.concat " -> " (List.map Print.pp_arg tys @ [rname]));
-        directive "Extract Inductive %s => %s [ %s ] %s." rname (Print.quote ocaml)
+        directive "Extract Inductive %s => %s [ %s ] %s." rname
+          (Print.quote ocaml)
           (Print.quote (Printf.sprintf "(fun %s -> %s)" tuple with_labels))
           (Print.quote
-             (Printf.sprintf "(fun f__1 x__0 -> let %s = x__0 in f__1 %s)" with_labels
-                (String.concat " " vars)));
+             (Printf.sprintf "(fun f__1 x__0 -> let %s = x__0 in f__1 %s)"
+                with_labels (String.concat " " vars)));
         add_index ocaml rname "type" 0 "a tuple with labels";
-        add_index ocaml cname "constructor" (List.length l) "a tuple with labels"));
+        add_index ocaml cname "constructor" (List.length l)
+          "a tuple with labels"));
   Tr.Constr (Tr.Global comps, [])
 
 let () = Tr.labelled_tuple := labelled_tuple

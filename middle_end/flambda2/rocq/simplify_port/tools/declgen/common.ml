@@ -25,13 +25,12 @@
  * DEALINGS IN THE SOFTWARE.                                                  *
  ******************************************************************************)
 
-(* The generator of the declarations of the port of Simplify: what every
-   part shares. This file follows no file of the compiler.
+(* The generator of the declarations of the port of Simplify: what every part
+   shares. This file follows no file of the compiler.
 
-   The generator reads the compiled interfaces ([.cmi]) and typed trees
-   ([.cmt]) of a build of the compiler with the compiler's own library of
-   types and environments, so every name is resolved as the compiler
-   resolves it. *)
+   The generator reads the compiled interfaces ([.cmi]) and typed trees ([.cmt])
+   of a build of the compiler with the compiler's own library of types and
+   environments, so every name is resolved as the compiler resolves it. *)
 
 (* The [_build/default] of the build that is read. *)
 let build_root = ref ""
@@ -66,11 +65,9 @@ let env_of (e : Env.t) =
          :: (match !env_cache with a :: b :: c :: _ -> [a; b; c] | l -> l);
     e'
 
-let norm_value env p =
-  try Env.normalize_value_path None env p with _ -> p
+let norm_value env p = try Env.normalize_value_path None env p with _ -> p
 
-let norm_module env p =
-  try Env.normalize_module_path None env p with _ -> p
+let norm_module env p = try Env.normalize_module_path None env p with _ -> p
 
 let norm_type env p = try Env.normalize_type_path None env p with _ -> p
 
@@ -80,22 +77,25 @@ let starts_with ~prefix s =
 
 let has_double_underscore u =
   let n = String.length u in
-  let rec go i = i + 1 < n && ((u.[i] = '_' && u.[i + 1] = '_') || go (i + 1)) in
+  let rec go i =
+    i + 1 < n && ((u.[i] = '_' && u.[i + 1] = '_') || go (i + 1))
+  in
   go 0
 
 let is_simplify_unit u = starts_with ~prefix:"Flambda2_simplify__" u
 
-(* A library's list of its modules ([Flambda2_identifiers], whose
-   [Variable] is [Flambda2_identifiers__Variable]; [Stdlib], whose [List]
-   is [Stdlib__List]). *)
+(* A library's list of its modules ([Flambda2_identifiers], whose [Variable] is
+   [Flambda2_identifiers__Variable]; [Stdlib], whose [List] is
+   [Stdlib__List]). *)
 let is_library_unit u =
-  u = "Stdlib" || (starts_with ~prefix:"Flambda2_" u && not (has_double_underscore u))
+  u = "Stdlib"
+  || (starts_with ~prefix:"Flambda2_" u && not (has_double_underscore u))
 
-(* The name of a module as the compiler's sources write it: an alias is
-   followed when it is local to a file of Simplify, or a member of a file of
-   Simplify ([Simplify_import.DA]) or of a library's list of modules. An
-   alias inside another interface is kept: [Code_id.Map] stays, though it
-   is [Int_ids.Code_id.Map]. *)
+(* The name of a module as the compiler's sources write it: an alias is followed
+   when it is local to a file of Simplify, or a member of a file of Simplify
+   ([Simplify_import.DA]) or of a library's list of modules. An alias inside
+   another interface is kept: [Code_id.Map] stays, though it is
+   [Int_ids.Code_id.Map]. *)
 let rec source_module env (p : Path.t) : Path.t =
   let alias_target p =
     match Env.find_module p env with
@@ -127,9 +127,7 @@ let rec source_module env (p : Path.t) : Path.t =
 
 (* The same for a value or a type: its module is made so. *)
 let source_path env (p : Path.t) : Path.t =
-  match p with
-  | Pdot (m, s) -> Pdot (source_module env m, s)
-  | _ -> p
+  match p with Pdot (m, s) -> Pdot (source_module env m, s) | _ -> p
 
 (* A global name as a list: the compilation unit, then the modules, then
    the name. [None] for what is local to a file or goes through the
@@ -140,15 +138,14 @@ let source_path env (p : Path.t) : Path.t =
    [FILE__local]. *)
 let local_idents : (Ident.t * string list) list ref = ref []
 
-(* A module type that is declared is walked as a module of that type,
-   which stands in the environment under an identifier of its own: the
-   identifier, and the name of the module type (unit, modules, name). Kept
-   for the whole run. *)
+(* A module type that is declared is walked as a module of that type, which
+   stands in the environment under an identifier of its own: the identifier, and
+   the name of the module type (unit, modules, name). Kept for the whole run. *)
 let modtype_idents : (Ident.t * string list) list ref = ref []
 
-(* In such a name the module type has this mark, for a module of the same
-   module may have its name ([Numeric_types.Float_by_bit_pattern] is a
-   module and a module type). *)
+(* In such a name the module type has this mark, for a module of the same module
+   may have its name ([Numeric_types.Float_by_bit_pattern] is a module and a
+   module type). *)
 let modtype_component name = name ^ " (module type)"
 
 let is_local_unit u =
@@ -172,8 +169,8 @@ let rec comps_of_path (p : Path.t) : string list option =
     match comps_of_path p with Some l -> Some (l @ [s]) | None -> None)
   | Papply _ | Pextra_ty _ -> None
 
-(* [Flambda2_identifiers__Variable] is [Variable]: the name that the
-   compiler's sources write. [Stdlib__List] is [List]. *)
+(* [Flambda2_identifiers__Variable] is [Variable]: the name that the compiler's
+   sources write. [Stdlib__List] is [List]. *)
 let short_unit u =
   let n = String.length u in
   let rec find i =

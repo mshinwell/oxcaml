@@ -25,17 +25,17 @@
  * DEALINGS IN THE SOFTWARE.                                                  *
  ******************************************************************************)
 
-(* The text of the compiler's interfaces: the header of a file, and the
-   words of one declaration, for the comment that stands before what is
-   generated from it. This file follows no file of the compiler. *)
+(* The text of the compiler's interfaces: the header of a file, and the words of
+   one declaration, for the comment that stands before what is generated from
+   it. This file follows no file of the compiler. *)
 
 open Common
 
 let file_cache : (string, string array option) Hashtbl.t = Hashtbl.create 97
 
-(* The interfaces of the standard library that the build read are those of
-   the compiler that built it; their text here is the repository's own
-   [stdlib/] file of the same name. *)
+(* The interfaces of the standard library that the build read are those of the
+   compiler that built it; their text here is the repository's own [stdlib/]
+   file of the same name. *)
 let source_path (fname : string) =
   let direct = Filename.concat !source_root fname in
   if Sys.file_exists direct
@@ -62,9 +62,9 @@ let lines_of rel =
     Hashtbl.replace file_cache rel l;
     l
 
-(* The header of a file: its first lines, as long as each is a comment on
-   one line (the box of the licence); or its first comment, when that is a
-   box of several lines (it begins with a line of stars and ends a line). *)
+(* The header of a file: its first lines, as long as each is a comment on one
+   line (the box of the licence); or its first comment, when that is a box of
+   several lines (it begins with a line of stars and ends a line). *)
 let header rel =
   match lines_of rel with
   | None -> []
@@ -117,9 +117,9 @@ let one_line s =
   let s = Str.global_replace (Str.regexp_string "*)") "* )" s in
   if String.length s > 400 then String.sub s 0 397 ^ "..." else s
 
-(* Where a declaration is, and its words: [(variable.mli:23, "val ...")].
-   For the standard library the place is the repository's file and no line
-   (the lines are those of another copy), and no words. *)
+(* Where a declaration is, and its words: [(variable.mli:23, "val ...")]. For
+   the standard library the place is the repository's file and no line (the
+   lines are those of another copy), and no words. *)
 let place_and_text (loc : Location.t) =
   let fname = loc.loc_start.pos_fname in
   match source_path fname with
@@ -138,6 +138,7 @@ let place_and_text (loc : Location.t) =
       then place, None
       else
         let text =
-          String.concat " " (Array.to_list (Array.sub lines first (last - first + 1)))
+          String.concat " "
+            (Array.to_list (Array.sub lines first (last - first + 1)))
         in
         place, Some (one_line text))

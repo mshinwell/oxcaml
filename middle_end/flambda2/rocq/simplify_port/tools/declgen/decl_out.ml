@@ -25,9 +25,9 @@
  * DEALINGS IN THE SOFTWARE.                                                  *
  ******************************************************************************)
 
-(* The declarations of one compilation unit, written in the form of the
-   port's guide: values and exceptions here, types in [Emit_types]. This
-   file follows no file of the compiler. *)
+(* The declarations of one compilation unit, written in the form of the port's
+   guide: values and exceptions here, types in [Emit_types]. This file follows
+   no file of the compiler. *)
 
 open Common
 module SS = Set.Make (String)
@@ -37,11 +37,10 @@ let buf = ref (Buffer.create 65536)
 (* OCaml name, Rocq name, kind, arity, place. *)
 let index : (string * string * string * int * string) list ref = ref []
 
-(* The variants that are written as inductive types: the type in OCaml,
-   the number of its parameters, its constructors in OCaml (all of them, in
-   order), and whether a later type of its module has a constructor of the
-   same name (the strings of its directive then say the type, and OCaml
-   needs that). *)
+(* The variants that are written as inductive types: the type in OCaml, the
+   number of its parameters, its constructors in OCaml (all of them, in order),
+   and whether a later type of its module has a constructor of the same name
+   (the strings of its directive then say the type, and OCaml needs that). *)
 let variants : (string * int * string list * bool) list ref = ref []
 
 (* OCaml name, why it is not declared. *)
@@ -84,12 +83,12 @@ let before_item f =
   Buffer.add_string outer rest;
   item_start := pos + String.length text
 
-(* The names of constructors and fields that the open module has under
-   the compiler's own names (Rocq prints them, so they cannot change). *)
+(* The names of constructors and fields that the open module has under the
+   compiler's own names (Rocq prints them, so they cannot change). *)
 let native : SS.t ref = ref SS.empty
 
-(* The same for every module, in the pass before and in this one: a value
-   or a type of one of these names gives way, wherever it is declared. *)
+(* The same for every module, in the pass before and in this one: a value or a
+   type of one of these names gives way, wherever it is declared. *)
 let native_before : (string, SS.t) Hashtbl.t = Hashtbl.create 97
 
 let native_now : (string, SS.t) Hashtbl.t = Hashtbl.create 97
@@ -113,7 +112,8 @@ let claim_native name =
   declared := SS.add name !declared;
   let k = key !Print.cur_mod in
   Hashtbl.replace native_now k
-    (SS.add name (Option.value ~default:SS.empty (Hashtbl.find_opt native_now k)))
+    (SS.add name
+       (Option.value ~default:SS.empty (Hashtbl.find_opt native_now k)))
 
 let rocq_qualified name =
   match !Print.cur_mod with
@@ -122,19 +122,19 @@ let rocq_qualified name =
       ((Sigs.unit_rocq u :: List.map Sigs.module_rocq mods) @ [name])
   | [] -> name
 
-(* Inside a module type: its items have no directive (Rocq honours none
-   there: what a functor uses of its parameter is printed by its name in
-   Rocq) and no row in the index (they are no names of OCaml). *)
+(* Inside a module type: its items have no directive (Rocq honours none there:
+   what a functor uses of its parameter is printed by its name in Rocq) and no
+   row in the index (they are no names of OCaml). *)
 let in_modtype = ref false
 
 let add_index ocaml rname kind arity place =
   if not !in_modtype
   then index := (ocaml, rocq_qualified rname, kind, arity, place) :: !index
 
-(* The declared values: the name (the unit, the modules, the value), the
-   OCaml name, the Rocq name, and the number of parameters of the function
-   that is written as the realisation (0 when the realisation is the
-   name). For ARITIES.tsv. *)
+(* The declared values: the name (the unit, the modules, the value), the OCaml
+   name, the Rocq name, and the number of parameters of the function that is
+   written as the realisation (0 when the realisation is the name). For
+   ARITIES.tsv. *)
 let values : (string list * string * string * int) list ref = ref []
 
 let add_value comps ocaml rname wrapper =
@@ -159,14 +159,13 @@ let comment (loc : Location.t) fallback =
 let extract rname ocaml =
   directive "Extract Inlined Constant %s => %s." rname (Print.quote ocaml)
 
-(* The directive for a type. One without parameters has its OCaml name as
-   an inlined string. One with parameters cannot (Rocq has no inlined
-   string for a type with parameters): Rocq prints it by its own name in
-   Rocq, which is the compiler's when the modules have the compiler's
-   names. *)
+(* The directive for a type. One without parameters has its OCaml name as an
+   inlined string. One with parameters cannot (Rocq has no inlined string for a
+   type with parameters): Rocq prints it by its own name in Rocq, which is the
+   compiler's when the modules have the compiler's names. *)
 let extract_type ?(kept = []) rname ocaml nparams =
-  (* [kept]: for each parameter of the type in OCaml, whether Rocq has it
-     (an index that was dropped is [_] in OCaml) *)
+  (* [kept]: for each parameter of the type in OCaml, whether Rocq has it (an
+     index that was dropped is [_] in OCaml) *)
   let kept = if kept = [] then List.init nparams (fun _ -> true) else kept in
   let n = ref 0 in
   let args =
@@ -180,7 +179,9 @@ let extract_type ?(kept = []) rname ocaml nparams =
       kept
   in
   let applied =
-    if args = [] then ocaml else Printf.sprintf "(%s) %s" (String.concat ", " args) ocaml
+    if args = []
+    then ocaml
+    else Printf.sprintf "(%s) %s" (String.concat ", " args) ocaml
   in
   if nparams = 0
   then extract rname applied
@@ -192,40 +193,55 @@ let extract_type ?(kept = []) rname ocaml nparams =
 
 (* What the kit gives: not declared again. *)
 let in_kit =
-  [ "Stdlib.ref"; "Stdlib.raise"; "Stdlib.raise_notrace"; "Stdlib.ignore";
-    "Stdlib.compare"; "Stdlib.succ"; "Stdlib.pred"; "Stdlib.max"; "Stdlib.min";
-    "Stdlib.not"; "Stdlib__Lazy.force"; "Stdlib.Not_found"; "Misc.fatal_error";
-    "Misc.fatal_errorf"; "Misc.Fatal_error" ]
+  [ "Stdlib.ref";
+    "Stdlib.raise";
+    "Stdlib.raise_notrace";
+    "Stdlib.ignore";
+    "Stdlib.compare";
+    "Stdlib.succ";
+    "Stdlib.pred";
+    "Stdlib.max";
+    "Stdlib.min";
+    "Stdlib.not";
+    "Stdlib__Lazy.force";
+    "Stdlib.Not_found";
+    "Misc.fatal_error";
+    "Misc.fatal_errorf";
+    "Misc.Fatal_error" ]
 
 let type_text (ty : Types.type_expr) =
   Format.asprintf "%a" Printtyp.type_scheme ty
 
-(* The realisation of a function: its plain name; with optional arguments,
-   a closed function that gives each its label. *)
+(* The realisation of a function: its plain name; with optional arguments, a
+   closed function that gives each its label. *)
 let realisation ocaml (labels : Asttypes.arg_label list) =
-  if List.for_all
-       (fun (l : Asttypes.arg_label) ->
-         match l with Optional _ -> false | _ -> true)
-       labels
+  if
+    List.for_all
+      (fun (l : Asttypes.arg_label) ->
+        match l with Optional _ -> false | _ -> true)
+      labels
   then ocaml
   else
-    let binders = List.mapi (fun i _ -> Printf.sprintf "x__%d" (i + 1)) labels in
+    let binders =
+      List.mapi (fun i _ -> Printf.sprintf "x__%d" (i + 1)) labels
+    in
     let args =
       List.map2
         (fun (l : Asttypes.arg_label) x ->
           match l with Optional s -> "?" ^ s ^ ":" ^ x | _ -> x)
         labels binders
     in
-    Printf.sprintf "(fun %s -> %s %s)" (String.concat " " binders) ocaml
-      (String.concat " " args)
+    Printf.sprintf "(fun %s -> %s %s)"
+      (String.concat " " binders)
+      ocaml (String.concat " " args)
 
-(* The number of parameters of that closed function; 0 for the plain
-   name. *)
+(* The number of parameters of that closed function; 0 for the plain name. *)
 let wrapper_parameters (labels : Asttypes.arg_label list) =
-  if List.exists
-       (fun (l : Asttypes.arg_label) ->
-         match l with Optional _ -> true | _ -> false)
-       labels
+  if
+    List.exists
+      (fun (l : Asttypes.arg_label) ->
+        match l with Optional _ -> true | _ -> false)
+      labels
   then List.length labels
   else 0
 
@@ -237,7 +253,8 @@ let emit_value modc name =
   if List.mem (key comps) in_kit
   then line "(* %s: in the kit (Port_monad.v). *)" ocaml
   else if (not (Sigs.is_identifier name)) && List.hd comps = "Stdlib"
-  then not_declared comps "an operator of Stdlib: the kit and Rocq have their own"
+  then
+    not_declared comps "an operator of Stdlib: the kit and Rocq have their own"
   else
     match Env.find_value (Sigs.path_of_comps comps) !Sigs.base_env with
     | exception Not_found -> not_declared comps "not found in the interface"
@@ -251,52 +268,73 @@ let emit_value modc name =
           then (
             let text = Print.pp ty in
             let rname = claim (Sigs.value_rocq name) in
-            let place = comment vd.val_loc ("val " ^ name ^ " : " ^ type_text vd.val_type) in
+            let place =
+              comment vd.val_loc ("val " ^ name ^ " : " ^ type_text vd.val_type)
+            in
             line "Parameter %s : %s%s." rname (Print.quantifier ()) text;
             extract rname (realisation ocaml labels);
             add_value comps ocaml rname (wrapper_parameters labels);
             add_index ocaml rname "value" (List.length labels) place)
-          else (
-            (* a family: one declaration for each number of arguments
-               after the format *)
+          else
+            (* a family: one declaration for each number of arguments after the
+               format *)
             let args, res =
               match ty with Arrow (args, res) -> args, res | _ -> assert false
             in
             let before = args in
             let own = Tr.var_names () in
-            let prefix = if List.exists (fun v -> String.length v > 1 && v.[0] = 'A') own then "B" else "A" in
-            let place = comment vd.val_loc ("val " ^ name ^ " : " ^ type_text vd.val_type) in
+            let prefix =
+              if List.exists (fun v -> String.length v > 1 && v.[0] = 'A') own
+              then "B"
+              else "A"
+            in
+            let place =
+              comment vd.val_loc ("val " ^ name ^ " : " ^ type_text vd.val_type)
+            in
             (* and each greater number of arguments that a file gives *)
             let more =
               List.filter_map
                 (fun given ->
                   let n = given - List.length before in
                   if n > max_format_args then Some n else None)
-                (Option.value ~default:[] (Hashtbl.find_opt Uses.applied (key comps)))
+                (Option.value ~default:[]
+                   (Hashtbl.find_opt Uses.applied (key comps)))
             in
             let numbers =
-              List.init (max_format_args + 1) (fun n -> n) @ List.sort_uniq compare more
+              List.init (max_format_args + 1) (fun n -> n)
+              @ List.sort_uniq compare more
             in
-            List.iter (fun n ->
-              let extra = List.init n (fun i -> Printf.sprintf "%s%d" prefix (i + 1)) in
-              let ty' = Tr.Arrow (before @ List.map (fun v -> Tr.Var v) extra, res) in
-              let vars = own @ extra in
-              let q =
-                if vars = []
-                then ""
-                else Printf.sprintf "forall {%s : Type}, " (String.concat " " vars)
-              in
-              let rname = claim (Printf.sprintf "%s%d" (Sigs.value_rocq name) n) in
-              line "Parameter %s : %s%s." rname q (Print.pp ty');
-              extract rname ocaml;
-              add_value comps ocaml rname 0;
-              add_index ocaml rname "value" (List.length before + n) place)
-              numbers)
+            List.iter
+              (fun n ->
+                let extra =
+                  List.init n (fun i -> Printf.sprintf "%s%d" prefix (i + 1))
+                in
+                let ty' =
+                  Tr.Arrow (before @ List.map (fun v -> Tr.Var v) extra, res)
+                in
+                let vars = own @ extra in
+                let q =
+                  if vars = []
+                  then ""
+                  else
+                    Printf.sprintf "forall {%s : Type}, "
+                      (String.concat " " vars)
+                in
+                let rname =
+                  claim (Printf.sprintf "%s%d" (Sigs.value_rocq name) n)
+                in
+                line "Parameter %s : %s%s." rname q (Print.pp ty');
+                extract rname ocaml;
+                add_value comps ocaml rname 0;
+                add_index ocaml rname "value" (List.length before + n) place)
+              numbers
         | _ ->
           let ty = Tr.tr vd.val_type in
           let text = Print.pp ty in
           let rname = claim (Sigs.value_rocq name) in
-          let place = comment vd.val_loc ("val " ^ name ^ " : " ^ type_text vd.val_type) in
+          let place =
+            comment vd.val_loc ("val " ^ name ^ " : " ^ type_text vd.val_type)
+          in
           line "Parameter %s : %s%s." rname (Print.quantifier ()) text;
           extract rname ocaml;
           add_value comps ocaml rname 0;
@@ -315,20 +353,24 @@ let emit_exception modc name (ext : Types.extension_constructor) =
         match ext.ext_args with
         | Cstr_tuple [] ->
           ( "unit",
-            Printf.sprintf "((fun () -> %s), (function %s -> Some () | _ -> None))"
-              ocaml ocaml )
+            Printf.sprintf
+              "((fun () -> %s), (function %s -> Some () | _ -> None))" ocaml
+              ocaml )
         | Cstr_tuple [t] ->
           ( Print.pp_atom (Tr.tr t),
             Printf.sprintf
-              "((fun x__1 -> %s x__1), (function %s x__1 -> Some x__1 | _ -> None))"
+              "((fun x__1 -> %s x__1), (function %s x__1 -> Some x__1 | _ -> \
+               None))"
               ocaml ocaml )
         | Cstr_tuple l ->
-          let binders = List.mapi (fun i _ -> Printf.sprintf "x__%d" (i + 1)) l in
+          let binders =
+            List.mapi (fun i _ -> Printf.sprintf "x__%d" (i + 1)) l
+          in
           let tuple = "(" ^ String.concat ", " binders ^ ")" in
           ( Print.pp_atom (Tr.Tuple (List.map Tr.tr l)),
             Printf.sprintf
-              "((fun %s -> %s %s), (function %s %s -> Some %s | _ -> None))" tuple
-              ocaml tuple ocaml tuple tuple )
+              "((fun %s -> %s %s), (function %s %s -> Some %s | _ -> None))"
+              tuple ocaml tuple ocaml tuple tuple )
         | Cstr_record _ -> raise (Tr.Unsupported "an exception with a record")
       in
       let rname = claim (Sigs.ctor_rocq name) in

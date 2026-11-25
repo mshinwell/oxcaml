@@ -25,15 +25,14 @@
  * DEALINGS IN THE SOFTWARE.                                                  *
  ******************************************************************************)
 
-(* The text of Rocq for a type and for a name, as seen from the file and
-   the module that are being written. This file follows no file of the
-   compiler. *)
+(* The text of Rocq for a type and for a name, as seen from the file and the
+   module that are being written. This file follows no file of the compiler. *)
 
 open Common
 module SS = Set.Make (String)
 
-(* The compilation unit whose file is being written, and the module of it
-   that is open (the unit, then the modules). *)
+(* The compilation unit whose file is being written, and the module of it that
+   is open (the unit, then the modules). *)
 let cur_unit = ref ""
 
 let cur_mod : string list ref = ref []
@@ -41,8 +40,8 @@ let cur_mod : string list ref = ref []
 (* The other units that the file names: its [Require]. *)
 let deps : SS.t ref = ref SS.empty
 
-(* The names of all the modules inside the file: a unit of the same name
-   is then written [decl.NAME]. *)
+(* The names of all the modules inside the file: a unit of the same name is then
+   written [decl.NAME]. *)
 let file_modules : SS.t ref = ref SS.empty
 
 let unit_ref u =
@@ -58,21 +57,22 @@ let split_last l =
   | last :: rest -> List.rev rest, last
   | [] -> invalid_arg "split_last"
 
-(* The name that a type was given where it was declared, when it is not
-   the one that the rules give (a second declaration of a name in a module
-   gets one more underscore). Kept from one pass to the next. *)
+(* The name that a type was given where it was declared, when it is not the one
+   that the rules give (a second declaration of a name in a module gets one more
+   underscore). Kept from one pass to the next. *)
 let type_names : (string, string) Hashtbl.t = Hashtbl.create 97
 
 let set_type_name comps rname =
   let modc, last = split_last comps in
-  if rname <> Sigs.type_rocq modc last
-     && Hashtbl.find_opt type_names (key comps) <> Some rname
+  if
+    rname <> Sigs.type_rocq modc last
+    && Hashtbl.find_opt type_names (key comps) <> Some rname
   then (
     Hashtbl.replace type_names (key comps) rname;
     Tr.changed := true)
 
-(* The names in Rocq of the modules [mods] of the unit [u], outermost
-   first: one of them may be a module type. *)
+(* The names in Rocq of the modules [mods] of the unit [u], outermost first: one
+   of them may be a module type. *)
 let modules_rocq u mods =
   let rec go prefix = function
     | [] -> []
@@ -104,7 +104,8 @@ let global_name kind comps =
   then name
   else
     match modc with
-    | u :: mods -> String.concat "." ((unit_ref u :: modules_rocq u mods) @ [name])
+    | u :: mods ->
+      String.concat "." ((unit_ref u :: modules_rocq u mods) @ [name])
     | [] -> name
 
 (* The name in OCaml: what the realisation says. An operator is in
@@ -114,7 +115,8 @@ let ocaml_name comps =
     match List.rev comps with
     | last :: rest
       when (not (Sigs.is_identifier last))
-           || List.mem last ["mod"; "land"; "lor"; "lxor"; "lsl"; "lsr"; "asr"; "or"] ->
+           || List.mem last
+                ["mod"; "land"; "lor"; "lxor"; "lsl"; "lsr"; "asr"; "or"] ->
       List.rev (("( " ^ last ^ " )") :: rest)
     | _ -> comps
   in
@@ -136,7 +138,8 @@ let rec pp (ty : Tr.ty) =
   | Var v -> v
   | Arrow (args, res) ->
     String.concat " -> " (List.map pp_arg args @ ["M " ^ pp_atom res])
-  | Arrow_pure (args, res) -> String.concat " -> " (List.map pp_arg (args @ [res]))
+  | Arrow_pure (args, res) ->
+    String.concat " -> " (List.map pp_arg (args @ [res]))
   | Tuple [a; b] -> "(" ^ pp_arg a ^ " * " ^ pp_arg b ^ ")"
   | Tuple l when List.length l >= 3 && List.length l <= 6 ->
     Printf.sprintf "tuple%d %s" (List.length l)
@@ -153,9 +156,7 @@ and pp_atom ty =
   | Var _ | Constr (_, []) | Tuple [_; _] -> pp ty
   | _ -> "(" ^ pp ty ^ ")"
 
-and tref = function
-  | Tr.Kit s -> s
-  | Tr.Global comps -> global_name `Type comps
+and tref = function Tr.Kit s -> s | Tr.Global comps -> global_name `Type comps
 
 (* [forall {A B : Type}, ] for the type variables of a declaration. *)
 let quantifier () =
@@ -168,7 +169,8 @@ let quote s =
   let b = Buffer.create (String.length s + 2) in
   Buffer.add_char b '"';
   String.iter
-    (fun c -> if c = '"' then Buffer.add_string b "\"\"" else Buffer.add_char b c)
+    (fun c ->
+      if c = '"' then Buffer.add_string b "\"\"" else Buffer.add_char b c)
     s;
   Buffer.add_char b '"';
   Buffer.contents b
@@ -178,7 +180,9 @@ let realisation ocaml (labels : Asttypes.arg_label list) =
   if List.for_all (fun l -> l = Asttypes.Nolabel) labels
   then ocaml
   else
-    let binders = List.mapi (fun i _ -> Printf.sprintf "x__%d" (i + 1)) labels in
+    let binders =
+      List.mapi (fun i _ -> Printf.sprintf "x__%d" (i + 1)) labels
+    in
     let args =
       List.map2
         (fun (l : Asttypes.arg_label) x ->
@@ -188,5 +192,6 @@ let realisation ocaml (labels : Asttypes.arg_label list) =
           | Optional s -> "?" ^ s ^ ":" ^ x)
         labels binders
     in
-    Printf.sprintf "(fun %s -> %s %s)" (String.concat " " binders) ocaml
-      (String.concat " " args)
+    Printf.sprintf "(fun %s -> %s %s)"
+      (String.concat " " binders)
+      ocaml (String.concat " " args)

@@ -25,51 +25,48 @@
  * DEALINGS IN THE SOFTWARE.                                                  *
  ******************************************************************************)
 
-(* Three tables about the files of Simplify that the ported files follow
-   (the donors): the rows of UPDATES.tsv and of DONOR-TOKENS.tsv, for
-   tools/given.py, and those of DONOR-ITEMS.tsv, for tools/lines.py. This
-   file follows no file of the compiler.
+(* Three tables about the files of Simplify that the ported files follow (the
+   donors): the rows of UPDATES.tsv and of DONOR-TOKENS.tsv, for tools/given.py,
+   and those of DONOR-ITEMS.tsv, for tools/lines.py. This file follows no file
+   of the compiler.
 
-   UPDATES.tsv: one row for each record update [{ e with f1 = v1; .. }] of
-   the typed tree of a donor: the file, the line where the update begins,
-   the line where it ends, the type of the record as the typed tree names
-   it, the place of that type (the file and the line where its first field
-   is declared, as the typed tree has them), the fields that the update
-   gives in the order of the text, and all the fields of the type in the
-   order of the type. Two types of one name in one file have two places. A
-   row has names and numbers from the typed tree, and no text of a source.
-   A donor whose typed tree was not made from the text of the tree
-   ([Arities.tree_source]) has one row that says so, with [-] for the lines.
+   UPDATES.tsv: one row for each record update [{ e with f1 = v1; .. }] of the
+   typed tree of a donor: the file, the line where the update begins, the line
+   where it ends, the type of the record as the typed tree names it, the place
+   of that type (the file and the line where its first field is declared, as the
+   typed tree has them), the fields that the update gives in the order of the
+   text, and all the fields of the type in the order of the type. Two types of
+   one name in one file have two places. A row has names and numbers from the
+   typed tree, and no text of a source. A donor whose typed tree was not made
+   from the text of the tree ([Arities.tree_source]) has one row that says so,
+   with [-] for the lines.
 
-   DONOR-TOKENS.tsv: one row for each donor: the file, the number of tokens
-   that the compiler's own lexer reads in it (comments left out), and a
-   checksum: the MD5 of the characters of those tokens that are not white
-   space, one after the other, with nothing between one token and the next
-   (the white space inside a string is left out too). tools/given.py reads
-   the donors with a lexer of its own and wants this checksum for its own
-   tokens: then it reads the same characters that are not white space,
-   outside comments, as the compiler's lexer. The checksum is no identity
-   of the tokens or of the source: it does not show where a token ends
-   (the two lexers do not cut the characters into the same tokens: a label
-   [~f:] is one token here), and it does not show the white space of a
-   string.
+   DONOR-TOKENS.tsv: one row for each donor: the file, the number of tokens that
+   the compiler's own lexer reads in it (comments left out), and a checksum: the
+   MD5 of the characters of those tokens that are not white space, one after the
+   other, with nothing between one token and the next (the white space inside a
+   string is left out too). tools/given.py reads the donors with a lexer of its
+   own and wants this checksum for its own tokens: then it reads the same
+   characters that are not white space, outside comments, as the compiler's
+   lexer. The checksum is no identity of the tokens or of the source: it does
+   not show where a token ends (the two lexers do not cut the characters into
+   the same tokens: a label [~f:] is one token here), and it does not show the
+   white space of a string.
 
-   DONOR-ITEMS.tsv: one row for each name that an item of a structure of
-   the typed tree of a donor defines, at any depth of modules (also in the
-   body of a functor): the file; the kind ([value], [external], [type],
-   [exception], [module], [module type]); the modules around the item
-   inside the file, from the outermost, with dots between them and [()]
-   after the name of a functor (empty at the top of the file); the name;
-   the first and the last line of the definition of that name; the first
-   and the last line of the whole item. The two pairs of lines differ for
-   an item that defines several things together ([let rec f .. and g ..],
-   [type a = .. and b = ..]): the definition of [g] begins at its own
-   first line, the item at [let]. A value that a pattern binds ([let a, b
-   = ..]) has one row for each name, with the lines of the binding. An
-   item that binds no name ([let () = ..]) has no row. A row has names and
-   numbers from the typed tree, and no text of a source. A donor that is
-   not read has one row that says so, with [-] for the kind and the
-   lines. *)
+   DONOR-ITEMS.tsv: one row for each name that an item of a structure of the
+   typed tree of a donor defines, at any depth of modules (also in the body of a
+   functor): the file; the kind ([value], [external], [type], [exception],
+   [module], [module type]); the modules around the item inside the file, from
+   the outermost, with dots between them and [()] after the name of a functor
+   (empty at the top of the file); the name; the first and the last line of the
+   definition of that name; the first and the last line of the whole item. The
+   two pairs of lines differ for an item that defines several things together
+   ([let rec f .. and g ..], [type a = .. and b = ..]): the definition of [g]
+   begins at its own first line, the item at [let]. A value that a pattern binds
+   ([let a, b = ..]) has one row for each name, with the lines of the binding.
+   An item that binds no name ([let () = ..]) has no row. A row has names and
+   numbers from the typed tree, and no text of a source. A donor that is not
+   read has one row that says so, with [-] for the kind and the lines. *)
 
 let line (l : Location.t) = l.loc_start.pos_lnum
 
@@ -89,14 +86,16 @@ let updates_of source (str : Typedtree.structure) =
     | Texp_record { fields; extended_expression = Some _; _ } ->
       let all =
         Array.to_list fields
-        |> List.map (fun ((ld : Data_types.label_description), _) -> ld.lbl_name)
+        |> List.map (fun ((ld : Data_types.label_description), _) ->
+            ld.lbl_name)
       in
       let given =
         Array.to_list fields
         |> List.filter_map (fun ((ld : Data_types.label_description), d) ->
-               match (d : Typedtree.record_label_definition) with
-               | Kept _ -> None
-               | Overridden (lid, _) -> Some (lid.loc.loc_start.pos_cnum, ld.lbl_name))
+            match (d : Typedtree.record_label_definition) with
+            | Kept _ -> None
+            | Overridden (lid, _) ->
+              Some (lid.loc.loc_start.pos_cnum, ld.lbl_name))
         |> List.sort compare |> List.map snd
       in
       let place =
@@ -104,7 +103,8 @@ let updates_of source (str : Typedtree.structure) =
         then "?"
         else
           let (ld : Data_types.label_description), _ = fields.(0) in
-          Printf.sprintf "%s:%d" ld.lbl_loc.loc_start.pos_fname (line ld.lbl_loc)
+          Printf.sprintf "%s:%d" ld.lbl_loc.loc_start.pos_fname
+            (line ld.lbl_loc)
       in
       rows
         := Printf.sprintf "%s\t%d\t%d\t%s\t%s\t%s\t%s" source (line e.exp_loc)
@@ -130,8 +130,8 @@ let items_of source (str : Typedtree.structure) =
            name first (last_line own) (line whole) (last_line whole)
          :: !rows
   in
-  (* the first of several definitions of one item begins where the item
-     does (at its keyword); each other one at its own first line *)
+  (* the first of several definitions of one item begins where the item does (at
+     its keyword); each other one at its own first line *)
   let first i (own : Location.t) (whole : Location.t) =
     if i = 0 then line whole else line own
   in
@@ -145,8 +145,8 @@ let items_of source (str : Typedtree.structure) =
             (fun i (vb : Typedtree.value_binding) ->
               List.iter
                 (fun id ->
-                  row "value" path (Ident.name id) vb.vb_loc (first i vb.vb_loc whole)
-                    whole)
+                  row "value" path (Ident.name id) vb.vb_loc
+                    (first i vb.vb_loc whole) whole)
                 (Typedtree.pat_bound_idents vb.vb_pat))
             vbs
         | Tstr_primitive vd ->
@@ -154,10 +154,12 @@ let items_of source (str : Typedtree.structure) =
         | Tstr_type (_, ds) ->
           List.iteri
             (fun i (d : Typedtree.type_declaration) ->
-              row "type" path d.typ_name.txt d.typ_loc (first i d.typ_loc whole) whole)
+              row "type" path d.typ_name.txt d.typ_loc (first i d.typ_loc whole)
+                whole)
             ds
         | Tstr_exception e ->
-          row "exception" path e.tyexn_constructor.ext_name.txt whole (line whole) whole
+          row "exception" path e.tyexn_constructor.ext_name.txt whole
+            (line whole) whole
         | Tstr_modtype mtd ->
           row "module type" path mtd.mtd_name.txt whole (line whole) whole
         | Tstr_module mb -> (
@@ -182,7 +184,9 @@ let items_of source (str : Typedtree.structure) =
     | Tmod_structure str -> items (name :: path) str
     | Tmod_functor (_, body) ->
       let name =
-        if String.length name >= 2 && String.sub name (String.length name - 2) 2 = "()"
+        if
+          String.length name >= 2
+          && String.sub name (String.length name - 2) 2 = "()"
         then name
         else name ^ "()"
       in
@@ -193,18 +197,23 @@ let items_of source (str : Typedtree.structure) =
   items [] str;
   List.rev !rows
 
-let items_not_read source why = Printf.sprintf "%s\t-\t\t%s\t-\t-\t-\t-" source why
+let items_not_read source why =
+  Printf.sprintf "%s\t-\t\t%s\t-\t-\t-\t-" source why
 
-(* The source of a typed tree in the tree, the rows of its record updates
-   and the rows of its items; or, for each of the two tables, the one row
-   that says why it was not read. *)
+(* The source of a typed tree in the tree, the rows of its record updates and
+   the rows of its items; or, for each of the two tables, the one row that says
+   why it was not read. *)
 let read cmt_file : string option * string list * string list =
-  let no source why = None, [not_read source why], [items_not_read source why] in
+  let no source why =
+    None, [not_read source why], [items_not_read source why]
+  in
   match Cmt_format.read_cmt cmt_file with
   | exception _ ->
     no (Filename.basename cmt_file) "not read: the typed tree could not be read"
   | cmt -> (
-    let named = Option.value ~default:(Filename.basename cmt_file) cmt.cmt_sourcefile in
+    let named =
+      Option.value ~default:(Filename.basename cmt_file) cmt.cmt_sourcefile
+    in
     match cmt.cmt_annots with
     | Implementation str -> (
       match Arities.tree_source cmt str with
@@ -214,8 +223,8 @@ let read cmt_file : string option * string list * string list =
 
 let is_white c = c = ' ' || c = '\t' || c = '\n' || c = '\r' || c = '\012'
 
-(* The number of tokens of a text and the checksum of their characters
-   that are not white space. *)
+(* The number of tokens of a text and the checksum of their characters that are
+   not white space. *)
 let tokens_of_text name text =
   let lexbuf = Lexing.from_string text in
   Lexing.set_filename lexbuf name;
@@ -235,8 +244,8 @@ let tokens_of_text name text =
   | n -> Ok (n, Digest.to_hex (Digest.string (Buffer.contents b)))
   | exception _ -> Error "not read: the compiler's lexer refuses the text"
 
-(* The row of DONOR-TOKENS.tsv of a file of the tree; none if the tree does
-   not have the file (a list of modules that the build writes). *)
+(* The row of DONOR-TOKENS.tsv of a file of the tree; none if the tree does not
+   have the file (a list of modules that the build writes). *)
 let tokens source =
   match Arities.read_file (Filename.concat !Common.source_root source) with
   | None -> None
@@ -253,10 +262,12 @@ let print_updates cmt_file =
   | Implementation str ->
     List.iter print_endline
       (updates_of (Option.value ~default:"?" cmt.cmt_sourcefile) str)
-  | _ -> print_endline (not_read cmt_file "not read: no typed tree of an implementation")
+  | _ ->
+    print_endline
+      (not_read cmt_file "not read: no typed tree of an implementation")
 
-(* For a test ([declgen --items FILE.cmt]): the rows of one typed tree,
-   whatever its source is. *)
+(* For a test ([declgen --items FILE.cmt]): the rows of one typed tree, whatever
+   its source is. *)
 let print_items cmt_file =
   let cmt = Cmt_format.read_cmt cmt_file in
   match cmt.cmt_annots with
