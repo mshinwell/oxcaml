@@ -185,12 +185,17 @@ Arguments Out_of_fuel {A}.
 
 (* A computation: a function of THE FUEL, a number, and of the state. The
    fuel is what the recursions that Rocq cannot see to end go down on (see
-   [fuel] below). No end holds it: so no computation changes it, and
-   everything that one run runs is run with the same fuel. A computation may
-   look at it. It is an inductive type, not an abbreviation of a function
-   type, so that no function of the port can be taken for a computation or
-   a computation for a function: only the operations of this file make and
-   run one. The ported files never write [Make_M] or [run]. *)
+   [fuel] below). No end holds it: so no computation hands another fuel on to
+   what is run after it, and THE OPERATIONS OF THIS FILE (the bind, the
+   handlers, the loops) run each of their parts with the fuel that they are
+   run with. That is said of these operations only: a declared function that
+   is given a computation, or a function that makes one, could run it with
+   another fuel, and nothing here says that it does not (a contract would).
+   A computation may look at it. It is an inductive type, not an
+   abbreviation of a function type, so that no function of the port can be
+   taken for a computation or a computation for a function: only the
+   operations of this file make and run one. The ported files never write
+   [Make_M] or [run]. *)
 Inductive M (A : Type) : Type :=
   Make_M (f : nat -> ocaml_state -> result A).
 

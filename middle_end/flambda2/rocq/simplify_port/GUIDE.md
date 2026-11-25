@@ -479,7 +479,10 @@ code is NOT established now (section 8).
   of or handled only if its argument has one of these types: Rocq refuses
   the other uses (`monad/real/Kit_refuses.v`), and `make exceptions`
   (`tools/exceptions.py`, a part of `make check`) refuses the declaration,
-  so that an exception which nothing uses yet does not pass. For an
+  so that an exception which nothing uses yet does not pass. The tool
+  reads the type AS IT IS SPELT: never give the name `unit` or `string`
+  to another type in a file (the tool would take the declaration; Rocq
+  would still refuse each use). For an
   exception that carries another type, tell the lead: the kit needs one
   more case. Write the sentence in this form and no other (one name, no
   `Axiom`), and never name the class `Carried` in a file. In the real
@@ -890,18 +893,40 @@ WHAT IS TRUSTED. To read a theorem of Rocq as a statement about a run of
 the OCaml program, a reader has to take all of this on trust. Rocq checks
 none of it.
 
-1. THE SENTENCE OF ADEQUACY. Read each parameter as the type, the
-   function, the value or the exception of OCaml that its directive names
-   (the same one for every fuel), and the state as the state of the OCaml
-   program. Let `f` be a ported function. If OCaml's run of the extracted
-   `f x` from the state `s` returns `v` in the state `s'`, then there is
-   a number `n0` such that, for EVERY fuel `n` from `n0` on, the Rocq run
-   of `f x` with the fuel `n` from `s` ends `Returned v' s'`; and if
-   OCaml's run raises `e` in `s'`, it ends `Raised e' s'`. Here `v'` is
-   `v` (and `e'` is `e`) but for one thing: a function inside it that was
-   made under `let_fuel!` holds the fuel `n`, where OCaml's function
-   holds none. Of a run of OCaml that does not end, the sentence says
-   nothing.
+1. THE SENTENCE OF ADEQUACY. It speaks of a run of OCaml and a run of
+   Rocq that CORRESPOND; the two are not the same thing. Read each
+   parameter as the type, the function, the value or the exception of
+   OCaml that its directive names (the same one for every fuel). A state
+   of Rocq STANDS FOR the part of the state of the OCaml program that
+   the model has; a value or an exception of Rocq stands for one of
+   OCaml. WHERE THE TWO ARE KNOWN TO DIFFER:
+   - the state leaves out OCaml's record of the last backtrace: a raise,
+     and a handler that raises again, change it in OCaml and change
+     nothing here (section 7, problem 10);
+   - `Assert_failure` carries nothing here; OCaml's carries the file, the
+     line and the column of the assertion;
+   - a function that was made under `let_fuel!`, or inside a function
+     that takes a fuel, holds a number: the fuel of the run, or what was
+     left of it where the function was made. OCaml's function holds
+     none;
+   - a ported function that is recursive takes a fuel as one more
+     argument, which the extracted function does not have. Whoever
+     states something of it gives that argument, and says how;
+   - a function of a ported module that another ported file calls is a
+     declaration there, a parameter. That it is the ported definition is
+     a link that nothing in this folder makes.
+   THE SENTENCE. Let `f` be a ported function, with its fuel given if it
+   takes one. If OCaml's run of the extracted `f x`, from a state that
+   `s` stands for, returns a value in a state, then there is a number
+   `n0` such that, for EVERY fuel `n` from `n0` on, the Rocq run of `f x`
+   with the fuel `n` from `s` ends `Returned v' s'`, where `v'` stands
+   for that value and `s'` for that state; and if OCaml's run raises an
+   exception, it ends `Raised e' s'` in the same sense. So a theorem of
+   Rocq is read as a statement about OCaml only if what it says of a
+   state, a value or an exception does not tell apart two that stand for
+   the same thing of OCaml: it must not speak of a fuel that a function
+   holds, of the place of an assertion, or of a backtrace. Of a run of
+   OCaml that does not end, the sentence says nothing.
    THE SENTENCE IS FALSE of a run in which one of these happens, so the
    reader trusts with it that none does:
    - an exception that the program does not raise itself:

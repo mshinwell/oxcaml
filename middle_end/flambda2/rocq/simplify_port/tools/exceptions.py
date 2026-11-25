@@ -49,6 +49,11 @@ comments and the strings taken out:
      would not take what the other raises.
 
 WHAT IT DOES NOT SEE.
+- What a name means. It compares the SPELLING of T with the spellings of
+  the kit's types and resolves no name: a file that gives the name [unit]
+  or [string] to another type ([Definition unit : Type := ..]) and then
+  declares [Parameter E : exception unit.] passes. No file does so today.
+  Rocq still refuses each use of such an exception in the real build.
 - An exception or an instance that is declared without these words: by a
   notation, or through a name that a file which the tool is not given
   makes for the type or for the class (the kit, contracts/, proofs/).

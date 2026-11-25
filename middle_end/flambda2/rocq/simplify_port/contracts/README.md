@@ -131,7 +131,8 @@ WHAT STAYS TRUSTED ABOUT NAMES. No tool reads a contract of a name.
 - That an exception carries what its declaration says. An exception can be
   USED only if it carries `unit` or `string`: Rocq refuses the others
   (`monad/real/Kit_refuses.v`), and `make exceptions` refuses their
-  declaration.
+  declaration, by the spelling of the type (a file that gave the name
+  `unit` or `string` to another type would pass that tool; none does).
 
 ## The contracts of today
 
