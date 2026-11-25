@@ -602,6 +602,9 @@ answer is yes:
   `.ocamlformat`, and neither has another file, tracked or not;
 - the folder's `dune` file is the one stanza `(include_subdirs no)`, and
   no other file of dune or of opam is in the folder;
+- every tracked path of the folder is made only of letters, digits and
+  the characters `_ . / + -` (the other things read the names by lines
+  and by words);
 - every `.ml` and `.mli` file for which ocamlformat is not disabled is as
   ocamlformat leaves it;
 - every shell script has the line `set -eu` before its first command

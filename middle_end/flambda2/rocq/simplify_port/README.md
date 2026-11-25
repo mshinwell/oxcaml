@@ -68,9 +68,10 @@ sources of that tree. The command makes `decl/` again from `ROOT` and
 compares it with the tree's; asks that the files under `extracted/` and
 `runtime/` are the ones that `make` makes and the kit, and no other; that
 the folder's `dune` file is the one stanza that the section above names,
-and the only file of dune in the folder; that ocamlformat leaves every
-`.ml` and `.mli` file as it is; that every shell script begins with `set
--eu`; then runs `make` from nothing and asks
+and the only file of dune in the folder; that the names of the tracked
+files have only letters, digits and the characters `_ . / + -`; that
+ocamlformat leaves every `.ml` and `.mli` file as it is; that every shell
+script begins with `set -eu`; then runs `make` from nothing and asks
 that `git status --porcelain` is empty after it and that the make left
 nothing in the folder but `_build/`. It prints each thing
 that it asks with the answer, one line each, and exits 0 only if every

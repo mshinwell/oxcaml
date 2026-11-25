@@ -68,9 +68,11 @@
 #      (include_subdirs no);
 #  (7) no other file named dune, dune-project, dune-workspace or *.opam is
 #      in the folder, tracked or on the disk;
-#  (8) every .ml and .mli file of the folder for which ocamlformat is not
-#      disabled (ocamlformat --print-config) is as ocamlformat leaves it
-#      (ocamlformat --check);
+#  (8) every tracked .ml and .mli file of the folder for which ocamlformat
+#      is not disabled is as ocamlformat leaves it (ocamlformat --check). A
+#      file is left out only if ocamlformat --print-config ends well for it
+#      and says disable=true; if that command fails for a file, or says
+#      neither disable=true nor disable=false, the answer is NO;
 #  (9) every tracked file of the folder that is a shell script (by its
 #      name *.sh, or by its first line) has the line `set -eu` before its
 #      first command (tools/shells.py);
@@ -83,7 +85,13 @@
 #      _build/ and nothing else: the make left nothing in the folder but
 #      that directory (the Makefile lets Python write no compiled copy of
 #      the tools beside them), so whoever removes _build/ after the gate
-#      has the tree as it was.
+#      has the tree as it was;
+# (14) every tracked path of the folder is made only of the letters A to Z
+#      and a to z, the digits, and the characters _ . / + - (no space, no
+#      line break, no other character). IT IS ASKED SECOND, after (1): the
+#      things after it read the names of the tracked files by lines and by
+#      words, and would not see a file with another name, or would cut its
+#      name in two. (8) and (9) take each name whole all the same.
 # The make is the long part (about 25 minutes). It is NOT RUN if an answer
 # before it is NO, and the gate has then failed: (10) to (13) say "not
 # asked".
@@ -114,8 +122,9 @@
 # not there. If it is not given, a new directory is made under the
 # temporary directory (TMPDIR, or /tmp); the second line that the gate
 # prints names it. It keeps decl.log, the decl/ that was made (decl/), the
-# generator as it was compiled (declgen/), list.log (what make list said),
-# shells.log and make.log. What an
+# generator as it was compiled (declgen/), tracked.z (the tracked paths
+# of the folder, each ended by a null byte), list.log (what make list
+# said), shells.log and make.log. What an
 # earlier run of the gate left there under these names is removed first, so
 # the gate can be called again with the same LOG_DIR; to keep the logs of
 # several commits, give each call its own. In the folder of the port the
@@ -170,7 +179,7 @@ if [ -n "$why" ]; then
 fi
 if [ $given = yes ]; then mkdir -p "$logs"; else logs=$(mktemp -d "$logs/tmp.XXXXXXXXXX"); fi
 rm -rf "$logs/decl" "$logs/declgen"
-rm -f "$logs/decl.log" "$logs/decl.made" "$logs/decl.tracked" "$logs/list.log" "$logs/shells.log" "$logs/make.log"
+rm -f "$logs/decl.log" "$logs/decl.made" "$logs/decl.tracked" "$logs/tracked.z" "$logs/list.log" "$logs/shells.log" "$logs/make.log"
 no=0
 # answer N WHAT yes|NO [FOUND] : one line; counts the answers NO
 answer() {
@@ -219,6 +228,27 @@ else marked=$(printf '%s\n' "$entries" | grep -v '^H ' | one_line) || true; fi
 if [ -z "$found" ] && [ -z "$marked" ]; then a=yes; else a=NO; fi
 if [ -n "$marked" ]; then found="${found:+$found; }entries of the index that are marked (git ls-files -v), or git ls-files failed: $marked"; fi
 answer 1 "before anything is made, the folder has only tracked files, none changed, none that the index tells Git not to look at, and no _build" $a "$found"
+
+# (14): the tracked paths, each ended by a null byte, in a file; each is
+# read whole from it, here and in (8) and (9)
+# plain NAME : is the name made only of the characters of (14)
+plain() { local LC_ALL=C; case "$1" in ""|*[!A-Za-z0-9_./+-]*) return 1;; esac; return 0; }
+rc=0
+git ls-files -z > "$logs/tracked.z" || rc=$?
+all=0; bad=0; which=""
+while IFS= read -r -d '' f; do
+  all=$((all+1))
+  if ! plain "$f"; then
+    bad=$((bad+1))
+    if [ $bad -le 4 ]; then which="$which $(printf '%q' "$f")"; fi
+  fi
+done < "$logs/tracked.z"
+if [ $rc = 0 ] && [ $bad = 0 ] && [ $all -gt 0 ]; then a=yes; found="$all paths"
+else
+  a=NO; found="$bad of the $all paths, as the shell writes them:$which"
+  if [ $rc != 0 ]; then found="git ls-files exits $rc; $found"; fi
+fi
+answer 14 "every tracked path of the folder is made only of letters, digits and the characters _ . / + -" $a "$found"
 
 # (2)
 rc=0
@@ -292,22 +322,39 @@ disk=$(find . -type f | sed 's|^\./||' | of_dune)
 if [ "$tracked" = dune ] && [ "$disk" = dune ]; then a=yes; found=""; else a=NO; found="tracked: ${tracked:-none}; on the disk: ${disk:-none}"; fi
 answer 7 "no other file named dune, dune-project, dune-workspace or *.opam is in the folder, tracked or on the disk" $a "$found"
 
-# (8)
-all=0; on=0; bad=0; which=""
-for f in $(git ls-files | grep -E '\.mli?$' | LC_ALL=C sort); do
+# (8): what ocamlformat --print-config says of a file is taken by a command
+# that stands alone, and its status is read: a failure is not "disabled"
+all=0; on=0; off=0; bad=0; which=""; unsaid=0; unsaid_which=""
+while IFS= read -r -d '' f; do
+  case "$f" in *.ml|*.mli) ;; *) continue;; esac
   all=$((all+1))
-  if ocamlformat --print-config "$f" 2>&1 | grep -q '^disable=false'; then
+  rc=0
+  config=$(ocamlformat --print-config "$f" 2>&1 < /dev/null) || rc=$?
+  if [ $rc = 0 ] && printf '%s\n' "$config" | grep -q -E '^disable=false( |$)'; then
     on=$((on+1))
-    if ! ocamlformat --check "$f" > /dev/null 2>&1; then bad=$((bad+1)); which="$which $f"; fi
+    if ! ocamlformat --check "$f" > /dev/null 2>&1 < /dev/null; then
+      bad=$((bad+1))
+      if [ $bad -le 6 ]; then which="$which $(printf '%q' "$f")"; fi
+    fi
+  elif [ $rc = 0 ] && printf '%s\n' "$config" | grep -q -E '^disable=true( |$)'; then
+    off=$((off+1))
+  else
+    unsaid=$((unsaid+1))
+    if [ $unsaid -le 6 ]; then unsaid_which="$unsaid_which $(printf '%q' "$f")"; fi
   fi
-done
-if [ $bad = 0 ] && [ $on -gt 0 ]; then a=yes; found="$on of the $all .ml and .mli files"
-else a=NO; found="$bad of the $on for which it is not disabled ($all .ml and .mli files):$(echo "$which" | cut -d' ' -f1-6)"; fi
+done < "$logs/tracked.z"
+found="$on of the $all .ml and .mli files; ocamlformat is disabled for $off"
+if [ $bad = 0 ] && [ $unsaid = 0 ] && [ $on -gt 0 ]; then a=yes
+else
+  a=NO
+  if [ $bad != 0 ]; then found="$found; not as ocamlformat leaves them, $bad:$which"; fi
+  if [ $unsaid != 0 ]; then found="$found; ocamlformat --print-config fails or does not say whether it is disabled, $unsaid:$unsaid_which"; fi
+fi
 answer 8 "every .ml and .mli file of the folder for which ocamlformat is not disabled is as ocamlformat leaves it" $a "$found"
 
 # (9)
 rc=0
-git ls-files -z | xargs -0 "$PYTHON" tools/shells.py > "$logs/shells.log" 2>&1 || rc=$?
+xargs -0 "$PYTHON" tools/shells.py < "$logs/tracked.z" > "$logs/shells.log" 2>&1 || rc=$?
 found=$(one_line < "$logs/shells.log")
 if [ $rc = 0 ] && [ -n "$found" ]; then a=yes; else a=NO; fi
 answer 9 "every tracked file of the folder that is a shell script has the line set -eu before its first command" $a "${found#shells: }"
