@@ -23,18 +23,23 @@ and `utils/target_system.mli`): their files say so in its place.
 
 THE STANDARD LIBRARY IS NOT READ FROM THIS TREE. The compiled interfaces
 of `List`, `Option`, `Format` and the other units of the standard library
-(18 files here, 247 declarations: 232 values and 15 types) are those of
-the OCaml that compiled the build's first stage, found through the load
-path that the build recorded; the tree's own `stdlib/` is compiled later,
-by the tree's own compiler, in a format that the OCaml which builds
-`tools/declgen` does not read. What is taken from them is the names and
-the types. The header of such a file is that of the tree's own
-`stdlib/NAME.mli`, and the comment before a declaration names that file,
-without a line; the words of the comment are not that file's text: they
-are the name and the type as the generator prints them from the compiled
-interface (for a type, the name only). `PROVENANCE.md`, last section,
-has the command that counts them and what a comparison of the two
-libraries' interfaces found.
+are those of the OCaml that compiled the build's first stage, found
+through the load path that the build recorded; the tree's own `stdlib/`
+is compiled later, by the tree's own compiler, in a format that the OCaml
+which builds `tools/declgen` does not read. What is taken from them is
+the names and the types of 247 declarations here (232 values and 15
+types): 200 in the 18 files that are named after a unit of the library,
+42 in `Numeric_types.v` (what its `Int32` and `Int64` include of the
+library's) and 5 in `Rebuilt_expr__local.v` (an application of
+`Hashtbl.Make`). The header of each of the 18 files is that of the tree's
+own `stdlib/NAME.mli` (as is that of `Lazy.v`, which declares nothing);
+the two other files are of the compiler's modules and keep their own
+headers. The comment before such a declaration (one for a whole family
+of a function of formats) names the library's file, without a line; the
+words of the comment are not that file's text: they are the name and the
+type as the generator prints them from the compiled interface (for a
+type, the name only). `PROVENANCE.md`, last section, has the commands that count them
+and what a comparison of the two libraries' interfaces found.
 
 ## To make them again
 

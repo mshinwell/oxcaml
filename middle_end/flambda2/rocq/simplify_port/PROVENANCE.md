@@ -8,8 +8,8 @@ port; follows no file of the compiler; MIT header of
 `middle_end/flambda2/rocq/`). The donor commit of every transcribed and
 generated file is ecc5c0d968c892b4312065caef0f19ffffa042a9. ONE THING
 HERE DOES NOT COME FROM THIS REPOSITORY: the types of the standard
-library's values in 18 files of `decl/`. The last section says what is
-read, what is taken and for how many declarations.
+library's values in 20 files of `decl/`. The last section says what is
+read, what is taken, for how many declarations and in which files.
 
 | file | donor or source | kind |
 |---|---|---|
@@ -20,7 +20,7 @@ read, what is taken and for how many declarations.
 | `tools/assemble.sh`, `tools/progress.sh`, `tools/lint.py`, `tools/comments.py`, `tools/linktest.sh`, `tools/aliases.py`, `tools/samecode.sh`, `tools/papp.py`, `tools/given.py` | none | original |
 | `tools/check.sh` | none; its list of include directories and `-open` flags is after `middle_end/flambda2/simplify/dune` | original |
 | `tools/declgen/*` | none; it reads the compiled interfaces and typed trees of a build of the compiler, with the compiler's own library (`compiler-libs`); for the standard library it reads the compiled interfaces of the library of the OCaml that made the build (last section) | original |
-| `decl/*.v` | written by `tools/declgen` from the compiled interface of the compiler's module of the same name; each begins with the header of that interface (`decl/README.md`). For the 18 files of modules of the standard library the compiled interface is NOT made from this tree (last section); the header is that of the tree's own `stdlib/NAME.mli` | generated |
+| `decl/*.v` | written by `tools/declgen` from the compiled interface of the compiler's module of the same name; each begins with the header of that interface (`decl/README.md`). For the 18 files of units of the standard library that declare something the compiled interface is NOT made from this tree (last section); the header is that of the tree's own `stdlib/NAME.mli` (also in `Lazy.v`, which declares nothing). Two files of the compiler's own modules (`Numeric_types.v`, `Rebuilt_expr__local.v`) also hold declarations whose types come from those interfaces, through what the module includes or applies of the library; they keep the header of the compiler's file | generated |
 | `decl/INDEX.tsv`, `decl/NOT-DECLARED.tsv`, `decl/FUNCTOR-ARGUMENTS.tsv`, `decl/VARIANTS.tsv` | written by `tools/declgen` with the `.v` files, from the compiled interfaces and the typed trees of the compiler (`decl/README.md` says what each holds) | generated |
 | `decl/ARITIES.tsv` | written by `tools/declgen` from the typed trees of the implementations of the compiler's modules (`decl/README.md`, last section) | generated |
 | `decl/UPDATES.tsv`, `decl/DONOR-TOKENS.tsv` | written by `tools/declgen` (`donors.ml`) about the 78 files of `middle_end/flambda2/simplify/`: the first from their typed trees (names and numbers of lines, no text), the second from their text as the compiler's lexer reads it (for each file a number and a digest, no text) (`decl/README.md`, the section before the last) | generated |
@@ -51,9 +51,12 @@ compiler at the second stage, in a format that the OCaml which builds
 WHAT IS TAKEN from those interfaces: the names and the TYPES of the values
 and of the types of the standard library that `decl/` declares, written
 as Rocq declarations. No body of a function, no text of an interface, no
-comment. In such a file of `decl/` the header is that of the tree's own
-`stdlib/NAME.mli`, and the comment before a declaration names that file,
-without a line. The words of that comment are NOT that file's text: they
+comment. In a file of `decl/` that is named after a unit of the standard
+library the header is that of the tree's own `stdlib/NAME.mli`. The
+comment before such a declaration, in whatever file it stands, names
+that file, without a line (a family of a function of formats, such as
+`Format.fprintf`, has one comment for its members: 165 comments for the
+247 rows). The words of that comment are NOT that file's text: they
 are the name and the type as the generator prints them from the compiled
 interface (for a type, the name only). So a type there may be written as
 the tree's file does not write it: without the kinds that the tree's
@@ -65,10 +68,30 @@ HOW MANY: the rows of `decl/INDEX.tsv` whose place is under `stdlib/`.
     awk -F'\t' '$5 ~ /^stdlib\// {n[$3]++; u[$5]++}
       END {for (k in n) print n[k], k; c = 0; for (k in u) c++; print c, "files"}' decl/INDEX.tsv
 
-prints `232 value`, `15 type` and `18 files`: 247 of the 8,892 rows, in
-the files of `decl/` named after `Array`, `ArrayLabels`, `Bool`, `Float`,
-`Format`, `Hashtbl`, `Int`, `Int32`, `Int64`, `List`, `ListLabels`,
-`Option`, `Printexc`, `Printf`, `Queue`, `Seq`, `Stdlib` and `String`.
+prints `232 value`, `15 type` and `18 files`: 247 of the 8,892 rows. The
+18 are the interfaces `stdlib/NAME.mli` that the rows name as their
+place, NOT the files of `decl/` that hold them. Those are 20:
+
+    awk -F'\t' '$5 ~ /^stdlib\// {split($2, a, "."); n[a[1]]++}
+      END {c = 0; for (k in n) {c++; print n[k], k}; print c, "files of decl/"}' decl/INDEX.tsv
+
+- 200 rows in the 18 files of `decl/` named after a unit of the library:
+  `Array`, `ArrayLabels`, `Bool`, `Float`, `Format`, `Hashtbl`, `Int`,
+  `Int32`, `Int64`, `List`, `ListLabels`, `Option`, `Printexc`, `Printf`,
+  `Queue`, `Seq`, `Stdlib_` (the library's `Stdlib`) and `String`. These
+  carry the header of `stdlib/NAME.mli`; so does a nineteenth file,
+  `Lazy.v`, which declares nothing (`Lazy.force` is in the kit) and has
+  no row.
+- 42 rows in `Numeric_types.v`: what the compiler's `Numeric_types.Int32`
+  and `Numeric_types.Int64` include of the library's `Int32` and `Int64`
+  (19 and 23 rows; places `stdlib/int32.mli` and `stdlib/int64.mli`).
+- 5 rows in `Rebuilt_expr__local.v`: the module `HV` of
+  `rebuilt_expr.ml`, which is `Hashtbl.Make` applied (place
+  `stdlib/hashtbl.mli`).
+
+The last two files are of the compiler's own modules and KEEP THEIR OWN
+HEADERS (that of `numeric_types.mli` and of `rebuilt_expr.ml`); only the
+comments before the 47 declarations name the library's files.
 
 COULD THE TREE'S OWN INTERFACES BE READ INSTEAD? Not by this generator,
 for the reason of the format; a second generator, built with the tree's
