@@ -102,7 +102,7 @@ written there). The generator is OCaml and is compiled against the
 With `DECL_OUT=DIR` in the environment `run.sh` writes into `DIR` and not
 into `decl/`, and with `DECLGEN_BUILD=DIR` it compiles the generator in
 `DIR` and not under `_build/` (to compare what is made with what is
-committed, and to make nothing in the folder).
+committed, and to make nothing in the folder: `tools/gate.sh` sets both).
 
 ## What a file says that it was made from
 
@@ -170,7 +170,7 @@ compare, with the reason.
   header with the header of the library that was read (`PROVENANCE.md`
   says what was compared once, by hand).
 - Named in no file: the OCaml that made the build, and the text of the
-  generator itself.
+  generator itself. `tools/gate.sh` prints the versions of the programs.
 
 ## What is read, and how a thing is found
 

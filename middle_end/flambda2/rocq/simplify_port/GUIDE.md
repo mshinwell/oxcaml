@@ -578,6 +578,34 @@ tree after the swap, and compares the exit status, the output and the
 messages. `tests/fl/README.md` says how the copies are built, which
 functions each test is for, and what to know to write another.
 
+THE GATE (`tools/gate.sh BUILD_ROOT`; not part of `make`: it runs `make`)
+is ONE COMMAND THAT ASKS WHAT A COMMIT OF THE PORT MUST HOLD. Run it in a
+work tree that has only its tracked files (a new `git worktree`; `git
+clean -xdn .` shows what else a tree has), with the `_build/default` of a
+build of the compiler from the sources of that tree. It prints each thing
+that it asks with the answer, one line each, and exits 0 only if every
+answer is yes:
+
+- `decl/` made again from the build root is the `decl/` of the tree, file
+  by file (`README.md` apart), and each text that a file of `decl/` names
+  is the text that the commit has;
+- the `.ml` files under `extracted/` are those of `make list`, the `.ml`
+  files under `runtime/` are the two of the kit, each folder has its
+  `.ocamlformat`, and neither has another file, tracked or not;
+- the folder's `dune` file is the one stanza `(include_subdirs no)`, and
+  no other file of dune or of opam is in the folder;
+- every `.ml` and `.mli` file for which ocamlformat is not disabled is as
+  ocamlformat leaves it;
+- `make` from nothing exits 0, and `git status --porcelain` is empty
+  after it: the extracted files and `PROGRESS.md` are made again as they
+  are committed.
+
+The make is the long part (about 25 minutes, one process); it is not run
+if an answer before it is no. The head of the script has the whole list
+and what the gate does NOT ask: which paths a range of commits changes,
+who made the commits and how their subjects read, which words the texts
+use. RUN IT BEFORE YOU SEND A CHECKPOINT, and send its lines.
+
 ## 7. What Rocq's text looks like, and known problems to look at later
 
 WHERE THE EXTRACTED TEXT IS NOT THE COMPILER'S (directives alone cannot):

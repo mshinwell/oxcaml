@@ -53,3 +53,24 @@ formatting remains enabled for its extracted files and runtime.
 `tools/linktest.sh` says how a compiler is built with the extracted files
 in the place of its own Simplify, in a scratch tree (`GUIDE.md`, section
 6).
+
+## The gate
+
+One command asks what a commit of the port must hold. In a work tree
+that has only its tracked files (a new `git worktree`), from any
+directory:
+
+    middle_end/flambda2/rocq/simplify_port/tools/gate.sh ROOT
+
+`ROOT` is as for `make`, and must be a build of the compiler from the
+sources of that tree. The command makes `decl/` again from `ROOT` and
+compares it with the tree's; asks that the files under `extracted/` and
+`runtime/` are the ones that `make` makes and the kit, and no other; that
+the folder's `dune` file is the one stanza that the section above names,
+and the only file of dune in the folder; that ocamlformat leaves every
+`.ml` and `.mli` file as it is; then runs `make` from nothing and asks
+that `git status --porcelain` is empty after it. It prints each thing
+that it asks with the answer, one line each, and exits 0 only if every
+answer is yes. The make is the long part (about 25 minutes, one process).
+The head of `tools/gate.sh` has the whole list, and what the gate does
+not ask; `GUIDE.md`, section 6, says when it is run.

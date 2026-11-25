@@ -29,8 +29,8 @@
 # build.sh : compiles the generator of decl/ (one process) into
 # simplify_port/_build/declgen/declgen; or into DIR/declgen, if
 # DECLGEN_BUILD=DIR is in the environment (for a run that must make nothing
-# in the folder; DIR is for this alone: the compiled files in it are
-# removed first). It needs the compiler's own
+# in the folder, as that of tools/gate.sh; DIR is for this alone: the
+# compiled files in it are removed first). It needs the compiler's own
 # library (compiler-libs) of the OCaml that built the compiler whose
 # interfaces are read. This file follows no file of the compiler.
 set -eu
