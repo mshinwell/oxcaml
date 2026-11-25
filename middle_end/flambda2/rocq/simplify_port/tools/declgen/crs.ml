@@ -43,16 +43,21 @@
    THE WORDS ARE WRITTEN BY HAND, and they name things of the file: the file
    whose notice it carries, what it declares. So that a question does not go on
    saying a thing that is no longer so, a row says the same things once more as
-   data, and the generator compares them with what it is about to write: -
-   [notice_of]: the file whose header the file of decl/ carries (the interface
-   that it follows; for a file FILE__local, the file of Simplify); -
-   [has_notice]: whether that file has a header; - [about]: what the file of
-   decl/ declares. Names are those of OCaml, as the first column of
-   decl/INDEX.tsv has them, and a name stands for itself and for all that is
-   inside it (a module for its members). [All names]: every declaration of the
-   file is one of these, and each of these is declared. [Of_library pairs]: the
-   same, of the declarations whose place is a file of the standard library
-   ([stdlib/] in the last column of decl/INDEX.tsv), each name with that file.
+   data, and the generator compares them with what it is about to write:
+
+   - [notice_of]: the file whose header the file of decl/ carries (the interface
+   that it follows; for a file FILE__local, the file of Simplify);
+
+   - [has_notice]: whether that file has a header;
+
+   - [about]: what the file of decl/ declares. Names are those of OCaml, as the
+   first column of decl/INDEX.tsv has them, and a name stands for itself and for
+   all that is inside it (a module for its members). [All names]: every
+   declaration of the file is one of these, and each of these is declared.
+   [Of_library pairs]: the same, of the declarations whose place is a file of
+   the standard library ([stdlib/] in the last column of decl/INDEX.tsv), each
+   name with that file.
+
    If one of the three is not so, the words are to be read again and the row
    mended.
 
