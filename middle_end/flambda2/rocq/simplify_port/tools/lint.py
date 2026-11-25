@@ -36,8 +36,13 @@ It COUNTS WORDS, it does not know Rocq's scopes: after the [in] that ends
 The extraction writes the call where the temporary is used: one that is not
 used would vanish with its call. What it does not see: where the use is
 (under a [fun], in a branch), and a use that is in truth of another variable
-of the same name. It follows no file of the compiler."""
+of the same name. A label of the kit ([~l:x], which Rocq reads as [x]) is
+made blank before the uses are counted, as tools/papp.py reads it (LABELS,
+there): the name of a label is no use of a temporary. It follows no file of
+the compiler."""
 import re, sys
+sys.dont_write_bytecode = True
+import papp
 
 def strip_comments(s):
     out = []; depth = 0; i = 0; in_str = False
@@ -53,6 +58,9 @@ def strip_comments(s):
 
 path = sys.argv[1]
 text = strip_comments(open(path).read())
+# the same text with each label of the kit made blank, for the count of the
+# uses of a temporary
+unlabelled = papp.without_labels(text)
 bad = 0
 def line_of(pos): return text.count('\n', 0, pos) + 1
 binds = list(re.finditer(r"let!\s+([A-Za-z_][A-Za-z_0-9']*)\s*:=", text))
@@ -77,7 +85,7 @@ for n, m in enumerate(binds):
     if body is None:
         print("%s:%d: no [in] found for let! %s" % (path, line_of(m.start()), name)); bad += 1
         continue
-    uses = len(re.findall(r"(?<![A-Za-z_0-9'.])%s(?![A-Za-z_0-9'])" % name, text[body:end]))
+    uses = len(re.findall(r"(?<![A-Za-z_0-9'.])%s(?![A-Za-z_0-9'])" % name, unlabelled[body:end]))
     if uses != 1:
         print("%s:%d: %s is used %d times: a let! is used exactly once" % (path, line_of(m.start()), name, uses)); bad += 1
 # Rocq's own [let x := e in] (not [let*], [let&], [let!]): the extraction
@@ -138,8 +146,6 @@ for m in re.finditer(r'Extract\s+Inlined\s+Constant\s+(update_[A-Za-z_0-9\']*)\s
 # The partial applications of declared functions (GUIDE.md, section 2):
 # each [pappN F] against decl/ARITIES.tsv, and the marks PORT-GAP(papp).
 # tools/papp.py says what is checked and what is not.
-sys.dont_write_bytecode = True
-import papp
 papp_lines, papp_bad = papp.check(path, raw)
 for l in papp_lines: print(l)
 bad += papp_bad
