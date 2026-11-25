@@ -18,12 +18,14 @@ read, what is taken, for how many declarations and in which files.
 
 | file | donor or source | kind |
 |---|---|---|
-| `monad/real/Port_monad.v`, `monad/real/Kit_refuses.v`, `monad/id/Port_monad.v` | none | original |
+| `monad/real/Port_monad.v`, `monad/real/Kit_refuses.v`, `monad/real/Kit_laws.v`, `monad/id/Port_monad.v` | none | original |
+| `contracts/*.v`, `contracts/ported/*.v`, `contracts/ported/DIR/*.v`, `contracts/README.md` | none; they name functions, exceptions and files of the compiler and of the port | original |
+| `proofs/*.v`, `proofs/DIR/*.v`, `proofs/README.md` | none; statements and proofs about ported files, written for the port. `proofs/env/Continuation_uses_handlers.v` holds two format strings of `env/Continuation_uses.v` (which has them from `middle_end/flambda2/simplify/env/continuation_uses.ml`): two of its premises name a call by its format | original |
 | `runtime/port_monad.ml`, `runtime/port_abbreviations.ml` (empty) | none | original |
 | `abbrev/FILE/Port_abbreviations.v` | the lines `module A = P` of the compiler's file that the ported file FILE follows (its abbreviations of modules), as Rocq's `Module A := P.` | transcribed |
 | `Makefile`, `GUIDE.md`, `PROVENANCE.md`, `README.md`, `.gitignore` | none | original |
 | `dune` | none; its one stanza, `(include_subdirs no)`, is a stanza of dune that dune files of the compiler also have (`middle_end/flambda2/tests/dune`) | original |
-| `tools/assemble.sh`, `tools/progress.sh`, `tools/lint.py`, `tools/comments.py`, `tools/linktest.sh`, `tools/aliases.py`, `tools/samecode.sh`, `tools/papp.py`, `tools/given.py`, `tools/lines.py`, `tools/gate.sh`, `tools/shells.py` | none | original |
+| `tools/assemble.sh`, `tools/progress.sh`, `tools/lint.py`, `tools/comments.py`, `tools/linktest.sh`, `tools/aliases.py`, `tools/samecode.sh`, `tools/papp.py`, `tools/given.py`, `tools/lines.py`, `tools/gate.sh`, `tools/shells.py`, `tools/exceptions.py` | none | original |
 | `tools/check.sh` | none; its list of include directories and `-open` flags is after `middle_end/flambda2/simplify/dune` | original |
 | `tools/declgen/*` | none; it reads the compiled interfaces and typed trees of a build of the compiler, with the compiler's own library (`compiler-libs`); for the standard library it reads the compiled interfaces of the library of the OCaml that made the build (last section) | original |
 | `decl/*.v` | written by `tools/declgen` from the compiled interface of the compiler's module of the same name; each begins with the header of that interface and names the text of that interface by its Git blob (`decl/README.md`). For the 18 files of units of the standard library that declare something the compiled interface is NOT made from this tree (last section); the header is that of the tree's own `stdlib/NAME.mli` (also in `Lazy.v`, which declares nothing). Two files of the compiler's own modules (`Numeric_types.v`, `Rebuilt_expr__local.v`) also hold declarations whose types come from those interfaces, through what the module includes or applies of the library; they keep the header of the compiler's file | generated |

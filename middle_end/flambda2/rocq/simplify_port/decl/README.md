@@ -246,7 +246,9 @@ OCaml name, Rocq name, kind, number of arguments, interface and line.
   format a `string`, all realised by the same name.
 - A value that is not a function: pure, `Parameter empty : t.`
 - An exception: `Parameter E : exception payload.`, realised by a pair (the
-  maker, the test).
+  maker, the test). The real build can raise or handle it only if
+  `payload` is `unit` or `string`; `make exceptions` refuses a declaration
+  with another type (GUIDE.md, section 4).
 - A type that Simplify does not take apart: `Parameter t : Type.` With no
   parameter it has `Extract Inlined Constant t => "Mod.t"`: Rocq prints the
   string wherever the type is used. With parameters it has

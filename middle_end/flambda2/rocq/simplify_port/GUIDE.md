@@ -2,8 +2,9 @@
 
 `simplify/DIR/foo.ml` of the compiler becomes `simplify_port/DIR/Foo.v`. Rocq
 compiles it twice, against two files `Port_monad.v` with the same names:
-`monad/real` (what the port MEANS: a monad of the world, fatal errors,
-exceptions and fuel) and `monad/id` (`M A` is `A`). From the second build
+`monad/real` (what the port MEANS: a computation is run with a fuel from a
+state of OCaml, and returns a value, raises an exception or is out of
+fuel; section 8) and `monad/id` (`M A` is `A`). From the second build
 Rocq extracts OCaml in direct style, by its extraction and directives alone;
 no tool changes Rocq's text. ocamlformat formats it and OCaml checks its types
 against the compiler's interfaces: `extracted/DIR/foo.ml`, which is committed
@@ -335,10 +336,15 @@ recursion: `with`. A local `let rec`: Rocq's own `let f := fix f (fuel :
 Port_monad.fuel) ... := recursive! fuel in ... in` (not `let&`). A caller
 outside the recursion: `let_fuel! fuel in f fuel ...`. In the identity build
 the fuel is a proposition, which the extraction erases: the extracted code
-is the compiler's `let rec`. HUMAN: there is no axiom in the real build; a
-statement of Rocq about a function can only be about runs for which the
-fuel was enough, and that it holds of the OCAML code is NOT established now
-(section 7).
+is the compiler's `let rec`. IN THE REAL BUILD the fuel of a run is the
+number that the run is given. `recursive! fuel in BODY` is out of fuel
+where `fuel` is `Out`, and BODY with the smaller fuel otherwise. `let_fuel!
+fuel in k` is `k` with the number of the run as a `fuel`: a function that
+is made there and used later (`papp1 simplify_expr fuel`) HOLDS that fuel.
+`while_` runs its body at most that number of times. HUMAN: there is no
+axiom in the real build; a statement of Rocq about a function can only be
+about runs for which the fuel was enough, and that it holds of the OCAML
+code is NOT established now (section 8).
 
 ## 4. Types
 
@@ -453,7 +459,18 @@ fuel was enough, and that it holds of the OCAML code is NOT established now
   the construction or the number.
 - An exception of the file: `exception E` verbatim, `Parameter E : exception
   unit.` and `Extract Inlined Constant E => "((fun () -> E), (function E ->
-  Some () | _ -> None))".`
+  Some () | _ -> None))".` WHAT IT MAY CARRY: `unit` (a constant exception)
+  or `string`. In the real build an exception can be raised, made a value
+  of or handled only if its argument has one of these types: Rocq refuses
+  the other uses (`monad/real/Kit_refuses.v`), and `make exceptions`
+  (`tools/exceptions.py`, a part of `make check`) refuses the declaration,
+  so that an exception which nothing uses yet does not pass. For an
+  exception that carries another type, tell the lead: the kit needs one
+  more case. Write the sentence in this form and no other (one name, no
+  `Axiom`), and never name the class `Carried` in a file. In the real
+  build `E` is a parameter, and Rocq knows its type only: its NAME, by
+  which it is told from every other exception, is a contract
+  (`contracts/README.md` has the rule of names).
 - A module that the file makes with a functor (`module SCC =
   Strongly_connected_components.Make (...)`): the OCaml line verbatim, and
   `From SimplifyPort.decl Require Import Foo__local.`, which declares it
@@ -548,7 +565,12 @@ status that is not 0.
 One process; no `-j`. A file is committed when both builds of Rocq compile
 it AND `extracted/DIR/foo.ml` type-checks (`overlay` is enough: the
 compiler's module with your definitions in the place of its own has the
-compiler's interface; `strict`: your file has the whole interface). One
+compiler's interface; `strict`: your file has the whole interface).
+`make real` also compiles the laws of the kit, the contracts and the first
+lemmas about ported files (`monad/real/Kit_laws.v`, `contracts/`,
+`proofs/`; section 8). A lemma of `proofs/` is about the text of a ported
+file: if you change a ported function that a lemma is about, `make` may
+stop at the lemma. Tell the lead; do not take the lemma away. One
 commit a file: the `.v` and its `extracted/` file, nothing else. Read your
 extracted file beside the donor before you commit: that reading is the
 review. If OCaml says `Unbound record field`, `This form is not allowed as
@@ -783,6 +805,117 @@ checked by a tool, but the first in part). In the identity build `M A` is
    statements are about `monad/real`. That the extracted OCaml does what
    `monad/real` says is not established: it needs enough fuel, the order
    of evaluation that the human states, the assumption on partial
-   application, AND an answer to the problems 1 to 7.
+   application, AND an answer to the problems 1 to 7. Section 8 has the
+   sentence that is trusted in its place.
 9. `int` is `Z`: no overflow in Rocq. Physical equality and the contents of
-   references are parameters; the printing of a fatal error is not modelled.
+   references are parameters. The printing of a fatal error is a parameter
+   of the kit (`print_fatal_message`), and it runs before the raise: a
+   printer may raise, so that a fatal error ENDS in a fatal error is a
+   contract of its message (`contracts/README.md`); without it Rocq proves
+   only that a fatal error never returns.
+10. BACKTRACES are not in the model. OCaml's runtime keeps a record of the
+   last exception that was raised; a raise writes it, and so does a handler
+   that lets an exception go on. The state of the real monad does not hold
+   it: a raise changes no state there. `Printexc.get_raw_backtrace` and
+   `Printexc.raise_with_backtrace` are declared functions like the others,
+   and what the port assumes of them (`contracts/Printexc.v`) says nothing
+   of that record. No statement of Rocq speaks of a backtrace.
+
+## 8. What is proved, what is assumed, what is trusted
+
+THE REAL MONAD (`monad/real/Port_monad.v`). `M A` is a function: given a
+FUEL (a number) and a state of OCaml, it gives an END. An end is one of
+three: a value and a state (`Returned`), an exception and a state
+(`Raised`), or `Out_of_fuel`. A FATAL ERROR is the exception
+`Misc.Fatal_error`, as in OCaml: it has no end of its own, and a handler
+for `Misc.Fatal_error` takes it. An EXCEPTION is its name, and a value of
+OCaml's `exn` is a name with what it carries (nothing, or a string). The
+STATE is a parameter: nothing says what it holds.
+
+WHAT A PARAMETER SAYS. `Parameter f : a -> M b.` says that `f` has that
+type, and NOTHING ELSE: not that `f x` returns, not what it returns, not
+that it raises nothing, not that it leaves the state alone. `Parameter E :
+exception T.` says that `E` is an exception that carries a `T`, and
+NOTHING ELSE: not its name, so not that it differs from any other
+exception. A function or an exception that `decl/` declares is such a
+parameter. So is an exception that a ported file declares, and a function
+that it leaves unported. So are the kit's own: the state, the printing of
+a fatal error, references, lazy values, arrays, the polymorphic
+comparisons and physical equality. A statement of Rocq that needs more of
+a parameter has what it needs as a premise.
+
+WHAT IS PROVED. Rocq checks, in `make real`:
+
+- THE LAWS of the kit, `monad/real/Kit_laws.v`: what a handler takes and
+  what it lets pass; the one notion of "ends in a fatal error"; how each
+  operation runs; the form of a statement about a ported function (`spec`:
+  for every fuel and every state of which P holds, a value that is
+  returned has Q and an exception that is raised has E) and a rule for
+  each operation. They follow from the definitions of the kit: the file
+  has no axiom and no parameter.
+- WHAT THE TYPES REFUSE, `monad/real/Kit_refuses.v`: a partial
+  application that would store a computation; a computation used as a
+  function of the fuel and the state, and such a function used as a
+  computation; each use of an exception that carries a type for which the
+  kit has no case.
+- FIRST LEMMAS about ported files, `proofs/` (`proofs/README.md`). They
+  are not a specification of Simplify.
+
+WHAT IS ASSUMED. A CONTRACT is a statement about a parameter that a
+theorem has as a premise (`contracts/README.md`): the name of a declared
+exception; that a call returns or ends in a fatal error; that
+`Printexc.raise_with_backtrace` does not return. A contract is a
+definition of a proposition and not an axiom: Rocq assumes nothing, the
+theorem is proved whether the contract is true or not, and the contract
+stands in the theorem's statement, where its reader sees it. Each contract
+has a model in Rocq, which shows that it is no contradiction and nothing
+more.
+
+WHAT IS TRUSTED. To read a theorem of Rocq as a statement about a run of
+the OCaml program, a reader has to take all of this on trust. Rocq checks
+none of it.
+
+1. THE SENTENCE OF ADEQUACY. Read each parameter as the type, the
+   function, the value or the exception of OCaml that its directive names
+   (the same one for every fuel), and the state as the state of the OCaml
+   program. Let `f` be a ported function. If OCaml's run of the extracted
+   `f x` from the state `s` returns `v` in the state `s'`, then there is
+   a number `n0` such that, for EVERY fuel `n` from `n0` on, the Rocq run
+   of `f x` with the fuel `n` from `s` ends `Returned v' s'`; and if
+   OCaml's run raises `e` in `s'`, it ends `Raised e' s'`. Here `v'` is
+   `v` (and `e'` is `e`) but for one thing: a function inside it that was
+   made under `let_fuel!` holds the fuel `n`, where OCaml's function
+   holds none. Of a run of OCaml that does not end, the sentence says
+   nothing.
+   THE SENTENCE IS FALSE of a run in which one of these happens, so the
+   reader trusts with it that none does:
+   - an exception that the program does not raise itself:
+     `Stack_overflow`, `Out_of_memory`, a signal. The model has none;
+   - an assertion that is not compiled (`-noassert`): the model raises
+     `Assert_failure` where OCaml would go on;
+   - what section 7 lists: one of the problems 1 to 7 of the extraction,
+     an order of evaluation that is not the one the human states, a
+     partial application that runs something, an integer that overflows.
+2. THE CONTRACTS that the theorem has as premises are true of OCaml's
+   functions and exceptions; among them the NAMES of the exceptions, by
+   the rule of `contracts/README.md`, which gives two exceptions of OCaml
+   two names.
+
+WHY THE FIRST IS A LARGE THING TO TRUST. A statement of the form `spec`
+says nothing of a run that is out of fuel: the computation that is out of
+fuel with every fuel satisfies every such statement
+(`out_of_fuel_has_every_spec` in `Kit_laws.v`). So a theorem alone tells
+nothing about any run of OCaml. Everything that it tells comes through
+the sentence of adequacy, which says that OCaml's run is among the runs
+that have enough fuel and ends as they do. THE KIT HAS NO LAW "more fuel,
+the same end", and Rocq could not prove one of every computation: a
+computation can look at its fuel (`let_fuel!`), and a function that holds
+a fuel is another function with another fuel. That is why the sentence
+says "for every fuel from `n0` on" and "but for the fuel that it holds",
+and why it is trusted and not proved. A statement that relates two fuels
+of ONE ported function can be proved of that function, when a proof
+needs it.
+
+WHAT IS NOT IN THE MODEL AT ALL, so that no theorem and no contract
+speaks of it: backtraces (section 7, problem 10); what is printed; time
+and memory.

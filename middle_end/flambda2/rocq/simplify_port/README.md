@@ -12,7 +12,13 @@ file, `extracted/DIR/foo.ml`. Where to read on:
 - `decl/README.md`: the declarations of what the port calls of the rest of
   the compiler, which a program makes from the compiler's interfaces;
 - `record_order/README.md`: the 23 records with calls in more than one field,
-  and whether the order of the fields can matter at each.
+  and whether the order of the fields can matter at each;
+- `GUIDE.md`, section 8: what Rocq proves about the port, what a proof
+  assumes, and what a reader has to trust. `monad/real/Kit_laws.v` has the
+  laws of the monad that says what the port means; `contracts/README.md`,
+  what a proof assumes of a declared function or exception;
+  `proofs/README.md`, the first lemmas about ported files. They are not a
+  specification of Simplify.
 
 ## Who owns it
 
@@ -37,10 +43,12 @@ where `ROOT` is the `_build/default` of a dune build of this repository
 (the compiled interfaces of the compiler, which the check of the types
 reads). It needs Rocq, OCaml, ocamlformat and Python on the path. Use one
 build job. It builds the port against both monads of `monad/` and extracts
-OCaml from the identity-monad build. OCaml checks each extracted file
-against the compiler's interfaces. The default target also runs the text
-checks (`make shells`, `make given`, `make lines` and `make papp`), regenerates
-`PROGRESS.md` and checks the comments. Build copies, compiled Rocq files
+OCaml from the identity-monad build. The build against the real monad also
+compiles the laws, the contracts and the first lemmas. OCaml checks each
+extracted file against the compiler's interfaces. The default target also
+runs the text checks (`make shells`, `make given`, `make lines`, `make
+exceptions` and `make papp`), regenerates `PROGRESS.md` and checks the
+comments. Build copies, compiled Rocq files
 and type-checking outputs are under `_build/` here, and `make` leaves
 nothing else in the folder. The head of the
 `Makefile` lists the targets.
