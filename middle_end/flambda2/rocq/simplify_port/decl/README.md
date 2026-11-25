@@ -191,9 +191,15 @@ WHAT IS NOT COMPARED, AND IS NOT REFUSED.
   every compiled file which imports it keeps (`ocamlobjinfo` prints it
   beside the name of the unit). The generator has it from the compiled
   interfaces that were loaded and compares it, as above, with the one
-  that the 78 typed trees keep. THAT DIGEST CHANGES IF THE LIBRARY OF THE
-  OCAML THAT MAKES THE BUILD CHANGES: the 19 files are then made again,
-  and say so. The blob beside it is that of the tree's `stdlib/NAME.mli`,
+  that the 78 typed trees keep. THAT DIGEST IS THE ONE BY WHICH OTHER
+  UNITS IMPORT THE COMPILED INTERFACE OF THE UNIT, AND NO OTHER: it is
+  neither the MD5 of the `.cmi` file nor that of the text of the
+  interface. It changes when the compiled interface of the unit changes
+  as a unit that imports it sees it; the file of that unit is then made
+  again, and says so. A change of the library that leaves the compiled
+  interface of a unit as it was (a change in an implementation alone)
+  does not change the digest, and nothing here shows it. The blob beside
+  it is that of the tree's `stdlib/NAME.mli`,
   of which the header alone is taken. The generator does not compare that
   header with the header of the library that was read (`PROVENANCE.md`
   says what was compared once, by hand).

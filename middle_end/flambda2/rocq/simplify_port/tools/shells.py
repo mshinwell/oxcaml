@@ -27,10 +27,11 @@
 #******************************************************************************
 
 """shells.py [FILE ...] : every shell script has the line `set -eu` before
-its first command, so that it stops at a command that fails and at a
-variable that is not set. Run in the folder of the port. With no FILE: every
-file of the folder (not what is under _build/). It follows no file of the
-compiler.
+its first command. With that line the shell stops the script at a variable
+that is not set, and at a command that fails where the shell looks at the
+status of the command: not at every command that fails (GUIDE.md, section
+6). Run in the folder of the port. With no FILE: every file of the folder
+(not what is under _build/). It follows no file of the compiler.
 
 A file is a shell script if its name ends `.sh`, or if its first line names
 a shell (`#!/bin/bash`, `#!/bin/sh`, or one of the two through
@@ -41,9 +42,11 @@ no more.
 It prints the number of shell scripts, and each one that does not begin so,
 with its first command. The exit status is 1 if there is one.
 
-WHAT IT DOES NOT SAY: that a script is right under `set -eu` (that each
-command which may fail on purpose is in a test, and each variable that may
-be left out has a default): that is read, and the script is run. It does not
+WHAT IT DOES NOT SAY: that a script is right under `set -eu`. That is: that
+no command whose failure must stop the script stands in a pipe, in a
+substitution or in a test, where the shell goes on after it; that each
+command which may fail on purpose is in a test; that each variable which may
+be left out has a default. That is read, and the script is run. It does not
 read the lines of shell inside the Makefile or inside another file."""
 import os
 import sys

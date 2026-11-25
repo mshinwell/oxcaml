@@ -241,9 +241,11 @@ given:
 lines:
 	$(PYTHON) tools/lines.py $(addsuffix .v,$(PORTED))
 
-# Every shell script of the folder begins with `set -eu`: it stops at a
-# command that fails and at a variable that is not set. tools/shells.py
-# says what a shell script is, and what the check does not say. It is the
+# Every shell script of the folder begins with `set -eu`: the shell then
+# stops it at a variable that is not set, and at a command that fails
+# where the shell looks at the status of the command (not in a pipe, in a
+# substitution or in a test: GUIDE.md, section 6). tools/shells.py says
+# what a shell script is, and what the check does not say. It is the
 # first target of [make], so a make stops there before Rocq compiles a file
 # (make asks Rocq for the dependencies of the files before any target). It
 # reads nothing that Rocq or OCaml makes: [make shells] alone does not ask

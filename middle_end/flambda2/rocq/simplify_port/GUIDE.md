@@ -522,12 +522,28 @@ gap now to a long fight: the first version is for the structure.
     make CMI_ROOT=ROOT _build/check/DIR/foo.status   # its types
 
 A SHELL SCRIPT OF THE FOLDER BEGINS WITH `set -eu`, after its comment and
-before its first command: it then stops at a command that fails and at a
-variable that is not set. So a command that may fail on purpose stands in
-a test (`if`, or `||`), and a variable that may be left out is given a
-default or read as `${X:-}`. `make` asks for the line before it compiles
-a file (`make shells`); that the script is right under it is read, and
-the script run.
+before its first command. With that line the shell stops the script at a
+variable that is not set, and at a command that fails WHERE THE SHELL
+LOOKS AT THE STATUS OF THE COMMAND. That is not everywhere. The script
+goes on after a command that fails:
+
+- in a pipe, if it is not the last command of the pipe (`a | b` ends as
+  `b` ends);
+- inside `$( )`, unless the `$( )` is all that is given to a variable
+  (`x=$(a)` stops; `echo $(a)`, `local x=$(a)`, `for f in $(a)` do not);
+- inside `<( )`;
+- in the test of an `if` or a `while`, before `&&` or `||`, after `!`,
+  and anywhere in a function that is called in one of those places.
+
+So the line alone does not make a script right. A command whose failure
+must stop the script stands alone, with its output in a variable
+(`x=$(a)`) or in a file, and what it wrote is read from there. A command
+that may fail on purpose stands in a test (`if`, or `||`), and a variable
+that may be left out is given a default or read as `${X:-}`. `make` asks
+for the line, and for no more, before it compiles a file (`make shells`).
+That a script is right under the line is read, and tried: the script is
+run with a thing that it reads taken away, and must then end with a
+status that is not 0.
 
 One process; no `-j`. A file is committed when both builds of Rocq compile
 it AND `extracted/DIR/foo.ml` type-checks (`overlay` is enough: the
