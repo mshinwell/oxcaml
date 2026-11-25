@@ -127,8 +127,10 @@ files beside the donors first. Points marked HUMAN are the human's to judge.
     (where the port gives at once what the compiler gives in two steps)
     has no label;
   - only arguments: the parameters of a `Definition`, a `fun` or a `fix`
-    have none, and a term that BEGINS with a label (`(~l:x)`, the right
-    side of a `let*`) is Rocq's negation, which Rocq refuses there.
+    have none. A term that BEGINS with a label (`(~l:x)`, the right side
+    of a `let*`) is NO LABEL: Rocq reads its negation of `l`, with a cast
+    to `x`. It refuses that where `l` is no proposition, and takes it, as
+    that negation, where it is one. Never write a label there.
 - Everything that the file calls is declared in `decl/` (search
   `decl/INDEX.tsv`; `decl/README.md` has the form), also the other files of
   Simplify: port against the declarations, never against another ported

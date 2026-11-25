@@ -93,9 +93,11 @@ Notation "m ;; k" := (match m with tt => k end)
    is no pun: OCaml's [~l] alone is written [~l:l]. An argument that is an
    application is in brackets, [~l:(Some x)]; without them [~l:Some x] is
    two arguments. The label [by] cannot be written: it is a word of Rocq.
-   A label is read only where an argument stands: a term that begins with
-   one ([(~l:x)], [let* y := ~l:x in]) is Rocq's negation of [l], which
-   Rocq then refuses.
+   A label is read only where an argument stands. A term that BEGINS with
+   one ([(~l:x)], [let* y := ~l:x in]) is no label: Rocq reads its negation
+   of [l], with a cast to [x]. Rocq refuses that where [l] is no proposition,
+   and takes it, as that negation, where it is one: with [P : Prop],
+   [(~P : Prop)] is [P -> False]. So never write a label there.
    Rocq's negation [~ P] begins with the same sign. Rocq warns of that
    where the notation is made, and again in every file that imports this
    one: the line before the notation switches that warning off, here and
