@@ -64,9 +64,10 @@ files beside the donors first. Points marked HUMAN are the human's to judge.
   parameters of a function, one argument) names the lines where that
   piece stands. `make lines` checks a note inside a definition ONLY to
   lie inside the lines of its item. Whether it begins and ends where a
-  part does is checked by NO TOOL: when `tools/lines.py` was written, the
-  notes inside that scans of the donor's layout doubted were read by hand
-  and mended; the scans are not kept, and the other notes were not read.
+  part does is checked by NO TOOL: when `tools/lines.py` was written,
+  every note inside was read once by hand against the donor (the Rocq
+  line after it against the two ends of its range), and so were the
+  lines that the marks name. Nothing repeats that reading.
 - The donor's COMMENTS stay at their places, in the donor's words (one
   that begins `CR` may be left out): `make comments` lists the ones that
   are missing and the headers that differ.

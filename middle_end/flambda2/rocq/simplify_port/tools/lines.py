@@ -132,15 +132,18 @@ WHAT THE TOOL DOES NOT ESTABLISH.
 - That a NOTE INSIDE a definition names the right lines. It is checked
   only to lie inside the lines of its item. Whether it begins and ends
   where a part of the item does (GUIDE.md, section 1, has the form of
-  such a note) is checked by NO TOOL. When this tool was written, the
-  notes inside were looked at with scans of the layout of the donor's
-  text, which are not kept in the tree; the notes that the scans doubted
-  were read by hand and mended, and the other notes were not read.
+  such a note) is checked by NO TOOL. When this tool was written, every
+  note inside was read once by hand against the donor: the line of Rocq
+  after the note against the donor's lines at the two ends of its range
+  and just outside them. The notes that scans of the layout of the
+  donor's text doubted (the scans are not kept in the tree) were read
+  in full. Nothing repeats that reading.
 - The clauses [with NAME ..] of a Fixpoint: such a clause is no
   definition for this tool, though the donor has an item for NAME, and
   the note before it is a note inside the Fixpoint.
 - The lines that a mark names ([PORT-GAP(sort): 12-13, words]), but for
-  the mark that begins a group: they are compared with nothing.
+  the mark that begins a group: they are compared with nothing. They
+  were read once by hand, as the notes inside were.
 - The notes that stand before no definition (before a block of OCaml or a
   directive: make given), or inside a sentence that is no Definition and
   no Fixpoint.
