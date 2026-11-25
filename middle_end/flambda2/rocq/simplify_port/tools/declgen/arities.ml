@@ -31,18 +31,29 @@
    implementation: the rows of ARITIES.tsv. This file follows no file of
    the compiler.
 
+   What it reads: the typed trees ([.cmt]) of the build; and the bytes of
+   the source files, of the tree and of the build's copies, only to compare
+   them with the digest that each typed tree has of its source
+   ([tree_source]). It writes none of the text of a source: a row has
+   names and numbers from the typed tree, and the place.
+
    Why: the port gives a declared function its first arguments only
    ([papp1 f a]), which in OCaml runs nothing of [f] as long as [f] is
    written with more parameters than it is given. The interface cannot say
    so ([val f : a -> b -> c] may be [let f a = work (); fun b -> ...]); the
    definition can.
 
-   The count. For [let f = E]: if [E] is [fun p1 .. pn -> B], [n]; one more
-   if [B] is the cases of a [function]; and the count of [B] if [B] is
-   itself a function. Anything else is 0 (another name, an application, a
-   [let] before the [fun]): OCaml would run it when the module starts, or
-   at the first argument. For [external f : .. = "p"]: the number of
-   arguments of the primitive.
+   The count ([parameters], below, has the reason). OCaml takes the
+   parameters that one function literal writes together as one group, and
+   the cases of a [function] after them are one more of the group. For
+   [let f = E]: if [E] is [fun p1 .. pn -> B], [n]; one more if [B] is the
+   cases of a [function]; and, if [B] is itself a function literal (a
+   second group), the count of [B], but only when each of [p1 .. pn] is
+   inert: a variable or [_], and no default. Anything else is 0 (another
+   name, an application, a [let] before the [fun]): that is 0 by this
+   rule of what is written, and does not say that the value is no
+   function. For [external f : .. = "p"]: the number of arguments of the
+   primitive.
 
    The definition is found by the names: the unit, then each module, then
    the value, with the last binding of a name in a structure. A module that
@@ -334,14 +345,66 @@ let rec lookup_value (m : modval) (name : string) : found =
     in
     go (List.rev items)
 
-(* The parameters of a function literal, with those of a function literal
-   that is its whole body. *)
+(* A parameter whose taking in runs nothing: a variable or [_], with or
+   without a type ([(x : t)] is [_ as x] in the typed tree) or a label. A
+   pattern that is matched ([lazy x], [Some x], a record, a tuple, [()])
+   and an optional parameter with a default are not. *)
+let rec inert_pattern (p : Typedtree.pattern) =
+  match p.pat_desc with
+  | Tpat_any | Tpat_var _ -> true
+  | Tpat_alias (p, _, _, _, _) -> inert_pattern p
+  | _ -> false
+
+let inert (param : Typedtree.function_param) =
+  match param.fp_kind with
+  | Tparam_pat p -> inert_pattern p
+  | Tparam_optional_default _ -> false
+
+(* The parameters that a function literal takes before it runs anything.
+
+   OCaml takes the parameters of ONE function literal together
+   ([Texp_function] has the arity of what is written): [fun (lazy x) y ->
+   ..] forces nothing until it has both, and the cases of a [function]
+   after the parameters are one more of them. A function literal that is
+   the whole body of another is a second group: when the first group is
+   full, OCaml matches its patterns and computes its defaults, and then
+   gives the inner function. So [fun (lazy x) -> fun y -> ..] forces its
+   argument when it has one, and [fun (Some x) -> fun y -> ..] can fail
+   then. The count goes on into such a body only if every parameter so far
+   is inert. *)
 let rec parameters (e : Typedtree.expression) : int =
   match e.exp_desc with
   | Texp_function (params, body) -> (
     List.length params
-    + match body with Tfunction_cases _ -> 1 | Tfunction_body e' -> parameters e')
+    +
+    match body with
+    | Tfunction_cases _ -> 1
+    | Tfunction_body e' -> if List.for_all inert params then parameters e' else 0)
   | _ -> 0
+
+(* For a test of the count ([declgen --parameters FILE.cmt]): each value
+   that the implementation binds at its top by a name alone, and its
+   number. *)
+let print_parameters cmt_file =
+  match (Cmt_format.read_cmt cmt_file).cmt_annots with
+  | Implementation str ->
+    List.iter
+      (fun (item : Typedtree.structure_item) ->
+        match item.str_desc with
+        | Tstr_value (_, vbs) ->
+          List.iter
+            (fun (vb : Typedtree.value_binding) ->
+              match vb.vb_pat.pat_desc with
+              | Tpat_var (id, _, _)
+              | Tpat_alias ({ pat_desc = Tpat_any; _ }, id, _, _, _) ->
+                Printf.printf "%s\t%d\n" (Ident.name id) (parameters vb.vb_expr)
+              | _ -> ())
+            vbs
+        | _ -> ())
+      str.str_items
+  | _ ->
+    prerr_endline "declgen --parameters: not the typed tree of an implementation";
+    exit 2
 
 let what (e : Typedtree.expression) =
   match e.exp_desc with

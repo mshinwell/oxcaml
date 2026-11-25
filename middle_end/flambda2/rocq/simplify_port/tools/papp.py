@@ -32,22 +32,36 @@ files (GUIDE.md, section 2). It follows no file of the compiler.
 
     pappN F a1 .. aN
 
-gives F its first N arguments only. In OCaml that runs nothing of F when F
-is WRITTEN with more than N parameters; the interface does not say so, the
-definition does. decl/ARITIES.tsv (made by tools/declgen from the typed
-trees of the implementations; decl/README.md, last section) has, for each
-declared value, the number of parameters of the function that decl/ writes
-as its realisation (0 if the realisation is the name) and the number of
-parameters of its definition (- if no definition was read), with the place.
-A use PASSES if N is smaller than the first number, or the first number is
-0 and N is smaller than the second. A use that does not pass must have the
-mark PORT-GAP(papp); a use that passes must not.
+gives F its first N arguments only. In OCaml that runs nothing of F when
+the FIRST GROUP of parameters of the definition of F has more than N
+parameters; the interface does not say so, the definition does.
+decl/ARITIES.tsv (made by tools/declgen from the typed trees of the
+implementations; decl/README.md, last section, says what a group is) has,
+for each declared value, the number of parameters of the function that
+decl/ writes as its realisation (0 if the realisation is the name) and the
+number of parameters of its definition (- if no definition was read), with
+the place. A use PASSES if N is smaller than the first number, or the first
+number is 0 and N is smaller than the second. A use that does not pass must
+have the mark PORT-GAP(papp); a use that passes must not.
 
 Two callers.
 - tools/lint.py FILE.v, its fourth check: check(path, raw). With
   LINT_PAPP_ALL in the environment, every use is printed with its verdict.
-- papp.py --extracted FILE.v ... (the Makefile's target papp): see THE
-  EXTRACTED DEFINITIONS below.
+- papp.py --extracted FILE.v ... (the Makefile's target papp), a second
+  step after the lint: see THE EXTRACTED DEFINITIONS below.
+
+THE WRITTEN FORMS. The lint looks for the word pappN (N from 1 to 4)
+outside comments and strings. The one form that it reads is
+
+    pappN F        pappN plain, white space, F a name: f or M.f or A.M.f
+
+REFUSED, as an error that names the place, whatever marks there are: pappN
+with a module before it (Port_monad.papp1); with @ (@papp1); followed by
+anything but such a name (a bracket, @F, a projection, nothing: pappN as a
+value). NOT SEEN: a partial application that is reached under another name
+(a definition or a notation that stands for pappN, in the kit, in another
+library or in the file; in the file the line that makes it is itself
+refused, or is read as a use).
 
 THE MARK of a use is a comment that begins (* PORT-GAP(papp): , stands
 before the use in the same definition (up to the full stop that ends a
@@ -55,14 +69,14 @@ line), and has the function in square brackets as the use writes it:
 [Option.map]. A mark names nothing else in square brackets.
 
 A PARTIAL APPLICATION WITHOUT pappN (a definition that is one: [Definition
-print : .. := Code0.print Unit.print.]) is seen only through its mark: when
-a mark names F and no [pappN F] follows in the definition, the use is the
-first F after the mark, and N is the number of arguments that follow it,
-AS WORDS: a name, a number, a string, a group in brackets. If the
-application ends with anything but a closing bracket, a full stop, [;] [,]
-[|] [:] [=>] or one of [+ * / < > = ++ :: && ||], N is not known and the
-mark stays. (A word that is not an argument of F can only make N too
-large.) A plain partial application that has NO MARK IS NOT FOUND.
+g : .. := M.f a.]) is seen only through its mark: when a mark names F and
+no [pappN F] follows in the definition, the use is the first F after the
+mark, and N is the number of arguments that follow it, AS WORDS: a name, a
+number, a string, a group in brackets. If the application ends with
+anything but a closing bracket, a full stop, [;] [,] [|] [:] [=>] or one of
+[+ * / < > = ++ :: && ||], N is not known and the mark stays. (A word that
+is not an argument of F can only make N too large.) A plain partial
+application that has NO MARK IS NOT FOUND.
 
 WHICH FUNCTION. It COUNTS WORDS, as tools/lint.py does. The name F is
 looked up among the Rocq names of the table: with its first name replaced,
@@ -72,21 +86,48 @@ modules) or takes from abbrev/NAME/Port_abbreviations.v; then as it
 stands; then under each module that FILE.v imports ([Require Import] of
 files of decl/, [Import P.]), the last first. An abbreviation that decl/
 makes is followed. What it does not see: a name that Rocq reads otherwise
-because a nearer module or variable has the same name. NOT CHECKED: a name
-without a module, or under a module that FILE.v defines: a function of the
-file (the guide wants no mark for it). A name with a module that is not
-found in the table does not pass.
+because a nearer module or variable has the same name. A name with a
+module that is not found in the table does not pass.
 
-THE EXTRACTED DEFINITIONS. The table reads the compiler's files. For a
-function of a file of Simplify that is ported, the program that is linked
-runs the definition of extracted/DIR/foo.ml instead. So, for each use that
-passes by the number of parameters of a definition under
-middle_end/flambda2/simplify/, when extracted/ has that file: each
-definition of the name at the margin of the file or of a module of it
-([let f p1 .. pk =], [and f ..]; also [= fun q -> ..] and [= function]
-after it) is found AS WORDS, and must have more parameters than the use
-gives arguments. No such definition, or parameters that are not plain
-names, is an error that names the use."""
+A FUNCTION OF THE FILE is NOT CHECKED (the guide wants no mark for it): a
+name without a module that FILE.v binds, anywhere, by [Definition f],
+[Fixpoint f], [with f (] or Rocq's own [let f]; or a name under a module
+that FILE.v defines. A name without a module that the file does not bind
+so (a variable: an argument, a [let!], a pattern) does not pass: what it
+is bound to is not known.
+
+THE EXTRACTED DEFINITIONS (--extracted). This is a SECOND STEP after the
+lint and no check by itself: it looks only at the uses that the lint
+passes, it does not print the lint's errors again (for a file in which the
+lint has one it says so, and that is an error here too), and the Makefile
+runs it after the lint has passed for every file. The table reads the
+compiler's files. For a function of a file of Simplify that is ported, the
+program that is linked runs the definition of extracted/DIR/foo.ml
+instead. So, for each use that passes by the number of parameters of a
+definition under middle_end/flambda2/simplify/, when extracted/ has that
+file:
+- THE MODULE of the definition inside its file is read from the table: the
+  rows of the file's own unit (the OCaml name begins with Foo.) that have
+  the same place say it (Foo.M.f: the module M of foo.ml). No such row is
+  an error.
+- THE DEFINITION is looked for in that module of the extracted file and
+  nowhere else, AS WORDS: a line [let f ..] or [and f ..] (with [rec],
+  with attributes) among the items of the module, outside comments and
+  strings. The items of a module are the lines that stand at the
+  indentation of its first line, between [module M = struct] (also [module
+  M : S = struct], and [module M : sig .. end = struct]) and its [end]. A
+  functor, or any other line that ends with [struct] or [sig], is a module
+  without a name: nothing is found in it. No definition there is an error
+  (it fails closed).
+- THE PARAMETERS: [let f p1 .. pk = BODY], each of p1 .. pk a plain name,
+  [_] or [()], else the count is not known, which is an error. The cases
+  of a [function] at the head of BODY are one more. A [fun q1 .. ->] at
+  the head of BODY is a second group for OCaml: its parameters are added
+  only if every parameter before it is a plain name or [_] (taking those
+  in runs nothing), and the count stops at a parameter that is not plain.
+  (Rocq's extraction prints its functions with one group.) Each
+  definition that is found must have more parameters than the use gives
+  arguments."""
 import collections
 import os
 import re
@@ -248,6 +289,9 @@ IN_DECL = None
 # whether it passes, why, the Rocq name in the table).
 Use = collections.namedtuple("Use", "pos shown plain n name verdict")
 
+PAPP = re.compile(r"(?<![A-Za-z_0-9'])papp([1-4])(?![A-Za-z_0-9'])")
+FUNCTION = re.compile(r"\s+(%s)(?![A-Za-z_0-9'.])" % PPATH)
+
 
 def analyse(path, raw):
     """(the uses, each with its line; the lines to print; the number of
@@ -261,12 +305,28 @@ def analyse(path, raw):
     def line_of(pos):
         return raw.count("\n", 0, pos) + 1
 
-    papps = [
-        (m.start(), int(m.group(1)), m.group(2))
-        for m in re.finditer(
-            r"(?<![A-Za-z_0-9'.])papp([1-4])(?![A-Za-z_0-9'])\s*([^\s()]+|\()", text
+    # the written forms of pappN: one is read, the others are refused
+    papps = []
+    for m in PAPP.finditer(text):
+        before = text[m.start() - 1] if m.start() else " "
+        f = FUNCTION.match(text, m.end())
+        refused = (
+            "has a module before it"
+            if before == "."
+            else "is written with @"
+            if before == "@"
+            else None
+            if f
+            else "is not followed by the name of a function"
         )
-    ]
+        if refused:
+            lines.append(
+                "%s:%d: papp%s %s: the lint reads [pappN F] only, pappN plain and F a name"
+                % (path, line_of(m.start()), m.group(1), refused)
+            )
+            bad += 1
+        else:
+            papps.append((m.start(), int(m.group(1)), f.group(1)))
     marks = [m.start() for m in re.finditer(r"\(\*\s*PORT-GAP\(papp\)", raw)]
     if not papps and not marks:
         return [], lines, bad
@@ -295,7 +355,14 @@ def analyse(path, raw):
         text,
     ):
         imports.extend(m.group(1).split() if m.group(1) else [m.group(2)])
+    # the modules that the file defines, and the functions that it binds
     defined = set(re.findall(r"(?m)^\s*Module\s+(?:Type\s+)?(%s)" % PNAME, text)) - set(own)
+    bound = set(
+        re.findall(
+            r"(?<![A-Za-z_0-9'.])(?:Definition|Fixpoint|let)\s+(%s)(?![A-Za-z_0-9'.])" % PNAME,
+            text,
+        )
+    ) | set(re.findall(r"(?<![A-Za-z_0-9'.])with\s+(%s)\s*[({]" % PNAME, text))
 
     def chase(name):
         for _ in range(30):
@@ -330,11 +397,17 @@ def analyse(path, raw):
 
     def verdict(n, f):
         """(passes, why, Rocq name); None for a function of the file."""
-        if not re.fullmatch(PPATH, f):
-            return False, "the function is not written as a name", None
         found = resolve(f)
         if found is None:
-            if "." not in f or f.split(".")[0] in defined:
+            if "." not in f:
+                if f in bound:
+                    return None
+                why = (
+                    "%s has no module, and the file does not bind it by Definition, Fixpoint, "
+                    "with or let: what it is bound to is not known" % f
+                )
+                return False, why, None
+            if f.split(".")[0] in defined:
                 return None
             return False, "%s is not among the declared values of decl/ARITIES.tsv" % f, None
         wrapper, definition, where, _ = TABLE[found]
@@ -451,66 +524,136 @@ def check(path, raw):
     return lines, bad
 
 
-PARAMETER = re.compile(r"[a-z_][A-Za-z0-9_']*|\(\)")
+PLAIN = re.compile(r"[a-z_][A-Za-z0-9_']*")
+FUNCTION_CASES = re.compile(r"function(?![A-Za-z0-9_'])")
 
 
 def count_parameters(rest):
-    """The parameters of [p1 .. pk = BODY], with those of [fun q1 .. ->] and
-    of [function] at the head of BODY; None if one is not a plain name."""
+    """The parameters of [p1 .. pk = BODY] that are taken before anything
+    runs; None if one of p1 .. pk is not a plain name, [_] or [()]. The
+    cases of a [function] at the head of BODY are one more. A [fun q1 ..
+    ->] at the head of BODY is a second group: it is counted only if every
+    parameter so far is a plain name or [_], and as far as its parameters
+    are plain."""
     head, eq, body = rest.partition("=")
     if not eq:
         return None
-    n = 0
-    for w in head.split():
-        if not PARAMETER.fullmatch(w):
-            return None
-        n += 1
+    group = head.split()
+    if not all(PLAIN.fullmatch(w) or w == "()" for w in group):
+        return None
+    n = len(group)
     body = body.strip()
     while True:
-        if re.match(r"function(?![A-Za-z0-9_'])", body):
+        if FUNCTION_CASES.match(body):
             return n + 1
         m = re.match(r"fun\s+([^-]*?)->", body)
-        if not m:
+        if not m or not all(PLAIN.fullmatch(w) for w in group):
             return n
-        for w in m.group(1).split():
-            if not PARAMETER.fullmatch(w):
+        group = m.group(1).split()
+        for w in group:
+            if not (PLAIN.fullmatch(w) or w == "()"):
                 return n
             n += 1
         body = body[m.end():].strip()
 
 
-def extracted_definitions(text, name):
-    """The numbers of parameters of the definitions of [name] at the margin
-    of an extracted file or of a module of it."""
+def blank_ocaml(s):
+    """OCaml text with its comments made blank and x inside its strings,
+    line for line."""
     out = []
-    lines = text.split("\n")
-
-    def indent(line):
-        return len(line) - len(line.lstrip())
-
-    for k, line in enumerate(lines):
-        m = re.match(
-            r"(\s*)(?:let|and)(?:\s+rec)?\s+%s(?![A-Za-z0-9_'])(.*)$" % re.escape(name), line
-        )
-        if not m:
-            continue
-        if m.group(1):
-            # inside a module, not inside a definition: the nearest line
-            # above with less indentation opens a structure
-            j = k - 1
-            while j >= 0 and (not lines[j].strip() or indent(lines[j]) >= len(m.group(1))):
-                j -= 1
-            if j < 0 or not lines[j].rstrip().endswith("struct"):
+    depth = 0
+    i = 0
+    in_str = False
+    while i < len(s):
+        c = s[i]
+        if in_str:
+            if c == "\\" and i + 1 < len(s):
+                out.append("xx" if depth == 0 else "  ")
+                i += 2
                 continue
-        out.append(count_parameters(" ".join([m.group(2)] + lines[k + 1:k + 8])))
+            if c == '"':
+                in_str = False
+                out.append(c if depth == 0 else " ")
+            else:
+                out.append("\n" if c == "\n" else "x" if depth == 0 else " ")
+            i += 1
+        elif s.startswith("(*", i):
+            depth += 1
+            out.append("  ")
+            i += 2
+        elif depth and s.startswith("*)", i):
+            depth -= 1
+            out.append("  ")
+            i += 2
+        elif c == '"' and not (i > 0 and s[i - 1] == "'" and s[i + 1:i + 2] == "'"):
+            # a string (OCaml reads one inside a comment too); not the
+            # character ['"']
+            in_str = True
+            out.append(c if depth == 0 else " ")
+            i += 1
+        else:
+            out.append(c if depth == 0 or c == "\n" else " ")
+            i += 1
+    return "".join(out)
+
+
+UNAME = r"[A-Z][A-Za-z0-9_']*"
+OPENS = re.compile(r"(?<![A-Za-z0-9_'])(struct|sig)$")
+MODULE_STRUCT = re.compile(r"module\s+(%s)\s*(?::[^=()]*)?=\s*struct$" % UNAME)
+MODULE_SIG = re.compile(r"module\s+(%s)\s*:\s*sig$" % UNAME)
+
+
+def extracted_definitions(text, modules, name):
+    """The numbers of parameters (None: not known) of the definitions of
+    [name] among the items of the module [modules] (a list of names; empty
+    for the file itself) of an extracted file."""
+    definition = re.compile(
+        r"(?:let|and)(?:\s*\[@[^\]]*\])*(?:\s+rec(?![A-Za-z0-9_']))?(?:\s*\[@[^\]]*\])*"
+        r"\s+%s(?![A-Za-z0-9_'])(.*)$" % re.escape(name)
+    )
+    out = []
+    lines = blank_ocaml(text).split("\n")
+    # the structures and signatures that are open: [name or None, the
+    # indentation of the line that opens it, that of its items or None,
+    # whether it is a signature]
+    stack = []
+    for k, line in enumerate(lines):
+        s = line.strip()
+        if not s:
+            continue
+        indent = len(line) - len(line.lstrip())
+        if stack and stack[-1][2] is None and indent > stack[-1][1]:
+            stack[-1][2] = indent
+        if stack and indent == stack[-1][1] and re.match(r"end(?![A-Za-z0-9_'])", s):
+            if stack[-1][3] and re.fullmatch(r"end\s*=\s*struct", s):
+                stack[-1][2:] = [None, False]
+            else:
+                stack.pop()
+            continue
+        at_item = indent == (stack[-1][2] if stack else 0)
+        opens = OPENS.search(s)
+        if opens:
+            m = (MODULE_STRUCT.fullmatch(s) or MODULE_SIG.fullmatch(s)) if at_item else None
+            stack.append([m.group(1) if m else None, indent, None, opens.group(1) == "sig"])
+            continue
+        if not at_item or any(f[3] for f in stack) or [f[0] for f in stack] != list(modules):
+            continue
+        m = definition.match(s)
+        if m:
+            out.append(count_parameters(" ".join([m.group(1)] + lines[k + 1:k + 8])))
     return out
 
 
 def main(files):
     bad = 0
     checked = 0
+    by_place = None
     for path in files:
-        uses, _, _ = analyse(path, open(path).read())
+        uses, _, errors = analyse(path, open(path).read())
+        if errors:
+            print("%s: the lint has %d error%s here: run tools/lint.py %s" % (
+                path, errors, "" if errors == 1 else "s", path))
+            bad += 1
         for line, u in uses:
             if u.verdict is None or not u.verdict[0] or u.verdict[2] is None:
                 continue
@@ -521,13 +664,37 @@ def main(files):
             extracted = os.path.join(EXTRACTED, source[len(SIMPLIFY):])
             if not os.path.exists(extracted):
                 continue
+            checked += 1
             name = ocaml.split(".")[-1]
             shown = "extracted/" + source[len(SIMPLIFY):]
             here = "%s:%d: %s" % (path, line, u.shown)
-            found = extracted_definitions(open(extracted).read(), name)
-            checked += 1
+            # the module of the definition in its file: what the rows of the
+            # file's own unit say for this place
+            if by_place is None:
+                by_place = collections.defaultdict(set)
+                for _, _, place, o in TABLE.values():
+                    by_place[place].add(o)
+            unit = os.path.basename(source)[:-3].capitalize()
+            modules = sorted(
+                tuple(o.split(".")[1:-1])
+                for o in by_place[where]
+                if o.startswith(unit + ".") and o.split(".")[-1] == name
+            )
+            if not modules:
+                print(
+                    "%s: no declared name of %s has the place %s: the module of %s in %s is not known"
+                    % (here, unit, where, name, shown)
+                )
+                bad += 1
+                continue
+            text = open(extracted).read()
+            found = [k for ms in modules for k in extracted_definitions(text, ms, name)]
+            inside = " or ".join(".".join((unit,) + ms) for ms in modules)
             if not found:
-                print("%s: no definition of %s is found at the margin of %s" % (here, name, shown))
+                print(
+                    "%s: no definition of %s is found among the items of %s in %s"
+                    % (here, name, inside, shown)
+                )
                 bad += 1
             for k in found:
                 if k is None:

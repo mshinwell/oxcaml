@@ -268,9 +268,10 @@ Rhs.t`) has no row; what it names is declared all the same.
 ## `ARITIES.tsv`: how many parameters each definition takes
 
 The port gives a declared function its first arguments only (`papp1 f a`,
-GUIDE.md section 2). In OCaml that runs nothing of `f` if `f` is WRITTEN
-with more parameters than it is given. An interface cannot say so (`val f :
-a -> b -> c` may be `let f a = work (); fun b -> ...`); the definition can.
+GUIDE.md section 2). In OCaml that runs nothing of `f` if the first group
+of parameters that the definition of `f` WRITES ("The count", below) has
+more parameters than `f` is given. An interface cannot say so (`val f : a
+-> b -> c` may be `let f a = work (); fun b -> ...`); the definition can.
 `ARITIES.tsv` has one row for each declared value (not for the values of a
 module type), in five columns:
 
@@ -280,10 +281,19 @@ module type), in five columns:
    the realisation (`(fun x__1 x__2 x__3 x__4 -> Format.pp_print_list
    ?pp_sep:x__1 x__2 x__3 x__4)`, for a function with an optional argument);
    0 when the realisation is the name;
-4. the number of parameters of the DEFINITION, read from the typed tree
-   (`.cmt`) of the implementation; `-` when no definition was read;
+4. the number of parameters of the DEFINITION by the count below, read
+   from the typed tree (`.cmt`) of the implementation; `-` when no
+   definition was read;
 5. the file and line of the definition (and, when the number is 0, what is
-   written there in the place of a function), or why no definition was read.
+   written there in the place of a function literal), or why no definition
+   was read.
+
+Today, of 7137 rows: 3562 have a number above 0 (2 of them are external
+primitives); 629 have 0 BY THE RULE OF WHAT IS WRITTEN: the definition is
+not written as a function literal (a constant, a value that is built,
+another name, an application, a `let` before the `fun`, as for
+`Symbol.manufacture`), which does not say that the value is no function;
+2946 are not read (the standard library).
 
 `tools/lint.py` reads it (its last check, `tools/papp.py`): `pappN f` needs
 no mark when N is smaller than column 3, or column 3 is 0 and N is smaller
@@ -291,24 +301,41 @@ than column 4. No file of decl/ depends on it.
 
 The table reads the COMPILER'S files. Where a file of Simplify is ported,
 the program that is linked runs the definition of `extracted/` in its
-place: `make papp` (`tools/papp.py --extracted`) finds that definition as
-words, for each use that passes by column 4 with a place under
-`middle_end/flambda2/simplify/`, and wants more parameters there too.
+place. `make papp` (`tools/papp.py --extracted`) is a second step after
+the lint, and no check by itself: for each use that the lint passes by
+column 4 with a place under `middle_end/flambda2/simplify/`, it looks for
+the definition in the extracted file, in the module where the table has
+the compiler's definition and nowhere else, as words, and wants more
+parameters there too. A definition that it does not find there, or whose
+parameters it cannot count, is an error.
 
-The count. For `let f = E`: if `E` is `fun p1 .. pn -> B`, n; one more if
-`B` is the cases of a `function`; and the count of `B` if `B` is itself a
-function. (`let f p1 .. pn = B` is `let f = fun p1 .. pn -> B`.) A
-parameter is a name, a pattern (`(a, b)`, `{ x; y }`, `()`), a labelled
-parameter, or an optional one, with or without a default (`?(x = e)` is
-one parameter). The cases of a `function` after the parameters are one
-more: `let f a = function A -> .. | B -> ..` has 2. (A function whose
-interface shows an optional argument has a function as its realisation:
-column 3 decides for it, not this number.) A type
-constraint or a coercion around a function changes nothing. Anything else
-counts 0: another name (`let f = g`), an application (`let f = g x`), a
-`let` before the `fun`: OCaml runs it when the module starts, or the
-function that it gives may act at its first argument. For `external f : ..
-= "p"`: the number of arguments of the primitive.
+The count. OCaml takes the parameters that ONE function literal writes
+together as a GROUP, and runs nothing of the function until the group is
+full. `let f p1 .. pn = B` is `let f = fun p1 .. pn -> B`: a group of n. A
+parameter is a name, a pattern (`(a, b)`, `{ x; y }`, `()`, `lazy x`), a
+labelled parameter, or an optional one, with or without a default (`?(x =
+e)` is one parameter). The cases of a `function` directly after the
+parameters are one more parameter of the same group: `let f a = function A
+-> .. | B -> ..` has 2. If `B` is itself a function literal (`let f a =
+fun b -> ..`), that is a SECOND GROUP: when the first group is full, OCaml
+matches the patterns of its parameters and computes their defaults, and
+only then gives the inner function. So `let f (lazy x) = fun y -> ..`
+forces its argument as soon as it has one, `let f (Some x) = fun y -> ..`
+can fail then, and `let f ?(x = e) = fun y -> ..` computes `e` then: each
+counts 1. The count of a second group is added only if every parameter
+before it is INERT: a variable or `_` (with or without a type or a label)
+and no default. A pattern that only reads (`()`, a tuple, a record) is not
+inert either. So `let f x = fun y -> ..` counts 2; and `let f (lazy x) y =
+..` and `let f (lazy x) = function ..`, which are one group, count 2. (A
+function whose interface shows an optional argument has a function as its
+realisation: column 3 decides for it, not this number.) A type constraint
+or a coercion around a function changes nothing. Anything else counts 0:
+another name (`let f = g`), an application (`let f = g x`), a `let` before
+the `fun`: OCaml runs it when the module starts, or the function that it
+gives may act at its first argument. For `external f : .. = "p"`: the
+number of arguments of the primitive. `_build/declgen/declgen --parameters
+FILE.cmt` prints the count of each value that an implementation binds at
+its top: for a test of this rule on made-up definitions.
 
 How the definition is found: by the names, as OCaml finds it. From the
 implementation of the unit, each module and then the value, with the LAST
@@ -329,7 +356,11 @@ What is not read; the row says why.
 - A module that is made from a value (a first-class module), and whatever
   else could not be followed: no row today.
 
-Is the text that was read the text of the tree? A typed tree names its
+What is read, and is it the text of the tree? For this table
+`tools/declgen` reads the typed trees and, besides them, the BYTES OF THE
+SOURCE FILES (of the tree, and of the build's copies), only to compare them
+with a digest. It writes none of their text: a row has names and numbers
+from the typed tree, and the place. A typed tree names its
 source and has the digest of the text that the compiler read. A unit is
 read only if that is the digest of the same file under SOURCE_ROOT, or the
 build's file is a copy that the build made of a file of the tree (the line

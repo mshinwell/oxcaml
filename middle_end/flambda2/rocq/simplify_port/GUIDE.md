@@ -100,28 +100,44 @@ A function OF THE FILE applied to its first arguments only (`let simplifier
 
 PARTIAL APPLICATION of a declared function (`~f:(Acc.exit_continuation k)`):
 `let! tmp1 := papp1 Acc.exit_continuation k in` (also `papp2`..`papp4`), or
-write the `fun`. In OCaml a function that is given FEWER ARGUMENTS THAN ITS
-DEFINITION HAS PARAMETERS runs nothing. The interface does not say how many
-that is: `val resolver : t -> Compilation_unit.t -> ..` is `let resolver t =
-t.resolver`, which runs when it has `t`. `decl/ARITIES.tsv` has the number
-for each declared value, read from the compiler's typed trees
-(`decl/README.md`, last section), and `tools/lint.py` checks each `pappN F`
-against it (`tools/papp.py` says how, and what it does not see). A use that
-passes has NO mark. A use that does not pass (the definition has no more
-parameters than the use gives arguments; or no definition was read: the
-standard library) has, before it in the same definition, the mark
-`(* PORT-GAP(papp): [F] ... *)`: the function in square brackets as the use
-writes it, nothing else in square brackets, and what runs at the use (or
-that the definition was not read). The lint prints each use that keeps its
-mark; a use that needs a mark and has none, and a mark that is not needed,
-are errors. A partial application WITHOUT `pappN` (a definition that is one:
-`Definition print : .. := Code0.print Unit.print.`): put the same mark and
-run the lint, which then counts the arguments as words; take the mark off
-if the lint says that it needs none. Without a mark the lint does not see
-such a place. `make papp` (a part of `make check`) compares each use of a
-function of a ported file of Simplify with the definition in `extracted/`.
+write the `fun`. In OCaml a function runs nothing while it has FEWER
+ARGUMENTS THAN THE FIRST GROUP OF PARAMETERS OF ITS DEFINITION: the
+parameters that the definition writes together (`let f a b = ..`), and the
+cases of a `function` directly after them. A function that is the whole
+body of another (`let f a = fun b -> ..`) is a second group; it counts only
+if every parameter before it is a variable or `_` without a default, since
+OCaml matches a pattern and computes a default as soon as the first group
+is full (`decl/README.md`, last section, "The count"). The interface does
+not say this number: the interface of `Typing_env.resolver` shows two
+arguments, and its definition
+(middle_end/flambda2/types/env/typing_env.ml:337) has one parameter and
+reads a field, so it runs when it has the first. `decl/ARITIES.tsv` has the
+number for each declared value, read from the compiler's typed trees, and
+`tools/lint.py` checks each `pappN F` against it (`tools/papp.py` says how,
+and what it does not see). Write `pappN` plain and the function as a name
+(`papp1 M.f a`): the lint refuses `Port_monad.papp1`, `@papp1`, and a
+function that is not a name. A use that passes has NO mark. A use that does
+not pass (the first group has no more parameters than the use gives
+arguments; or no definition was read: the standard library; or the
+function is a variable, of which nothing is known) has, before it in the
+same definition, the mark `(* PORT-GAP(papp): [F] ... *)`: the function in
+square brackets as the use writes it, nothing else in square brackets, and
+what runs at the use (or that the definition was not read), in the port's
+own words and with the place, not with a line of the compiler. The lint
+prints each use that keeps its mark; a use that needs a mark and has none,
+and a mark that is not needed, are errors. A partial application WITHOUT
+`pappN` (a definition that is one: `Definition g : .. := M.f a.`): put the
+same mark and run the lint, which then counts the arguments as words; take
+the mark off if the lint says that it needs none. Without a mark the lint
+does not see such a place. `make papp` (a part of `make check`) is a second
+step after the lint, and no check by itself: for each use that the lint
+passes of a function of a ported file of Simplify, it looks for the
+definition in `extracted/`, in the module where the compiler has it, and
+wants more parameters there too; what it does not find there is an error.
 A ported recursive function passed as a value (`~simplify_expr`) is `papp1
-simplify_expr fuel`, without a mark.
+simplify_expr fuel`, without a mark: the lint takes a name without a module
+for a function of the file if the file binds it by `Definition`,
+`Fixpoint`, `with` or `let`.
 
 | OCaml | Rocq |
 |---|---|

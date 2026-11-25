@@ -31,6 +31,12 @@
    the given files of Simplify use, and for each of those files itself: the
    declarations of decl/README.md. Also INDEX.tsv, ARITIES.tsv and
    NOT-DECLARED.tsv.
+
+   declgen --parameters FILE.cmt
+
+   For a test of the count of ARITIES.tsv: prints each value that the
+   implementation FILE.cmt binds at its top, and the number of its
+   parameters by the rule of arities.ml. It writes no file.
    This file follows no file of the compiler. *)
 
 open Common
@@ -191,6 +197,10 @@ let write_file path contents =
     close_out oc)
 
 let () =
+  if Array.length Sys.argv = 3 && Sys.argv.(1) = "--parameters"
+  then (
+    Arities.print_parameters Sys.argv.(2);
+    exit 0);
   build_root := Sys.argv.(1);
   source_root := Sys.argv.(2);
   let out_dir = Sys.argv.(3) in
