@@ -26,9 +26,10 @@
 #* DEALINGS IN THE SOFTWARE.                                                  *
 #******************************************************************************
 
-"""lint.py FILE.v : three cheap checks of a ported file (GUIDE.md, sections 2
+"""lint.py FILE.v : four cheap checks of a ported file (GUIDE.md, sections 2
 and 4): the temporaries of [let!]; Rocq's own [let]; the setters of record
-updates (the last two at the end of this file). The first:
+updates (these two at the end of this file); the partial applications of
+declared functions (tools/papp.py, which this file calls last). The first:
 It COUNTS WORDS, it does not know Rocq's scopes: after the [in] that ends
 [let! tmpN := ... in], the word tmpN must stand exactly once before the next
 [let! tmpN] or the end of the definition, and [let!] must bind no other name.
@@ -134,4 +135,12 @@ for m in re.finditer(r'Extract\s+Inlined\s+Constant\s+(update_[A-Za-z_0-9\']*)\s
         k = re.fullmatch(r"%s\.\(([A-Za-z_0-9'.]+)\)" % re.escape(base), e)
         if not k or last(k.group(1)) != g:
             print("%s: the Definition changes the field %s (%s), the text does not" % (where, g, e)); bad += 1
+# The partial applications of declared functions (GUIDE.md, section 2):
+# each [pappN F] against decl/ARITIES.tsv, and the marks PORT-GAP(papp).
+# tools/papp.py says what is checked and what is not.
+sys.dont_write_bytecode = True
+import papp
+papp_lines, papp_bad = papp.check(path, raw)
+for l in papp_lines: print(l)
+bad += papp_bad
 sys.exit(1 if bad else 0)

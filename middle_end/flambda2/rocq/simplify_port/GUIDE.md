@@ -99,11 +99,29 @@ A function OF THE FILE applied to its first arguments only (`let simplifier
 = simplify_x a b in`) is a value in both builds: `let&`, no mark.
 
 PARTIAL APPLICATION of a declared function (`~f:(Acc.exit_continuation k)`):
-`let! tmp1 := papp1 Acc.exit_continuation k in` (also `papp2`..`papp4`),
-marked `PORT-GAP(papp)`, or write the `fun`. HUMAN: the port ASSUMES of every
-declared function that it does nothing until it has all the arguments of
-its interface. A ported recursive function passed as a value
-(`~simplify_expr`) is `papp1 simplify_expr fuel`, without a mark.
+`let! tmp1 := papp1 Acc.exit_continuation k in` (also `papp2`..`papp4`), or
+write the `fun`. In OCaml a function that is given FEWER ARGUMENTS THAN ITS
+DEFINITION HAS PARAMETERS runs nothing. The interface does not say how many
+that is: `val resolver : t -> Compilation_unit.t -> ..` is `let resolver t =
+t.resolver`, which runs when it has `t`. `decl/ARITIES.tsv` has the number
+for each declared value, read from the compiler's typed trees
+(`decl/README.md`, last section), and `tools/lint.py` checks each `pappN F`
+against it (`tools/papp.py` says how, and what it does not see). A use that
+passes has NO mark. A use that does not pass (the definition has no more
+parameters than the use gives arguments; or no definition was read: the
+standard library) has, before it in the same definition, the mark
+`(* PORT-GAP(papp): [F] ... *)`: the function in square brackets as the use
+writes it, nothing else in square brackets, and what runs at the use (or
+that the definition was not read). The lint prints each use that keeps its
+mark; a use that needs a mark and has none, and a mark that is not needed,
+are errors. A partial application WITHOUT `pappN` (a definition that is one:
+`Definition print : .. := Code0.print Unit.print.`): put the same mark and
+run the lint, which then counts the arguments as words; take the mark off
+if the lint says that it needs none. Without a mark the lint does not see
+such a place. `make papp` (a part of `make check`) compares each use of a
+function of a ported file of Simplify with the definition in `extracted/`.
+A ported recursive function passed as a value (`~simplify_expr`) is `papp1
+simplify_expr fuel`, without a mark.
 
 | OCaml | Rocq |
 |---|---|
@@ -449,7 +467,8 @@ checked by a tool, but the first in part). In the identity build `M A` is
    top-level definition without arguments) is run when it is built and
    once, not where and as often as the real build says.
 4. ETA: `fun x => f a x` may be printed `f a`; if OCaml's `f` acts when it
-   has `a` only, the effect moves. The same assumption as for `papp`.
+   has `a` only, the effect moves. The port ASSUMES that it does not; for
+   `papp` (section 2) the lint checks it, for these places nothing does.
 5. A function that returns a proposition or a type is erased with its call
    (`let* _ := (f x : M True)`).
 6. The realisation strings of `decl/` are texts: a string that is not a

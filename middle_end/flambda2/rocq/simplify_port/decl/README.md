@@ -285,13 +285,25 @@ module type), in five columns:
 5. the file and line of the definition (and, when the number is 0, what is
    written there in the place of a function), or why no definition was read.
 
-`tools/lint.py` reads it (its last check): `pappN f` needs no mark when N is
-smaller than column 3, or column 3 is 0 and N is smaller than column 4. No
-file of decl/ depends on it.
+`tools/lint.py` reads it (its last check, `tools/papp.py`): `pappN f` needs
+no mark when N is smaller than column 3, or column 3 is 0 and N is smaller
+than column 4. No file of decl/ depends on it.
+
+The table reads the COMPILER'S files. Where a file of Simplify is ported,
+the program that is linked runs the definition of `extracted/` in its
+place: `make papp` (`tools/papp.py --extracted`) finds that definition as
+words, for each use that passes by column 4 with a place under
+`middle_end/flambda2/simplify/`, and wants more parameters there too.
 
 The count. For `let f = E`: if `E` is `fun p1 .. pn -> B`, n; one more if
 `B` is the cases of a `function`; and the count of `B` if `B` is itself a
-function. (`let f p1 .. pn = B` is `let f = fun p1 .. pn -> B`.) A type
+function. (`let f p1 .. pn = B` is `let f = fun p1 .. pn -> B`.) A
+parameter is a name, a pattern (`(a, b)`, `{ x; y }`, `()`), a labelled
+parameter, or an optional one, with or without a default (`?(x = e)` is
+one parameter). The cases of a `function` after the parameters are one
+more: `let f a = function A -> .. | B -> ..` has 2. (A function whose
+interface shows an optional argument has a function as its realisation:
+column 3 decides for it, not this number.) A type
 constraint or a coercion around a function changes nothing. Anything else
 counts 0: another name (`let f = g`), an application (`let f = g x`), a
 `let` before the `fun`: OCaml runs it when the module starts, or the

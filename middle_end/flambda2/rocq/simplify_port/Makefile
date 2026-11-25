@@ -37,7 +37,9 @@
 #   make real       Rocq compiles everything against monad/real
 #   make id         Rocq compiles everything against monad/id
 #   make extract    extracted/DIR/foo.ml for every ported file
-#   make check      the types of every extracted file
+#   make check      the types of every extracted file, and make papp
+#   make papp       the partial applications of functions of the ported
+#                   files, against the definitions in extracted/
 #   make table      PROGRESS.md
 #   make list       the ported files and their donors
 #   make clean
@@ -86,13 +88,13 @@ ID_V := $(B)/id/Port_monad.v $(addprefix $(B)/id/,$(SRC))
 EXTRACTED := $(foreach p,$(PORTED),$(call extracted,$(p)))
 CHECKED := $(foreach p,$(PORTED),$(call checked,$(p)))
 
-.PHONY: all real id extract check table comments list clean
+.PHONY: all real id extract check papp table comments list clean
 all: real id extract check table comments
 
 real: $(REAL_V:.v=.vo)
 id: $(ID_V:.v=.vo)
 extract: $(EXTRACTED)
-check: $(CHECKED)
+check: $(CHECKED) papp
 
 list:
 	@$(foreach p,$(PORTED),echo '$(p).v	$(call donor,$(p))	$(call extracted,$(p))';)
@@ -166,9 +168,10 @@ $(B)/id/out/%.ml: $(B)/id/%.vo Makefile tools/aliases.py
 # what Rocq extracted, unchanged; formatted by ocamlformat with the options
 # of extracted/.ocamlformat (a copy of middle_end/flambda2/.ocamlformat, so
 # that an editor or dune formats these files in the same way). Before that,
-# tools/lint.py: each temporary of [let!] is used once.
+# tools/lint.py: each temporary of [let!] is used once; and its other
+# checks, the last of which (tools/papp.py) reads decl/ARITIES.tsv.
 define PORT_RULES
-$(call extracted,$(1)): $(B)/id/out/$(1).ml $(1).v $(call donor,$(1)) tools/assemble.sh tools/lint.py extracted/.ocamlformat
+$(call extracted,$(1)): $(B)/id/out/$(1).ml $(1).v $(call donor,$(1)) tools/assemble.sh tools/lint.py tools/papp.py decl/ARITIES.tsv extracted/.ocamlformat
 	@mkdir -p $$(dir $$@)
 	$(PYTHON) tools/lint.py $(1).v
 	tools/assemble.sh $(1).v $(call donor,$(1)) $(B)/id/out/$(1).ml > $$@
@@ -185,6 +188,14 @@ $(foreach p,$(PORTED),$(eval $(call PORT_RULES,$(p))))
 $(B)/check/port_%.cmi: runtime/port_%.ml tools/check.sh
 	@mkdir -p $(B)/check
 	@CMI_ROOT='$(CMI_ROOT)' OCAMLC='$(OCAMLC)' RUNTIME='$(B)/check' tools/check.sh --runtime $<
+
+# A function that is given its first arguments only (pappN) runs nothing
+# if its definition has more parameters. tools/lint.py checks that against
+# the compiler's definitions (decl/ARITIES.tsv). For a function of a ported
+# file the definition that is linked is the extracted one: this compares
+# each such use with it (tools/papp.py says how).
+papp: $(EXTRACTED)
+	$(PYTHON) tools/papp.py --extracted $(addsuffix .v,$(PORTED))
 
 # ---- the table --------------------------------------------------------
 
