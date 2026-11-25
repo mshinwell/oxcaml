@@ -184,12 +184,12 @@ Definition cse_with_eligible_lhs (typing_env_at_fork : TE.t)
       (fun name _ => Name.Set_.mem name params_set)
       (fun _ => ret false)
   in
-  (* 135-240. [List.fold_left cse_at_each_use ~init ~f]: the arguments are in
+  (* 135-245. [List.fold_left cse_at_each_use ~init ~f]: the arguments are in
      the order of the interface. *)
   List.fold_left
     (fun (eligible : EP.Map.t (RI.Map.t Rhs_kind.t))
          '(T3 env_at_use id cse : tuple3 TE.t RI.t (EP.Map.t Simple.t)) =>
-      (* 137-180 *)
+      (* 137-179 *)
       let* find_new_name :=
         let& find_param :=
           fun (simple : Simple.t) (params : list Simple.t) =>
@@ -227,7 +227,7 @@ Definition cse_with_eligible_lhs (typing_env_at_fork : TE.t)
                 | arg :: args, param :: params =>
                   match arg with
                   | EA.Already_in_scope arg =>
-                    (* 162: [when Simple.equal arg simple] *)
+                    (* 163: [when Simple.equal arg simple] *)
                     let! tmp1 := Simple.equal arg simple in
                     if tmp1
                     then
@@ -263,7 +263,7 @@ Definition cse_with_eligible_lhs (typing_env_at_fork : TE.t)
           end
         end
       in
-      (* 181-240 *)
+      (* 180-245 *)
       EP.Map.fold
         (fun (prim : EP.t) (bound_to : Simple.t)
              (eligible : EP.Map.t (RI.Map.t Rhs_kind.t)) =>
@@ -491,7 +491,7 @@ Definition join0 (typing_env_at_fork : TE.t) (cse_at_fork : T0.t)
      defined at the fork point, having canonicalised such name, cannot be
      propagated. This step also canonicalises the right-hand sides of the CSE
      equations. *)
-  (* 342-412 *)
+  (* 342-406 *)
   let& compute_cse_one_round :=
     fun (prev_cse : EP.Map.t Simple.t) (extra_params : EPA.t)
         (typing_env_with_extra_params : TE.t) (env_extension : TEE.t)
@@ -515,7 +515,7 @@ Definition join0 (typing_env_at_fork : TE.t) (cse_at_fork : T0.t)
         new_cse
         (T4 EP.Map.empty [] TEE.empty allowed)
     in
-    (* 362-369 *)
+    (* 362-368 *)
     let* sorted_extra_bindings :=
       List.sort
         (fun (pat1 pat2 : EP.t * extra_binding) =>
@@ -523,14 +523,14 @@ Definition join0 (typing_env_at_fork : TE.t) (cse_at_fork : T0.t)
           let* '(prim2, _) := ret pat2 in
           let! tmp1 := EP.to_primitive prim2 in
           let! tmp2 := EP.to_primitive prim1 in
-          (* 366-367 *)
+          (* 366 *)
           let! tmp3 :=
             papp1 TE.stable_compare_simples typing_env_with_extra_params
           in
           P.compare_primitive_application tmp3 tmp2 tmp1)
         extra_bindings
     in
-    (* 370-390. 379-381, [EPA.add extra_bindings ~extra_param ~extra_args
+    (* 369-388. 377-378, [EPA.add extra_bindings ~extra_param ~extra_args
        ~invalids]: the arguments are in the order of the interface. *)
     let* '(extra_params', typing_env_with_extra_params') :=
       List.fold_left
@@ -572,7 +572,7 @@ Definition join0 (typing_env_at_fork : TE.t) (cse_at_fork : T0.t)
       (T6 cse extra_params typing_env_with_extra_params' env_extension allowed
          need_other_round)
   in
-  (* 413-438 *)
+  (* 407-433 *)
   let* '(T4 cse extra_params env_extension allowed) :=
     let_fuel! fuel in
     let do_rounds :=
@@ -605,14 +605,14 @@ Definition join0 (typing_env_at_fork : TE.t) (cse_at_fork : T0.t)
       Name_occurrences.empty
   in
   let* have_propagated_something := mk_ref false in
-  (* 440-454 *)
+  (* 435-453 *)
   let* cse_at_join_point :=
     (* Any CSE equation whose right-hand side identifies a name in the [allowed]
        set is propagated. We don't need to check the left-hand sides because we
        know all of those names are in [typing_env_at_fork]. *)
     EP.Map.fold
       (fun (prim : EP.t) (bound_to : Simple.t) (cse : T0.t) =>
-        (* 446-450, [Simple.pattern_match bound_to ~const ~name]: the
+        (* 441-446, [Simple.pattern_match bound_to ~const ~name]: the
            arguments are in the order of the interface. *)
         let* propagate :=
           Simple.pattern_match bound_to

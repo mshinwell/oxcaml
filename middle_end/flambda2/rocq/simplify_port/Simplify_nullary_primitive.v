@@ -40,7 +40,7 @@ Definition simplify_nullary_primitive (dacc : DA.t) (original_prim : P.t)
   match prim with
   | P.Invalid _result_kind => Simplify_primitive_result.create_invalid dacc
   | P.Optimised_out result_kind =>
-    (* 22-27 *)
+    (* 22-32 *)
     (let! tmp1 := Bound_var.name_mode result_var in
      match tmp1 with
      | Name_mode.Phantom => ret tt
@@ -53,7 +53,7 @@ Definition simplify_nullary_primitive (dacc : DA.t) (original_prim : P.t)
     let* dacc := DA.add_variable dacc result_var ty in
     Simplify_primitive_result.create named false dacc
   | P.Probe_is_enabled _ _ =>
-    (* 32-38 *)
+    (* 33-39 *)
     let* named := Named.create_prim original_prim dbg in
     let* ty :=
       let! tmp1 := DA.denv dacc in
@@ -63,7 +63,7 @@ Definition simplify_nullary_primitive (dacc : DA.t) (original_prim : P.t)
     let* dacc := DA.add_variable dacc result_var ty in
     Simplify_primitive_result.create named false dacc
   | P.Enter_inlined_apply dbg inlined_attribute =>
-    (* 39-50 *)
+    (* 40-50 *)
     let* dacc :=
       DA.map_denv dacc
         (fun denv =>

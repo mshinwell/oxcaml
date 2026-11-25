@@ -151,7 +151,7 @@ Definition make_decisions_ (continuation_arg_types : continuation_arg_types)
     (denv : DE.t) (params : Bound_parameters.t) (params_types : list T.t)
     : M (DE.t * Decisions.t) :=
   let* params := Bound_parameters.to_list params in
-  (* 89-94 *)
+  (* 87-92 *)
   let* '(continuation_is_recursive, arg_types_by_use_id) :=
     match continuation_arg_types with
     | Recursive =>
@@ -163,7 +163,7 @@ Definition make_decisions_ (continuation_arg_types : continuation_arg_types)
     end
   in
   let& empty := Apply_cont_rewrite_id.Set_.empty in
-  (* 96-148 *)
+  (* 94-151 *)
   let* '(T5 _ denv rev_decisions seen invalids) :=
     List_.fold_left3
       (fun '(T5 nth denv rev_decisions seen invalids) param param_type
@@ -176,7 +176,7 @@ Definition make_decisions_ (continuation_arg_types : continuation_arg_types)
           Optimistic_unboxing_decision.make_optimistic_decision 0
             continuation_is_recursive tmp1 param_type
         in
-        (* 107-128 *)
+        (* 106-127 *)
         let* '(decision, invalids) :=
           if continuation_is_recursive
           then
@@ -198,12 +198,12 @@ Definition make_decisions_ (continuation_arg_types : continuation_arg_types)
             in
             ret (decision, invalids)
         in
-        (* 129-132 *)
+        (* 128-131 *)
         let* denv :=
           let! tmp1 := BP.var param in
           Build_unboxing_denv.denv_of_decision denv tmp1 decision
         in
-        (* 133-147. Compute the set of rewrite ids that have been considered
+        (* 132-147. Compute the set of rewrite ids that have been considered
            when updating decisions, and check that all [arg_type_by_use_id]s
            cover the same set of rewrite ids. *)
         let* seen :=
@@ -226,7 +226,7 @@ Definition make_decisions_ (continuation_arg_types : continuation_arg_types)
       (T5 0 denv [] None Apply_cont_rewrite_id.Set_.empty)
       params params_types arg_types_by_use_id
   in
-  (* 149-152 *)
+  (* 152-155 *)
   let& rewrite_ids_seen := match seen with None => empty | Some s => s end in
   let* decisions :=
     let! tmp1 := List.rev rev_decisions in

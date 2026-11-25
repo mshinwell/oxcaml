@@ -140,7 +140,7 @@ Fixpoint simplify_rec_info_expr0 (fuel : fuel) (denv : DE.t)
        mshinwell: Leo and I have discussed allowing In_types variables in
        closures, which should cover this case, if we allowed such variables to
        be of kinds other than [Value]. *)
-    (* 91-106. 101-103, [TE.get_canonical_simple_exn (DE.typing_env denv)
+    (* 93-108. 103-104, [TE.get_canonical_simple_exn (DE.typing_env denv)
        ~min_name_mode:Name_mode.normal (Simple.var dv)]: the arguments are
        in the order of the interface. *)
     let! tmp1 := Flambda_features.erase_in_types_depth_variables tt in

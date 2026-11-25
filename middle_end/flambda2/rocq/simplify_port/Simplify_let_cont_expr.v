@@ -1740,7 +1740,7 @@ with specialize_continuation_if_needed (fuel : fuel)
         fatal_errorf2 "No uses for continuation %a to be specialized"
           Continuation.print cont
       | Some uses =>
-        (* 1199-1206: the last case of the compiler's match names the whole
+        (* 1199-1246: the last case of the compiler's match names the whole
            list [uses]. *)
         let* uses := Continuation_uses.get_uses uses in
         match uses with
@@ -2172,7 +2172,7 @@ with simplify_recursive_handlers (fuel : fuel)
          Continuation.Map.t handler_after_downwards_traversal -> DA.t ->
          M (SE.t * DA.t)) :=
   recursive! fuel in
-  (* 1527-1586: a local [let rec]. *)
+  (* 1527-1587: a local [let rec]. *)
   let loop :=
     fix loop (fuel : Port_monad.fuel) (consts_lifted_after_fork : LCS.t)
         (cont_uses_env_so_far : CUE.t)

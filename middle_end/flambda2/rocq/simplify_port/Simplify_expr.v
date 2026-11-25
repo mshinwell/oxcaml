@@ -72,7 +72,7 @@ Fixpoint rebuild_expr (fuel : fuel) (expr : Simplified_expr.t) (uacc : UA.t)
   Simplified_expr.match_t expr
     (fun simplified_lets_and_let_conts simplified_terminator
          removed_operations is_cold =>
-      (* 40: a local [let rec] is Rocq's own [let] of a [fix]. *)
+      (* 39: a local [let rec] is Rocq's own [let] of a [fix]. *)
       let rebuild_lets_and_let_conts :=
         fix rebuild_lets_and_let_conts (fuel : Port_monad.fuel)
             (simplified_lets_and_let_conts : SE.simplified_lets_and_let_conts_)
@@ -283,6 +283,7 @@ Fixpoint simplify_expr (fuel : fuel) (dacc : DA.t) (expr : Expr.t)
     down_to_up dacc tmp1
   end
 
+(* 192-218 *)
 with simplify_function_body (fuel : fuel) (dacc : DA.t) (expr : Expr.t)
     (return_continuation : Continuation.t) (return_arity : Flambda_arity.t)
     (exn_continuation : Continuation.t) (loopify_state : Loopify_state.t)
@@ -291,7 +292,7 @@ with simplify_function_body (fuel : fuel) (dacc : DA.t) (expr : Expr.t)
   recursive! fuel in
   match loopify_state with
   | Loopify_state.Do_not_loopify =>
-    (* 197: [(fun dacc -> simplify_expr dacc expr)] *)
+    (* 198: [(fun dacc -> simplify_expr dacc expr)] *)
     simplify_toplevel_common dacc
       (fun dacc down_to_up => simplify_expr fuel dacc expr down_to_up)
       params implicit_params return_continuation return_arity
@@ -318,6 +319,7 @@ with simplify_function_body (fuel : fuel) (dacc : DA.t) (expr : Expr.t)
       exn_continuation
   end
 
+(* 220-222 *)
 (* PORT-GAP(loose): 216, the attribute [@inline always] is not kept. *)
 with simplify_let (fuel : fuel) (dacc : DA.t) (let_expr : Let.t)
     (down_to_up : Simplify_common.down_to_up SE.t) {struct fuel}

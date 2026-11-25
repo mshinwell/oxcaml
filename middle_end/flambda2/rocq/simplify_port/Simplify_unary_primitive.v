@@ -1624,7 +1624,7 @@ Definition simplify_unary_primitive (dacc : DA.t) (original_prim : P.t)
     (dbg : Debuginfo.t) (result_var : Bound_var.t) : M SPR.t :=
   let* min_name_mode := Bound_var.name_mode result_var in
   let* original_term := Named.create_prim original_prim dbg in
-  (* 1040-1104: a function of this file with its first arguments is a value
+  (* 1040-1105: a function of this file with its first arguments is a value
      (no call is made until [simplifier] has all its arguments). Where the
      compiler gives by its label an argument that comes after [dacc] in the
      definition ([~dbg], [~kind]), the value is a [fun]. *)

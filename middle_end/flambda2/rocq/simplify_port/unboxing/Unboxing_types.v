@@ -242,7 +242,7 @@ Fixpoint print_decision (fuel : fuel) (ppf : Format.formatter)
       Flambda_kind.Naked_number_kind.print kind Extra_param_and_args.print epa
   end
 
-(* 144-148 *)
+(* 145-149 *)
 with print_field_decision (fuel : fuel) (ppf : Format.formatter)
     (field_decision : field_decision) {struct fuel} : M unit :=
   recursive! fuel in
@@ -253,7 +253,7 @@ with print_field_decision (fuel : fuel) (ppf : Format.formatter)
       Extra_param_and_args.print epa tmp1 decision
       Flambda_kind.With_subkind.print kind)
 
-(* 150-152 *)
+(* 151-153 *)
 with print_fields_decisions (fuel : fuel) (ppf : Format.formatter)
     (l : list field_decision) {struct fuel} : M unit :=
   recursive! fuel in
@@ -262,7 +262,7 @@ with print_fields_decisions (fuel : fuel) (ppf : Format.formatter)
   let! tmp2 := papp2 Format.pp_print_list (Some pp_sep) tmp1 in
   Format.fprintf2 ppf "%a" tmp2 l
 
-(* 154-160 *)
+(* 155-160 *)
 with print_const_ctor_num (fuel : fuel) (ppf : Format.formatter)
     (const_ctors : const_ctors_decision) {struct fuel} : M unit :=
   recursive! fuel in

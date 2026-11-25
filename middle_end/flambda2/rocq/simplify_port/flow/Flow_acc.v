@@ -718,7 +718,7 @@ Definition add_apply_conts
                     in
                     Numeric_types.Int.Map.of_list tmp1
                   in
-                  (* 262-263: the two arguments of the function are the
+                  (* 263: the two arguments of the function are the
                      pairs [(i, map)] and [(extra_arg, _kind)]. *)
                   let* '(_, map) :=
                     List.fold_left

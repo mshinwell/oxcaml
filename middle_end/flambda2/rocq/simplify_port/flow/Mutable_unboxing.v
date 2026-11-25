@@ -638,7 +638,7 @@ Module Fold_prims.
         let* k :=
           Flambda_primitive.Block_access_kind.element_kind_for_load bak
         in
-        (* 422-428: [match .. with bound_to when c -> e1 | _ | (exception
+        (* 422-429: [match .. with bound_to when c -> e1 | _ | (exception
            Not_found) -> e2]: the guard is an [if] in the case of a value,
            and [e2] is written twice. *)
         let* rewrite :=

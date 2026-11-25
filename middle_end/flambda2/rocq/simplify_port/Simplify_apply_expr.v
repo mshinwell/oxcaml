@@ -456,7 +456,7 @@ Definition simplify_direct_full_application
             let! tmp1 := Code_metadata.cold callee's_code_metadata in
             if tmp1 then DE.mark_as_cold env_at_use else ret env_at_use
           in
-          (* 316-325: the arguments are in the order of the interface. *)
+          (* 316-326: the arguments are in the order of the interface. *)
           let* '(dacc, use_id) :=
             let! tmp1 := DA.denv dacc in
             let! tmp2 := DE.machine_width tmp1 in
@@ -1173,7 +1173,7 @@ Definition simplify_function_call_where_callee's_type_unavailable
     match tmp1 with
     | Apply_expr.Result_continuation.Never_returns => ret (dacc, None)
     | Apply_expr.Result_continuation.Return continuation =>
-      (* 913-921: the arguments are in the order of the interface. *)
+      (* 913-922: the arguments are in the order of the interface. *)
       let* '(dacc, use_id) :=
         let! tmp1 := Apply.return_arity apply in
         let! tmp2 := DE.machine_width denv in
@@ -1293,7 +1293,7 @@ Definition simplify_direct_function_call
       ret (Or_bottom.Ok tmp1)
     | Or_unknown.Known callee's_code_ids_from_call_kind =>
       let* typing_env := DA.typing_env dacc in
-      (* 997 *)
+      (* 995-999 *)
       let! tmp1 := Code_id.Set_.singleton callee's_code_id_from_type in
       let! tmp2 := papp1 TE.code_age_relation_resolver typing_env in
       let! tmp3 := TE.code_age_relation typing_env in
@@ -1756,7 +1756,7 @@ Definition simplify_method_call (dacc : DA.t) (apply : Apply.t)
   in
   let* denv := DA.denv dacc in
   DE.check_simple_is_bound denv obj ;;
-  (* 1353-1361: the arguments are in the order of the interface. *)
+  (* 1353-1362: the arguments are in the order of the interface. *)
   let* '(dacc, use_id) :=
     let! tmp1 := Apply.return_arity apply in
     let! tmp2 := DE.machine_width denv in
@@ -1932,7 +1932,7 @@ Definition simplify_effect_op (dacc : DA.t) (apply : Apply.t)
     match tmp1 with
     | Apply_expr.Result_continuation.Never_returns => ret (dacc, None)
     | Apply_expr.Result_continuation.Return continuation =>
-      (* 1480-1488: the arguments are in the order of the interface. *)
+      (* 1480-1489: the arguments are in the order of the interface. *)
       let* '(dacc, use_id) :=
         let! tmp1 := Apply.return_arity apply in
         let! tmp2 := DE.machine_width denv in

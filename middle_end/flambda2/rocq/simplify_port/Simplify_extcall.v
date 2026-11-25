@@ -123,7 +123,7 @@ Definition simplify_comparison_of_tagged_immediates (dbg : Debuginfo.t)
   let& v_comp_duid := Flambda_debug_uid.none in
   let* tagged := Variable_.create None "tagged" K.value in
   let& tagged_duid := Flambda_debug_uid.none in
-  (* 63-68: [f x @@ g y @@ e] is [f x (g y e)]. *)
+  (* 64-69: [f x @@ g y @@ e] is [f x (g y e)]. *)
   let* '(_free_names, res) :=
     let! tmp1 := apply_cont cont tagged dbg in
     let! tmp2 := Simple.var v_comp in
@@ -152,7 +152,7 @@ Definition simplify_comparison_of_boxed_numbers (dbg : Debuginfo.t)
   let& v_comp_duid := Flambda_debug_uid.none in
   let* tagged := Variable_.create None "tagged" K.value in
   let& tagged_duid := Flambda_debug_uid.none in
-  (* 85-93: [f x @@ g y @@ e] is [f x (g y e)]. *)
+  (* 85-94: [f x @@ g y @@ e] is [f x (g y e)]. *)
   let* '(_free_names, res) :=
     (* XXX try to remove @@ *)
     let! tmp1 := apply_cont cont tagged dbg in
@@ -354,7 +354,7 @@ Definition simplify_extcall (dacc : DA.t) (apply : Apply.t) (_ : T.t)
           Apply.print apply
       end
     in
-    (* 230: [a |> f |> g |> h] is [h (g (f a))]. *)
+    (* 233: [a |> f |> g |> h] is [h (g (f a))]. *)
     let! tmp1 := fun_symbol callee in
     let! tmp2 := Symbol.linkage_name tmp1 in
     Linkage_name.to_string tmp2

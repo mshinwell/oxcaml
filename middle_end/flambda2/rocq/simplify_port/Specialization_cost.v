@@ -196,7 +196,7 @@ Definition cost_metrics (typing_env : Flambda2_types.Typing_env.t)
   let* n_specialized := Apply_cont_rewrite_id.Set_.cardinal specialized in
   let* n_generic := Apply_cont_rewrite_id.Set_.cardinal generic in
   let& n_total := n_specialized + (if n_generic =? 0 then 0 else 1) in
-  (* 111-131. Cost metrics for a generic call site *)
+  (* 110-130. Cost metrics for a generic call site *)
   let* metrics :=
     if n_generic =? 0
     then
@@ -216,14 +216,14 @@ Definition cost_metrics (typing_env : Flambda2_types.Typing_env.t)
          the code size is not changed (at least for the generic case *)
       ret Cost_metrics.zero
   in
-  (* 133-137. Cost metrics for specialized call sites *)
+  (* 131-136. Cost metrics for specialized call sites *)
   let* metrics :=
     (* Each specialized handler eliminates the switch *)
     let_fuel! fuel in
     let! tmp1 := papp1 Cost_metrics.notify_removed Removed_operations.branch in
     repeat fuel n_specialized metrics tmp1
   in
-  (* 140-176. For each primitive, and each specialized call site: 1) notify
+  (* 137-177. For each primitive, and each specialized call site: 1) notify
      it removed if its value is known, 2) else add the prim to the code
      size *)
   let* metrics :=
@@ -234,7 +234,7 @@ Definition cost_metrics (typing_env : Flambda2_types.Typing_env.t)
           let! tmp1 := Bound_var.var bound_var in
           Simple.var tmp1
         in
-        (* 144-162 *)
+        (* 143-162 *)
         let* '(disappears, stays) :=
           let! tmp1 :=
             Flambda2_types.Join_analysis.simple_refined_at_join join_analysis
@@ -279,7 +279,7 @@ Definition cost_metrics (typing_env : Flambda2_types.Typing_env.t)
         ret metrics)
       metrics cost.(primitives)
   in
-  (* 178-185 *)
+  (* 178-186 *)
   (* Count the non lifted continuations. We currently cannot easily access the
      size of handlers, since we have not yet done a downwards traversal on them,
      so instead we just use an arbitrary size.
@@ -291,7 +291,7 @@ Definition cost_metrics (typing_env : Flambda2_types.Typing_env.t)
     let! tmp1 := Code_size.of_int i5 in
     Cost_metrics.from_size tmp1
   in
-  (* 186-200 *)
+  (* 187-200 *)
   let* metrics :=
     List.fold_left
       (fun (metrics : Cost_metrics.t) (handlers : Original_handlers.t) =>

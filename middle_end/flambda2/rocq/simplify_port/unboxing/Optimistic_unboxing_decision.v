@@ -159,7 +159,7 @@ Fixpoint make_optimistic_decision (fuel : fuel) (depth : int)
         if depth >=? tmp1
         then ret (U.Do_not_unbox U.Max_depth_exceeded)
         else
-          (* 99-153 *)
+          (* 98-153 *)
           let! tmp1 := T.prove_unique_tag_and_size tenv param_type in
           match tmp1, unbox_blocks with
           | T.Proved (T3 tag shape size), true =>
@@ -251,7 +251,7 @@ Fixpoint make_optimistic_decision (fuel : fuel) (depth : int)
           end
       end
 
-(* 155-208. In the compiler: [~add_tag_to_name ~depth ~recursive tenv
+(* 155-210. In the compiler: [~add_tag_to_name ~depth ~recursive tenv
    param_type tag shape size]. *)
 with make_optimistic_fields (fuel : fuel) (add_tag_to_name : bool)
     (depth : int) (recursive : bool) (tenv : TE.t) (param_type : T.t)
@@ -314,7 +314,7 @@ with make_optimistic_fields (fuel : fuel) (add_tag_to_name : bool)
     let! tmp2 := TE.machine_width tenv in
     T.immutable_block tmp2 false tag shape tmp1 field_types
   in
-  (* 192-208 *)
+  (* 192-210 *)
   (* PORT-GAP(loose): 198, the compiler raises again the exception that it
      caught, [raise exn]; here [Misc.Fatal_error] is raised, which is that
      exception. *)
@@ -333,7 +333,7 @@ in env: @
       match meet_result with
       | Or_bottom.Bottom => ret None
       | Or_bottom.Ok (_, tenv) =>
-        (* 200-208 *)
+        (* 200-209 *)
         let* fields :=
           List.map2
             (fun epa var_type =>
@@ -349,7 +349,7 @@ in env: @
         ret (Some fields)
       end)
 
-(* 210-228. In the compiler: [~depth ~recursive tenv closures_entry]. *)
+(* 212-228. In the compiler: [~depth ~recursive tenv closures_entry]. *)
 with make_optimistic_vars_within_closure (fuel : fuel) (depth : int)
     (recursive : bool) (tenv : TE.t) (closures_entry : T.Closures_entry.t)
     {struct fuel} : M (Value_slot.Map.t U.field_decision) :=

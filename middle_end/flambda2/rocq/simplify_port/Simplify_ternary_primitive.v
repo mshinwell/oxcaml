@@ -161,7 +161,7 @@ Definition simplify_ternary_primitive (dacc : DA.t) (original_prim : P.t)
     (arg2 : Simple.t) (arg2_ty : T.t) (arg3 : Simple.t) (arg3_ty : T.t)
     (dbg : Debuginfo.t) (result_var : Bound_var.t) : M SPR.t :=
   let* original_term := Named.create_prim original_prim dbg in
-  (* 102-114: a function of this file with its first arguments is a value
+  (* 103-114: a function of this file with its first arguments is a value
      (no call is made until [simplifier] has all its arguments). *)
   let& simplifier :=
     match prim with

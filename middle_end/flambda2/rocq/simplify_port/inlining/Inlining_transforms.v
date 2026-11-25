@@ -104,7 +104,7 @@ Definition make_inlined_body (callee : option Simple.t)
        fatal_errorf4 "Mismatching parameters and arguments: %a and %a"
          Bound_parameters.print tmp2 Simple.List.print args
      else ret tt) ;;
-    (* 61-69: [ListLabels.fold_left2 l1 l2 ~init ~f]: the arguments are in
+    (* 61-68: [ListLabels.fold_left2 l1 l2 ~init ~f]: the arguments are in
        the order of the interface. [a |> f] is [f a]. *)
     let! tmp4 := List.rev args in
     let! tmp5 := List.rev params in
@@ -176,7 +176,7 @@ Definition wrap_inlined_body_for_exn_extra_args
 Definition inline (dacc : DA.t) (apply : Apply.t) (unroll_to : option int)
     (was_inline_always : bool) (function_decl : FT.t) : M (DA.t * Expr.t) :=
   let* callee := Apply.callee apply in
-  (* 105-112 *)
+  (* 106-113 *)
   (let! tmp1 := Apply.call_kind apply in
    match tmp1 with
    | Call_kind.Function _ => ret tt
@@ -234,14 +234,14 @@ Definition inline (dacc : DA.t) (apply : Apply.t) (unroll_to : option int)
   | Alloc_mode.For_applications.Maybe_alloc_stack _ _ _,
     Lambda.Maybe_alloc_stack
   | Alloc_mode.For_applications.Not_alloc_stack _, Lambda.Not_alloc_stack =>
-    (* 145-147 *)
+    (* 146-148 *)
     let* denv := DE.enter_inlined_apply code apply was_inline_always denv in
     let* params_and_body := Code.params_and_body code in
-    (* 149-181 *)
+    (* 150-181 *)
     Function_params_and_body.pattern_match params_and_body
       (fun return_continuation exn_continuation params body my_closure _
            my_alloc_mode my_depth _ =>
-        (* 161-168 *)
+        (* 162-168 *)
         (* PORT-GAP(loose): the compiler gives its
            [make_inlined_body] all its arguments but
            [~apply_exn_continuation] and [~apply_return_continuation], and

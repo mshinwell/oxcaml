@@ -73,7 +73,7 @@ Fixpoint filter_non_beneficial_decisions (fuel : fuel) (decision : U.decision_)
   recursive! fuel in
   match decision with
   | U.Do_not_unbox _ => ret decision
-  (* 39-54 *)
+  (* 38-52 *)
   | U.Unbox (U.Unique_tag_and_size tag shape fields) =>
     let* '(is_unboxing_beneficial, fields) :=
       List.fold_left_map
@@ -92,7 +92,7 @@ Fixpoint filter_non_beneficial_decisions (fuel : fuel) (decision : U.decision_)
     if is_unboxing_beneficial
     then ret (U.Unbox (U.Unique_tag_and_size tag shape fields))
     else ret (U.Do_not_unbox U.Not_beneficial)
-  (* 55-68 *)
+  (* 53-66 *)
   | U.Unbox (U.Closure_single_entry function_slot vars_within_closure) =>
     let* is_unboxing_beneficial := mk_ref false in
     let* vars_within_closure :=
@@ -111,7 +111,7 @@ Fixpoint filter_non_beneficial_decisions (fuel : fuel) (decision : U.decision_)
     then
       ret (U.Unbox (U.Closure_single_entry function_slot vars_within_closure))
     else ret (U.Do_not_unbox U.Not_beneficial)
-  (* 69-87 *)
+  (* 67-86 *)
   | U.Unbox (U.Variant tag const_ctors fields_by_tag) =>
     let* is_unboxing_beneficial := mk_ref false in
     let* fields_by_tag :=
@@ -140,11 +140,11 @@ Fixpoint filter_non_beneficial_decisions (fuel : fuel) (decision : U.decision_)
     if tmp1
     then ret (U.Unbox (U.Variant tag const_ctors fields_by_tag))
     else ret (U.Do_not_unbox U.Not_beneficial)
-  (* 88-90 *)
+  (* 87-89 *)
   | U.Unbox (U.Number K.Naked_number_kind.Naked_immediate _) =>
     (* At worst, this unboxing untags an integer *)
     ret decision
-  (* 91-98 *)
+  (* 90-98 *)
   | U.Unbox
       (U.Number
          (K.Naked_number_kind.Naked_float | K.Naked_number_kind.Naked_float32

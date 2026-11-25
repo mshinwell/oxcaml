@@ -1959,7 +1959,7 @@ Definition simplify_array_load (array_kind : P.Array_kind.t)
                 let! tmp8 := DA.denv dacc in
                 DE.machine_width tmp8
               in
-              (* 1070-1074: [Array.length fields |> Target_ocaml_int.of_int
+              (* 1071-1075: [Array.length fields |> Target_ocaml_int.of_int
                  machine_width] is [Target_ocaml_int.of_int machine_width
                  (Array.length fields)]. *)
               let! tmp9 := Target_ocaml_int.zero machine_width in
@@ -1973,7 +1973,7 @@ Definition simplify_array_load (array_kind : P.Array_kind.t)
               if tmp11
               then SPR.create_invalid dacc
               else
-                (* 1078: [fields.(i)] is [Array.get fields i]. *)
+                (* 1079: [fields.(i)] is [Array.get fields i]. *)
                 let! tmp14 := Target_ocaml_int.to_int imm in
                 let! tmp15 := Array.get fields tmp14 in
                 return_given_type tmp15 true
@@ -2051,7 +2051,7 @@ Definition simplify_binary_primitive0 (dacc : DA.t) (original_prim : P.t)
     (arg2 : Simple.t) (arg2_ty : T.t) (dbg : Debuginfo.t)
     (result_var : Bound_var.t) : M SPR.t :=
   let* original_term := Named.create_prim original_prim dbg in
-  (* 1126-1177: a function given its first arguments is a value. *)
+  (* 1126-1178: a function given its first arguments is a value. *)
   let& simplifier :=
     match prim with
     | P.Block_set kind init field => simplify_block_set kind init field
@@ -2138,7 +2138,7 @@ Definition recover_comparison_primitive (dacc : DA.t)
           let! tmp5 := Target_ocaml_int.equal i tmp4 in
           if tmp5
           then
-            (* 1190-1198, [Simple.pattern_match' left ~const ~symbol ~var]:
+            (* 1190-1197, [Simple.pattern_match' left ~const ~symbol ~var]:
                the arguments are in the order of the interface. *)
             Simple.pattern_match' left
               (fun var _ =>

@@ -158,7 +158,7 @@ Definition simplify_primitive (dacc : DA.t) (prim : P.t) (dbg : Debuginfo.t)
     Simplify_nullary_primitive.simplify_nullary_primitive dacc prim prim' dbg
       result_var
   | P.Unary unary_prim orig_arg =>
-    (* 106-120 *)
+    (* 106-119 *)
     let* '(arg_ty, arg) := S.simplify_simple dacc orig_arg min_name_mode in
     let* arg_kind := P.arg_kind_of_unary_primitive unary_prim in
     let! tmp1 := arg_kind_mismatch prim [(arg_ty, arg_kind)] in
@@ -177,7 +177,7 @@ Definition simplify_primitive (dacc : DA.t) (prim : P.t) (dbg : Debuginfo.t)
           unary_prim arg arg_ty dbg result_var
       end
   | P.Binary binary_prim orig_arg1 orig_arg2 =>
-    (* 121-138 *)
+    (* 120-136 *)
     let* '(arg1_ty, arg1) := S.simplify_simple dacc orig_arg1 min_name_mode in
     let* '(arg2_ty, arg2) := S.simplify_simple dacc orig_arg2 min_name_mode in
     let* '(arg1_kind, arg2_kind) :=
@@ -202,7 +202,7 @@ Definition simplify_primitive (dacc : DA.t) (prim : P.t) (dbg : Debuginfo.t)
           binary_prim arg1 arg1_ty arg2 arg2_ty dbg result_var
       end
   | P.Ternary ternary_prim orig_arg1 orig_arg2 orig_arg3 =>
-    (* 139-162 *)
+    (* 137-159 *)
     let* '(arg1_ty, arg1) := S.simplify_simple dacc orig_arg1 min_name_mode in
     let* '(arg2_ty, arg2) := S.simplify_simple dacc orig_arg2 min_name_mode in
     let* '(arg3_ty, arg3) := S.simplify_simple dacc orig_arg3 min_name_mode in
@@ -236,7 +236,7 @@ Definition simplify_primitive (dacc : DA.t) (prim : P.t) (dbg : Debuginfo.t)
           dbg result_var
       end
   | P.Quaternary quaternary_prim orig_arg1 orig_arg2 orig_arg3 orig_arg4 =>
-    (* 163-193 *)
+    (* 160-189 *)
     let* '(arg1_ty, arg1) := S.simplify_simple dacc orig_arg1 min_name_mode in
     let* '(arg2_ty, arg2) := S.simplify_simple dacc orig_arg2 min_name_mode in
     let* '(arg3_ty, arg3) := S.simplify_simple dacc orig_arg3 min_name_mode in
@@ -274,7 +274,7 @@ Definition simplify_primitive (dacc : DA.t) (prim : P.t) (dbg : Debuginfo.t)
           arg4 arg4_ty dbg result_var
       end
   | P.Variadic variadic_prim orig_args =>
-    (* 194-199. [ListLabels.fold_right orig_args ~init:[] ~f]: the arguments
+    (* 191-195. [ListLabels.fold_right orig_args ~init:[] ~f]: the arguments
        are in the order of the interface. *)
     let* args_with_tys :=
       ListLabels.fold_right
@@ -284,7 +284,7 @@ Definition simplify_primitive (dacc : DA.t) (prim : P.t) (dbg : Debuginfo.t)
         orig_args []
     in
     let* arg_tys := List.map Stdlib_.snd args_with_tys in
-    (* 201-224 *)
+    (* 197-224 *)
     let* arg_tys_and_expected_kinds :=
       let! tmp1 := P.args_kind_of_variadic_primitive variadic_prim in
       match tmp1 with
@@ -312,7 +312,7 @@ Definition simplify_primitive (dacc : DA.t) (prim : P.t) (dbg : Debuginfo.t)
              num_arg_tys num_kinds P.print prim
          else ret tt) ;;
         let* num_repeats := int_div num_arg_tys num_kinds in
-        (* 223: [a |> f] is [f a] *)
+        (* 222: [a |> f] is [f a] *)
         let* kinds :=
           let! tmp1 := List.init num_repeats (fun _ => ret kinds) in
           List.concat tmp1
@@ -320,7 +320,7 @@ Definition simplify_primitive (dacc : DA.t) (prim : P.t) (dbg : Debuginfo.t)
         List.combine arg_tys kinds
       end
     in
-    (* 226-235 *)
+    (* 225-235 *)
     let! tmp1 := arg_kind_mismatch prim arg_tys_and_expected_kinds in
     if tmp1
     then SPR.create_invalid dacc

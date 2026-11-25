@@ -94,7 +94,7 @@ Definition simplify_make_block (original_prim : P.t)
       let* fields := List.map Stdlib_.snd args_with_tys in
       let* alloc_mode := Alloc_mode.For_allocations.as_type alloc_mode in
       let* '(tag, shape) := P.Block_kind.to_shape block_kind in
-      (* 61-67, [T.immutable_block ~is_unique tag ~shape alloc_mode ~fields
+      (* 61-68, [T.immutable_block ~is_unique tag ~shape alloc_mode ~fields
          ~machine_width]: the arguments are in the order of the
          interface. *)
       match mutable_or_immutable with

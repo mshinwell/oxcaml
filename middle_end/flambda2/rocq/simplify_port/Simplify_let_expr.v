@@ -323,7 +323,7 @@ Definition rebuild_let (arg : Simplified_expr.simplified_defining_expr * RE.t)
         Not_found
         (fun _ => ret (uacc, bindings))
         (fun rewrite =>
-          (* 257-261: the compiler's two cases of a list of one binding are
+          (* 257-319: the compiler's two cases of a list of one binding are
              one case here, and a match on that binding (as nested patterns
              Rocq puts the match on the tail inside each case of the
              binding). *)

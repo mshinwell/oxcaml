@@ -64,7 +64,7 @@ Definition introduce_extra_params_in_use_env (epa : EPA.t)
     let! tmp1 := EPA.extra_params epa in
     TE.add_definitions_of_params tenv_at_use tmp1
   in
-  (* 32-38: the case of the exception, then those of the value. *)
+  (* 32-53: the case of the exception, then those of the value. *)
   match_exn
     (fun _ =>
       let! tmp1 := EPA.extra_args epa in

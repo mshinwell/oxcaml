@@ -48,7 +48,7 @@ Extract Inlined Constant Simple_not_in_scope =>
 Definition simplify_simple0 (dacc : DA.t) (simple : Simple.t)
     (min_name_mode : Name_mode.t) : M (T.t * Simple.t) :=
   let* typing_env := DA.typing_env dacc in
-  (* 24: [TE.type_simple_in_term_exn typing_env simple ~min_name_mode]: the
+  (* 25: [TE.type_simple_in_term_exn typing_env simple ~min_name_mode]: the
      arguments are in the order of the interface. *)
   match_exn
     (fun _ =>

@@ -959,7 +959,7 @@ Definition rewrite_fixed_arity_continuation0 (uacc : UA.t)
        else ret tt) ;;
       shortcut_this_continuation_if_possible tt
     else
-      (* 661-662. In the compiler: [params expr ~free_names
+      (* 661-681. In the compiler: [params expr ~free_names
          ~cost_metrics:cost_metrics_of_handler]. *)
       let& new_wrapper :=
         fun (params : Bound_parameters.t) (expr : RE.t)

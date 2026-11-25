@@ -218,7 +218,7 @@ Definition compute_closure_types_inside_functions (denv : DE.t)
                     let* code_metadata :=
                       Code_or_metadata.code_metadata code_or_metadata
                     in
-                    (* 149-155: [a |> f b] is [f b a]. *)
+                    (* 149-156: [a |> f b] is [f b a]. *)
                     let* '(absolute_history, _relative_history) :=
                       let! tmp3 := DE.inlining_history_tracker denv in
                       let! tmp4 := Function_slot.name function_slot in
