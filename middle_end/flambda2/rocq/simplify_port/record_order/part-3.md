@@ -339,7 +339,7 @@ R: the table of simples with a coercion
 coercion"
 F: (a) `Assert_failure` at middle_end/flambda2/identifiers/int_ids.ml:763, 764
 or 659, if the flag bits are not those of a variable, a symbol, a constant or a
-simple with a coercion; the types are abstract and every constructor sets one of
+simple with a coercion; the types are private and every constructor sets one of
 these flags, so no way to reach it was found. (b) `Assert_failure` at
 middle_end/flambda2/algorithms/table_by_int_id.ml:110 (wrong flag; same remark).
 (c) `Not_found` from middle_end/flambda2/algorithms/table_by_int_id.ml:111, if
@@ -896,8 +896,10 @@ verdict: COMMUTE
    part on assertions. The build files of the tree (dune files, Makefiles,
    `.sexp`, `.mk`, `.ac`, `.in`, outside `external/` and the test suite) were
    searched for the flag that removes assertions, and none was found. The file
-   `ocamlopt_flags.sexp`, which the dune files include, is made at build time
-   and is not in the tree: it was not read. If assertions were removed, the
+   `ocamlopt_flags.sexp` of the root of the project, which the dune files
+   include, is made at build time and is not in the tree: it was not read.
+   (`oxcaml/tests/backend/oxcaml_dwarf/ocamlopt_flags.sexp`, which is in the
+   tree, is another file.) If assertions were removed, the
    counts of occurrences would wrap silently instead of failing; the verdicts
    would not get worse (the functions would then not fail at those lines).
 2. `typing/global_module.ml`: read only lines 150-170 (the functions that make a

@@ -132,7 +132,7 @@ Named.free_names and of Code_size.simple (below).
 A: none (an immutable record of three fields; the record at 58-61 has one call
 only, so it is not a place)
 read: middle_end/flambda2/simplify/simplified_named.ml:17-100 (the whole file);
-middle_end/flambda2/simplify/simplified_named.mli:15-80
+middle_end/flambda2/simplify/simplified_named.mli:15-64
 
 ### F: Code_size.simple
 defined: middle_end/flambda2/terms/code_size.ml:42 is Code_size_v1.simple; the

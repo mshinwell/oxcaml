@@ -122,6 +122,39 @@ and ends with `..`; the line `heading:` under it has the heading whole. A
 function that several places reach can have an entry in more than one part; the
 entries of two parts are not merged.
 
+WHERE TWO PARTS SAY DIFFERENT THINGS OF ONE FUNCTION. The entries of the parts
+were laid side by side for every function that has more than one. They agree on
+what is written and read. They differ in these points, and no verdict rests on
+one of them.
+
+- `Table_by_int_id.Make(E).add`, when no identifier is left
+  (`middle_end/flambda2/algorithms/table_by_int_id.ml` 75-107). Parts 1, 2 and 3
+  name the fatal error of line 99; part 4 says that the assertion of line 91
+  fails before it. Part 4 is right: the walk adds one to the identifier (line
+  35), and the assertion on its flags fails as soon as the walk leaves the
+  identifiers of the table, which is before it can come round to where it
+  began. Line 99 can be reached only where assertions are compiled out.
+- The fatal error of `Simple.with_coercion`
+  (`middle_end/flambda2/identifiers/int_ids.ml` 822-825), on the path of a
+  waiting renaming: "not reachable" in part 2, listed as possible in part 3. Not
+  settled.
+- The lookup of a simple with a coercion
+  (`middle_end/flambda2/algorithms/table_by_int_id.ml` 110-111): "not reachable
+  for a simple made through the interface" in part 2; `Not_found` is possible in
+  parts 3 and 4 if the table was replaced after the simple was made. Part 2's
+  words hold where no table is replaced while Simplify runs (section 8).
+- The failures of the comparison of compilation units
+  (`utils/compilation_unit.ml` 91 and 286): counted in parts 1 and 3, called
+  invariants in part 4, not named in part 2 (section 8).
+- `Misc.fatal_errorf`: under R, part 1 says none, and parts 2 and 4 name the
+  state of the formatter, which part 1 has under W.
+- Under A, part 3 also writes a fresh immutable value; parts 1, 2 and 4 write
+  "none" for it. Such a value has no identity that a call of these places tests.
+- Four numbers of lines: the end of `Tree_operations`, of `Container_types.Make`
+  and of `Make_map` is given with or without the line of the attribute that
+  follows the module; `Int_ids.initialise` is given with or without `reset`,
+  which follows it.
+
 ## 4. The table of the 23 places
 
 The files of the port are named from the folder of the port; the files of the
@@ -174,13 +207,19 @@ whether the writes of `is_fully_static` (the caches of free names, the fields of
 the name abstraction, the possible entries of tables) have happened before that
 failure.
 
-WHERE THE LINE BETWEEN THE FIRST TWO VERDICTS LIES. The parts do not all draw it
-at the same point, and this file does not move it. Part 2 gives place 7 COMMUTE,
-because the two points of failure in the code that it calls cannot be reached
-there; it says: if a guarded site is counted as "can fail", place 7 is COMMUTE,
-FAILURES ORDERED, with nothing chosen by the order. Part 4 gives places 22 and
-23 COMMUTE, FAILURES ORDERED; it says of each: if its points of failure are
-counted as not reachable, the verdict is COMMUTE.
+WHERE THE LINE BETWEEN THE FIRST TWO VERDICTS LIES. A point of failure in the
+code that a place calls counts as "can fail" unless the code that was read and
+the types exclude it. Part 2 gives place 7 COMMUTE, because the two points of
+failure in the code that it calls cannot be reached there: one needs a symbol
+that is defined twice, and the place has one pattern that defines one symbol;
+the other needs an identifier whose flags the private types of the identifiers
+exclude. (It says: if a guarded site is counted as "can fail", place 7 is
+COMMUTE, FAILURES ORDERED, with nothing chosen by the order.) Part 4 gives
+places 22 and 23 COMMUTE, FAILURES ORDERED: what is left there is excluded only
+by things that hold outside the code that was read (at place 22, that no table
+is replaced while Simplify runs; at place 23, that the identifiers of a table do
+not run out). It says of each: if those points are counted as not reachable, the
+verdict is COMMUTE.
 
 ## 5. The two places reported (2 and 18)
 
@@ -473,9 +512,11 @@ CONDITIONS OF FAILURE THAT WERE NOT DECIDED.
 ASSERTIONS COMPILED IN OR OUT. Some points of failure are assertions. An
 assertion is counted as a point of failure; it disappears if assertions are
 compiled out (part 2). The build files of the tree were searched for the flag
-that removes assertions, and none was found; the file `ocamlopt_flags.sexp`,
-which the dune files include, is made at build time, is not in the tree, and was
-not read. If assertions were removed, the counts of occurrences would wrap
+that removes assertions, and none was found; the file `ocamlopt_flags.sexp` of
+the root of the project, which the dune files include, is made at build time, is
+not in the tree, and was not read (the file of that name that is in the tree,
+`oxcaml/tests/backend/oxcaml_dwarf/ocamlopt_flags.sexp`, is another one). If
+assertions were removed, the counts of occurrences would wrap
 silently instead of failing; the verdicts would not get worse (part 3, item 1).
 Places: 9, 10, 12, 13, 14, 16, 22 and 23.
 
