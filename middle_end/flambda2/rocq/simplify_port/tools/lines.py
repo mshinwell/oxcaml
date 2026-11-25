@@ -155,13 +155,14 @@ WHAT THE TOOL DOES NOT ESTABLISH.
   notes named a whole functor where the definition follows the
   signature of the functor's argument; they name those lines now. 24
   definitions that the donor has at lines of their own had no note,
-  and have one. The 41 that were left without a note have no lines of
-  their own in the donor: what the donor makes by [include] or by
-  applying a functor and the file writes out (the note or the mark
-  before the first of them, or before their module, names that line);
-  a member of a run of [Module X := ..]; what the file adds of its
-  own; a type that the donor does not name. Nothing repeats that
-  reading.
+  and have one. The 41 remain without a note of their own for these
+  reasons: what the donor makes by [include] or by applying a functor
+  and the file writes out has no lines of its own in the donor (the
+  note or the mark before the first of them, or before their module,
+  names that line); a member of a run of [Module X := ..] has its
+  line in the donor and is under the note of its run; what the file
+  adds of its own, and a type that the donor does not name, have no
+  lines in the donor. Nothing repeats that reading.
 - WHICH OF TWO ITEMS of one name a definition follows. The donor may
   define a name twice in one module (the later hiding the earlier), and
   it may have a type and a value of one name, either of which a

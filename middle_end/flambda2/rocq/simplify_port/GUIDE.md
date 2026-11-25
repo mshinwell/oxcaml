@@ -82,10 +82,12 @@ files beside the donors first. Points marked HUMAN are the human's to judge.
 - A definition that `make lines` does not judge has a note all the same
   if the donor has it at lines of its own (in a functor; a member of
   the module that the donor writes as the argument of an application).
-  It has none if the donor has no lines for it alone: what the donor
-  makes by `include` or by applying a functor, and the file writes out
-  (the note or the mark before the first of them, or before their
-  module, names that line), and what the file adds of its own.
+  It has none of its own if it is a member of a run of `Module X :=
+  ..`, which is under the note of its run; and none if the donor has no
+  lines for it alone: what the donor makes by `include` or by applying
+  a functor, and the file writes out (the note or the mark before the
+  first of them, or before their module, names that line), and what
+  the file adds of its own.
 - The donor's COMMENTS stay at their places, in the donor's words (one
   that begins `CR` may be left out): `make comments` lists the ones that
   are missing and the headers that differ.

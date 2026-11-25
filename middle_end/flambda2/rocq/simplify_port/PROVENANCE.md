@@ -85,12 +85,14 @@ nothing) are those of the tree's own `stdlib/NAME.mli`, though the names
 and types were read from the other library; the comment under the header
 of each file says so. Is the tree's header also the header of what was
 read? The complete notice at the head of each of the 19 interfaces was
-compared once, for the audit of the origin of the port: in the tree's
-`stdlib/NAME.mli` and in the file of that name that is installed beside
-the compiled interfaces that were read, it is the same bytes for all 19
+compared once, for the audit of the origin of the port at checkpoint 11:
+in the tree's `stdlib/NAME.mli` and in the installed `.mli` file of that
+name that was inspected for that audit, it is the same bytes for all 19
 (14 lines; 15 for `Float`). That compares the two sets of files as they
-stand. It does not show from which sources the compiled interfaces were
-made, and `make` does not repeat it, since the other library is not here.
+were inspected then. It does not show which compiled interfaces
+`tools/declgen` read when `decl/` was made, nor from which sources they
+were compiled; and `make` does not repeat it, since the other library is
+not here.
 
 HOW MANY: the rows of `decl/INDEX.tsv` whose place is under `stdlib/`.
 
