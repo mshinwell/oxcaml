@@ -45,6 +45,7 @@
    - [let! tmp1 := e in k] is Rocq's own [let]; with the flag that inlines a
      let used once, Rocq writes [e] where [tmp1] is used;
    - [let& x := v in k] is the same match as [let*]: a let that stays;
+   - [~l:x] is [x]: the label is not in the term, and is not extracted;
    - the fuel is a proposition, which the extraction erases. *)
 
 From Stdlib Require Export String List ZArith Bool.
@@ -83,6 +84,24 @@ Notation "'let&' x ':=' v 'in' k" := (match Box v with Box x => k end)
    format "'[v' 'let&'  x  ':='  v  'in' '/' k ']'").
 Notation "m ;; k" := (match m with tt => k end)
   (at level 100, right associativity).
+
+(* A LABEL OF THE COMPILER'S TEXT, FOR THE READER ONLY. [~l:x] is [x]: Rocq
+   reads the label [l] and throws it away. So [f ~body:b ~is_cold:false k]
+   is [f b false k]: the arguments stay by place (GUIDE.md, section 1).
+   NOTHING CHECKS A LABEL: Rocq takes a wrong one, and one at the wrong
+   argument. Rocq never prints one, and the extracted text has none. There
+   is no pun: OCaml's [~l] alone is written [~l:l]. An argument that is an
+   application is in brackets, [~l:(Some x)]; without them [~l:Some x] is
+   two arguments. The label [by] cannot be written: it is a word of Rocq.
+   A label is read only where an argument stands: a term that begins with
+   one ([(~l:x)], [let* y := ~l:x in]) is Rocq's negation of [l], which
+   Rocq then refuses.
+   Rocq's negation [~ P] begins with the same sign. Rocq warns of that
+   where the notation is made, and again in every file that imports this
+   one: the line before the notation switches that warning off, here and
+   in those files. Both notations are read (tried with Rocq 9.3.0). *)
+#[export] Set Warnings "-notation-incompatible-prefix".
+Notation "~ l : x" := x (at level 9, l name, x at level 9, only parsing).
 
 (* ------------------------------------------------------------------ *)
 (* Fatal errors and assertions                                        *)

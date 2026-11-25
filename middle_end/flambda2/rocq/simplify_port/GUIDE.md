@@ -99,9 +99,35 @@ files beside the donors first. Points marked HUMAN are the human's to judge.
 - The donor's COMMENTS stay at their places, in the donor's words (one
   that begins `CR` may be left out): `make comments` lists the ones that
   are missing and the headers that differ.
-- Arguments are BY PLACE: no labels, in the order of the `.mli` (of the
-  definition, if the function is not exported); the check compiles with
-  `-nolabels`. HUMAN: the extracted definitions have no labels.
+- Arguments are BY PLACE, in the order of the `.mli` (of the definition,
+  if the function is not exported): no label says where an argument
+  goes; the check compiles with `-nolabels`. HUMAN: the extracted
+  definitions have no labels.
+- A LABEL FOR THE READER may stand before an argument of a call:
+  `~body:expr`. The kit's notation `~l:x` is `x`: Rocq throws the label
+  away, and the extracted text is the same bytes. A PILOT: only
+  `inlining/Inlining_transforms.v` has them. NOTHING CHECKS A LABEL: a
+  wrong one, or one before the wrong argument, passes Rocq and every
+  tool here. The rule:
+  - write the labels that the compiler's call names at that place, each
+    before its own argument; the arguments stay in the Rocq order,
+    whatever order the compiler writes. Which label a place of a declared
+    function has: read its interface (`decl/INDEX.tsv` names the file and
+    the line), not the name of a variable;
+  - no pun: the compiler's `~body` is `~body:body`, or `~body:tmp1` where
+    the argument has another name;
+  - an argument that is an application is in brackets (`~l:(Some x)`); a
+    name, a field `v.(f)` and a constant need none;
+  - `by` cannot be a label (a word of Rocq): that argument stays bare;
+  - an optional argument that the compiler gives by `~l:v` is
+    `~l:(Some v)`; one that it gives by `?l:v`, or does not give (`None`),
+    has no label;
+  - an argument that the compiler's call does not give at that place
+    (where the port gives at once what the compiler gives in two steps)
+    has no label;
+  - only arguments: the parameters of a `Definition`, a `fun` or a `fix`
+    have none, and a term that BEGINS with a label (`(~l:x)`, the right
+    side of a `let*`) is Rocq's negation, which Rocq refuses there.
 - Everything that the file calls is declared in `decl/` (search
   `decl/INDEX.tsv`; `decl/README.md` has the form), also the other files of
   Simplify: port against the declarations, never against another ported
