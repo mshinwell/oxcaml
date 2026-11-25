@@ -145,11 +145,18 @@ A use that `make papp` cannot pass has the mark, which says what the
 extracted text has: a local function (Rocq's own `let`), which the tool
 does not look up; a definition that is another name or an application; a
 function inside a functor; a function with no more parameters than it is
-given. `make papp` prints each such mark that stays, and a mark that is not
-needed is an error there. The mark of a function of the file stands before
-a `pappN` of it: without `pappN` a function of the file that is given its
-first arguments is a `let&` value with no mark (above), and the lint does
-not read such a place through a mark as it does for a declared function.
+given. `make papp` also refuses the use, so that it needs the mark, where
+the words do not show that the OCaml use gives no more arguments than are
+written, or which function is meant: keep the function and its use out of a
+`Section` (after a section Rocq gives the function the section's variables
+as arguments), give it no implicit binder (`{n : nat}`), no `Arguments`,
+and do not use its name for a variable anywhere in the file (a parameter, a
+`let`, a pattern). `make papp` prints each such mark that stays, and a mark
+that is not needed is an error there. The mark of a function of the file
+stands before a `pappN` of it: without `pappN` a function of the file that
+is given its first arguments is a `let&` value with no mark (above), and
+the lint does not read such a place through a mark as it does for a
+declared function.
 
 | OCaml | Rocq |
 |---|---|
