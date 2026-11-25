@@ -50,11 +50,11 @@
 # After the swap the compiler of stage 1 holds the extracted Simplify, and
 # it compiles every file of stage 2: an object file of stage 2 that differs
 # is a file that the two Simplifys do not treat alike.
-set -e
+set -eu
 here=$(cd "$(dirname "$0")/.." && pwd)
-case "$1" in
+case "${1:-}" in
 swap)
-  tree=$2; s=$tree/middle_end/flambda2/simplify
+  tree=${2:-}; s=$tree/middle_end/flambda2/simplify
   [ -d "$s" ] || { echo "no $s"; exit 2; }
   n=0
   for f in $(cd "$here/extracted" && find . -name '*.ml' | sed 's|^\./||'); do
@@ -75,7 +75,8 @@ sums)
   ;;
 differ)
   # every path of either list: its two sums, "-" where a list has no such path
-  join -j 2 -a 1 -a 2 -e - -o 0,1.1,2.1 <(sort -k2 "$2") <(sort -k2 "$3") \
+  a=$2; b=$3
+  join -j 2 -a 1 -a 2 -e - -o 0,1.1,2.1 <(sort -k2 "$a") <(sort -k2 "$b") \
     | awk '$2!=$3{ if ($2=="-") print $1 " (only in the second list)";
                    else if ($3=="-") print $1 " (only in the first list)";
                    else print $1 }'

@@ -33,7 +33,7 @@
 # what Rocq extracted, as Rocq wrote it, and the OCaml text that the .v file
 # carries between a line "(*OCAML-END" and a line "OCAML-END*)". Nothing of
 # Rocq's text is changed. It follows no file of the compiler.
-set -e
+set -eu
 v=$1; donor=$2; out=$3
 if head -1 "$donor" | grep -q '^(\*\*\*'; then
   sed -n '1,/\*\*\*)$/p' "$donor"

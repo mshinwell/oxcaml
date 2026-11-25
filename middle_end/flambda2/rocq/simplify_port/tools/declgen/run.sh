@@ -37,7 +37,7 @@
 # which is made, and not into decl/ (to compare them with decl/).
 # DECLGEN_BUILD=DIR: the generator is compiled in DIR (build.sh). One process
 # at a time.
-set -e
+set -eu
 B=$1; shift
 H=$(cd $(dirname $0) && pwd)
 O=$B/middle_end/flambda2/simplify/.flambda2_simplify.objs/byte

@@ -53,10 +53,10 @@
 # Of the compiler it reads what tools/check.sh reads: the compiled interfaces
 # under CMI_ROOT and the .mli files of ../../simplify. It follows no file of
 # the compiler.
-set -e
-rev=$1
+set -eu
+rev=${1:-}
 [ -n "$rev" ] || { echo "usage: tools/samecode.sh REV"; exit 2; }
-[ -n "$CMI_ROOT" ] || { echo "CMI_ROOT is not set"; exit 2; }
+[ -n "${CMI_ROOT:-}" ] || { echo "CMI_ROOT is not set"; exit 2; }
 [ -d "$CMI_ROOT/middle_end/flambda2/simplify/.flambda2_simplify.objs/byte" ] \
   || { echo "samecode: no compiled interfaces under CMI_ROOT=$CMI_ROOT"; exit 2; }
 OCAMLC=${OCAMLC:-ocamlc.opt}; export OCAMLC CMI_ROOT

@@ -67,9 +67,12 @@
 # if a copy did not come to its end in a run, or if a name that a test is
 # meant to enter is not entered; 2 if a copy of fexprc is not given or the
 # program timeout is not found.
+set -eu
 here=$(cd "$(dirname "$0")" && pwd)
+# what may be left out is empty
+FEXPRC_COV=${FEXPRC_COV:-}; FL_OUT=${FL_OUT:-}
 for v in FEXPRC_BASE FEXPRC_PORT; do
-  if [ ! -x "${!v}" ]; then
+  if [ ! -x "${!v:-}" ]; then
     echo "run.sh: set $v to a copy of fexprc.exe (see README.md)"; exit 2
   fi
 done
@@ -98,20 +101,21 @@ fi
 # one_run COPY PROGRAM TEST MODE : runs the program on a copy of the test
 # in a folder of its own; leaves TEST.MODE.COPY.{status,out,err} in $out
 one_run() {
-  local copy=$1 prog=$2 t=$3 m=$4 w=$out/work
+  local copy=$1 prog=$2 t=$3 m=$4 w=$out/work rc=0
   rm -f "$out/$t.$m.$copy.status" "$out/$t.$m.$copy.out" "$out/$t.$m.$copy.err"
   if ! { rm -rf "$w" && mkdir -p "$w" && cp "$here/$t.fl" "$w/"; }; then
     echo "no work folder" > "$out/$t.$m.$copy.status"; return
   fi
+  # the exit status of the copy is a result, whatever it is
   ( cd "$w" && timeout 300 "$prog" $(flags_of $m) -dfexpr -dflambda "$t.fl" \
-      > "$out/$t.$m.$copy.out" 2> "$out/$t.$m.$copy.err" )
-  echo $? > "$out/$t.$m.$copy.status"
+      > "$out/$t.$m.$copy.out" 2> "$out/$t.$m.$copy.err" ) || rc=$?
+  echo $rc > "$out/$t.$m.$copy.status"
   rm -rf "$w"
 }
 # ended COPY TEST MODE : did the copy come to an end of its own (any exit
 # status below 124)
 ended() {
-  local s; s=$(cat "$out/$2.$3.$1.status" 2> /dev/null)
+  local s; s=$(cat "$out/$2.$3.$1.status" 2> /dev/null) || s=""
   case $s in
     ''|*[!0-9]*) return 1;;
   esac
@@ -164,7 +168,7 @@ for f in "$@"; do
       done
       wanted=$((wanted+n)); entered=$((entered+e))
       line="$line; entered $e of $n"
-      [ -n "$missing" ] && line="$line (NOT ENTERED:$missing)"
+      if [ -n "$missing" ]; then line="$line (NOT ENTERED:$missing)"; fi
     fi
     echo "$line"
   done

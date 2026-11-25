@@ -33,7 +33,7 @@
 # removed first). It needs the compiler's own
 # library (compiler-libs) of the OCaml that built the compiler whose
 # interfaces are read. This file follows no file of the compiler.
-set -e
+set -eu
 H=$(cd $(dirname $0) && pwd)
 D=${DECLGEN_BUILD:-$H/../../_build/declgen}
 mkdir -p $D

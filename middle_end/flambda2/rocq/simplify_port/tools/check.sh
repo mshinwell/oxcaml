@@ -58,6 +58,10 @@
 #            that is not whole yet: what is not ported stays the compiler's.)
 #   alone  : the compiler's file has no interface; the file compiles.
 # The status file holds one of these words, or "skipped" without CMI_ROOT.
+set -eu
+# What the environment may leave out is empty: without CMI_ROOT there are no
+# compiled interfaces (below); RUNTIME is not read by --runtime-instr.
+CMI_ROOT=${CMI_ROOT:-}; OCAMLC=${OCAMLC:-}; RUNTIME=${RUNTIME:-}
 S=$CMI_ROOT/middle_end/flambda2
 INC="-I $CMI_ROOT/.ocamlcommon.objs/byte -I $CMI_ROOT/.oxcaml_common.objs/byte"
 INC="$INC -I $CMI_ROOT/.ocamlfrontend.objs/byte"
@@ -67,7 +71,9 @@ INC="$INC -I $S/numbers/floats/.flambda2_floats.objs/byte"
 for d in algorithms bound_identifiers classic_mode_types cmx compare datalog \
   from_lambda identifiers import kinds lattices nominal numbers parser reaper \
   simplify simplify_shared term_basics terms to_cmm to_jsir types ui; do
-  [ -d "$S/$d/.flambda2_$d.objs/byte" ] && INC="$INC -I $S/$d/.flambda2_$d.objs/byte"
+  if [ -d "$S/$d/.flambda2_$d.objs/byte" ]; then
+    INC="$INC -I $S/$d/.flambda2_$d.objs/byte"
+  fi
 done
 have_cmi() { [ -d "$S/simplify/.flambda2_simplify.objs/byte" ]; }
 # blank_places FILE RAW OUT : RAW (the output of -dinstr for FILE, by the name
@@ -88,7 +94,7 @@ blank_places() {
     print; printf STDERR "%d %d %d\n", $a || 0, $l || 0, $r;' \
     "$2" > "$3" 2> "$3.places"
 }
-if [ "$1" = --runtime-instr ]; then
+if [ "${1:-}" = --runtime-instr ]; then
   r=$(basename "$2" .ml); status=$3; out=$(dirname "$status")/$r.d
   rm -rf "$out"; mkdir -p "$out"
   if ! have_cmi; then
@@ -100,7 +106,7 @@ if [ "$1" = --runtime-instr ]; then
   blank_places "$out/$r.ml" "$out/instr.raw" "$status"
   exit 0
 fi
-if [ "$1" = --runtime ]; then
+if [ "${1:-}" = --runtime ]; then
   mkdir -p "$RUNTIME"
   r=$(basename "$2" .ml)
   if ! have_cmi; then
@@ -112,7 +118,7 @@ if [ "$1" = --runtime ]; then
   echo "check: $2: compiled"; exit 0
 fi
 mode=check
-if [ "$1" = --instr ]; then mode=instr; shift; fi
+if [ "${1:-}" = --instr ]; then mode=instr; shift; fi
 f=$1; simplify=$2; status=$3
 rel=${f#*extracted/}; dir=$(dirname "$rel"); base=$(basename "$rel" .ml)
 out=$(dirname "$status")/$base.d

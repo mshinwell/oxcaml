@@ -39,6 +39,7 @@
 #   Rocq     whether the .v file is compiled against both implementations
 #            of the monad
 #   OCaml    how the extracted file type-checks (tools/check.sh)
+set -eu
 simplify=$1; B=$2
 kinds="unported partial loose type verbatim init order decl papp record-order update"
 names_ml() {
@@ -68,9 +69,12 @@ echo
 echo "| file | lines | defs | ported | gaps | Rocq | OCaml |"
 echo "|---|---:|---:|---:|---|---|---|"
 tl=0; td=0; tp=0; tf=0; tr=0; to=0; tg=0
-for ml in $(cd "$simplify" && find . -name '*.ml' | sed 's|^\./||' | LC_ALL=C sort); do
+# as an assignment: if SIMPLIFY_DIR is not there the script stops, and does
+# not write a table of no file
+files=$(cd "$simplify" && find . -name '*.ml' | sed 's|^\./||' | LC_ALL=C sort)
+for ml in $files; do
   dir=$(dirname "$ml"); base=$(basename "$ml" .ml)
-  [ "$dir" = . ] && d="" || d="$dir/"
+  if [ "$dir" = . ]; then d=""; else d="$dir/"; fi
   v="$d${base^}.v"
   lines=$(wc -l < "$simplify/$ml")
   defs=$(names_ml "$simplify/$ml" | wc -l)
@@ -81,9 +85,9 @@ for ml in $(cd "$simplify" && find . -name '*.ml' | sed 's|^\./||' | LC_ALL=C so
     gaps=""
     for k in $kinds; do
       n=$(grep -o "(\* PORT-GAP($k)" "$v" | wc -l)
-      [ "$n" -gt 0 ] && gaps="$gaps $k:$n" && tg=$((tg+n))
+      if [ "$n" -gt 0 ]; then gaps="$gaps $k:$n"; tg=$((tg+n)); fi
     done
-    [ -z "$gaps" ] && gaps="none"
+    if [ -z "$gaps" ]; then gaps="none"; fi
     if [ -e "$B/real/${v%.v}.vo" ] && [ -e "$B/id/${v%.v}.vo" ] \
        && [ ! "$v" -nt "$B/real/${v%.v}.vo" ] && [ ! "$v" -nt "$B/id/${v%.v}.vo" ]; then
       rocq=yes; tr=$((tr+1))
