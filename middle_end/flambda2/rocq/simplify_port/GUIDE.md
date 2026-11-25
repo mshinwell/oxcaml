@@ -173,6 +173,21 @@ argument; Rocq's own `let x := f a in`; a `Definition x : M T` without
 arguments; a computation in a pair, a list or a record, or passed as an
 argument (but `or_else`, `and_then`). `a |> f b` is `f b a`.
 
+A PIPE IS ONE APPLICATION. The compiler that compiles Simplify (OxCaml)
+reads `x |> f a ~l:e`, and `f a ~l:e @@ x`, as the application of `f` to
+`a`, `x` and `e`, and evaluates these like the arguments of any
+application: from the last PARAMETER of `f` to the first. Where the piped
+value is for the last parameter (`a |> f b`, most pipes of Simplify) it
+is evaluated first. Where the right side gives an argument for a LATER
+parameter (`x |> NO.diff ~without:(g y)`, with `diff : t -> without:t ->
+t`), THAT ARGUMENT IS EVALUATED BEFORE THE PIPED VALUE; and a chain `x |>
+f ~l:a |> f ~l:b` evaluates `b`, then `a`, then `x`. Upstream OCaml
+evaluates the piped value first in these two cases: the port follows the
+compiler that compiles Simplify, not upstream. `tests/order/` (not part
+of `make`) has two programs that show the order of labelled arguments
+and of pipes, what each of the two compilers prints, and the command
+that runs them with a compiler (`tests/order/README.md`).
+
 THE ORDER IS A FACT, by the human's word: "evaluation order in an oxcaml
 compiler should always be right-to-left. Any occurrence otherwise in the
 compiler is a bug. Note that record field order is unspecified in oxcaml

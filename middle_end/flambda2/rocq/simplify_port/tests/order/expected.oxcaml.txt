@@ -1,0 +1,11 @@
+== labels.ml
+parameters a b c d; the call writes d, c, a, b: evaluated d c b a 
+parameters a b c d; the call writes b, a, d, c: evaluated d c b a 
+== pipe.ml
+x |> f ~without:l, f's parameters x without: evaluated l x 
+f x ~without:l: evaluated l x 
+f ~without:l @@ x: evaluated l x 
+x |> f ~without:a |> f ~without:b: evaluated b a x 
+x |> g a, g's parameters a x: evaluated x a 
+g a x: evaluated x a 
+x |> g a |> g b: evaluated x a b 
