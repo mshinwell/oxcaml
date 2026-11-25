@@ -144,13 +144,24 @@ WRITES IT. That N is safe: the extraction takes arguments away (the fuel is
 a proposition, erased from the definition and from the use) and adds none,
 so the OCaml use gives at most N arguments. It is stricter than needed by
 what is erased: when this was written the 15 such uses were all [papp1 f
-fuel], which in OCaml is the bare name f and runs nothing. The module: for
-[f], the modules of FILE.v that are open at its ONE binding by Definition,
-Fixpoint or [with f (] ([Module M.] .. [End M.], as words; a [Section] is
-no module); for [M.f], M. The use FAILS, closed, for:
+fuel], which in OCaml is the bare name f and runs nothing.
+
+THE MODULE of a function of the file is that of its binding in FILE.v by
+Definition, Fixpoint or [with f (]: the modules that are open there
+([Module M.] .. [End M.], as words; a [Section] is no module). For [f]
+there must be ONE such binding of f in the whole file. For a name that the
+use writes with modules, [X.f], Rocq takes the nearest thing whose name
+ENDS with X.f, which need not stand at the root of the file (inside a
+module Y it may be Y.X.f). The tool does not follow Rocq's scopes: there
+must be ONE binding of f in the whole file whose modules end with X, and
+that one is taken, wherever the use stands; if there are several (X.f at
+the root and Y.X.f), the use is refused. The use FAILS, closed, for:
 - a local function (bound by Rocq's own [let]): the tool does not look
   inside a definition;
-- a name that the file binds more than once, or both ways;
+- a name that the file binds more than once, or both ways; a name with
+  modules that several bindings of the file can be, or none;
+- a use with modules that stands inside a functor or a module type of the
+  file (there the first module may be the functor's parameter);
 - a binding inside a functor or a module type of the file, or under a
   module that is no structure in the extracted text (the application of a
   functor);
@@ -718,19 +729,40 @@ def of_the_file(path, text, u):
         return False, "its arguments could not be counted"
     parts = u.name.split(".")
     f = parts[-1]
+    ahead = r"(?<![A-Za-z_0-9'.])"
+    behind = r"(?![A-Za-z_0-9'.])"
+    margin = [
+        m.start()
+        for m in re.finditer(
+            r"%s(?:(?:Definition|Fixpoint)\s+%s%s|with\s+%s\s*[({])"
+            % (ahead, re.escape(f), behind, re.escape(f)),
+            text,
+        )
+    ]
     if len(parts) > 1:
-        modules = parts[:-1]
-    else:
-        ahead = r"(?<![A-Za-z_0-9'.])"
-        behind = r"(?![A-Za-z_0-9'.])"
-        margin = [
-            m.start()
-            for m in re.finditer(
-                r"%s(?:(?:Definition|Fixpoint)\s+%s%s|with\s+%s\s*[({])"
-                % (ahead, re.escape(f), behind, re.escape(f)),
-                text,
+        # the bindings of f that the name can be: their modules end with
+        # the modules that the use writes (a binding inside a functor has
+        # modules that are not known: it can be any)
+        written = parts[:-1]
+        if rocq_modules(text, u.pos) is None:
+            return False, (
+                "the use stands inside a functor or a module type of the file: "
+                "the words do not say what %s is there" % u.name
             )
+        can_be = [
+            ms
+            for ms in (rocq_modules(text, pos) for pos in margin)
+            if ms is None or ms[-len(written):] == written
         ]
+        if len(can_be) != 1:
+            return False, "%d bindings of the file can be %s: the words do not say which the use reaches" % (
+                len(can_be),
+                u.name,
+            )
+        modules = can_be[0]
+        if modules is None:
+            return False, "%s is bound inside a functor or a module type of the file" % f
+    else:
         local = re.findall(r"%slet\s+%s%s" % (ahead, re.escape(f), behind), text)
         if local and not margin:
             return False, (
