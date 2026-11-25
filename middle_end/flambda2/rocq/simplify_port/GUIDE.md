@@ -53,10 +53,15 @@ files beside the donors first. Points marked HUMAN are the human's to judge.
   and has its own note directly before it (a mark may stand between):
   the lines of the donor's `and f ..`, not those of the whole `let rec`.
   `make lines` compares it as it does the note of a definition, and a
-  clause without a note is an error. NOT JUDGED, and listed by
-  `LINES_ALL=1 make lines`: a definition in a functor or a module type
-  of the file; a name that the donor does not have (a helper); a
-  `Definition` whose text a directive gives (`make given`).
+  clause without a note is an error. A definition INSIDE A FUNCTOR of
+  the file (`Module F (X : S).` .. `End F.`) is judged as any other,
+  against what the donor has inside its own `F` (a functor or a module)
+  in that place. Write the first sentence of a functor plainly: its
+  parameters `(X : S)`, and then nothing, `<: T` or `: T`; else what is
+  inside it is not judged. NOT JUDGED, and listed by `LINES_ALL=1 make
+  lines`: a definition in a module type of the file; a name that the
+  donor does not have (a helper); a `Definition` whose text a directive
+  gives (`make given`).
 - A note INSIDE a definition names WHOLE LINES of the part that the Rocq
   text after it follows, from the line where the part begins to the line
   where it ends (parts that follow one another: from the first line of
@@ -76,14 +81,17 @@ files beside the donors first. Points marked HUMAN are the human's to judge.
   the lines that each mark names first, and the further numbers of
   lines in the words of marks and notes that a search of the text
   found. Read once by hand after that: the notes BEFORE the definitions
-  that the tool does not judge (in a functor or a module type of the
-  file; with no item of that name in the donor), each against all the
-  lines that it names. Nothing repeats these readings.
+  that the tool did not judge then (in a functor or a module type of
+  the file; with no item of that name in the donor), each against all
+  the lines that it names. Nothing repeats these readings. Since then
+  the tool judges the definitions inside a functor and compares their
+  notes (101 definitions; it found each right). The notes of the
+  definitions that are still not judged (61 notes) rest on that one
+  reading.
 - A definition that `make lines` does not judge has a note all the same
-  if the donor has it at lines of its own (in a functor; a member of
-  the module that the donor writes as the argument of an application).
-  It has none of its own if it is a member of a run of `Module X :=
-  ..`, which is under the note of its run; and none if the donor has no
+  if the donor has it at lines of its own (a member of the module that
+  the donor writes as the argument of an application; a value of a
+  signature that the file defines). It has none if the donor has no
   lines for it alone: what the donor makes by `include` or by applying
   a functor, and the file writes out (the note or the mark before the
   first of them, or before their module, names that line), and what

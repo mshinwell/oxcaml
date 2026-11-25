@@ -56,8 +56,30 @@ have
   where the compiler has [t]);
 - its modules: the modules of Rocq that are open where the sentence
   begins ([Module M.] .. [End M.], as tools/papp.py reads them) are the
-  modules around the item, name for name (a functor of the donor counts
-  as a module of its name).
+  modules around the item, name for name. A functor counts as a module
+  of its name: a functor of the donor, and a functor of the file.
+
+A FUNCTOR OF THE FILE is a sentence [Module F (X : S) ..] that opens a
+module: after the name it has one or more parameters, each [(NAMES :
+TYPE)], and then nothing, or [<: T], or [: T]. For this tool what
+stands between that sentence and [End F] is inside the module F. So a
+definition there has the items that the donor has inside its own F in
+that place, be the donor's F a functor or a module (the table marks a
+functor by [()] after its name, and the tool leaves the mark out).
+- A functor inside a functor, or inside a module, is taken the same way:
+  each by its name.
+- The definitions inside a functor are judged as all others (THE RULE),
+  and the line of numbers says how many of the judged ones are inside a
+  functor.
+- A functor that the donor has under no such name in that place has no
+  item, and nothing inside it has one (NO ITEM, below): not judged.
+- A functor whose name the donor has for MORE THAN ONE module in that
+  place is an error: the tool cannot tell which of them the functor
+  follows, and it judges nothing inside it.
+- A sentence [Module F ..] that has a round bracket or [:=] after the
+  name and is not of that shape (and is not [Module F := ..], one
+  sentence) is not taken for a functor: what is inside it is not judged
+  (IN A MODULE TYPE, below).
 
 THE RULE.
 - A definition that has an item MUST HAVE A NOTE: the lines of its group,
@@ -124,12 +146,15 @@ NOT JUDGED, and counted in the line of numbers:
   the donor that has a name here), a type that the donor does not name,
   a module that the donor makes by applying a functor and the port
   writes out;
-- IN A FUNCTOR OR A MODULE TYPE of the ported file: the words do not say
+- IN A MODULE TYPE of the ported file, or in a module that the tool does
+  not read (a sentence [Module F ..] that is of no shape above; a
+  functor that the donor has more than once): the words do not say
   which module of the donor that is. These definitions are LISTED AND NOT
   CHECKED: their notes are compared with nothing;
 - A CLAUSE [with NAME ..] whose name the donor has under no value in
-  those modules, or whose Fixpoint is in a functor or a module type of
-  the file: counted with the clauses, apart from the definitions;
+  those modules, or whose Fixpoint is in a module type of the file or
+  in a module that is not read: counted with the clauses, apart from
+  the definitions;
 - every other sentence ([Parameter], a directive, [End]): no definition
   for this tool.
 With LINES_ALL in the environment the tool first prints one line for each
@@ -145,30 +170,46 @@ WHAT THE TOOL DOES NOT ESTABLISH.
 - That the Rocq definition IS a port of those lines. Only the note is
   compared, with the lines where the donor defines a thing of the same
   name, kind and modules. The body of the definition is not read.
-- Anything about the definitions that are not judged: those in a functor
-  or a module type of the file, and those that the donor has under no
-  such name. The line of numbers says how many they are. Their notes
-  are compared with nothing. They were read once by hand, after this
-  tool was written (two of them, in a functor, had been found wrong
-  when that work was reviewed, and mended): each note against all the
-  lines of the donor that it names. No number was found wrong. Two
-  notes named a whole functor where the definition follows the
-  signature of the functor's argument; they name those lines now. 24
-  definitions that the donor has at lines of their own had no note,
-  and have one. The 41 remain without a note of their own for these
-  reasons: what the donor makes by [include] or by applying a functor
-  and the file writes out has no lines of its own in the donor (the
-  note or the mark before the first of them, or before their module,
-  names that line); a member of a run of [Module X := ..] has its
-  line in the donor and is under the note of its run; what the file
-  adds of its own, and a type that the donor does not name, have no
-  lines in the donor. Nothing repeats that reading.
+- That a FUNCTOR OF THE FILE is a port of the donor's functor or module
+  of that name: the names are compared (of the functor and of the
+  modules around it), and nothing else. Its parameters and its module
+  types are not read.
+- Anything about the definitions that are not judged: those that the
+  donor has under no such name, and those in a module type of the file
+  or in a module that is not read. The line of numbers says how many
+  they are. Their notes are compared with nothing. THE ONE READING: at
+  first the tool did not judge the definitions inside a functor of the
+  file either, and the notes of all that it did not judge then (202
+  definitions) were read once by hand, after the tool was written (two
+  of them, in a functor, had been found wrong when that work was
+  reviewed, and mended): each note against all the lines of the donor
+  that it names. No number was found wrong. Two notes named a whole
+  functor where the definition follows the signature of the functor's
+  argument; they name those lines now. 24 definitions that the donor
+  has at lines of their own had no note, and have one. 41 remained
+  without a note of their own for these reasons: what the donor makes
+  by [include] or by applying a functor and the file writes out has no
+  lines of its own in the donor (the note or the mark before the first
+  of them, or before their module, names that line); a member of a run
+  of [Module X := ..] has its line in the donor and is under the note
+  of its run; what the file adds of its own, and a type that the donor
+  does not name, have no lines in the donor. Nothing repeats that
+  reading. SINCE THEN the tool judges the definitions inside a
+  functor. Of those 202, 101 are judged: the tool compares their notes
+  now, and found each of them right (the member of a run is one of
+  them). The other 101 are still not judged: 61 of them have a note,
+  which rests on that one reading and on nothing else; 40 have none,
+  for the reasons above.
 - WHICH OF TWO ITEMS of one name a definition follows. The donor may
   define a name twice in one module (the later hiding the earlier), and
   it may have a type and a value of one name, either of which a
   [Definition] can be. The note must be the lines of one of them: the
   tool cannot tell which of the two is meant, so the note of the other
-  one passes.
+  one passes. It is so inside functors of Simplify_binary_primitive.v:
+  the donor has there a type [op] and a value [op] in one functor, the
+  file has [Definition op_] for the type and [Definition op] for the
+  value, and a [_] at the end of a name is left out. The note of the
+  one would pass before the other.
 - That a NOTE INSIDE a definition names the right lines. It is checked
   only to lie inside the lines of its item, and only in a definition
   that the tool judges: these are the notes that the line of numbers
@@ -183,8 +224,10 @@ WHAT THE TOOL DOES NOT ESTABLISH.
   with nothing and is not counted; there were nine (four in
   Simplify_binary_primitive.v, five in Simplify_switch_expr.v), and
   they were read when that work was reviewed, and again with the notes
-  before the definitions that are not judged. Nothing repeats these
-  readings.
+  before the definitions that were not judged. Nothing repeats these
+  readings. The four are inside a functor: their definition is judged
+  now, and they are counted and lie inside the lines of its item. The
+  five are still compared with nothing.
 - Of a CLAUSE [with NAME ..]: that its body is a port of those lines,
   as for a definition. A clause whose line does not begin with [with]
   (one that follows the end of another function on one line) is not
@@ -239,6 +282,9 @@ WITH = re.compile(
 # then a colon, a semicolon or a comma, then words.
 LINES_AND_WORDS = re.compile(r"\(\*\s*(%s)\s*[:;,]" % given.RANGES)
 
+# A parameter of a functor begins so: [(NAMES :], and no [:=].
+PARAMETER = re.compile(r"\(\s*(?:%s\s+)*%s\s*:(?!=)" % (papp.PNAME, papp.PNAME))
+
 Item = collections.namedtuple("Item", "kind modules name first last whole_first whole_last")
 
 ITEMS = None  # the donor's file -> its items, or the reason why it has none
@@ -286,6 +332,82 @@ def read_items():
     return items, not_read, wrong
 
 
+def is_functor(rest):
+    """Whether the words after [Module NAME], up to the full stop, are
+    those of a functor of the file that opens a module: one or more
+    parameters, each [(NAMES : TYPE)] with its brackets closed, and then
+    nothing, or [<: T], or [: T]."""
+    i = 0
+    n = len(rest)
+    parameters = 0
+    while True:
+        while i < n and rest[i].isspace():
+            i += 1
+        if i == n or rest[i] != "(":
+            break
+        if not PARAMETER.match(rest, i):
+            return False
+        depth = 0
+        j = i
+        while j < n:
+            if rest[j] == "(":
+                depth += 1
+            elif rest[j] == ")":
+                depth -= 1
+                if depth == 0:
+                    break
+            j += 1
+        if j == n:
+            return False
+        parameters += 1
+        i = j + 1
+    tail = rest[i:]
+    return parameters > 0 and (not tail or tail.startswith("<:") or (tail[0] == ":" and not tail.startswith(":=")))
+
+
+def modules_at(text, spans, pos, of_donor):
+    """The modules of FILE.v that are open at pos, from the outermost, as
+    words, a functor of the file counting as a module of its name: (their
+    names, how many of them are functors). (None, 0) if one of them is a
+    module type, a functor that the donor has more than once in that
+    place ([of_donor]: how many modules of a name the donor has in the
+    modules of given names), or a module of which the words do not say
+    whether it is open; or if an [End] closes nothing. The sentences are
+    read as papp.open_at reads them; this one tells the functors apart."""
+    stack = []
+    for a, b in spans:
+        if a >= pos:
+            break
+        m = papp.STRUCTURE.match(text, a, b)
+        if not m:
+            continue
+        kind = " ".join(m.group(1).split())
+        name = m.group(2)
+        rest = text[m.end():b]
+        if kind == "End":
+            if not stack or stack[-1][0] != name:
+                return None, 0
+            stack.pop()
+        elif kind == "Section":
+            stack.append((name, "section"))
+        elif ":=" in rest and not papp.WITH.search(rest):
+            pass  # [Module A := P.] is one sentence
+        elif kind == "Module" and is_functor(rest):
+            around = tuple(plain(x) for x, k in stack if k in ("module", "functor"))
+            many = of_donor.get((around, plain(name)), 0) > 1
+            stack.append((name, None if many else "functor"))
+        elif kind == "Module Type" or "(" in rest or ":=" in rest:
+            stack.append((name, None))
+        else:
+            stack.append((name, "module"))
+    if any(kind is None for _, kind in stack):
+        return None, 0
+    return (
+        [name for name, kind in stack if kind in ("module", "functor")],
+        len([name for name, kind in stack if kind == "functor"]),
+    )
+
+
 class Definition(object):
     """A sentence of a ported file that defines a thing by a name."""
 
@@ -295,7 +417,8 @@ class Definition(object):
         self.line = line
         self.word = word  # Definition, Fixpoint, Inductive, Record, Module, Module Type
         self.name = name
-        self.modules = modules  # None: in a functor or a module type of the file
+        self.modules = modules  # None: in a module type of the file, or in a module that is not read
+        self.functors = 0  # how many of its modules are functors of the file
         self.note = note  # the lines of its group, or None
         self.items = []  # the donor's items that it can be
         self.item = None  # the one whose lines the note names
@@ -464,8 +587,8 @@ def judge_clause(c, donor, rows, why):
     """The verdict of a clause [with NAME ..] of a Fixpoint."""
     d = c.fix
     if d.modules is None:
-        c.verdict = "functor"
-        c.said = "its Fixpoint is in a functor or a module type of the file: not looked up"
+        c.verdict = "module type"
+        c.said = "its Fixpoint is in a module type of the file, or in a module that is not read: not looked up"
         return
     if why:
         c.verdict = "not read"
@@ -545,21 +668,27 @@ def check(path, raw=None):
     definitions = []
     inner = []  # (line, the lines of a note inside a definition, the definition, whether it is inside)
     whole = given.comments(rd.raw)
+    # how many modules of a name the donor has in the modules of given names
+    of_donor = collections.Counter(
+        (i.modules, plain(i.name)) for i in items.get(donor.rel, []) if i.kind == "module"
+    )
     for k, (a, b) in enumerate(rd.spans):
         s = rd.text[a:b]
         m = HEAD.match(s)
         if not m:
             continue
         word = " ".join(m.group(1).split())
+        modules, functors = modules_at(rd.text, rd.spans, a, of_donor)
         d = Definition(
             a,
             b,
             rd.raw.count("\n", 0, a) + 1,
             word,
             m.group(2),
-            papp.rocq_modules(rd.text, rd.spans, a),
+            modules,
             rd.begun.get(a) or rd.over.get(a),
         )
+        d.functors = functors
         definitions.append(d)
         d.k = k
         d.one = word == "Module" and ":=" in s
@@ -570,8 +699,8 @@ def check(path, raw=None):
             d.said = "its OCaml text is given by a directive: make given"
             continue
         if d.modules is None:
-            d.verdict = "functor"
-            d.said = "in a functor or a module type of the file: not looked up"
+            d.verdict = "module type"
+            d.said = "in a module type of the file, or in a module that is not read: not looked up"
             continue
         if why:
             d.verdict = "not read"
@@ -591,6 +720,15 @@ def check(path, raw=None):
             )
             continue
         if d.one:
+            continue
+        if word == "Module" and len(d.items) > 1 and is_functor(s[m.end():]):
+            d.verdict = "wrong"
+            d.error = (
+                "the donor has %d modules of that name there (%s): the tool cannot tell which of them "
+                "the functor follows, and judges nothing inside it"
+                % (len(d.items), ", ".join(lines_of(i) for i in d.items))
+            )
+            errors.append((d.line, "%s: %s" % (d.shown(), d.error)))
             continue
         judge(d, donor)
         if d.error:
@@ -659,12 +797,15 @@ def main(files):
     count = collections.Counter()
     clauses = collections.Counter()
     inside = 0
+    functors = 0
     errors = 0
     listing = os.environ.get("LINES_ALL")
     for path in files:
         rd = check(path)
         for d in rd.definitions:
             count[d.verdict] += 1
+            if d.functors and d.verdict in ("the item", "the whole item", "a run"):
+                functors += 1
         for c in rd.clauses:
             clauses[c.verdict] += 1
         if listing:
@@ -676,7 +817,8 @@ def main(files):
                         x.line,
                         x.shown(),
                         given.show(x.note) if x.note else "no note",
-                        x.said or "WRONG: %s" % x.error,
+                        (x.said or "WRONG: %s" % x.error)
+                        + ("; inside a functor of the file" if getattr(x, "fix", x).functors else ""),
                     )
                 )
         inside += len([x for x in rd.inner if x[3]])
@@ -686,9 +828,10 @@ def main(files):
     right = count["the item"] + count["the whole item"] + count["a run"]
     print(
         "lines: %d definitions in %d files: %d have the note of the lines of the donor's item (%d of them "
-        "of the whole item that defines it with others, %d in runs of [Module X := ..]); not judged: %d "
-        "whose text a directive gives (make given), %d that the donor has under no such name, %d in a "
-        "functor or a module type of the file; %d clauses [with NAME] of a Fixpoint: %d have the note of "
+        "of the whole item that defines it with others, %d in runs of [Module X := ..], %d inside a "
+        "functor of the file); not judged: %d whose text a directive gives (make given), %d that the "
+        "donor has under no such name, %d in a module type of the file or in a module that is not read; "
+        "%d clauses [with NAME] of a Fixpoint: %d have the note of "
         "the lines of the donor's definition of NAME, %d are not judged; %d notes inside a definition, "
         "each inside the lines of its item; %s"
         % (
@@ -697,12 +840,13 @@ def main(files):
             right,
             count["the whole item"],
             count["a run"],
+            functors,
             count["given"],
             count["no item"],
-            count["functor"],
+            count["module type"],
             sum(clauses.values()),
             clauses["the item"],
-            clauses["no item"] + clauses["functor"] + clauses["not read"],
+            clauses["no item"] + clauses["module type"] + clauses["not read"],
             inside,
             "%d wrong" % errors if errors else "nothing wrong",
         )
