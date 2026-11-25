@@ -142,7 +142,10 @@ for f in $(LC_ALL=C comm -12 "$logs/decl.made" "$logs/decl.tracked"); do
 done
 found="$(wc -l < "$logs/decl.made") files made, $(wc -l < "$logs/decl.tracked") in the tree; $differ differ"
 found="$found; only made: ${only_made:-none}; only in the tree: ${only_tree:-none}"
-if [ $rc != 0 ]; then found="tools/declgen/run.sh exits $rc: $(tail -1 "$logs/decl.log"); $found"; fi
+if [ $rc != 0 ]; then
+  said=$(grep -A 2 '^declgen: ' "$logs/decl.log" | one_line) || true
+  found="tools/declgen/run.sh exits $rc: ${said:-$(tail -1 "$logs/decl.log")}; $found"
+fi
 if [ $differ != 0 ]; then found="$found; the first that differ:$(echo "$differing" | cut -d' ' -f1-6)"; fi
 if [ $rc = 0 ] && [ $differ = 0 ] && [ -z "$only_made" ] && [ -z "$only_tree" ] && [ -s "$logs/decl.made" ]; then a=yes; else a=NO; fi
 answer 2 "decl/ made again from the build root is the decl/ of the tree, README.md apart" $a "$found"
@@ -215,7 +218,8 @@ answer 9 "every tracked file of the folder that is a shell script has the line s
 if [ $no != 0 ]; then
   for n in 10 11 12; do echo "gate: ($n) not asked: the make is not run, an answer above is NO"; done
 elif [ -e _build ]; then
-  answer 10 "make, from nothing, exits 0" NO "a _build is there: not run"
+  answer 10 "make, from nothing, exits 0" NO "a _build is there: the make is not run"
+  for n in 11 12; do echo "gate: ($n) not asked: the make is not run"; done
 else
   start=$(date +%s); rc=0
   make -j1 CMI_ROOT="$build" > "$logs/make.log" 2>&1 || rc=$?
@@ -230,5 +234,5 @@ else
   else a=NO; found="not tracked, or not on the disk: $( { find extracted runtime -type f; git ls-files extracted runtime; } | LC_ALL=C sort | uniq -u | one_line); files of dune on the disk: ${disk:-none}"; fi
   answer 12 "after the make, the files on the disk under extracted/ and runtime/ are the tracked ones, and the folder's dune file is the only file of dune on the disk" $a "$found"
 fi
-if [ $no = 0 ]; then echo "gate: PASSED: every answer is yes"; else echo "gate: FAILED: $no of the answers are NO, or the make was not run"; fi
+if [ $no = 0 ]; then echo "gate: PASSED: every answer is yes"; else echo "gate: FAILED: the number of answers NO is $no"; fi
 [ $no = 0 ]
