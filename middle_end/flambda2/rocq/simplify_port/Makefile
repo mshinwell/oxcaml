@@ -67,7 +67,12 @@ SHELL := /bin/bash
 
 ROCQ ?= rocq
 OCAMLC ?= ocamlc.opt
-OCAMLFORMAT ?= ocamlformat
+# Not OCAMLFORMAT: that name is of a variable of the environment that
+# ocamlformat itself reads, for its options. Make would take its value for
+# the name of the program. And the commands of this Makefile do not get that
+# variable: the options are those of the .ocamlformat files alone.
+OCAMLFMT ?= ocamlformat
+unexport OCAMLFORMAT
 PYTHON ?= python3
 REPO_ROOT := ../../../..
 CMI_ROOT ?= $(REPO_ROOT)/_build/default
@@ -229,7 +234,7 @@ $(call extracted,$(1)): $(B)/id/out/$(1).ml $(1).v $(call donor,$(1)) tools/asse
 	@mkdir -p $$(dir $$@)
 	$(PYTHON) tools/lint.py $(1).v
 	tools/assemble.sh $(1).v $(call donor,$(1)) $(B)/id/out/$(1).ml > $$@
-	$(OCAMLFORMAT) --inplace $$@
+	$(OCAMLFMT) --inplace $$@
 
 $(call checked,$(1)): $(call extracted,$(1)) $(B)/check/port_monad.cmi $(B)/check/port_abbreviations.cmi tools/check.sh
 	@mkdir -p $$(dir $$@)

@@ -36,9 +36,11 @@
 # THE FOLDER, as a new work tree has (git clean -xdn . shows what else is
 # there). It needs git, make, Rocq, OCaml (with ocamlfind and the compiler's
 # library, for tools/declgen), ocamlformat and Python on the PATH; ROCQ,
-# OCAMLC and PYTHON in the environment name other programs, as for make.
-# ocamlformat is called by that name: the variable OCAMLFORMAT of the
-# environment is ocamlformat's own, for its options.
+# OCAMLC, OCAMLFMT and PYTHON in the environment name other programs, as
+# for make: the gate calls the ocamlformat that make calls. (Not
+# OCAMLFORMAT: that variable of the environment is ocamlformat's own, for
+# its options. The gate takes it out of its environment, as the Makefile
+# does: the options are those of the .ocamlformat files alone.)
 #
 # It prints each thing that it asks with the answer, one line each
 # ("gate: (N) ...: yes" or "... : NO", with what was found), and then PASSED
@@ -107,7 +109,7 @@
 # the Makefile. "make exits 0" would then not say that the commands of the
 # Makefile ran and ended well. The other variables of the environment are
 # left as they are: the Makefile takes the names of programs from it (ROCQ,
-# OCAMLC, OCAMLFORMAT, PYTHON).
+# OCAMLC, OCAMLFMT, PYTHON).
 #
 # WHERE A COMMAND THAT THE GATE ASKS FAILS, THE ANSWER IS NOT YES.
 #
@@ -173,6 +175,8 @@ if [ $# -lt 1 ] || [ ! -d "$1/middle_end/flambda2/simplify/.flambda2_simplify.ob
   exit 2
 fi
 ROCQ=${ROCQ:-rocq}; OCAMLC=${OCAMLC:-ocamlc.opt}; PYTHON=${PYTHON:-python3}
+OCAMLFMT=${OCAMLFMT:-ocamlformat}
+unset OCAMLFORMAT
 # physical PATH : the path without its symbolic links, whether or not
 # something is there
 physical() { "$PYTHON" -c 'import os, sys; print(os.path.realpath(sys.argv[1]))' "$1"; }
@@ -242,7 +246,7 @@ echo "gate: the build root is $build; the logs are in $logs"
 version "$ROCQ" --version
 version "$OCAMLC" -version
 version ocamlfind ocamlopt -version
-version ocamlformat --version
+version "$OCAMLFMT" --version
 version "$PYTHON" --version
 version make --version
 version git --version
@@ -428,12 +432,12 @@ while IFS= read -r -d '' f; do
   case "$f" in *.ml|*.mli) ;; *) continue;; esac
   all=$((all+1))
   rc=0
-  config=$(ocamlformat --print-config "$f" 2>&1 < /dev/null) || rc=$?
+  config=$("$OCAMLFMT" --print-config "$f" 2>&1 < /dev/null) || rc=$?
   if [ $rc != 0 ]; then config=""; fi
   case "$nl$config$nl" in
   *"${nl}disable=false$nl"*|*"${nl}disable=false "*)
     on=$((on+1))
-    if ! ocamlformat --check "$f" > /dev/null 2>&1 < /dev/null; then
+    if ! "$OCAMLFMT" --check "$f" > /dev/null 2>&1 < /dev/null; then
       bad=$((bad+1))
       if [ $bad -le 6 ]; then which="$which $(printf '%q' "$f")"; fi
     fi ;;
