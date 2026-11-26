@@ -341,6 +341,7 @@ declared function.
 | `try e with E -> h` | `try_with (fun _ => e) M.E (fun _ => h)` |
 | `match e with exception E -> h \| x -> k` | `match_exn (fun _ => e) M.E (fun _ => h) (fun x => k)` |
 | `ref v`, `!r`, `r := v`; `lazy e`, `Lazy.force l` | `mk_ref v`, `get r`, `set r v`; `lazy_ (fun _ => e)`, `force l` |
+| `lazy v`, where `v` is a value (a constant, a constructor without arguments, a name, a function) | NO FORM: say it and stop. OCaml makes no suspension for it (the lazy value is made already forced: `classify_lazy_argument` in `typing/typeopt.ml`); the kit's `lazy_` makes one. The three `lazy` of the files of Simplify are of calls |
 | `while c do b done` | `while_ (fun _ => c) (fun _ => b)` |
 | `x == y`, `compare x y`, `x = y` not on integers | `phys_equal x y`, `poly_compare x y`, `poly_equal x y` (calls) |
 | `a / b`, `a mod b` on integers | `int_div a b`, `int_mod a b` (calls: they may raise) |
@@ -701,7 +702,9 @@ written once for each constructor that it stands for (a `_` over a type of
 30 constructors is 30 cases); a record that the file defines brings one
 function for each field (`let name i = i.name`);
 `try`, `match .. with exception`, `while` are calls of `Port_monad`
-(`runtime/port_monad.ml`), `lazy e` is `Lazy.from_fun`; a local function is
+(`runtime/port_monad.ml`), `lazy e` is `Lazy.from_fun` (a suspension, also
+where OCaml would make none: `lazy` of a value has no form, section 2); a
+local function is
 `let f = fun x -> ...`; each definition has a comment `(** val f : ... **)`
 with its Rocq type. The only `open` lines that Rocq writes are `open
 Port_monad` and, in some files, `open Port_abbreviations` (an empty module:
