@@ -10,7 +10,10 @@ joins the two.
 `FooSpec.v` has the statements, and the definitions that they need;
 `FooProofs.v` has the proofs. A `Spec` file is to be reviewed. Of a
 `Proofs` file only this is to be read: that each theorem has the statement
-of its name.
+of its name. ONE FILE IS OF NEITHER KIND:
+`Simplify_binary_primitive_named_locals.v` holds copies, with names, of
+local functions of a ported file (the section "Where the ported Simplify
+answers Invalid"). It is to be read against the port's file.
 
 ## What is here
 
@@ -21,11 +24,14 @@ of its name.
 | `contracts_have_a_model` | `contracts_have_a_model_statement` | the four contracts below are together no contradiction |
 | `tagged_op_lhs_unknown_sound` and thirteen more (the section "The seven kinds of integer") | `tagged_op_lhs_unknown_statement`, .. | the same soundness, for each of the SEVEN tables that the port has, at the width of any kind of integer of the model |
 | `tagged_statements_agree` | `tagged_statements_agree_statement` | the statements of the first two theorems follow from those of two of the fourteen |
+| `simplify_is_its_named_locals` and four more (the section "Where the ported Simplify answers Invalid") | `simplify_is_its_named_locals_statement`, .. | where the ported `simplify` of the tagged immediates answers Invalid for an operation whose right argument is known, the model's operation has no result |
 
 The first three are in `FlambdaPortIntArithTableSpec.v` and
 `FlambdaPortIntArithTableProofs.v`. The others are in
 `FlambdaPortIntArithTableKindsSpec.v` and
-`FlambdaPortIntArithTableKindsProofs.v`. This page is about the first
+`FlambdaPortIntArithTableKindsProofs.v`; the last five in
+`FlambdaPortIntArithInvalidSpec.v` and
+`FlambdaPortIntArithInvalidProofs.v`. This page is about the first
 three until the section "The seven kinds of integer".
 
 THE MODEL'S SIDE: `simplify/FlambdaSimplifyArithSpec.v`,
@@ -203,6 +209,135 @@ functions of the theorem's own module of numbers; that module's
 the kit: `ocaml_state`. Of `tagged_statements_agree` it shows the eight
 of the tagged immediates: its statement names their table.
 
+## Where the ported Simplify answers Invalid
+
+`FlambdaPortIntArithInvalidSpec.v`, `FlambdaPortIntArithInvalidProofs.v`
+and `Simplify_binary_primitive_named_locals.v`. They are about
+`Binary_arith_like.simplify` of the ported `Simplify_binary_primitive.v`,
+at the tagged immediates: the function that simplifies an integer
+operation from the types of its two arguments.
+
+| theorem | statement | says |
+|---|---|---|
+| `simplify_is_its_named_locals` | `simplify_is_its_named_locals_statement` | THE TIE: for all its nine arguments the port's `simplify` IS `simplify_with_named_locals`, the body of `simplify` with the four named copies of its local functions in it. No premise |
+| `invalid_only_where_no_result` | `invalid_only_where_no_result_statement` | THE STEP: the copy of `only_one_side_known`, with the table `op_lhs_unknown`. If it returns an Invalid result, the model's operation has no result on any number in range and the reading of any known number |
+| `simplify_invalid_is_sound` | `simplify_invalid_is_sound_statement` | the same of the port's `simplify` itself, for the runs that take the step |
+| `fold_names_its_elements` | `fold_names_its_elements_statement` | the rule of the fold, given a list, says that the fold visits that list |
+| `ported_create_is_not_invalid` | `ported_create_is_not_invalid_statement` | the port's text of `Simplify_primitive_result.create` does not make an Invalid result |
+
+THE STEP. Where the prover of the right argument answers a set of known
+numbers and the prover of the left does not know, `simplify` looks each
+known number up in the table `op_lhs_unknown`, gathers a set of possible
+results, and answers Invalid if the set is empty. The theorems say:
+INVALID ONLY WHERE THE MODEL'S OPERATION HAS NO RESULT, for every known
+number and every number in the range of the model's tagged immediates
+as the left argument.
+
+ON THE RIGHT ARGUMENT ONLY. With the left argument known the table is
+`op_rhs_unknown`, and no line of it answers `Invalid`: there the same
+statement would be true and would never apply. With the right argument
+known, the table answers `Invalid` for `Div` and `Mod` on a known number
+that reads as 0.
+
+THE MODEL'S CHOICE THAT THIS RESTS ON. The model's operation has no
+result in one place: `Div` and `Mod` on a zero divisor. The model marks
+that as a choice for the human (the comment at `eval_int_arith` in
+`semantics/FlambdaPrimitiveSpec.v`, decision D14; the Spec file quotes
+it): it is right for a division that follows a test of the divisor, and
+nothing checks it for the unsafe divisions. These theorems are the first
+that are proved from the port to that choice. They agree with the model
+because of it, and only under it.
+
+THE NAMED COPIES. The four functions of the step (`result_unknown`,
+`result_invalid`, `check_possible_results`, `only_one_side_known`) are
+LOCAL to `simplify`, in the compiler and in the port: Rocq has no name
+for them. `Simplify_binary_primitive_named_locals.v` has a copy of each,
+with a name: the port's lines, with the variables of `simplify` that the
+function uses as parameters. That file FOLLOWS THE PORT'S FILE, and so
+the compiler's: it has the compiler's notice, and `../PROVENANCE.md` has
+it as transcribed. A copy says nothing by itself. THE TIE makes the
+copies the port's text: Rocq proves it by computing, and a copy that
+differs from the port's lines, or a change of the port's lines, makes
+that proof fail.
+
+WHY THE COPIES ARE AT THE TAGGED IMMEDIATES, and not in a functor over
+the argument of the port's functor. The port's functor
+`Binary_arith_like` defines a type, the possible results, and Rocq makes
+a new such type each time that the functor is applied. A copy inside a
+functor of its own would apply the port's functor once more, and would
+be about another type than the port's module has: the tie is then
+refused. So the copies name the port's own two modules for the tagged
+immediates; for another kind of integer the same lines are copied at
+that kind's two modules.
+
+AN INVALID RESULT IS DEFINED (`is_invalid_result`), not chosen by the
+reader. `decl/` has the type of the results as an inductive type and a
+record: a result is Invalid if it is `Simplified` of a record whose
+`simplified_named` is `Or_invalid.Invalid`, which is the test of the
+compiler's own `Simplify_primitive_result.is_invalid`.
+
+THE PREMISES, of three kinds. The tie has none. The step has the first
+two kinds; the statement of `simplify` has all three.
+
+| kind | name | what it is |
+|---|---|---|
+| THE READER CHOOSES | `machine_width`, `value`, `compatible` | as for the table |
+| THE READER CHOOSES | `nums`, `known` | a set of numbers and a list of numbers. They are not free of each other: the rule of the fold below is a premise, and it holds of a fold that returns only if the list is what the fold visits (`fold_names_its_elements`). A premise asks that every number of `known` is compatible |
+| A CLAIM ABOUT THE COMPILER THAT IS NOT PROVED | `zero_is_0`, `one_is_1`, `minus_one_is_m1`, `equal_is_equality` | the four contracts of the table; they are used through the table's theorem |
+| A CLAIM ABOUT THE COMPILER THAT IS NOT PROVED | `fold_visits .. nums known` | the declared fold of the sets of numbers, on `nums`, visits the numbers of `known`: each once, in some order, and no other. A rule in the form of a loop invariant, for every step and every invariant: if the invariant holds of nothing visited, and each step keeps it for a number of `known`, then the fold, if it returns, has it of ALL of `known`. It says nothing of this operation, of the state, of an exception or of a run out of fuel |
+| A CLAIM ABOUT THE COMPILER THAT IS NOT PROVED | `create_is_not_invalid` | the declared `Simplify_primitive_result.create`, if it returns, does not return an Invalid result |
+| WHAT SELECTS THE CASE (the statement of `simplify` only) | five premises under THE CASE | what five calls of `simplify` return on its arguments, if they return: `DA.denv`, `DE.typing_env`, the prover of the left argument (it does not know), the prover of the right (the set `nums`), `DE.machine_width`. Each is said for every state, because the statement does not know in which state the call is made: so it also says that the call answers nothing else from another state. They say nothing of what a prover's answer means |
+
+WHY `create_is_not_invalid` STAYS A PREMISE, although the port has that
+function's text. `simplify` calls `Simplify_primitive_result.create` of
+`decl/`: a parameter, of which Rocq knows the type and no more. The
+ported `Simplify_primitive_result.v` has the function's text, over a
+record of its own, and `ported_create_is_not_invalid` proves the claim
+of that text. That shows why the claim is believed. It cannot stand for
+the premise: Rocq cannot give a parameter a definition, and nothing says
+that the declared function is the ported one.
+
+NOTHING IS ASSUMED of the other declared functions that the step calls
+(the head of the Spec file lists them): the conclusion is about a run
+that returns and about Invalid only, and holds whatever they return.
+
+WHAT THEY DO NOT SAY.
+
+- NOT THE MODEL'S PREMISE YET. The model's fourth conclusion asks
+  `results (fun _ _ r => r = None)`, over the numbers that the MODEL's
+  prover answers for the model's type of an argument. The conclusion
+  here is over the list `known` and a reading `value` of the compiler's
+  numbers: a precursor of it. STILL OPEN: that every number in range
+  that the model's prover answers is the reading of a number of `known`
+  (the crossing of the prover); and how the compiler's terms, types and
+  environments are read as the model's.
+- ONE DIRECTION, and not completeness: if the result is Invalid, the
+  model's operation has no result. Not that Simplify answers Invalid
+  wherever it has none.
+- NOT THE OTHER PLACES where `simplify` answers Invalid: a prover that
+  answers that the type has no number; both arguments known and no pair
+  with a result.
+- NOTHING OF A RUN THAT RAISES, OF THE STATE, OR OF A RUN OUT OF FUEL.
+  The statements have the form `if_returns`: if the computation
+  returns, the value has the property. The theorems of the table have a
+  stronger form: no run raises, and the state is as it was. That form
+  would need a claim about every declared function that the step calls;
+  and the port's own text ends some runs of `simplify` in an exception
+  (a fatal error, a failed assertion).
+- Nothing of the answers with a term, of the type that the result
+  variable gets, of the other six kinds of integer, or of the extracted
+  OCaml.
+
+WHAT `Print Assumptions` SHOWS of these five today. Of the tie and of
+the theorem about `simplify`: 99 names. Of the step: 79. Of
+`ported_create_is_not_invalid`: 39. Of `fold_names_its_elements`: one,
+`ocaml_state`. ALL ARE PARAMETERS: declared entries of `decl/` (the
+types and the functions that the body of `simplify`, and what it calls,
+name: that is why the lists are long), two of the kit (`ocaml_state`,
+`print_fatal_message`), and one that the ported file itself declares
+(`K_Standard_int_or_float_to_kind`). The tie has its 99 because its
+statement names `simplify`; its proof uses none of them.
+
 ## The bridge: three ways from the compiler's types to the model's
 
 The port's functions are over the compiler's types as `decl/` has them.
@@ -224,9 +359,13 @@ says which of these it uses, for each thing that it crosses with.
    file defines the map, constructor for constructor. The map reads a
    value; it gives no declared parameter a definition.
 
-The two theorems here use a map for the operation
+The theorems of the tables use a map for the operation
 (`int_arith_op_of_port`, `signedness_of_port`) and four contracts for the
-numbers.
+numbers. The theorems about Invalid use the first way for the result of
+`simplify` (`decl/` has its type as an inductive type and a record, and
+`is_invalid_result` is a definition on its constructors), and two
+contracts more, for the declared fold and for the declared maker of a
+result.
 
 No file of this folder has an `Axiom`, a `Parameter` or an `Admitted`. A
 contract is a hypothesis of a section in the Proofs file and a premise in
@@ -298,6 +437,17 @@ the global context.
   (`Module X := Y.`) is none.
 - THE HEAD of a Spec file names the model's file and statement that it
   is about, the bridge that it uses, and what the statement does not say.
+- A LOCAL FUNCTION OF A PORTED FILE has no name, and a statement cannot
+  be about it. Do not change the ported file. Copy the local function's
+  lines into a file of named copies (as
+  `Simplify_binary_primitive_named_locals.v`: the notice of the ported
+  file, a first comment that says which lines each copy is of, a row of
+  kind transcribed in `../PROVENANCE.md`), with the variables that it
+  uses as parameters; and PROVE THE TIE: that the ported function is its
+  body with the copies in it, by `reflexivity`. Name the port's own
+  modules in the copies: inside a functor of your own the tie is refused
+  where the port's functor defines a type. A copy without a proved tie is
+  worth nothing.
 - TWO NOTATIONS `let* x := m in k`. The port's kit has one and the model's
   `OxCamlOption` has another, at another level. Rocq refuses to import
   both in one file. Import the kit; of the model, import what does not
