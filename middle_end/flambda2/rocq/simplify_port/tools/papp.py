@@ -52,6 +52,24 @@ Two callers.
 - papp.py --extracted FILE.v ... (the Makefile's target papp), a second
   step after the lint: see THE EXTRACTED DEFINITIONS below.
 
+THE TWO TABLES ARE INPUTS, AND THE TOOL DOES NOT GO ON WITHOUT ONE. Each
+run reads decl/ARITIES.tsv and decl/INDEX.tsv whole, before it judges
+anything and whatever the file has. AN ERROR OF INPUT is: a table that is
+not there or cannot be read; one that is empty, or does not end with a new
+line (a file that was cut); a row that has not five columns, or has an
+empty column, or has no number where decl/README.md says one (INDEX.tsv:
+the fourth column; ARITIES.tsv: the third, and the fourth unless it is
+[-]); a second row for one Rocq name (in INDEX.tsv, for one value). The
+tool then names the table, and the row by its number, on the standard
+error, judges nothing, and ENDS WITH STATUS 2, as tools/lint.py does with
+it (a finding about a ported file ends with status 1). It is no finding
+about a ported file, and a part of a table is not read as if it were the
+whole: without the rows of INDEX.tsv, or without those of ARITIES.tsv, no
+definition would be found to be a partial application (A DEFINITION THAT IS
+ONE, below), and nothing would be said. NOT SEEN: a table that has lost
+whole rows and is still well formed; a table that is not of this decl/
+(the generator makes the two with the declarations: decl/README.md).
+
 THE WRITTEN FORMS. The lint looks for the word pappN (N from 1 to 4)
 outside comments and strings. The one form that it reads is
 
@@ -501,19 +519,78 @@ def without_labels(text):
     return LABEL.sub(lambda m: " " * len(m.group(0)), text)
 
 
+def input_error(what):
+    """An error of input (THE TWO TABLES ARE INPUTS, above): it is said on
+    the standard error, and the tool ends with status 2."""
+    sys.stdout.flush()
+    sys.stderr.write("papp: %s\n" % what)
+    sys.exit(2)
+
+
+NUMBER = re.compile(r"[0-9]+")
+
+
+def table_rows(name, numbers, one_row_for):
+    """The rows of the table decl/NAME, each as its five columns. NUMBERS:
+    for each column that must be a number (counted from 0), whether [-] may
+    stand in its place. ONE_ROW_FOR: given a row, the name of which the
+    table may have one row only, or None. A table or a row that is not so
+    is an error of input: nothing is returned."""
+    shown = "decl/" + name
+    try:
+        text = open(os.path.join(DECL, name)).read()
+    except (OSError, ValueError) as e:
+        input_error(
+            "%s cannot be read (%s): the tool judges nothing without it"
+            % (shown, getattr(e, "strerror", None) or e)
+        )
+    if not text.endswith("\n"):
+        input_error(
+            "%s %s: the tool judges nothing with a part of the table"
+            % (shown, "does not end with a new line (a file that was cut)" if text else "is empty")
+        )
+    rows = []
+    first = {}
+    for n, row in enumerate(text[:-1].split("\n"), 1):
+        f = row.split("\t")
+        why = None
+        if len(f) != 5:
+            why = "it has %d column%s, not 5" % (len(f), "" if len(f) == 1 else "s")
+        elif "" in f:
+            why = "its column %d is empty" % (f.index("") + 1)
+        else:
+            for k, dash in numbers:
+                if not (NUMBER.fullmatch(f[k]) or (dash and f[k] == "-")):
+                    why = "its column %d is %s, not a number%s" % (k + 1, f[k], " or -" if dash else "")
+                    break
+        if why is None:
+            key = one_row_for(f)
+            if key in first:
+                why = "it is a second row for %s (the first is row %d)" % (key, first[key])
+            elif key is not None:
+                first[key] = n
+        if why:
+            input_error(
+                "%s:%d: the row cannot be read: %s: the tool judges nothing with a part of the table"
+                % (shown, n, why)
+            )
+        rows.append(f)
+    return rows
+
+
 def read_table():
     """Rocq name -> (parameters of the realisation, parameters of the
     definition or "-", place or reason, OCaml name)."""
     table = {}
-    try:
-        rows = open(os.path.join(DECL, "ARITIES.tsv")).read().split("\n")
-    except IOError:
-        rows = []
-    for row in rows:
-        f = row.split("\t")
-        if len(f) == 5:
-            table[f[1]] = (int(f[2]), f[3], f[4], f[0])
+    for f in table_rows("ARITIES.tsv", ((2, False), (3, True)), lambda f: f[1]):
+        table[f[1]] = (int(f[2]), f[3], f[4], f[0])
     return table
+
+
+def index_rows():
+    """The rows of decl/INDEX.tsv: OCaml name, Rocq name, kind, number of
+    arguments, interface. One row only for a value."""
+    return table_rows("INDEX.tsv", ((3, False),), lambda f: f[1] if f[2] == "value" else None)
 
 
 # What decl/ would have to say for Rocq to give a declared value an
@@ -655,13 +732,8 @@ def read_arguments():
     """Rocq name -> the number of arguments of the declaration of a value
     (decl/INDEX.tsv)."""
     out = {}
-    try:
-        rows = open(os.path.join(DECL, "INDEX.tsv")).read().split("\n")
-    except IOError:
-        rows = []
-    for row in rows:
-        f = row.split("\t")
-        if len(f) == 5 and f[2] == "value" and f[3].isdigit():
+    for f in index_rows():
+        if f[2] == "value":
             out[f[1]] = int(f[3])
     return out
 
@@ -720,6 +792,10 @@ def analyse(path, raw):
     """(the uses, each with its line; the lines to print; the number of
     errors)"""
     global TABLE, IN_DECL, ARGUMENTS
+    if TABLE is None:
+        # (before anything is judged, and whatever the file has: THE TWO
+        # TABLES ARE INPUTS)
+        TABLE, ARGUMENTS = read_table(), read_arguments()
     text = without_labels(blank(raw, False))
     code = without_labels(blank(raw, True))
     lines = []
@@ -756,10 +832,8 @@ def analyse(path, raw):
     candidates = [c for c in bodies(text) if (scan_arguments(code, c[1], c[3]) or (0, 0))[0]]
     if not papps and not marks and not candidates:
         return [], lines, bad
-    if TABLE is None:
-        TABLE = read_table()
+    if IN_DECL is None:
         IN_DECL = decl_abbreviations()
-        ARGUMENTS = read_arguments()
     if DECL_IMPLICIT:
         lines.append(
             "%s: decl/ may give a declared value an argument that is not written (an implicit "
@@ -1695,15 +1769,7 @@ def interface_of(rocq):
     row there."""
     global INTERFACES
     if INTERFACES is None:
-        INTERFACES = {}
-        try:
-            rows = open(os.path.join(DECL, "INDEX.tsv")).read().split("\n")
-        except IOError:
-            rows = []
-        for row in rows:
-            f = row.split("\t")
-            if len(f) == 5 and f[2] == "value":
-                INTERFACES[f[1]] = f[4]
+        INTERFACES = {f[1]: f[4] for f in index_rows() if f[2] == "value"}
     return INTERFACES.get(rocq)
 
 
