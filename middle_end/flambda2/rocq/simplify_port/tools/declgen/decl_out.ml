@@ -195,7 +195,6 @@ let extract_type ?(kept = []) rname ocaml nparams =
 let in_kit =
   [ "Stdlib.ref";
     "Stdlib.raise";
-    "Stdlib.raise_notrace";
     "Stdlib.ignore";
     "Stdlib.compare";
     "Stdlib.succ";
@@ -255,6 +254,11 @@ let emit_value modc name =
   else if (not (Sigs.is_identifier name)) && List.hd comps = "Stdlib"
   then
     not_declared comps "an operator of Stdlib: the kit and Rocq have their own"
+  else if key comps = "Stdlib.raise_notrace"
+  then
+    (* It is not in the kit, and it is not declared here: what a raise does is
+       the kit's to say (the kit defines [raise]). *)
+    not_declared comps "the kit has raise and not raise_notrace"
   else
     match Env.find_value (Sigs.path_of_comps comps) !Sigs.base_env with
     | exception Not_found -> not_declared comps "not found in the interface"

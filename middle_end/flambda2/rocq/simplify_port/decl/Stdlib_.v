@@ -40,7 +40,7 @@ Extract Inlined Constant int32 => "int32".
 Parameter int64 : Type.
 Extract Inlined Constant int64 => "int64".
 (* raise: in the kit (Port_monad.v). *)
-(* raise_notrace: in the kit (Port_monad.v). *)
+(* NOT DECLARED: raise_notrace: the kit has raise and not raise_notrace. *)
 (* stdlib/stdlib.mli  val invalid_arg : string -> 'a *)
 Parameter invalid_arg : forall {A : Type}, string -> M A.
 Extract Inlined Constant invalid_arg => "invalid_arg".

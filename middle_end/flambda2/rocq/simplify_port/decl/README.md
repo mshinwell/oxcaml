@@ -384,8 +384,10 @@ does a second declaration of a name. Type variables are capitals (`'a` is
 
 `NOT-DECLARED.tsv` lists every used thing that has no declaration, with the
 reason. The kit (`Port_monad.v`) has `ref`, `!`, `:=`, `raise`, `ignore`,
-`compare`, `not`, `Lazy.force`, `Not_found`, the fatal errors: they are not
-declared here.
+`compare`, `succ`, `pred`, `max`, `min`, `not`, `Lazy.force`, `Not_found`,
+the fatal errors: they are not declared here, and a comment in the file
+says so. `raise_notrace` is not in the kit and is not declared: it has its
+row in `NOT-DECLARED.tsv`.
 
 ## The modules that a file of Simplify makes for itself
 
