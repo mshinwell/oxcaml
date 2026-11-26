@@ -41,7 +41,9 @@ The folder has its own `Makefile`. In this folder:
 
 where `ROOT` is the `_build/default` of a dune build of this repository
 (the compiled interfaces of the compiler, which the check of the types
-reads). It needs Rocq, OCaml, ocamlformat and Python on the path. Use one
+reads). `tools/typedtrees.sh` makes the part of such a build that the
+tools of this folder read, without building the compiler.
+It needs Rocq, OCaml, ocamlformat and Python on the path. Use one
 build job. It builds the port against both monads of `monad/` and extracts
 OCaml from the identity-monad build. The build against the real monad also
 compiles the laws, the contracts and the first lemmas. OCaml checks each

@@ -76,6 +76,14 @@ and what a comparison of the two libraries' interfaces found.
                                              # then the modules given to functors
     python3 tools/declgen/check_realisations.py BUILD_ROOT   # OCaml
 
+`BUILD_ROOT` is the `_build/default` of a build of the compiler from the
+sources of the tree. It need not be a build of the whole compiler:
+`tools/typedtrees.sh` makes, in a tree that is configured, the compiled
+interfaces and the typed trees that the generator and `make` read, and
+no more (its head says what it runs, and how its list of directories is
+kept). If a build lacks something that is read, the generator stops and
+names it ("What a file says that it was made from", below).
+
 What the last one checks, and what it does not. For each realisation string
 it writes one line of OCaml (the string as an expression; for a type, as the
 type of an argument; for a constructor or a field of a mirrored type, a
