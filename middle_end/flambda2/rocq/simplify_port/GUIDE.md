@@ -248,10 +248,14 @@ what runs at the use (or that the definition was not read), in the port's
 own words and with the place, not with a line of the compiler. The lint
 prints each use that keeps its mark; a use that needs a mark and has none,
 and a mark that is not needed, are errors. A partial application WITHOUT
-`pappN` (a definition that is one: `Definition g : .. := M.f a.`): put the
-same mark and run the lint, which then counts the arguments as words; take
-the mark off if the lint says that it needs none. Without a mark the lint
-does not see such a place. `make papp` (a part of `make check`) is a second
+`pappN`: the lint finds by itself A DEFINITION THAT IS ONE (`Definition g
+: .. := M.f a.`: the whole body is a declared function and fewer arguments
+than its declaration has), counts the arguments as words and judges it as
+a `pappN`; it has the mark only if the lint asks for it. Inside a larger
+term the lint sees such a place only through a mark: put the same mark
+and run the lint; take the mark off if the lint says that it needs none.
+There, without a mark, the lint does not see the place: write `pappN`.
+`make papp` (a part of `make check`) is a second
 step after the lint, and no check by itself: for each use that the lint
 passes of a function of a ported file of Simplify, it looks for the
 definition in `extracted/`, in the module where the compiler has it, and

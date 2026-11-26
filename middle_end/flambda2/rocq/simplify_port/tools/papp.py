@@ -82,16 +82,31 @@ before the use in the same definition (up to the full stop that ends a
 line), and has the function in square brackets as the use writes it:
 [Option.map]. A mark names nothing else in square brackets.
 
-A PARTIAL APPLICATION WITHOUT pappN (a definition that is one: [Definition
-g : .. := M.f a.]) is seen only through its mark: when a mark names F and
-no [pappN F] follows in the definition, the use is the first F after the
-mark, and N is the number of arguments that follow it, AS WORDS: a name, a
-number, a string, a group in brackets. (For a declared function only: a
+A PARTIAL APPLICATION WITHOUT pappN is found in ONE shape without a mark:
+A DEFINITION THAT IS ONE. The sentence begins with [Definition]; after its
+first [:=] outside brackets the body is the name of a declared function F
+and arguments, up to the full stop and no further ([Definition g : .. :=
+M.f a.]); and the arguments, counted AS WORDS (a name, a number, a string, a
+group in brackets), are at least one and fewer than the arguments of the
+declaration of F (decl/INDEX.tsv has that number). It is then judged as
+[pappN F] is, N the number counted: it passes, and has no mark, or it wants
+the mark. (Such a definition runs when the module starts, or when its own
+parameters are given: the arguments that F waits for are not there.) A
+definition whose body is a function of the file and arguments is not read
+so: GUIDE.md, section 2, makes it a value. NOT FOUND in this way: a
+sentence that begins with another word ([Fixpoint], [Local Definition],
+an attribute); a body in brackets ([:= (M.f a).]); [@] before the function;
+a function that the table does not have under the name as it is written
+(WHICH FUNCTION, below). No ported file has one of these.
+ANYWHERE ELSE (inside a larger term) a partial application without pappN is
+seen only through its mark: when a mark names F and no [pappN F] follows in
+the definition, the use is the first F after the mark, and N is the number
+of arguments that follow it, as words. (For a declared function only: a
 mark that names a function of the file wants a [pappN] of it.) If the
 application ends with
 anything but a closing bracket, a full stop, [;] [,] [|] [:] [=>] or one of
 [+ * / < > = ++ :: && ||], N is not known and the mark stays. (A word that
-is not an argument of F can only make N too large.) A plain partial
+is not an argument of F can only make N too large.) There, a plain partial
 application that has NO MARK IS NOT FOUND.
 
 WHICH FUNCTION. It COUNTS WORDS, as tools/lint.py does. The name F is
@@ -390,7 +405,9 @@ Everything else it refuses, or does not see. In particular:
   N arguments, which the extraction puts in the place of pappN, is what
   the kit says; the kit is not read here;
 - only the one written form of pappN is read. A partial application
-  without pappN and without a mark is not found. Where the extraction
+  without pappN and without a mark is found only if it is the whole body of
+  a [Definition] (A DEFINITION THAT IS ONE, above); inside a larger term it
+  is not found. Where the extraction
   itself changes the shape of a function (it adds or takes away a [fun]),
   only the parameters of the extracted definition are read, as they
   stand; the extracted use is not read;
@@ -592,12 +609,20 @@ NO_ARGUMENT = ("in", "then", "else", "with", "end", "as", "return")
 def count_arguments(code, i, end):
     """The number of arguments that follow a function, from i, as words;
     None if it is not known."""
+    found = scan_arguments(code, i, end)
+    return None if found is None else found[0]
+
+
+def scan_arguments(code, i, end):
+    """(the number of arguments that follow a function, from i, as words;
+    where they end: [end] itself if nothing but arguments stands before
+    it); None if the number is not known."""
     n = 0
     while True:
         while i < end and code[i].isspace():
             i += 1
         if i >= end:
-            return n
+            return n, end
         if code[i] in "([{":
             i = close_of(code, i, end)
         elif code[i] == '"':
@@ -623,11 +648,27 @@ def count_arguments(code, i, end):
                 break
             if i is None:
                 return None
-    return n if WORD.match(code, i, end) or AFTER.match(code, i, end) else None
+    return (n, i) if WORD.match(code, i, end) or AFTER.match(code, i, end) else None
+
+
+def read_arguments():
+    """Rocq name -> the number of arguments of the declaration of a value
+    (decl/INDEX.tsv)."""
+    out = {}
+    try:
+        rows = open(os.path.join(DECL, "INDEX.tsv")).read().split("\n")
+    except IOError:
+        rows = []
+    for row in rows:
+        f = row.split("\t")
+        if len(f) == 5 and f[2] == "value" and f[3].isdigit():
+            out[f[1]] = int(f[3])
+    return out
 
 
 TABLE = None
 IN_DECL = None
+ARGUMENTS = None
 
 # A use: where it is, how the listing shows it, whether it is written
 # without pappN, the arguments it gives (None: not counted), the function
@@ -646,12 +687,39 @@ IMPORT_OF_DECL = re.compile(
     r"From\s+SimplifyPort\.decl\s+Require\s+Import\s+([^.]+)|Import\s+(%s)\s*" % PPATH
 )
 FUNCTION = re.compile(r"\s+(%s)(?![A-Za-z_0-9'.])" % PPATH)
+DEFINITION = re.compile(r"Definition(?![A-Za-z_0-9'])")
+BODY_NAME = re.compile(r"\s*(%s)(?![A-Za-z_0-9'.])" % PPATH)
+
+
+def bodies(text):
+    """For each sentence that begins with [Definition] and whose body
+    begins with a name: (where the name begins, where it ends, the name,
+    where the sentence ends). The body is what follows the first [:=]
+    outside brackets."""
+    out = []
+    for a, b in sentences(text):
+        if not DEFINITION.match(text, a, b):
+            continue
+        depth = 0
+        i = a
+        while i < b:
+            if text[i] in "([{":
+                depth += 1
+            elif text[i] in ")]}":
+                depth -= 1
+            elif depth == 0 and text.startswith(":=", i):
+                m = BODY_NAME.match(text, i + 2, b)
+                if m:
+                    out.append((m.start(1), m.end(1), m.group(1), b))
+                break
+            i += 1
+    return out
 
 
 def analyse(path, raw):
     """(the uses, each with its line; the lines to print; the number of
     errors)"""
-    global TABLE, IN_DECL
+    global TABLE, IN_DECL, ARGUMENTS
     text = without_labels(blank(raw, False))
     code = without_labels(blank(raw, True))
     lines = []
@@ -683,11 +751,15 @@ def analyse(path, raw):
         else:
             papps.append((m.start(), int(m.group(1)), f.group(1)))
     marks = [m.start() for m in re.finditer(r"\(\*\s*PORT-GAP\(papp\)", raw)]
-    if not papps and not marks:
+    # the definitions whose body begins with a name and has an argument:
+    # one of them may be a partial application without pappN
+    candidates = [c for c in bodies(text) if (scan_arguments(code, c[1], c[3]) or (0, 0))[0]]
+    if not papps and not marks and not candidates:
         return [], lines, bad
     if TABLE is None:
         TABLE = read_table()
         IN_DECL = decl_abbreviations()
+        ARGUMENTS = read_arguments()
     if DECL_IMPLICIT:
         lines.append(
             "%s: decl/ may give a declared value an argument that is not written (an implicit "
@@ -805,6 +877,19 @@ def analyse(path, raw):
     uses = [
         Use(pos, "papp%d %s" % (n, f), False, n, f, verdict(n, f), False) for pos, n, f in papps
     ]
+    # A DEFINITION THAT IS ONE: the whole body is a declared function and
+    # fewer arguments than its declaration has
+    for start, stop, f, end in candidates:
+        found = resolve(f)
+        n, reached = scan_arguments(code, stop, end)
+        if found is None or reached != end or n >= ARGUMENTS.get(found, 0):
+            continue
+        shown = "%s, %d argument%s counted as words, the whole body of a Definition" % (
+            f,
+            n,
+            "" if n == 1 else "s",
+        )
+        uses.append(Use(start, shown, True, n, f, verdict(n, f), False))
     # each mark: the names in its square brackets, and where its definition ends
     covered = set()
     stop_re = re.compile(r"\.\s*\n")
@@ -849,23 +934,30 @@ def analyse(path, raw):
                     )
                     bad += 1
                     continue
-                n = count_arguments(code, m.end(), end)
-                if n is None:
-                    v = (False, "its arguments could not be counted", None)
-                    shown = "%s, arguments not counted" % name
-                else:
-                    v = verdict(n, name)
-                    shown = "%s, %d argument%s counted as words" % (name, n, "" if n == 1 else "s")
-                if v is None:
-                    # (the first F after the mark may be its own binding)
-                    lines.append(
-                        "%s names %s, a function of the file, of which no pappN follows in the definition"
-                        % (where, name)
-                    )
-                    bad += 1
-                    continue
-                mine = [Use(m.start(), shown, True, n, name, v, False)]
-                uses.append(mine[0])
+                # (a definition that is one is among the uses already)
+                mine = [u for u in uses if u.plain and u.pos == m.start()]
+                if not mine:
+                    n = count_arguments(code, m.end(), end)
+                    if n is None:
+                        v = (False, "its arguments could not be counted", None)
+                        shown = "%s, arguments not counted" % name
+                    else:
+                        v = verdict(n, name)
+                        shown = "%s, %d argument%s counted as words" % (
+                            name,
+                            n,
+                            "" if n == 1 else "s",
+                        )
+                    if v is None:
+                        # (the first F after the mark may be its own binding)
+                        lines.append(
+                            "%s names %s, a function of the file, of which no pappN follows in the definition"
+                            % (where, name)
+                        )
+                        bad += 1
+                        continue
+                    mine = [Use(m.start(), shown, True, n, name, v, False)]
+                    uses.append(mine[0])
             # a mark stays for a use that does not pass, and for a function
             # of the file or of the standard library (the second step judges
             # those)
