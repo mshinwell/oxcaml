@@ -265,10 +265,16 @@ def read_table():
     return bare, heads
 
 
-def may_bind(text):
-    """What OCaml text, whose comments are blank, may bind: the names of
-    values and of types, each with its lines; the modules that it defines;
-    the modules that it opens or includes, as written."""
+def may_bind(raw):
+    """What OCaml text may bind: the names of values and of types, each
+    with its lines; the modules that it defines; the modules that it opens
+    or includes, as written. The text is read with its comments and the
+    inside of its strings blank, sign for sign; the number of a line is
+    counted in the text as it is (a string that goes on after a backslash
+    at the end of a line has no line break there once it is blank)."""
+    text = papp.blank_ocaml(raw)
+    if len(text) != len(raw):
+        raise ValueError("the blank text has not the length of the text")
     tokens = [m for m in OTOKEN.finditer(text)]
     values = collections.defaultdict(list)
     types = collections.defaultdict(list)
@@ -283,7 +289,7 @@ def may_bind(text):
     defined = []  # (the name, the token, the number of blocks around it)
 
     def line(m):
-        return text.count("\n", 0, m.start()) + 1
+        return raw.count("\n", 0, m.start()) + 1
 
     def token(k):
         return tokens[k].group(0) if 0 <= k < len(tokens) else ""
@@ -458,7 +464,7 @@ def main(files):
     folder = {}
     for unit, rel in sorted(FOLDER.items()):
         try:
-            folder[unit] = may_bind(papp.blank_ocaml(open(os.path.join(papp.PORT, rel)).read()))
+            folder[unit] = may_bind(open(os.path.join(papp.PORT, rel)).read())
         except IOError:
             print("names: %s is not there" % rel)
             bad += 1
@@ -502,7 +508,7 @@ def main(files):
             print("%s: %s is not there" % (path, where))
             bad += 1
             continue
-        own = may_bind(papp.blank_ocaml(ml))
+        own = may_bind(ml)
         sources = [(where, own)]
         for o in own.opened:
             if o in folder:
@@ -659,8 +665,13 @@ def self_test():
         ("module rec", "module rec Flambda : S = struct\n  let x = 1\nend\n", [], [], {"Flambda": "top, no path"}),
     ]
     fails = 0
+    # the number of a line after a string that goes on after a backslash
+    after = may_bind('let s = "one \\\n  line"\n\nlet max = 1\n')
+    if after.values.get("max") != [4]:
+        print("names: self-test: the line after a string of two lines: found %r, wanted [4]" % after.values.get("max"))
+        fails += 1
     for what, text, values, types, modules in cases:
-        got = may_bind(papp.blank_ocaml(text))
+        got = may_bind(text)
         found = (
             sorted(n for n in asked if n in got.values),
             sorted(n for n in asked if n in got.types),
@@ -672,7 +683,7 @@ def self_test():
         if found != (sorted(values), sorted(types), modules):
             print("names: self-test: %s: found %r, wanted %r" % (what, found, (sorted(values), sorted(types), modules)))
             fails += 1
-    print("names: self-test: %d texts, %d not read as wanted" % (len(cases), fails))
+    print("names: self-test: %d texts, %d not read as wanted" % (len(cases) + 1, fails))
     return 1 if fails else 0
 
 
