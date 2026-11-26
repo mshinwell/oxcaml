@@ -45,23 +45,52 @@
 #   Rocq     whether the .v file is compiled against both implementations
 #            of the monad
 #   OCaml    how the extracted file type-checks (tools/check.sh)
+#
+# EACH COMMAND ON WHOSE OUTPUT THE TABLE IS MADE STANDS ALONE (find, awk,
+# sed, sort, comm, wc, grep, cat), with its output in a file of
+# BUILD_DIR/progress or in a variable, and its status is read: by `set -e`,
+# which stops the script, or by the script (grep, which exits 1 when it
+# finds nothing). No list comes through a pipe, through the list of a
+# `for` or through `<( )`: there the shell does not read the status of the
+# command that makes the list, and a list that was made in part would be
+# taken for the whole. The functions are called as commands of the script
+# and not inside `$( )`, where `set -e` would not hold in them. If the
+# script stops, it says so on the standard error (the shell says nothing
+# when `set -e` stops it), and make deletes what it has written of
+# PROGRESS.md.
 set -eu
+whole=no
+trap 'if [ $whole = no ]; then echo "progress.sh: STOPPED: a command failed; the table is not whole" >&2; fi' EXIT
 simplify=$1; B=$2
 kinds="unported partial loose type verbatim init order decl papp record-order update"
+work=$B/progress
+rm -rf "$work"
+mkdir -p "$work"
+# names_ml FILE OUT : the names that the compiler's file defines at its left
+# margin, sorted, one on a line, into OUT
 names_ml() {
   # an [and] at the left margin counts only after a [let] (not after a [type])
-  awk '/^type /{m=0} /^let[ []/{m=1} /^let[ []/||(m&&/^and[ []/){print}' "$1" \
-    | sed -n -E 's/^(let|and)( rec)?( ?\[@[^]]*\])* +([a-z_][A-Za-z0-9_'"'"']*).*/\4/p' \
-    | grep -v '^_$' | sort -u
+  awk '/^type /{m=0} /^let[ []/{m=1} /^let[ []/||(m&&/^and[ []/){print}' "$1" > "$work/ml.lines"
+  sed -n -E 's/^(let|and)( rec)?( ?\[@[^]]*\])* +([a-z_][A-Za-z0-9_'"'"']*).*/\4/p' \
+    "$work/ml.lines" > "$work/ml.names"
+  awk '$0 != "_"' "$work/ml.names" > "$work/ml.kept"
+  LC_ALL=C sort -u "$work/ml.kept" > "$2"
 }
+# names_v FILE OUT : the names that the .v file defines, sorted, into OUT
 names_v() {
-  { # a name that is a word of Rocq has one _ after it in the .v file
-    sed -n -E 's/^(Definition|Fixpoint|with) +([a-z_][A-Za-z0-9_'"'"']*).*/\2/p' "$1" \
-      | sed -E 'p; s/_$//'
-    # the fields of the file's records: Rocq makes one function for each
-    awk '/^ *Record /{r=1} r{print} r&&/}\./{r=0}' "$1" | tr '\n' ' ' \
-      | grep -o -E '[{;] *[a-z_][A-Za-z0-9_'"'"']* *:' | sed -E 's/[{;: ]//g'
-  } | sort -u
+  local rc=0
+  # a name that is a word of Rocq has one _ after it in the .v file
+  sed -n -E 's/^(Definition|Fixpoint|with) +([a-z_][A-Za-z0-9_'"'"']*).*/\2/p' "$1" > "$work/v.defs"
+  sed -E 'p; s/_$//' "$work/v.defs" > "$work/v.names"
+  # the fields of the file's records: Rocq makes one function for each
+  awk '/^ *Record /{r=1} r{print} r&&/}\./{r=0}' "$1" > "$work/v.records"
+  tr '\n' ' ' < "$work/v.records" > "$work/v.line"
+  # (grep exits 1 for a file that has no record: only a status above 1 is
+  # a failure)
+  grep -o -E '[{;] *[a-z_][A-Za-z0-9_'"'"']* *:' "$work/v.line" > "$work/v.fields" || rc=$?
+  if [ $rc -gt 1 ]; then echo "progress.sh: grep exits $rc on the records of $1" >&2; exit 2; fi
+  sed -E 's/[{;: ]//g' "$work/v.fields" >> "$work/v.names"
+  LC_ALL=C sort -u "$work/v.names" > "$2"
 }
 echo "# The port of Simplify: progress"
 echo
@@ -77,23 +106,32 @@ echo "|---|---:|---:|---:|---|---|---|"
 tl=0; td=0; tp=0; tf=0; tr=0; to=0; tg=0
 declare -A by_kind
 ported_files=" "
-# as an assignment: if SIMPLIFY_DIR is not there the script stops, and does
-# not write a table of no file
-files=$(cd "$simplify" && find . -name '*.ml' | sed 's|^\./||' | LC_ALL=C sort)
+# three assignments: if SIMPLIFY_DIR is not there, or find fails, the
+# script stops, and does not write a table of no file or of some files
+files=$(cd "$simplify" && find . -name '*.ml')
+files=$(sed 's|^\./||' <<< "$files")
+files=$(LC_ALL=C sort <<< "$files")
+if [ -z "$files" ]; then echo "progress.sh: no .ml file under $simplify" >&2; exit 2; fi
 for ml in $files; do
   dir=$(dirname "$ml"); base=$(basename "$ml" .ml)
   if [ "$dir" = . ]; then d=""; else d="$dir/"; fi
   v="$d${base^}.v"
   lines=$(wc -l < "$simplify/$ml")
-  defs=$(names_ml "$simplify/$ml" | wc -l)
+  names_ml "$simplify/$ml" "$work/ml.sorted"
+  defs=$(wc -l < "$work/ml.sorted")
   ported=0; gaps="-"; rocq="-"; ocaml="-"
   if [ -e "$v" ]; then
     tf=$((tf+1))
     ported_files="$ported_files$v "
-    ported=$(comm -12 <(names_ml "$simplify/$ml") <(names_v "$v") | wc -l)
+    names_v "$v" "$work/v.sorted"
+    LC_ALL=C comm -12 "$work/ml.sorted" "$work/v.sorted" > "$work/both"
+    ported=$(wc -l < "$work/both")
     gaps=""
     for k in $kinds; do
-      n=$(grep -o "(\* PORT-GAP($k)" "$v" | wc -l)
+      # how many times the mark of the kind begins a comment (one awk, and
+      # no grep whose status 1 would have to be told from a failure)
+      n=$(awk -v k="$k" 'BEGIN { mark = "\\(\\* PORT-GAP\\(" k "\\)" }
+                         { n += gsub(mark, "&") } END { print n + 0 }' "$v")
       if [ "$n" -gt 0 ]; then gaps="$gaps $k:$n"; tg=$((tg+n)); fi
       by_kind[$k]=$(( ${by_kind[$k]:-0} + n ))
     done
@@ -121,8 +159,6 @@ echo "The marks of the other \`.v\` files of the folder (\`decl/\`, which"
 echo "\`tools/declgen\` writes; the kit, \`monad/\`). They are not in the table"
 echo "and not in the numbers above:"
 echo
-# each command stands alone, and its status is read: a list that could not
-# be made stops the script
 all=$(find . -name '*.v' -not -path './_build/*')
 all=$(LC_ALL=C sort <<< "$all")
 others=""
@@ -153,3 +189,4 @@ else
     echo "- \`$where\`: $kind: $n"
   done <<< "$found"
 fi
+whole=yes
