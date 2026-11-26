@@ -18,7 +18,11 @@ file, `extracted/DIR/foo.ml`. Where to read on:
   laws of the monad that says what the port means; `contracts/README.md`,
   what a proof assumes of a declared function or exception;
   `proofs/README.md`, the first lemmas about ported files. They are not a
-  specification of Simplify.
+  specification of Simplify;
+- `against_model/README.md`: statements about ported functions from the
+  Spec files of the model (the other folders of `middle_end/flambda2/rocq/`),
+  proved. `make against-model MODEL=ROOT` checks them against a built model;
+  it is not a part of `make` or of the gate, which do not need the model.
 
 ## Who owns it
 

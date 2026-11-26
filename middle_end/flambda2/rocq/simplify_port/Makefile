@@ -61,6 +61,15 @@
 #   make list       the ported files and their donors
 #   make clean
 #
+# NOT A PART OF make, and not a part of make check:
+#   make against-model MODEL=ROOT
+#                   Rocq compiles the files of against_model/, which say
+#                   of ported functions what a Spec file of the model
+#                   says must hold, and prints of each theorem its
+#                   statement and what it rests on. ROOT is the root of a
+#                   tree of this repository in which make -C rocq all has
+#                   run (the model's compiled files, which are read)
+#
 # CMI_ROOT is the _build/default of a dune build of this repository (the
 # compiled interfaces that the check reads). Without it the check says so
 # and does nothing.
@@ -82,6 +91,9 @@ REPO_ROOT := ../../../..
 CMI_ROOT ?= $(REPO_ROOT)/_build/default
 SIMPLIFY := ../../simplify
 B := _build
+# For [make against-model] only: the root of a tree of this repository in
+# which the model is built.
+MODEL ?=
 
 # The tools of Python write no compiled copy of themselves beside the
 # sources (tools/__pycache__): what make leaves in the folder is under
@@ -128,7 +140,7 @@ ID_V := $(B)/id/Port_monad.v $(addprefix $(B)/id/,$(SRC))
 EXTRACTED := $(foreach p,$(PORTED),$(call extracted,$(p)))
 CHECKED := $(foreach p,$(PORTED),$(call checked,$(p)))
 
-.PHONY: all real id extract check given lines follows shells exceptions papp names table comments list clean
+.PHONY: all real id extract check given lines follows shells exceptions papp names table comments list clean against-model
 all: shells real id extract check table comments
 
 real: $(REAL_V:.v=.vo)
@@ -375,3 +387,26 @@ comments:
 
 clean:
 	rm -rf $(B)
+
+# ---- against the model -------------------------------------------------
+
+# The files of against_model/ say of ported functions what a Spec file of
+# the model (the other folders of middle_end/flambda2/rocq/) says must
+# hold, and prove it (against_model/README.md). They need the model's
+# compiled files, which this Makefile does not make: MODEL is the root of
+# a tree of this repository in which [make -C rocq all] has run. SO THIS
+# TARGET IS NOT A PART OF [make], of [make check] or of tools/gate.sh: the
+# port's gate does not need the model. It needs the port's real build, and
+# makes first what is missing or old of it. Rocq compiles the files of the
+# folder under $(B)/against_model, and prints of each theorem its whole
+# statement and what it rests on. tools/against_model.sh says how, and
+# what it does not judge.
+# Without MODEL make stops here, before it makes anything of the real
+# build.
+ifneq ($(filter against-model,$(MAKECMDGOALS)),)
+ifeq ($(strip $(MODEL)),)
+$(error make against-model MODEL=ROOT: say where the built model is (ROOT: the root of a tree of this repository in which make -C rocq all has run))
+endif
+endif
+against-model: real
+	ROCQ='$(ROCQ)' tools/against_model.sh '$(MODEL)' $(B)
