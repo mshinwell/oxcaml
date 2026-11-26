@@ -71,17 +71,28 @@
 #     that directory as the library SimplifyPortAgainstModel.
 #  5. For each file FooProofs.v, each line that begins `Theorem` must be
 #     `Theorem NAME : STATEMENT.`, where STATEMENT is a name that
-#     FooSpec.v defines. Of each it prints, by Rocq: the theorem with its
-#     statement's name (Check); THE WHOLE STATEMENT, with every definition
-#     of a proposition of the Spec files of this folder unfolded (a
-#     definition whose type is written Prop before its `:=`), so that the
-#     contracts stand in it as the premises that they are; and what the
-#     theorem rests on
-#     (Print Assumptions). The contracts are premises: Print Assumptions
-#     does not list them. It lists parameters. THE SCRIPT DOES NOT JUDGE
-#     THAT LIST: the reader sees whether each name is a parameter of the
-#     port or of its kit. The same text is kept in
-#     BUILD/against_model/THEOREMS.txt.
+#     FooSpec.v defines. For each, the script writes sentences of Rocq in
+#     a file FooTheorems.v, and Rocq compiles that file. Every name in
+#     them is written with its file (FooProofs.NAME, FooSpec.STATEMENT):
+#     the folder may have several pairs of files, and a name of one is
+#     not taken for the same name of another, or of the Proofs file. The
+#     sentences:
+#     - Rocq CHECKS that the theorem of the Proofs file proves the
+#       statement of the Spec file (a goal FooSpec.STATEMENT, closed by
+#       FooProofs.NAME). This prints nothing; if it fails, the script
+#       stops.
+#     - the theorem with its statement's name (Check);
+#     - THE WHOLE STATEMENT, with every definition of a proposition of
+#       the Spec files of this folder unfolded (a definition whose type
+#       is written Prop before its `:=`), so that the contracts stand in
+#       it as the premises that they are. For this a Spec file has no
+#       module of its own (`Module X.` .. `End X.`): the script stops at
+#       one. A short name for a module (`Module X := Y.`) is none;
+#     - what the theorem rests on (Print Assumptions). The contracts are
+#       premises: Print Assumptions does not list them. It lists
+#       parameters. THE SCRIPT DOES NOT JUDGE THAT LIST: the reader sees
+#       whether each name is a parameter of the port or of its kit.
+#     The same text is kept in BUILD/against_model/THEOREMS.txt.
 #
 # THE STATUSES THAT DECIDE. The script ends with 0 at its last line only.
 # It ends with 1 when it refuses the files of against_model/; with 2 when
@@ -99,7 +110,10 @@
 #  - Every other command of which a failure would change an answer is a
 #    command that stands alone, or one that gives a variable its text
 #    ($(..)), and `set -e` ends the script when it fails: cd, git, ls, cp,
-#    Rocq, awk, tr.
+#    Rocq, awk, tr. Two of them fail ON PURPOSE in step 5: awk ends with 3
+#    at a module of a Spec file; Rocq ends with an error at the file of
+#    the theorems when a theorem does not prove the statement of the Spec
+#    file.
 #  - Two places are pipes, and the shell reads the last command of a pipe
 #    only. The counts of step 2 (wc after printf, in the text of an echo):
 #    a count that fails leaves its place empty on the printed line, and
@@ -219,18 +233,28 @@ done
 # 5. The theorems.
 specs=$(ls *Spec.v)
 # The definitions of propositions: from `Definition NAME` to the first
-# `:=`, the text ends `: Prop :=`.
+# `:=`, the text ends `: Prop :=`. Each is written with its file,
+# FooSpec.NAME. That is its name only if no module of the file is around
+# it: awk ends with the status 3 at a line `Module X` without `:=`, and
+# `set -e` ends the script.
 awk '
+  FNR == 1 { file = FILENAME; sub(/\.v$/, "", file) }
+  /^[[:space:]]*Module[[:space:]]/ && !index($0, ":=") {
+    printf "against-model: %s, line %d: a Spec file has no module of its own\n", FILENAME, FNR > "/dev/stderr"
+    exit 3
+  }
   /^[[:space:]]*Definition[[:space:]]/ { name = $2; head = ""; collecting = 1 }
   collecting {
     head = head " " $0
     if (index($0, ":=")) {
       collecting = 0
-      if (head ~ /: Prop :=/) print name
+      if (head ~ /: Prop :=/) print file "." name
     }
   }' $specs > propositions.tmp
 definitions=$(tr '\n' ' ' < propositions.tmp)
 rm -f propositions.tmp
+spec_modules=
+for spec in $specs; do spec_modules="$spec_modules ${spec%.v}"; done
 : > THEOREMS.txt
 for proofs in *Proofs.v; do
   name=${proofs%Proofs.v}
@@ -240,6 +264,10 @@ for proofs in *Proofs.v; do
   fi
   check=${name}Theorems.v
   {
+    # Every Spec file of the folder is required, for the definitions that
+    # are unfolded. This pair's two files are imported, so that Rocq
+    # prints their names short.
+    echo "From SimplifyPortAgainstModel Require$spec_modules."
     echo "From SimplifyPortAgainstModel Require Import ${name}Spec ${name}Proofs."
     echo "Set Printing Width 78."
   } > "$check"
@@ -282,9 +310,10 @@ for proofs in *Proofs.v; do
       ;;
     esac
     {
-      echo "Check $theorem."
-      echo "Eval cbv beta delta [$definitions] in $statement."
-      echo "Print Assumptions $theorem."
+      echo "Goal ${name}Spec.$statement. Proof. exact ${name}Proofs.$theorem. Qed."
+      echo "Check ${name}Proofs.$theorem."
+      echo "Eval cbv beta delta [$definitions] in ${name}Spec.$statement."
+      echo "Print Assumptions ${name}Proofs.$theorem."
     } >> "$check"
   done < theorems.tmp
   rm -f theorems.tmp

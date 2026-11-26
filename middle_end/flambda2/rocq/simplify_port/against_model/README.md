@@ -19,9 +19,14 @@ of its name.
 | `op_lhs_unknown_sound` | `op_lhs_unknown_statement` | SOUNDNESS OF THE COVERED ANSWERS of the ported `op_lhs_unknown` of `Int_ops_for_binary_arith`, at the tagged immediates, for the model's `eval_int_arith` |
 | `op_rhs_unknown_sound` | `op_rhs_unknown_statement` | the same for `op_rhs_unknown` |
 | `contracts_have_a_model` | `contracts_have_a_model_statement` | the four contracts below are together no contradiction |
+| `tagged_op_lhs_unknown_sound` and thirteen more (the section "The seven kinds of integer") | `tagged_op_lhs_unknown_statement`, .. | the same soundness, for each of the SEVEN tables that the port has, at the width of any kind of integer of the model |
+| `tagged_statements_agree` | `tagged_statements_agree_statement` | the statements of the first two theorems follow from those of two of the fourteen |
 
-All three are in `FlambdaPortIntArithTableSpec.v` and
-`FlambdaPortIntArithTableProofs.v`.
+The first three are in `FlambdaPortIntArithTableSpec.v` and
+`FlambdaPortIntArithTableProofs.v`. The others are in
+`FlambdaPortIntArithTableKindsSpec.v` and
+`FlambdaPortIntArithTableKindsProofs.v`. This page is about the first
+three until the section "The seven kinds of integer".
 
 THE MODEL'S SIDE: `simplify/FlambdaSimplifyArithSpec.v`,
 `int_arith_identities_statement`, which the model proves
@@ -117,6 +122,87 @@ not fit it returns. The model shows that the claims are no contradiction,
 and that the claim about the test does not ask it to return on every
 pair. It does not show that a claim is true of the compiler.
 
+## The seven kinds of integer
+
+The table is in a functor of the port, `Int_ops_for_binary_arith`, over a
+module of numbers. The port applies it at seven modules, as the compiler
+does. The model's `int_arith_identities` is for every kind of integer of
+the model. So `FlambdaPortIntArithTableKindsSpec.v` states, and
+`FlambdaPortIntArithTableKindsProofs.v` proves, of EACH OF THE SEVEN
+TABLES what the two theorems above say of the first, AT THE WIDTH OF ANY
+KIND of the model:
+
+| the port's module | its numbers (`decl/Number_adjuncts.v`) | the kind that the compiler pairs with it, and the model's width | the two theorems |
+|---|---|---|---|
+| `Int_ops_for_binary_arith_tagged_immediate` | `For_tagged_immediates` | `Standard_tagged_immediate`, 63 bits on the 64-bit target | `tagged_op_lhs_unknown_sound`, `tagged_op_rhs_unknown_sound` |
+| `Int_ops_for_binary_arith_naked_immediate` | `For_naked_immediates` | `Standard_naked_immediate`, 63 bits on the 64-bit target | `naked_op_lhs_unknown_sound`, `naked_op_rhs_unknown_sound` |
+| `Int_ops_for_binary_arith_int8` | `For_int8s` | `Standard_naked_int8`, 8 bits | `int8_op_lhs_unknown_sound`, `int8_op_rhs_unknown_sound` |
+| `Int_ops_for_binary_arith_int16` | `For_int16s` | `Standard_naked_int16`, 16 bits | `int16_op_lhs_unknown_sound`, `int16_op_rhs_unknown_sound` |
+| `Int_ops_for_binary_arith_int32` | `For_int32s` | `Standard_naked_int32`, 32 bits | `int32_op_lhs_unknown_sound`, `int32_op_rhs_unknown_sound` |
+| `Int_ops_for_binary_arith_int64` | `For_int64s` | `Standard_naked_int64`, 64 bits | `int64_op_lhs_unknown_sound`, `int64_op_rhs_unknown_sound` |
+| `Int_ops_for_binary_arith_nativeint` | `For_nativeints` | `Standard_naked_nativeint`, 64 bits on the 64-bit target | `nativeint_op_lhs_unknown_sound`, `nativeint_op_rhs_unknown_sound` |
+
+ON THE 64-BIT TARGET: THE MODEL IS OF THAT TARGET ONLY. In the compiler
+the width of the two kinds of immediates and of the native integers is
+that of the target: it is less on a 32-bit target. The model has 63 and
+64 bits for them, and no other width. At those three kinds a theorem
+here is about the model's operation at the model's width; it is not the
+model's word on a 32-bit target. The widths of the other four kinds are
+the same on every target.
+
+The statement of `K_op_lhs_unknown_sound` is `K_op_lhs_unknown_statement`,
+and so for `rhs`. Each begins `forall kind : standard_int`, and then is
+one of two general statements (`lhs_unknown_table_sound`,
+`rhs_unknown_table_sound`: of any numbers, any table and any width) at
+the module's numbers, its table and the width of `kind`.
+
+EACH IS CONDITIONAL, in the way of the section before this one: the same
+three things are the reader's to choose, and the same four claims are
+premises, ON THE NUMBERS OF THE THEOREM'S OWN MODULE (`Num.zero`,
+`Num.one`, `Num.minus_one` and `Num.equal` of the module of the second
+column). So the fourteen theorems rest on TWENTY-EIGHT CLAIMS ABOUT THE
+COMPILER THAT ARE NOT PROVED: four of one shape for each of the seven
+declared modules. None is a theorem. What the section before this one
+says of `compatible`, and of what is not assumed, holds of each.
+
+WHICH KIND GOES WITH WHICH MODULE IS A READING. The model's identities
+hold for every kind of the model. So each ported table is sound for the
+model's operation at the width of EVERY kind, and each statement is for
+every kind. The third column names the kind that the compiler pairs
+with the module: in the compiler each module of numbers gives its kind
+(`standard_int_kind`, in `number_adjuncts.ml`), and the kind of the
+model is the one of the same name. The port cannot say it: `decl/`
+declares each module's `standard_int_kind` as a parameter. So a theorem
+here does not say that a table is used at its own kind. It says that its
+covered answers are sound at whichever kind it is used.
+
+WHAT THEY DO NOT SAY: what the two theorems above do not say, for each of
+the seven. And nothing of the tables of the shifts, of the comparisons
+and of the floats, which are other functors of the same ported file.
+
+WHY TWO PAIRS OF FILES. The model's statements about terms
+(`let_int_arith_tagged_statement`) are for the tagged immediates only,
+and write the width as `tagged_width`. The first pair of files is the
+statement that fits them, and it does not change.
+`tagged_statements_agree` says that its two statements follow from the
+two of the tagged immediates among the fourteen, at the kind
+`Standard_tagged_immediate`. For the other six kinds the model has no
+statement about terms. Of the model, each of the fourteen uses the
+definitions of its operation and one theorem, `int_arith_identities`.
+
+THE PROOF IS WRITTEN ONCE, in a functor over the argument of the port's
+functor. Rocq takes the table of that functor at a module of `decl/` for
+the port's own table at that module: each of the fourteen theorems is one
+application.
+
+WHAT `Print Assumptions` SHOWS of each of the fourteen today: eight
+names, all parameters, of the same kinds as for the first two theorems.
+Seven are declared entries of `decl/`: the type `Num.t` and the four
+functions of the theorem's own module of numbers; that module's
+`standard_int_kind`; the type `Target_system.Machine_width.t`. One is of
+the kit: `ocaml_state`. Of `tagged_statements_agree` it shows the eight
+of the tagged immediates: its statement names their table.
+
 ## The bridge: three ways from the compiler's types to the model's
 
 The port's functions are over the compiler's types as `decl/` has them.
@@ -159,7 +245,9 @@ model is compiled, and nothing is written in that tree. `ROOT` may be a
 name from the port's folder: the tool makes one absolute name of it
 first, reads the model by that name only, and prints it. The target makes
 first what is missing or old of the port's real build (`make real`), then
-compiles the files of this folder under `_build/against_model/`, and
+compiles the files of this folder under `_build/against_model/`. For
+each theorem Rocq checks that it proves the statement of the Spec file
+that its line names. The target
 prints of each theorem its statement's name, its WHOLE STATEMENT with the
 definitions of the Spec files unfolded (the contracts stand in it as
 premises), and what it rests on (`Print Assumptions`). The same text is
@@ -191,7 +279,15 @@ the global context.
   `_CoqProject`.
 - A THEOREM of a Proofs file is one line, `Theorem NAME : STATEMENT.`,
   where `STATEMENT` is a definition of the Spec file. The target reads
-  that line. A helper is a `Lemma`.
+  that line, and Rocq checks that the theorem `FooProofs.NAME` proves
+  the statement `FooSpec.STATEMENT`. A helper is a `Lemma`; so is a
+  result inside a module or a functor of a Proofs file.
+- A SPEC FILE HAS NO MODULE OF ITS OWN (`Module X.` .. `End X.`): the
+  target stops at one. It unfolds the definitions of propositions of the
+  Spec files by their names with the file (`FooSpec.NAME`). A short name
+  for a module (`Module X := Y.`) is none.
+- A Spec file that uses the definitions of another Spec file EXPORTS it
+  (`Require Export`): the target then prints the names of both short.
 - THE HEAD of a Spec file names the model's file and statement that it
   is about, the bridge that it uses, and what the statement does not say.
 - TWO NOTATIONS `let* x := m in k`. The port's kit has one and the model's
