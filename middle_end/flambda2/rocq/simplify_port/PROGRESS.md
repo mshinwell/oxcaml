@@ -89,7 +89,7 @@ compiler's own definitions; alone: no interface).
 | `unboxing/unboxing_types.ml` | 185 | 6 | 6 | type:1 verbatim:2 | yes | strict |
 | **total: 78 files of 78** | 26900 | 930 | 926 | 276 marks | 78 | 78 |
 
-Gaps by kind, all files:
+Gaps by kind, the ported files:
 
 - unported: 0
 - partial: 0
@@ -102,3 +102,10 @@ Gaps by kind, all files:
 - papp: 2
 - record-order: 23
 - update: 0
+
+The marks of the other `.v` files of the folder (`decl/`, which
+`tools/declgen` writes; the kit, `monad/`). They are not in the table
+and not in the numbers above:
+
+- `decl/`: type: 6
+- `monad/`: loose: 1

@@ -36,6 +36,12 @@
 #            function that reads it) and does not leave as a parameter
 #   gaps     the marks of the .v file, by kind: the comments that BEGIN
 #            with "PORT-GAP(kind)"
+# After the table: the marks of the ported files by kind (the sums of the
+# rows), and then THE MARKS OF THE OTHER .v FILES of the folder, which the
+# table does not have: those of decl/, which tools/declgen writes, and of
+# the kit (monad/). There a mark is counted wherever it stands in a
+# comment, as "PORT-GAP(kind):" with its colon (the kit has one that does
+# not begin its comment); "PORT-GAP(kind)" without a colon is a mention.
 #   Rocq     whether the .v file is compiled against both implementations
 #            of the monad
 #   OCaml    how the extracted file type-checks (tools/check.sh)
@@ -69,6 +75,8 @@ echo
 echo "| file | lines | defs | ported | gaps | Rocq | OCaml |"
 echo "|---|---:|---:|---:|---|---|---|"
 tl=0; td=0; tp=0; tf=0; tr=0; to=0; tg=0
+declare -A by_kind
+ported_files=" "
 # as an assignment: if SIMPLIFY_DIR is not there the script stops, and does
 # not write a table of no file
 files=$(cd "$simplify" && find . -name '*.ml' | sed 's|^\./||' | LC_ALL=C sort)
@@ -81,11 +89,13 @@ for ml in $files; do
   ported=0; gaps="-"; rocq="-"; ocaml="-"
   if [ -e "$v" ]; then
     tf=$((tf+1))
+    ported_files="$ported_files$v "
     ported=$(comm -12 <(names_ml "$simplify/$ml") <(names_v "$v") | wc -l)
     gaps=""
     for k in $kinds; do
       n=$(grep -o "(\* PORT-GAP($k)" "$v" | wc -l)
       if [ "$n" -gt 0 ]; then gaps="$gaps $k:$n"; tg=$((tg+n)); fi
+      by_kind[$k]=$(( ${by_kind[$k]:-0} + n ))
     done
     if [ -z "$gaps" ]; then gaps="none"; fi
     if [ -e "$B/real/${v%.v}.vo" ] && [ -e "$B/id/${v%.v}.vo" ] \
@@ -101,9 +111,45 @@ for ml in $files; do
 done
 echo "| **total: $tf files of 78** | $tl | $td | $tp | $tg marks | $tr | $to |"
 echo
-echo "Gaps by kind, all files:"
+echo "Gaps by kind, the ported files:"
 echo
 for k in $kinds; do
-  n=$(cat $(find . -name '*.v' -not -path './_build/*' -not -path './decl/*') 2>/dev/null | grep -o "(\* PORT-GAP($k)" | wc -l)
-  echo "- $k: $n"
+  echo "- $k: ${by_kind[$k]:-0}"
 done
+echo
+echo "The marks of the other \`.v\` files of the folder (\`decl/\`, which"
+echo "\`tools/declgen\` writes; the kit, \`monad/\`). They are not in the table"
+echo "and not in the numbers above:"
+echo
+# each command stands alone, and its status is read: a list that could not
+# be made stops the script
+all=$(find . -name '*.v' -not -path './_build/*')
+all=$(LC_ALL=C sort <<< "$all")
+others=""
+for f in $all; do
+  f=${f#./}
+  case "$ported_files" in *" $f "*) ;; *) others="$others $f";; esac
+done
+if [ -z "$others" ]; then
+  found=""
+else
+  # DIRECTORY kind NUMBER, for each first directory of a file and each kind
+  found=$(awk '
+    { line = $0
+      while (match(line, /PORT-GAP\([a-z-]+\):/)) {
+        kind = substr(line, RSTART + 9, RLENGTH - 11)
+        n = split(FILENAME, part, "/")
+        where = (n > 1) ? part[1] "/" : FILENAME
+        count[where " " kind]++
+        line = substr(line, RSTART + RLENGTH)
+      } }
+    END { for (x in count) print x, count[x] }' $others)
+  found=$(LC_ALL=C sort <<< "$found")
+fi
+if [ -z "$found" ]; then
+  echo "- none"
+else
+  while read -r where kind n; do
+    echo "- \`$where\`: $kind: $n"
+  done <<< "$found"
+fi
