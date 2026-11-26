@@ -44,8 +44,10 @@ let source_root = ref ""
    of it that was read, or a compiled interface of it that was loaded, of which
    the text cannot be compared with the tree's ([Src.standing], [compare_loaded]
    in declgen.ml); a compiled interface that is not the one that a given typed
-   tree was compiled against. One sentence for each. The generator stops on any,
-   before it writes a file. *)
+   tree was compiled against; a unit of it of which a value is declared and the
+   typed tree of the implementation is not there ([Arities.no_implementation]).
+   One sentence for each. The generator stops on any, before it writes a
+   file. *)
 let stale : string list ref = ref []
 
 let fix_dir d =

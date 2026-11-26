@@ -163,6 +163,18 @@ of the build and its unit is not of the standard library by its name
 implementation that the build has, and that is read for `ARITIES.tsv`,
 cannot be read or compared.
 
+A BUILD OF A PART OF THE COMPILER IS REFUSED IF THE PART IS TOO SMALL. The
+number of parameters of a declared value is read from the typed tree of
+the implementation of its unit (`ARITIES.tsv`). A build can have the
+compiled interface of a unit, which is enough for the files of Rocq, and
+not the typed tree of its implementation (`dune build
+@middle_end/flambda2/simplify/check` alone makes such a build). The
+generator then writes no file and exits with status 2, and names each
+unit of the build for which that typed tree is not there (or is not that
+of a whole implementation). It does not write a table in which the rows
+of those units say `not read`. `tools/typedtrees.sh` makes a build that
+has all that is read, without building the compiler.
+
 ONE KIND OF TEXT THAT THE BUILD WROTE, AND THE TREE DOES NOT HAVE, IS
 TAKEN: the list of the modules of a library, which dune writes (such as
 `flambda2_terms.ml-gen`: a line `module A = Lib__A` for each module `A`
@@ -179,10 +191,10 @@ modules:` for each list.
 
 WHAT IS NOT COMPARED, AND IS NOT REFUSED.
 
-- AN IMPLEMENTATION OF WHICH THE BUILD HAS NO TYPED TREE (a unit that is
-  an interface alone has none) is not read. Each row of `ARITIES.tsv` for
-  a value of that unit then says so (`not read: no typed tree of an
-  implementation of M`), and nothing is taken from it.
+- A UNIT THAT IS NOT OF THE BUILD, AND IS NOT OF THE STANDARD LIBRARY BY
+  ITS NAME (`CamlinternalX`): if a value of it were declared, its row of
+  `ARITIES.tsv` would say `not read`, with the reason, and nothing would
+  be taken from its implementation. No such value is declared today.
 - THE STANDARD LIBRARY. Its compiled interfaces are not of the build (the
   paragraph before "To make them again", and `PROVENANCE.md`, last
   section), so there is no text of the tree to compare (69 units are

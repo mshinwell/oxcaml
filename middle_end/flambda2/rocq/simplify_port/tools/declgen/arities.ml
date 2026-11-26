@@ -92,6 +92,31 @@ let tree_source ~file (cmt : Cmt_format.cmt_infos) =
   | List_of_modules s -> Ok s
   | Refused why -> Error ("not read: " ^ why)
 
+(* Whether a unit is of the build that is read: its compiled interface is a file
+   of the build root (or is on no directory of the load path). The others are of
+   the library of the OCaml that made the build. *)
+let unit_of_the_build u =
+  match Load_path.find_normalized (u ^ ".cmi") with
+  | exception Not_found -> true
+  | cmi -> Src.of_the_build cmi
+
+(* A BUILD THAT LACKS THE TYPED TREE OF AN IMPLEMENTATION THAT IS READ HERE IS
+   REFUSED: the reason is kept in [stale], and the generator writes nothing. So
+   a build of a part of the compiler, which has the compiled interfaces of the
+   units that Simplify uses and not the typed trees of their implementations,
+   does not give a table in which every row of those units says "not read". A
+   unit is read here only for a row: the definition of a declared value is
+   looked for in it, or through it (a module that is another module). *)
+let no_implementation u why =
+  if unit_of_the_build u
+  then
+    stale
+      := Printf.sprintf
+           "%s: %s: it is read for a row of ARITIES.tsv (a declared value is \
+            defined in that unit, or through it)"
+           u why
+         :: !stale
+
 (* For each unit: its structure, or why it was not read; and its file. *)
 let units : (string, modval) Hashtbl.t = Hashtbl.create 97
 
@@ -232,6 +257,9 @@ and read_unit u : modval =
       else
         match Load_path.find_normalized (u ^ ".cmt") with
         | exception Not_found ->
+          no_implementation u
+            "the build has no typed tree of its implementation (no file .cmt \
+             of that name is on the load path)";
           Unknown
             (Printf.sprintf "not read: no typed tree of an implementation of %s"
                (short_unit u))
@@ -239,8 +267,7 @@ and read_unit u : modval =
           match Cmt_format.read_cmt f with
           | exception _ ->
             (* a typed tree that the build has and that cannot be read is
-               refused; one that the build does not have is not read, and the
-               row says so *)
+               refused *)
             if Src.of_the_build f
             then
               stale
@@ -258,6 +285,9 @@ and read_unit u : modval =
                 eval_structure { unit_name = u; env = [] } str
               | Error why -> Unknown why)
             | _ ->
+              no_implementation u
+                (Printf.sprintf
+                   "the typed tree %s is not that of a whole implementation" f);
               Unknown
                 (Printf.sprintf
                    "not read: no typed tree of an implementation of %s"
