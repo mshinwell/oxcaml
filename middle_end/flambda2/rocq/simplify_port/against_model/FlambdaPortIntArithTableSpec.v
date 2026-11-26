@@ -96,9 +96,10 @@
      among the three covered ones is. The places of the negation and of
      the bitwise complement are not in the model's statement: each
      needs a lemma on the model's side first.
-   - NOTHING OF A RUN THAT IS OUT OF FUEL. A function that never returns
-     has both statements: no termination is claimed (GUIDE.md of the
-     port, section 8).
+   - NOTHING OF A RUN THAT IS OUT OF FUEL. A function of which every run
+     is out of fuel has both statements: no termination is claimed
+     (GUIDE.md of the port, section 8). A run that raises is not such a
+     run: the statements forbid it.
    - NOT THAT THE COMPILER'S NUMBERS HAVE 63 BITS. The model is of the
      64-bit target only: its tagged immediates have 63 bits
      ([tagged_width]). The statements are about the model's operation at

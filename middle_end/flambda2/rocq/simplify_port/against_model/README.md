@@ -49,8 +49,9 @@ WHAT THEY DO NOT SAY.
   answered `Cannot_simplify` everywhere would have both theorems. A wrong
   answer among the three covered ones is found; a simplification that is
   missed is not.
-- NOTHING OF A RUN THAT IS OUT OF FUEL. A function that never returns has
-  both theorems. No termination is claimed.
+- NOTHING OF A RUN THAT IS OUT OF FUEL. A function of which every run is
+  out of fuel has both theorems. No termination is claimed. (A run that
+  raises is not such a run: the theorems forbid it.)
 - NOT THAT THE COMPILER'S NUMBERS HAVE 63 BITS. The model is of the 64-bit
   target only: its tagged immediates have 63 bits. For another machine
   width the theorems are true sentences about the model's 63-bit
@@ -109,11 +110,12 @@ is in a range: a test that succeeds says that it reads as 0, 1 or -1.
 
 THE CONTRACTS HAVE A MODEL (`contracts_have_a_model`): a type of numbers
 with a reading, a set of compatible numbers and four functions that have
-the four claims, among them a test of equality that ends in a fatal error
-on two numbers that do not both fit. It shows that the claims are no
-contradiction, and that the claim about the test does not ask it to
-return on every pair. It does not show that a claim is true of the
-compiler.
+the four claims. A number of it has a mark that says whether it fits. Its
+test of equality ends in a fatal error on two numbers with DIFFERENT
+marks: one that fits and one that does not. On two numbers that both do
+not fit it returns. The model shows that the claims are no contradiction,
+and that the claim about the test does not ask it to return on every
+pair. It does not show that a claim is true of the compiler.
 
 ## The bridge: three ways from the compiler's types to the model's
 
@@ -153,7 +155,9 @@ it uses rest on.
 
 `ROOT` is the root of a tree of this repository in which `make -C rocq
 all` has run: the model's compiled files are read there. Nothing of the
-model is compiled, and nothing is written in that tree. The target makes
+model is compiled, and nothing is written in that tree. `ROOT` may be a
+name from the port's folder: the tool makes one absolute name of it
+first, reads the model by that name only, and prints it. The target makes
 first what is missing or old of the port's real build (`make real`), then
 compiles the files of this folder under `_build/against_model/`, and
 prints of each theorem its statement's name, its WHOLE STATEMENT with the
@@ -161,8 +165,10 @@ definitions of the Spec files unfolded (the contracts stand in it as
 premises), and what it rests on (`Print Assumptions`). The same text is
 kept in `_build/against_model/THEOREMS.txt`. The target also prints the
 commit of the two trees that it reads, and whether either has a change
-that is not committed. `../tools/against_model.sh` says how, and what it
-does not judge.
+that is not committed. It does not know whether the model's compiled
+files are of the model's `.v` files. `../tools/against_model.sh` says
+how, which statuses of its commands decide what, and what it does not
+judge.
 
 THE TARGET IS NOT A PART OF `make`, of `make check` or of
 `../tools/gate.sh`. The port's gate does not need the model. A commit
@@ -203,3 +209,6 @@ the global context.
   ported file from `SimplifyPort`.
 - The target refuses a line that begins `Axiom`, `Parameter`,
   `Conjecture` or `Admitted`, and the word `admit`, also in a comment.
+  That is a rule of lines and words. It does not show that a file takes
+  nothing without a proof: the reader of the file does, with the list
+  that `Print Assumptions` prints.
