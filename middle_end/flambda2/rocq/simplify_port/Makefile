@@ -41,7 +41,8 @@
 #   make id         Rocq compiles everything against monad/id
 #   make extract    extracted/DIR/foo.ml for every ported file
 #   make check      the types of every extracted file, make given, make
-#                   lines, make follows, make exceptions and make papp
+#                   lines, make follows, make exceptions, make papp and
+#                   make names
 #   make given      the OCaml text that the ported files give, against the
 #                   compiler's files
 #   make lines      the notes of lines of the ported files, against the
@@ -49,6 +50,9 @@
 #   make exceptions what a declared exception may carry
 #   make papp       the partial applications of functions of the ported
 #                   files, against the definitions in extracted/
+#   make names      no extracted file binds a name that a text of the kit
+#                   or of decl/ writes without a module and that the file
+#                   uses; its modules that are named like a unit
 #   make shells     every shell script of the folder has `set -eu` before
 #                   its first command
 #   make follows    the first comment of each ported file names its donor
@@ -127,7 +131,7 @@ all: shells real id extract check table comments
 real: $(REAL_V:.v=.vo)
 id: $(ID_V:.v=.vo)
 extract: $(EXTRACTED)
-check: shells given lines follows exceptions $(CHECKED) papp
+check: shells given lines follows exceptions $(CHECKED) papp names
 
 list:
 	@$(foreach p,$(PORTED),echo '$(p).v	$(call donor,$(p))	$(call extracted,$(p))';)
@@ -320,6 +324,18 @@ exceptions:
 # no number, with the tree's own stdlib/. tools/papp.py says how.
 papp: $(EXTRACTED)
 	$(PYTHON) tools/papp.py --extracted $(addsuffix .v,$(PORTED))
+
+# The OCaml text of a name of the kit or of decl/ is put at each use as it
+# is, and OCaml reads it where it stands: a text that is one name without a
+# module ([not], [max], [compare]) is the file's own variable or function
+# if the file binds that name around the use, and a path ([List.rev]) is
+# read in a module of the file that has the path's first name. Rocq does
+# not see it. tools/names.py reads the extracted files as words, with the
+# files of the folder that they open, and says what it checks and what it
+# does not; it first tries its reading of OCaml on made-up texts.
+names: $(EXTRACTED)
+	$(PYTHON) tools/names.py --self-test
+	$(PYTHON) tools/names.py $(addsuffix .v,$(PORTED))
 
 # ---- the table --------------------------------------------------------
 

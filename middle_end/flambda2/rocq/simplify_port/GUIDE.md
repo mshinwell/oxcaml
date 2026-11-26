@@ -797,7 +797,8 @@ the file's library); one made inside a module of the file; a name inside a
 Rocq functor; a name that a text of `decl/` holds besides its own.
 
 KNOWN PROBLEMS OF THE EXTRACTION (the human has put them off; none is
-checked by a tool, but the first in part). In the identity build `M A` is
+checked by a tool, but the first and the last in part). In the identity
+build `M A` is
 `A`, and Rocq's extraction takes every term for a pure one:
 1. A `let!` that is not used is DROPPED with its call (also one that is the
    second value of a `match a, tmp1 with`, in the cases of `a` that do not
@@ -847,6 +848,46 @@ checked by a tool, but the first in part). In the identity build `M A` is
    `Printexc.raise_with_backtrace` are declared functions like the others,
    and what the port assumes of them (`contracts/Printexc.v`) says nothing
    of that record. No statement of Rocq speaks of a backtrace.
+11. A TEXT IS READ WHERE IT STANDS. The OCaml text of a name of the kit or
+   of `decl/` is put at each use as it is, and OCaml reads its names
+   there. A text that is ONE NAME WITHOUT A MODULE (`not`, `max`,
+   `compare`, `ref`, `fst`, `incr`: Rocq's `negb`, `Z.max`,
+   `poly_compare`, `mk_ref`, `fst`, `Stdlib_.incr`) is the file's own
+   variable or function if the file binds that name around the use, and
+   the compiler's files do bind such names (a variable `max`, a parameter
+   `compare`, a function `compare` of a module of the file). A text that
+   is A PATH (`List.rev`, `Int32.add`) is read in a module of the file
+   if the file has one with the path's first name, and the compiler's
+   files have such modules too (`module List = ListLabels`, `module
+   Int32 = Numeric_types.Int32`). OCaml says nothing when the types
+   agree. Rocq does not see it: there the names differ.
+   The texts keep their bare names. Written `Stdlib.max` they could not
+   be reached by a binding of the file; but each `not` of the extracted
+   files would be `Stdlib.not`, and the paths cannot be written so.
+   Instead `make names` (`tools/names.py`, a part of `make check`) reads
+   each extracted file AS WORDS, with the files of the folder that it
+   opens. (1) A file whose OCaml text may bind such a name does not use,
+   anywhere, the Rocq name that is printed so: a file with a variable
+   `max` has no `Z.max`. (2) A module of the file that has the first name
+   of a path of a text is one that the Rocq file has too (`Module U`:
+   Rocq then reads `U.x` in the file's module, as OCaml does), or is
+   `module U = struct include U ..`, or is inside another module in which
+   no path begins with its name. Where the Rocq file has `Module U`, the
+   whole path `decl.U.x` still reaches the unit in Rocq, and OCaml would
+   read its text in the file's module: it is allowed only between
+   `Module U.` and `End U.` (a module's name is not in sight inside its
+   own definition) and before a constructor (OCaml's check of the types
+   then says that it is the same constructor). If `make names` refuses a
+   file, tell the lead: the binding is the compiler's, and the text is
+   one for all the files.
+   NOT ESTABLISHED (the head of the tool has the list): the scopes (the
+   check is by file, and so can refuse a file that is right); what the
+   modules of the compiler bring that a file opens or includes (`open!
+   Flambda.Import`, an `include` of a functor's result inside a module:
+   the tool's last line names them); the texts that are operators
+   (`(+)`, `(=)`, `!`), which a file could define; a name of Rocq that is
+   reached under another name. For these, OCaml's check of the types is
+   the only guard.
 
 ## 8. What is proved, what is assumed, what is trusted
 
