@@ -91,6 +91,9 @@ export PYTHONDONTWRITEBYTECODE := 1
 # The declarations of what the port calls: after the compiler's interfaces
 # (decl/README.md).
 DECL := $(patsubst %.v,%,$(sort $(wildcard decl/*.v)))
+# (the files themselves: a tool that reads them all has them all as
+# prerequisites)
+DECL_V := $(addsuffix .v,$(DECL))
 
 # The abbreviations of modules that a file of the compiler makes itself
 # ([module DE = Downwards_env]), as a library that the ported file imports
@@ -210,7 +213,15 @@ $(B)/id/%.vo: $(B)/id/%.v
 # When the declarations of the file's own module (decl/Foo.v) are loaded
 # too, through what the file requires, Rocq names its output Foo0.ml: the
 # rule gives it the name Foo.ml.
-$(B)/id/out/%.ml: $(B)/id/%.vo Makefile tools/aliases.py
+# THE PREREQUISITES ARE THE FILES THAT THE RECIPE READS. Rocq reads the
+# compiled files that the file requires: they are the prerequisites of its
+# .vo, by the list of [rocq dep] above. tools/aliases.py reads the ported
+# file and the library of its abbreviations
+# (abbrev/NAME/Port_abbreviations.v), which the file requires: they come
+# with the .vo too. It also reads EVERY file decl/*.v, not only those that
+# the file requires, and runtime/port_monad.ml: these are named here. (Not
+# named: Rocq's own library, and the programs.)
+$(B)/id/out/%.ml: $(B)/id/%.vo Makefile tools/aliases.py $(DECL_V) runtime/port_monad.ml
 	@mkdir -p $(dir $@) $(dir $(B)/id/extract/$*)
 	@rm -f $@ $(B)/id/out/$*0.ml
 	@printf '%s\n' \
@@ -232,9 +243,23 @@ $(B)/id/out/%.ml: $(B)/id/%.vo Makefile tools/aliases.py
 # of extracted/.ocamlformat (a copy of middle_end/flambda2/.ocamlformat, so
 # that an editor or dune formats these files in the same way). Before that,
 # tools/lint.py: each temporary of [let!] is used once; and its other
-# checks, the last of which (tools/papp.py) reads decl/ARITIES.tsv.
+# checks, the last of which (tools/papp.py) reads the two tables
+# decl/ARITIES.tsv and decl/INDEX.tsv and every file decl/*.v.
+# THE PREREQUISITES ARE THE FILES THAT THE RECIPE READS, so that a change
+# of one of them alone makes the file again, and the lint runs: the ported
+# file, its donor, what Rocq extracted, the three tools, the two tables,
+# every file decl/*.v (the lint reads them all, not only those that the
+# file requires) and extracted/.ocamlformat. The library of the file's
+# abbreviations, which the lint reads too, comes with what Rocq
+# extracted: the file requires it. NOT NAMED: the .ocamlformat files of
+# the directories above this folder, which ocamlformat reads by itself (an
+# option that extracted/.ocamlformat does not set could come from one of
+# them), and the programs (python3, ocamlformat, the tools of the shell).
+# A make that is not from nothing does not see a change of these;
+# tools/gate.sh makes everything from nothing, and its check of the
+# formatting calls ocamlformat itself.
 define PORT_RULES
-$(call extracted,$(1)): $(B)/id/out/$(1).ml $(1).v $(call donor,$(1)) tools/assemble.sh tools/lint.py tools/papp.py decl/ARITIES.tsv extracted/.ocamlformat
+$(call extracted,$(1)): $(B)/id/out/$(1).ml $(1).v $(call donor,$(1)) tools/assemble.sh tools/lint.py tools/papp.py decl/ARITIES.tsv decl/INDEX.tsv $(DECL_V) extracted/.ocamlformat
 	@mkdir -p $$(dir $$@)
 	$(PYTHON) tools/lint.py $(1).v
 	tools/assemble.sh $(1).v $(call donor,$(1)) $(B)/id/out/$(1).ml > $$@
