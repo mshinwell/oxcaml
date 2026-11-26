@@ -72,15 +72,19 @@
 #  5. For each file FooProofs.v, each line that begins `Theorem` must be
 #     `Theorem NAME : STATEMENT.`, where STATEMENT is a name that
 #     FooSpec.v defines. For each, the script writes sentences of Rocq in
-#     a file FooTheorems.v, and Rocq compiles that file. Every name in
-#     them is written with its file (FooProofs.NAME, FooSpec.STATEMENT):
-#     the folder may have several pairs of files, and a name of one is
-#     not taken for the same name of another, or of the Proofs file. The
-#     sentences:
+#     a file FooTheorems.v, and Rocq compiles that file. EVERY NAME IN
+#     THEM IS WRITTEN WHOLE, from the library:
+#     SimplifyPortAgainstModel.FooProofs.NAME,
+#     SimplifyPortAgainstModel.FooSpec.STATEMENT. AND FooTheorems.v
+#     IMPORTS NO FILE OF THE FOLDER: it requires them. So no name that a
+#     file of the folder defines, and no name that it gives to a module,
+#     can stand there in the place of another: a Proofs file that has a
+#     module of the name FooSpec, or that defines the statement's name
+#     again, does not change what the sentences name. Rocq then prints
+#     each name of the folder with its file before it. The sentences:
 #     - Rocq CHECKS that the theorem of the Proofs file proves the
-#       statement of the Spec file (a goal FooSpec.STATEMENT, closed by
-#       FooProofs.NAME). This prints nothing; if it fails, the script
-#       stops.
+#       statement of the Spec file (a goal of the statement, closed by
+#       the theorem). This prints nothing; if it fails, the script stops.
 #     - the theorem with its statement's name (Check);
 #     - THE WHOLE STATEMENT, with every definition of a proposition of
 #       the Spec files of this folder unfolded (a definition whose type
@@ -233,10 +237,10 @@ done
 # 5. The theorems.
 specs=$(ls *Spec.v)
 # The definitions of propositions: from `Definition NAME` to the first
-# `:=`, the text ends `: Prop :=`. Each is written with its file,
-# FooSpec.NAME. That is its name only if no module of the file is around
-# it: awk ends with the status 3 at a line `Module X` without `:=`, and
-# `set -e` ends the script.
+# `:=`, the text ends `: Prop :=`. Each is written whole,
+# SimplifyPortAgainstModel.FooSpec.NAME. That is its name only if no
+# module of the file is around it: awk ends with the status 3 at a line
+# `Module X` without `:=`, and `set -e` ends the script.
 awk '
   FNR == 1 { file = FILENAME; sub(/\.v$/, "", file) }
   /^[[:space:]]*Module[[:space:]]/ && !index($0, ":=") {
@@ -248,7 +252,7 @@ awk '
     head = head " " $0
     if (index($0, ":=")) {
       collecting = 0
-      if (head ~ /: Prop :=/) print file "." name
+      if (head ~ /: Prop :=/) print "SimplifyPortAgainstModel." file "." name
     }
   }' $specs > propositions.tmp
 definitions=$(tr '\n' ' ' < propositions.tmp)
@@ -265,10 +269,10 @@ for proofs in *Proofs.v; do
   check=${name}Theorems.v
   {
     # Every Spec file of the folder is required, for the definitions that
-    # are unfolded. This pair's two files are imported, so that Rocq
-    # prints their names short.
-    echo "From SimplifyPortAgainstModel Require$spec_modules."
-    echo "From SimplifyPortAgainstModel Require Import ${name}Spec ${name}Proofs."
+    # are unfolded, and this Proofs file. NOTHING OF THE FOLDER IS
+    # IMPORTED: each name below is whole, and no name of a file of the
+    # folder is in the way of it.
+    echo "From SimplifyPortAgainstModel Require$spec_modules ${name}Proofs."
     echo "Set Printing Width 78."
   } > "$check"
   # The lines that begin Theorem. grep's status is read: 0, the list is
@@ -309,11 +313,13 @@ for proofs in *Proofs.v; do
       exit 2
       ;;
     esac
+    whole_statement=SimplifyPortAgainstModel.${name}Spec.$statement
+    whole_theorem=SimplifyPortAgainstModel.${name}Proofs.$theorem
     {
-      echo "Goal ${name}Spec.$statement. Proof. exact ${name}Proofs.$theorem. Qed."
-      echo "Check ${name}Proofs.$theorem."
-      echo "Eval cbv beta delta [$definitions] in ${name}Spec.$statement."
-      echo "Print Assumptions ${name}Proofs.$theorem."
+      echo "Goal $whole_statement. Proof. exact $whole_theorem. Qed."
+      echo "Check $whole_theorem."
+      echo "Eval cbv beta delta [$definitions] in $whole_statement."
+      echo "Print Assumptions $whole_theorem."
     } >> "$check"
   done < theorems.tmp
   rm -f theorems.tmp

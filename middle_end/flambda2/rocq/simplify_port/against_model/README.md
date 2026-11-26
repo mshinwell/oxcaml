@@ -250,7 +250,11 @@ each theorem Rocq checks that it proves the statement of the Spec file
 that its line names. The target
 prints of each theorem its statement's name, its WHOLE STATEMENT with the
 definitions of the Spec files unfolded (the contracts stand in it as
-premises), and what it rests on (`Print Assumptions`). The same text is
+premises), and what it rests on (`Print Assumptions`). Where it asks
+Rocq, the target writes each name whole, from the library
+(`SimplifyPortAgainstModel.FooSpec.STATEMENT`), and imports no file of
+this folder. So Rocq prints each name of this folder with its file
+before it (`FlambdaPortIntArithTableSpec.Num.t`). The same text is
 kept in `_build/against_model/THEOREMS.txt`. The target also prints the
 commit of the two trees that it reads, and whether either has a change
 that is not committed. It does not know whether the model's compiled
@@ -279,15 +283,19 @@ the global context.
   `_CoqProject`.
 - A THEOREM of a Proofs file is one line, `Theorem NAME : STATEMENT.`,
   where `STATEMENT` is a definition of the Spec file. The target reads
-  that line, and Rocq checks that the theorem `FooProofs.NAME` proves
-  the statement `FooSpec.STATEMENT`. A helper is a `Lemma`; so is a
-  result inside a module or a functor of a Proofs file.
+  that line, and Rocq checks that the theorem
+  `SimplifyPortAgainstModel.FooProofs.NAME` proves the statement
+  `SimplifyPortAgainstModel.FooSpec.STATEMENT`. The names are whole, and
+  the target imports no file of this folder where it asks: a Proofs file
+  that defines the statement's name again, or that has a module of the
+  name `FooSpec`, does not change what is checked and printed. A helper
+  is a `Lemma`; so is a result inside a module or a functor of a Proofs
+  file.
 - A SPEC FILE HAS NO MODULE OF ITS OWN (`Module X.` .. `End X.`): the
   target stops at one. It unfolds the definitions of propositions of the
-  Spec files by their names with the file (`FooSpec.NAME`). A short name
-  for a module (`Module X := Y.`) is none.
-- A Spec file that uses the definitions of another Spec file EXPORTS it
-  (`Require Export`): the target then prints the names of both short.
+  Spec files by their whole names
+  (`SimplifyPortAgainstModel.FooSpec.NAME`). A short name for a module
+  (`Module X := Y.`) is none.
 - THE HEAD of a Spec file names the model's file and statement that it
   is about, the bridge that it uses, and what the statement does not say.
 - TWO NOTATIONS `let* x := m in k`. The port's kit has one and the model's
