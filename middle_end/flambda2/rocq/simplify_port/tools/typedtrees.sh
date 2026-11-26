@@ -36,10 +36,12 @@
 # When the compiler changes, the port follows: decl/ is made again from a
 # build of the changed compiler, and the ported files are mended. Once the
 # build of the compiler compiles the extracted files of the port, a
-# compiler that has changed does not build until the port has followed,
-# and the port cannot follow without a build. This script makes the part
-# of the build that the tools read. It compiles no file of the port, links
-# no compiler, and takes about half a minute from nothing.
+# change of an INTERFACE that an extracted file uses, and that the file
+# no longer fits, stops that build until the port has followed, and the
+# port cannot follow without a build. (A change of an implementation
+# alone does not stop it.) This script makes the part of the build that
+# the tools read. It compiles no file of the port, links no compiler, and
+# takes about half a minute from nothing.
 #
 # WHAT IT RUNS, at the root of the work tree in which this folder is. The
 # tree must be configured (./configure, as for a build of the compiler),

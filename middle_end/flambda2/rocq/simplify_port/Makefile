@@ -125,7 +125,7 @@ ID_V := $(B)/id/Port_monad.v $(addprefix $(B)/id/,$(SRC))
 EXTRACTED := $(foreach p,$(PORTED),$(call extracted,$(p)))
 CHECKED := $(foreach p,$(PORTED),$(call checked,$(p)))
 
-.PHONY: all real id extract check given lines follows shells exceptions papp table comments list clean
+.PHONY: all real id extract check given lines follows shells exceptions papp names table comments list clean
 all: shells real id extract check table comments
 
 real: $(REAL_V:.v=.vo)

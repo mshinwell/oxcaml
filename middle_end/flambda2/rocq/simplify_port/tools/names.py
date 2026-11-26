@@ -110,11 +110,46 @@ module U of F that is a first name, ONE of these must hold:
        not in sight inside its own definition ([module U = struct .. end]
        without [rec]), so the path is the unit's there;
      . before a constructor ([decl.U.C], C with a capital and no dot after
-       it): OCaml reads it in the file's module, and its check of the
-       types passes only if that is a constructor of the same type, which
-       is then the same constructor.
-  b. the module is [module U = struct include U ..]: every name of the
-     unit is still the unit's.
+       it). OCaml reads its text in the file's module. THE TOOL DOES NOT
+       CHECK that the constructor of that module is the unit's: a module
+       of the file could define a type and a constructor of the same
+       names, the type that the text writes beside the constructor would
+       be read in that module too, and OCaml's check of the types would
+       pass. THE USES OF TODAY WERE READ, thirteen: all are
+       [decl.Function_declarations.Code_id] and [.Deleted], in three
+       files that open Simplify_import (Simplify_apply_expr.v, 1;
+       Simplify_set_of_closures.v, 8; Simplify_set_of_closures_context.v,
+       4). The module in sight there is [module Function_declarations =
+       Flambda.Function_declarations] (extracted/simplify_import.ml, as
+       the compiler's file has it), and the compiler's Flambda has
+       [module Function_declarations = Function_declarations]
+       (middle_end/flambda2/terms/flambda.mli and flambda.ml): two other
+       names of the unit itself, so the constructor is the unit's. A new
+       use needs the same reading; the last line of the tool counts them.
+  b. the module is [module U = struct include U ..]. THIS IS A TEST OF
+     FOUR WORDS: after the name the tool finds [=], [struct], [include]
+     and U, and reads no further. It does NOT check what follows the
+     [include]: a definition there of a name that the unit has ([let rev
+     ..] in a [module List]) would replace the unit's for the rest of the
+     file, a path to it would be read as the new one, and the tool would
+     say nothing. THE MODULES OF TODAY WERE READ, three, all in
+     extracted/simplify_binary_primitive.ml. Target_ocaml_int adds one
+     module, [Set_], a name that the unit does not have. Numeric_types
+     adds a module type [Float_by_bit_pattern_] and defines again two
+     modules of the unit ([Float_by_bit_pattern],
+     [Float32_by_bit_pattern]). Number_adjuncts defines again two module
+     types of the unit ([Num_common], which includes the unit's and adds
+     [Set_]; [Int_number_kind], the unit's text read with that
+     [Num_common]) and seven of its modules ([For_tagged_immediates] ..
+     [For_nativeints]). Each module that is defined again is [struct
+     include M ..] of the unit's module M of the same name, and what
+     follows the [include] is a new module [Set_], or a module of M
+     ([Num], [Pair]) defined again in the same way. Outside the
+     signatures of the module types, the three have no [let], [type],
+     [exception], [external] or [open]: no value, type or constructor of
+     the unit is defined again, and a path through U to one reaches the
+     unit's. A new module of this form needs the same reading; the last
+     line of the tool counts them.
   c. the module is inside another module of F, and from its definition to
      the [end] of that module the word U is nowhere followed by a dot:
      where the name is in sight, no path begins with it.
@@ -130,6 +165,12 @@ WHAT IT DOES NOT ESTABLISH.
   in another function is refused, though OCaml would read it rightly. In
   rule 2, a and b do not look where the module is: a module of FILE.v at
   any depth answers a module of F at any depth.
+- What a module of 2b defines after its [include]: the test is of the
+  four words after its name (above).
+- That a constructor written with the whole path (2a) is the unit's: the
+  tool does not look at the module of the file that OCaml reads it in,
+  and OCaml's check of the types does not tell a type and a constructor
+  of the same names in that module from the unit's (above).
 - That the module of Rocq and the module of OCaml in 2a are the same one:
   [Module Int32 := Numeric_types.Int32.] beside [module Int32 =
   Numeric_types.Int32] are two lines that the tool does not compare.

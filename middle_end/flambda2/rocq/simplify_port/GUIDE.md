@@ -879,18 +879,39 @@ build `M A` is
    whole path `decl.U.x` still reaches the unit in Rocq, and OCaml would
    read its text in the file's module: it is allowed only between
    `Module U.` and `End U.` (a module's name is not in sight inside its
-   own definition) and before a constructor (OCaml's check of the types
-   then says that it is the same constructor). If `make names` refuses a
+   own definition) and before a constructor. If `make names` refuses a
    file, tell the lead: the binding is the compiler's, and the text is
    one for all the files.
+   TWO OF THESE ARE ALLOWED BY THEIR FORM ALONE: the tool checks no more.
+   `module U = struct include U ..` is a test of the four words after the
+   name: the tool does not check that what follows the `include` defines
+   no name of the unit again (a `let rev` in a `module List` would
+   replace the unit's `rev` for the rest of the file). A constructor
+   `decl.U.C` is allowed wherever it stands: the tool does not check that
+   the constructor of the file's module `U` is the unit's, and OCaml's
+   check of the types does not tell a type and a constructor of the same
+   names in that module from the unit's. Both are right today BY
+   READING, and a new one needs the same reading (the last line of the
+   tool counts them; its head says what was read). The three modules of
+   that form, all in `extracted/simplify_binary_primitive.ml`, add
+   modules `Set_` and define again modules and module types of the unit,
+   each by including the unit's own, and no value, type or constructor.
+   The thirteen constructors are `decl.Function_declarations.Code_id` and
+   `.Deleted` in three files that open `Simplify_import`, whose
+   `Function_declarations` is `Flambda.Function_declarations`, which the
+   compiler's `Flambda` defines as the unit `Function_declarations`
+   itself.
    NOT ESTABLISHED (the head of the tool has the list): the scopes (the
-   check is by file, and so can refuse a file that is right); what the
+   check is by file, and so can refuse a file that is right); what
+   follows the `include` of a module of that form, and that a constructor
+   written with the whole path is the unit's (above); what the
    modules of the compiler bring that a file opens or includes (`open!
    Flambda.Import`, an `include` of a functor's result inside a module:
    the tool's last line names them); the texts that are operators
    (`(+)`, `(=)`, `!`), which a file could define; a name of Rocq that is
    reached under another name. For these, OCaml's check of the types is
-   the only guard.
+   the only guard, and it is not a proof: it passes when a name is read
+   in another place with types that agree.
 
 ## 8. What is proved, what is assumed, what is trusted
 
