@@ -349,14 +349,20 @@ WHAT THEY DO NOT SAY.
   would need a claim about every declared function that the step calls;
   and the port's own text ends some runs of `simplify` in an exception
   (a fatal error, a failed assertion).
-- NOT THAT THE PREMISES HOLD TOGETHER WITH CALLS THAT RETURN. Each
-  premise is about a call if it returns, so it holds of a call that
-  never returns, and the statement then says nothing: for one, the two
-  provers of the tagged immediates are one declared function
+- NOT THAT THE PREMISES HOLD TOGETHER WITH CALLS THAT RETURN. Each of
+  the FIVE PREMISES OF THE CASE is about a call if it returns, so it
+  holds of a call that never returns (one that raises, or is out of
+  fuel, on every run), and the statement then says nothing: for one,
+  the two provers of the tagged immediates are one declared function
   (`unboxed_prover`), so where `arg1_ty` and `arg2_ty` are the same type
   the two premises of the provers hold together only if that call never
-  returns. No statement here shows an instance in which all the calls
-  return.
+  returns. The other premises are not all of that form. The two new
+  contracts (`create_is_not_invalid`, `fold_visits`) are. The four
+  contracts of the table are stronger (no run raises, and the state is
+  kept): a call that is out of fuel on every run has them, and a call
+  that raises does not. The condition on `known` is not about a call.
+  Where `known` has no number the conclusion says nothing. No statement
+  here shows an instance in which all the calls return.
 - Nothing of the answers with a term, of the type that the result
   variable gets, of the other six kinds of integer, or of the extracted
   OCaml.

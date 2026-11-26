@@ -181,17 +181,24 @@
    means.
 
    THAT THE PREMISES HOLD TOGETHER WITH CALLS THAT RETURN IS NOT SHOWN.
-   Each premise says what a call returns IF IT RETURNS: it holds of a
-   call that never returns, and where a call that [simplify] makes
-   before the step never returns, the statement says nothing. One
+   Each of the FIVE PREMISES OF THE CASE says what a call returns IF IT
+   RETURNS: it holds of a call that never returns (one that raises, or
+   is out of fuel, on every run), and where a call that [simplify]
+   makes before the step never returns, the statement says nothing. One
    instance, by name: at the tagged immediates the two provers are ONE
    declared function ([prover_lhs] and [prover_rhs] are both
    [unboxed_prover] of [Number_adjuncts.For_tagged_immediates]). Where
    [arg1_ty] and [arg2_ty] are the same type, the two premises of the
    provers ask two different answers of the same call, and they hold
-   together only if that call never returns. Also, where [known] has no
-   number the conclusion says nothing. No statement here shows an
-   instance in which all the calls return.
+   together only if that call never returns. THE OTHER PREMISES ARE NOT
+   ALL OF THAT FORM. The two new contracts ([create_is_not_invalid],
+   [fold_visits]) are: they say what is returned, if the call returns.
+   The four contracts of the table are stronger ([pure_if_returns]: no
+   run raises, and the state is kept): a call that is out of fuel on
+   every run has them, and a call that raises does not. The condition
+   on [known] is not about a call. Also, where [known] has no number
+   the conclusion says nothing. No statement here shows an instance in
+   which all the calls return.
 
    NOTHING IS ASSUMED of the other declared functions that the step
    calls ([T.bottom], [N.unknown], [DA.add_variable], [N.term],
