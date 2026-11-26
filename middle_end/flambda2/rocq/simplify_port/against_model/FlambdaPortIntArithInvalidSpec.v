@@ -44,8 +44,8 @@
    [let_int_arith_tagged_statement]: its fourth conclusion says that the
    term is [Invalid] if [results (fun _ _ r => r = None)], that is, if
    the model's [eval_int_arith] has no result on every pair of numbers
-   that the two arguments may be. The model's operation has no result in
-   one place only: [Div] and [Mod] on a zero divisor. THAT IS A CHOICE OF
+   that the two arguments may be. [eval_int_arith] has no result in one
+   place only: [Div] and [Mod] on a zero divisor. THAT IS A CHOICE OF
    THE MODEL, which the model marks for the human. The comment at
    [eval_int_arith] (semantics/FlambdaPrimitiveSpec.v) says, in these
    words:
@@ -73,10 +73,10 @@
    possible results, and then [check_possible_results] on that set, which
    answers Invalid if the set is empty. These two, and [result_unknown]
    and [result_invalid] that they call, are LOCAL to [simplify], in the
-   compiler and in the port: Rocq has no name for them.
-   Simplify_binary_primitive_named_locals.v has a copy of each, with a
-   name, and [simplify_with_named_locals], the body of [simplify] with
-   the copies in it.
+   compiler and in the port: the port's file exports no constant for
+   any of them. Simplify_binary_primitive_named_locals.v has a copy of
+   each, with a name, and [simplify_with_named_locals], the body of
+   [simplify] with the copies in it.
 
    WHAT IS STATED.
    1. THE TIE ([simplify_is_its_named_locals_statement]): for all its
@@ -99,12 +99,22 @@
       [ported_create_is_not_invalid_statement]: two facts about the form
       of the two new contracts (below).
 
-   WHY THE RIGHT ARGUMENT. With the LEFT argument known the table is
-   [op_rhs_unknown], and no line of it answers [Invalid]: there the same
-   statement would be true and would never apply. With the right
-   argument known the table answers [Invalid] for [Div] and [Mod] on a
-   known number that reads as 0. (This is a reading of the two tables;
-   no statement here says it.)
+   WHY THE RIGHT ARGUMENT. With the right argument known the table is
+   [op_lhs_unknown], which answers [Invalid] for [Div] and [Mod] on a
+   known number that reads as 0. With the LEFT argument known the table
+   is [op_rhs_unknown], and no line of THAT TABLE answers [Invalid].
+   That is why the statement is made for the right argument. (This is
+   a reading of the two tables; no statement here says it.) NOTHING IS
+   SAID HERE OF THE STEP WITH THE LEFT ARGUMENT KNOWN: not that the
+   same statement is true there, and not that the step cannot answer
+   Invalid there. The copy of the step takes any fold and any table.
+   Where the fold returns its first accumulator, the port's empty set
+   of results (as the compiler's fold does on a set of no number), the
+   step calls [result_invalid], whatever the table is. On the
+   compiler's path the set of known numbers is meant not to be empty:
+   [simplify] asserts it before the step, with the declared [is_empty]
+   of the sets of numbers. Nothing here gives a law of that [is_empty],
+   so no statement here says that the set has a number.
 
    AN INVALID RESULT IS DEFINED, not chosen by the reader
    ([is_invalid_result]): decl/ has the type of the results as an
@@ -124,16 +134,27 @@
    proposition and a premise:
    - the four contracts of the table ([zero_is_0], [one_is_1],
      [minus_one_is_m1], [equal_is_equality]);
-   - [fold_visits .. nums known]: THE DECLARED FOLD of the sets of
-     numbers ([Num.Set_.fold]), on [nums], visits the numbers of [known]:
-     each once, in some order, and no other. It is a rule in the form of
-     a loop invariant, for every step function and every invariant; it
-     says nothing of this operation, of Invalid or of a result. Nothing
-     is said of the state, of an exception or of a run out of fuel. THE
-     READER CANNOT CHOOSE [known] SHORTER THAN THE SET: with the step that
-     notes what it visits, the rule says that the fold returns the
-     numbers of [known], in some order
-     ([fold_names_its_elements_statement], proved);
+   - [fold_visits .. nums known]: A GENERIC RULE OF INVARIANT for the
+     declared fold of the sets of numbers ([Num.Set_.fold]) on [nums],
+     ABOUT WHAT THE FOLD RETURNS ONLY. For every step function and every
+     invariant: if the invariant holds at the start, and each step keeps
+     it for a number of [known], then THE ACCUMULATOR THAT THE FOLD
+     RETURNS, IF IT RETURNS, has the invariant for a list that is
+     [known] in some order. The rule says nothing of this operation, of
+     Invalid or of a result; nothing of the state, of an exception or of
+     a run out of fuel. IT IS NOT A CLAIM ABOUT THE CALLS OF THE STEP,
+     whatever its name says: a fold that calls the step more often, or
+     on another number, and does not keep what those calls return, has
+     the rule. A fold that raises or is out of fuel on every run has it
+     for every list. And it does not say which numbers are in the set
+     [nums]: nothing here gives a law of membership for the declared
+     sets. What it gives about [known]: with the step that notes each
+     number that it is given, THE LIST THAT THE FOLD RETURNS, IF IT
+     RETURNS, is [known] in some order
+     ([fold_names_its_elements_statement], proved). So the reader
+     cannot choose [known] shorter than that returned list, OF A FOLD
+     THAT RETURNS. That is not a result that the premise can be met,
+     nor that [known] is the numbers of the set;
    - [create_is_not_invalid]: the declared [SPR.create], if it returns,
      does not return an Invalid result. [simplify] calls the DECLARED
      function, a parameter of decl/. The port also has that function's
@@ -159,6 +180,19 @@
    else from another state. They say nothing of what a prover's answer
    means.
 
+   THAT THE PREMISES HOLD TOGETHER WITH CALLS THAT RETURN IS NOT SHOWN.
+   Each premise says what a call returns IF IT RETURNS: it holds of a
+   call that never returns, and where a call that [simplify] makes
+   before the step never returns, the statement says nothing. One
+   instance, by name: at the tagged immediates the two provers are ONE
+   declared function ([prover_lhs] and [prover_rhs] are both
+   [unboxed_prover] of [Number_adjuncts.For_tagged_immediates]). Where
+   [arg1_ty] and [arg2_ty] are the same type, the two premises of the
+   provers ask two different answers of the same call, and they hold
+   together only if that call never returns. Also, where [known] has no
+   number the conclusion says nothing. No statement here shows an
+   instance in which all the calls return.
+
    NOTHING IS ASSUMED of the other declared functions that the step
    calls ([T.bottom], [N.unknown], [DA.add_variable], [N.term],
    [Named.create_prim], [Named.create_simple], [List.filter_map],
@@ -173,10 +207,16 @@
      [known] and a reading [value] of the compiler's numbers. The
      model's [results] is over the numbers that the MODEL's prover
      answers for the model's type of the argument. The conclusion is a
-     precursor of [results (fun _ _ r => r = None)]. STILL OPEN: that
-     every number in range that the model's prover answers is the
-     reading of a number of [known]; and how the compiler's terms, types
-     and environments are read as the model's.
+     precursor of [results (fun _ _ r => r = None)]. NOTHING IS OPEN
+     FOR THE SIDE THAT IS NOT KNOWN: the model's
+     [possible_tagged_immediate] has the range as its first part
+     whatever the model's prover answers, and the conclusion is for
+     every [j] in range. STILL OPEN, for the known side: that every
+     number in range that the model's prover answers for the right
+     argument is the reading of a number of [known]. That is the one
+     crossing left for this premise. And, for the model's conclusion
+     itself: how the compiler's terms, types and environments are read
+     as the model's.
    - NOT WHICH RUNS OF [simplify] TAKE THIS STEP. That is decided by
      what the two provers answer for the arguments. The statement of
      [simplify] takes those answers as premises; no statement here
@@ -306,25 +346,30 @@ Definition ported_create_is_not_invalid_statement : Prop :=
          end).
 
 (* ======================================================================== *)
-(* A fold that visits a list of elements                                    *)
+(* A rule of invariant for what a fold returns                              *)
 (* ======================================================================== *)
 
 (* Of any function of the type of the fold of a set: [fold A f nums
-   init]. [fold_visits fold nums known] is a rule for the fold on the set
-   [nums]. For every type of the accumulator, every step [f], every first
-   accumulator and every invariant [inv] of the elements visited and the
+   init]. [fold_visits fold nums known] is A GENERIC RULE OF INVARIANT
+   for the fold on the set [nums], ABOUT WHAT THE FOLD RETURNS ONLY. For
+   every type of the accumulator, every step [f], every first
+   accumulator and every invariant [inv] of a list of elements and an
    accumulator:
-   - if [inv] holds of no element visited and the first accumulator,
-   - and if each step keeps it: for an element [c] of [known], with
-     [inv] of the elements visited before and the accumulator, [f c],
-     if it returns, returns an accumulator that has [inv] with [c]
-     visited too,
+   - if [inv] holds of the empty list and the first accumulator,
+   - and if each step keeps it: for an element [c] of [known], a list
+     [seen] and an accumulator that have [inv], [f c], if it returns,
+     returns an accumulator that has [inv] with [c :: seen],
    then the fold, if it returns, returns an accumulator that has [inv]
-   of a list of visited elements THAT IS [known] IN SOME ORDER (a
-   permutation: each element of [known] once, and no other).
+   with a list THAT IS [known] IN SOME ORDER (a permutation of it).
    The step is asked to keep the invariant from every state and for
-   every fuel, and only if it returns; the rule says nothing of the
-   state, of an exception or of a run that is out of fuel. *)
+   every fuel, and only if it returns. The rule says nothing of the
+   state, of an exception or of a run that is out of fuel: a fold that
+   raises or is out of fuel on every run has it for every list. IT SAYS
+   NOTHING OF THE CALLS OF THE STEP, whatever its name says (how many,
+   on which elements, in which order): a fold that calls the step more
+   often, or on another element, and does not keep what those calls
+   return, has it. AND IT DOES NOT SAY WHICH ELEMENTS ARE IN [nums]. It
+   is about the accumulator that is returned. *)
 Section Any_fold.
 
   Variable elt set : Type.
@@ -341,10 +386,14 @@ Section Any_fold.
 
 End Any_fold.
 
-(* THE RULE NAMES THE ELEMENTS. With the step that notes each element
-   that it visits, a fold that has the rule for [known] returns, if it
-   returns, the elements of [known] in some order. So a reader cannot
-   give the rule a list that is not the elements that the fold visits. *)
+(* WHAT THE RULE GIVES ABOUT [known]. With the step that puts each
+   element that it is given before a list, a fold that has the rule for
+   [known] returns, if it returns, a list that is [known] in some order.
+   This is about the list that is RETURNED. It does not say that the
+   fold returns, which calls of the step it makes, or which elements
+   are in [nums]. So, OF A FOLD THAT RETURNS, a reader cannot give the
+   rule a list that is not that returned list in some order; of a fold
+   that does not return, the rule holds for every list. *)
 Definition fold_names_its_elements_statement : Prop :=
   forall (elt set : Type)
     (fold : forall A : Type, (elt -> A -> M A) -> set -> A -> M A)

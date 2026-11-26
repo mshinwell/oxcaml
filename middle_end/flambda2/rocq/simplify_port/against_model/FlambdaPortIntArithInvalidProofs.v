@@ -198,7 +198,8 @@ Section Under_the_contracts.
       = None.
 
   (* THE INVARIANT OF THE FOLD: if the set of possible results is there
-     and is empty, the operation has no result on any number visited. *)
+     and is empty, the operation has no result on any number of the
+     list [seen]. *)
   Let inv (seen : list Num.t)
       (possible_results : option Possible_result.Set_.t) : Prop :=
     match possible_results with

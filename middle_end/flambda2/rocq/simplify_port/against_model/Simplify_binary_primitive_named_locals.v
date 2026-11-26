@@ -23,20 +23,30 @@
 
    WHY. In the compiler, and so in the port, [result_unknown],
    [result_invalid], [check_possible_results] and [only_one_side_known] are
-   local to [simplify]: Rocq has no name for them, and a statement cannot be
-   about one of them. Here each has a name. Each copy is the port's text of
-   the local function, line for line, with the variables of [simplify] that
-   it uses as parameters before its own. The port's file is not changed.
+   local to [simplify]: the port's file exports no constant for any of
+   them, so another file cannot name one. Here each has a name. Copies
+   with a tie (below) are one sound way to state something of a local
+   function; they are not the only way. Each copy is the port's text of
+   the local function, line for line, with the variables of [simplify]
+   that it uses as parameters before its own. The port's file is not
+   changed.
 
-   A COPY SAYS NOTHING BY ITSELF. WHAT MAKES THESE THE PORT'S TEXT IS A
+   A COPY SAYS NOTHING BY ITSELF. WHAT TIES THESE TO THE PORT IS A
    THEOREM, which Rocq proves by computing: the port's [simplify] IS
    [simplify_with_named_locals] below, the body of [simplify] with the four
    copies where it has the four local functions
    ([simplify_is_its_named_locals]: its statement is in
    FlambdaPortIntArithInvalidSpec.v, its proof, [reflexivity], in
-   FlambdaPortIntArithInvalidProofs.v). A copy that is not the port's
-   text, or a change of one of the four in the port's file, makes that
-   proof fail.
+   FlambdaPortIntArithInvalidProofs.v). THE THEOREM IS AN EQUATION OF TWO
+   COMPUTATIONS, NOT A COMPARISON OF TWO TEXTS: Rocq accepts it because
+   it reduces the two sides to the same term. A change of a copy, or of
+   the port's file, after which the two sides do not reduce to the same
+   term makes that proof fail. A difference that Rocq reduces away does
+   not: a comment, the name of a bound variable, a [let] that reduces
+   away, another form that reduces to the same term. THAT THE LINES
+   HERE ARE THE PORT'S LINES IS A SEPARATE CHECK: a reader compares
+   them, and PROVENANCE.md says where they are from. No theorem says
+   it.
 
    WHAT EACH DEFINITION IS A COPY OF: the lines of the port's
    Simplify_binary_primitive.v, then the lines of the compiler's file,
@@ -65,14 +75,16 @@
    THE COPIES ARE AT THE TAGGED IMMEDIATES, and not over any argument of
    the port's functor. In the port's lines [N] is the parameter of the
    functor [Binary_arith_like], and [Possible_result] is a type that the
-   functor defines. Rocq makes a new such type each time that the functor
-   is applied, and does not take the type of one application for the type
-   of another. So a copy inside a functor of its own, which would
-   apply the port's functor once more, would be about another type than
-   the port's module has, and could not be tied to the port's [simplify].
-   Here [N] and [B] are the port's OWN two modules for the tagged
-   immediates, under those two names: the lines are the port's, and they
-   read as they do inside the port's functor at that argument. *)
+   functor defines. ONE FORM OVER EVERY ARGUMENT WAS TRIED, AND IT
+   FAILED: the copies in a functor of their own, which applies the
+   port's functor once more to its argument. That application makes
+   another type [Possible_result.t] than the port's module has, and the
+   tie could not be proved by [reflexivity]. That is the failure of
+   the form that was tried. It does not show that no form over every
+   argument can be tied; no other was tried. Here [N] and [B] are the
+   port's OWN two modules for the tagged immediates, under those two
+   names: the lines are the port's, and they read as they do inside the
+   port's functor at that argument. *)
 
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Import Simplify_import.
