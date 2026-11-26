@@ -15,7 +15,7 @@
 (**************************************************************************)
 
 (* This file follows middle_end/flambda2/simplify/simplify_binary_primitive.ml
-   at commit ecc5c0d968c892b4312065caef0f19ffffa042a9: the abbreviations of
+   (Git blob 2191c41d93f1b73603880e477f87e310995de46b): the abbreviations of
    modules that that file makes itself (line 18), as Rocq's [Module A := P.],
    for Simplify_binary_primitive.v (GUIDE.md, section 7, ABBREVIATIONS OF
    MODULES). The OCaml text at the head of Simplify_binary_primitive.v has the

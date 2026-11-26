@@ -15,10 +15,10 @@
 (**************************************************************************)
 
 (* This file follows
-   middle_end/flambda2/simplify/unboxing/build_unboxing_denv.ml at commit
-   ecc5c0d968c892b4312065caef0f19ffffa042a9: the abbreviations of modules that
-   that file makes itself (line 18), as Rocq's [Module A := P.], for
-   unboxing/Build_unboxing_denv.v (GUIDE.md, section 7, ABBREVIATIONS OF
+   middle_end/flambda2/simplify/unboxing/build_unboxing_denv.ml
+   (Git blob dadd8c183fc46486a88ad95d3e5a404a5a010b19): the abbreviations of
+   modules that that file makes itself (line 18), as Rocq's [Module A := P.],
+   for unboxing/Build_unboxing_denv.v (GUIDE.md, section 7, ABBREVIATIONS OF
    MODULES). The OCaml text at the head of unboxing/Build_unboxing_denv.v has
    the compiler's own lines, [module A = P]. What is not from that file: the
    [Require] lines; and the name of the library: every such library is named

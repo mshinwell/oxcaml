@@ -14,10 +14,10 @@
 (*                                                                        *)
 (**************************************************************************)
 
-(* This file follows middle_end/flambda2/simplify/join_points.ml at commit
-   ecc5c0d968c892b4312065caef0f19ffffa042a9: the abbreviations of modules that
-   that file makes itself (line 18), as Rocq's [Module A := P.], for
-   Join_points.v (GUIDE.md, section 7, ABBREVIATIONS OF MODULES). The OCaml
+(* This file follows middle_end/flambda2/simplify/join_points.ml
+   (Git blob dc788b485510b01a33423d68b383ec7f2e63c6f4): the abbreviations of
+   modules that that file makes itself (line 18), as Rocq's [Module A := P.],
+   for Join_points.v (GUIDE.md, section 7, ABBREVIATIONS OF MODULES). The OCaml
    text at the head of Join_points.v has the compiler's own lines, [module A =
    P]. What is not from that file: the [Require] lines; and the name of the
    library: every such library is named Port_abbreviations, because Rocq

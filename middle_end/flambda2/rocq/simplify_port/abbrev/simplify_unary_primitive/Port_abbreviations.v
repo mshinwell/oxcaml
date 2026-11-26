@@ -15,7 +15,7 @@
 (**************************************************************************)
 
 (* This file follows middle_end/flambda2/simplify/simplify_unary_primitive.ml
-   at commit ecc5c0d968c892b4312065caef0f19ffffa042a9: the abbreviations of
+   (Git blob 10de6d9b44969d0e3948ac61e2cbf5fb2ea666fd): the abbreviations of
    modules that that file makes itself (lines 18-22), as Rocq's [Module A :=
    P.], for Simplify_unary_primitive.v (GUIDE.md, section 7, ABBREVIATIONS OF
    MODULES). The OCaml text at the head of Simplify_unary_primitive.v has the

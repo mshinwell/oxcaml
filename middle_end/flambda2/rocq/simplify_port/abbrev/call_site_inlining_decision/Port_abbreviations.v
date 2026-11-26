@@ -15,8 +15,8 @@
 (**************************************************************************)
 
 (* This file follows
-   middle_end/flambda2/simplify/inlining/call_site_inlining_decision.ml at
-   commit ecc5c0d968c892b4312065caef0f19ffffa042a9: the abbreviations of
+   middle_end/flambda2/simplify/inlining/call_site_inlining_decision.ml
+   (Git blob 3035e3840781d8b06f8c64bcec35c09f897bc3e1): the abbreviations of
    modules that that file makes itself (lines 18-23, 43), as Rocq's [Module A
    := P.], for inlining/Call_site_inlining_decision.v (GUIDE.md, section 7,
    ABBREVIATIONS OF MODULES). The OCaml text at the head of

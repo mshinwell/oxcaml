@@ -13,10 +13,10 @@
 (**************************************************************************)
 
 (* This file follows
-   middle_end/flambda2/simplify/simplify_quaternary_primitive.ml at commit
-   ecc5c0d968c892b4312065caef0f19ffffa042a9, function by function under the
-   compiler's names; the numbers in the comments are the lines of that file.
-   What is not from that file: the form (the monad, the temporaries [tmpN]
+   middle_end/flambda2/simplify/simplify_quaternary_primitive.ml
+   (Git blob afeb4d62a3bb9fc1aad212ee1075edb0bc4b33a8), function by function
+   under the compiler's names; the numbers in the comments are the lines of that
+   file. What is not from that file: the form (the monad, the temporaries [tmpN]
    and their order) is that of GUIDE.md. The compiler's file has no
    interface: the arguments are in the order of each definition, and an
    argument that the compiler does not use ([~original_prim:_]) has here the

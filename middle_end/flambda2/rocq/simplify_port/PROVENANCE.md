@@ -5,9 +5,11 @@ One line for each file or family of files of this folder. Kinds:
 function by function; it carries that file's header), `generated` (made by a
 program from files of this repository), `copy`, `original` (written for the
 port; follows no file of the compiler; MIT header of
-`middle_end/flambda2/rocq/`). The donor commit of the port as it stands is
-ecc5c0d968c892b4312065caef0f19ffffa042a9: every transcribed file follows
-its donor as it is at that commit, and its first comment says so. A file
+`middle_end/flambda2/rocq/`). No commit is named for the texts that the
+port follows. The first comment of a transcribed file names the text of
+its donor that the file was written to follow, by the name that Git gives
+that text (its blob), and `make follows` asks that it is the text of the
+tree (`tools/follows.py`; GUIDE.md, section 1). A file
 of `decl/` names no commit: each names the text that it was made from, by
 the name that Git gives that text, and the generator stops if the build
 that it reads was not made from the texts of the tree (`decl/README.md`,
@@ -25,7 +27,7 @@ read, what is taken, for how many declarations and in which files.
 | `abbrev/FILE/Port_abbreviations.v` | the lines `module A = P` of the compiler's file that the ported file FILE follows (its abbreviations of modules), as Rocq's `Module A := P.` | transcribed |
 | `Makefile`, `GUIDE.md`, `PROVENANCE.md`, `README.md`, `.gitignore` | none | original |
 | `dune` | none; its one stanza, `(include_subdirs no)`, is a stanza of dune that dune files of the compiler also have (`middle_end/flambda2/tests/dune`) | original |
-| `tools/assemble.sh`, `tools/progress.sh`, `tools/lint.py`, `tools/comments.py`, `tools/linktest.sh`, `tools/aliases.py`, `tools/samecode.sh`, `tools/papp.py`, `tools/given.py`, `tools/lines.py`, `tools/gate.sh`, `tools/shells.py`, `tools/exceptions.py` | none | original |
+| `tools/assemble.sh`, `tools/progress.sh`, `tools/lint.py`, `tools/comments.py`, `tools/linktest.sh`, `tools/aliases.py`, `tools/samecode.sh`, `tools/papp.py`, `tools/given.py`, `tools/lines.py`, `tools/gate.sh`, `tools/shells.py`, `tools/exceptions.py`, `tools/follows.py` | none | original |
 | `tools/check.sh` | none; its list of include directories and `-open` flags is after `middle_end/flambda2/simplify/dune` | original |
 | `tools/typedtrees.sh` | none; its list of directories is the load path of the library of `middle_end/flambda2/simplify`: the libraries that `middle_end/flambda2/simplify/dune` names, and those that they need | original |
 | `tools/declgen/*` | none; it reads the compiled interfaces and typed trees of a build of the compiler, with the compiler's own library (`compiler-libs`); for the standard library it reads the compiled interfaces of the library of the OCaml that made the build (last section) | original |

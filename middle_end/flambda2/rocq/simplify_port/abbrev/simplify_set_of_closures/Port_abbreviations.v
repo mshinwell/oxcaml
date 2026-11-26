@@ -15,7 +15,7 @@
 (**************************************************************************)
 
 (* This file follows middle_end/flambda2/simplify/simplify_set_of_closures.ml
-   at commit ecc5c0d968c892b4312065caef0f19ffffa042a9: the abbreviations of
+   (Git blob 80ee04e8e29d0cfc2c8510c47d0cc7526d89a865): the abbreviations of
    modules that that file makes itself (line 27), as Rocq's [Module A := P.],
    for Simplify_set_of_closures.v (GUIDE.md, section 7, ABBREVIATIONS OF
    MODULES). The OCaml text at the head of Simplify_set_of_closures.v has the

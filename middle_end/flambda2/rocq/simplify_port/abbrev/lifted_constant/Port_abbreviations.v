@@ -15,7 +15,7 @@
 (**************************************************************************)
 
 (* This file follows middle_end/flambda2/simplify/lifting/lifted_constant.ml
-   at commit ecc5c0d968c892b4312065caef0f19ffffa042a9: the abbreviations of
+   (Git blob 5b20e72ccffa031e08d8c7c469018264b855844d): the abbreviations of
    modules that that file makes itself (line 17), as Rocq's [Module A := P.],
    for lifting/Lifted_constant.v (GUIDE.md, section 7, ABBREVIATIONS OF
    MODULES). The OCaml text at the head of lifting/Lifted_constant.v has the

@@ -14,9 +14,9 @@
 (*                                                                        *)
 (**************************************************************************)
 
-(* This file follows middle_end/flambda2/simplify/env/upwards_acc.ml at commit
-   ecc5c0d968c892b4312065caef0f19ffffa042a9, definition by definition under
-   the compiler's names; the numbers in the comments are the lines of that
+(* This file follows middle_end/flambda2/simplify/env/upwards_acc.ml
+   (Git blob 146d4b453ca49d8e3fac1321791bf4ca168cdeb2), definition by definition
+   under the compiler's names; the numbers in the comments are the lines of that
    file. What is not from that file: the form (the monad, the temporaries
    [tmpN] and their order, the arguments by place, a setter [update_f] where
    the compiler writes [{ t with f }]) is that of GUIDE.md. No proof. *)

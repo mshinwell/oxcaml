@@ -14,11 +14,11 @@
 (*                                                                        *)
 (**************************************************************************)
 
-(* This file follows middle_end/flambda2/simplify/env/upwards_acc.ml at commit
-   ecc5c0d968c892b4312065caef0f19ffffa042a9: the abbreviations of modules that
-   that file makes itself (lines 17-22), as Rocq's [Module A := P.], for
-   env/Upwards_acc.v (GUIDE.md, section 7, ABBREVIATIONS OF MODULES). The
-   OCaml text at the head of env/Upwards_acc.v has the compiler's own lines,
+(* This file follows middle_end/flambda2/simplify/env/upwards_acc.ml
+   (Git blob 146d4b453ca49d8e3fac1321791bf4ca168cdeb2): the abbreviations of
+   modules that that file makes itself (lines 17-22), as Rocq's [Module A :=
+   P.], for env/Upwards_acc.v (GUIDE.md, section 7, ABBREVIATIONS OF MODULES).
+   The OCaml text at the head of env/Upwards_acc.v has the compiler's own lines,
    [module A = P]. What is not from that file: the [Require] lines; and the
    name of the library: every such library is named Port_abbreviations,
    because Rocq writes [open Port_abbreviations] in an extracted file that

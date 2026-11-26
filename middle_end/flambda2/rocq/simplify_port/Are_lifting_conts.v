@@ -13,8 +13,8 @@
 (*                                                                        *)
 (**************************************************************************)
 
-(* This file follows middle_end/flambda2/simplify/are_lifting_conts.ml at
-   commit ecc5c0d968c892b4312065caef0f19ffffa042a9, definition by definition
+(* This file follows middle_end/flambda2/simplify/are_lifting_conts.ml
+   (Git blob c131481d4ff96ab5831dbb41fb70029bf853ab7d), definition by definition
    under the compiler's names; the numbers in the comments are the lines of
    that file. What is not from that file: the form (the monad, the arguments
    by place, the two types kept as OCaml text) is that of GUIDE.md. No

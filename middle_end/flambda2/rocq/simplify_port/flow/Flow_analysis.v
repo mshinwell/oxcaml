@@ -12,8 +12,8 @@
 (*                                                                        *)
 (**************************************************************************)
 
-(* This file follows middle_end/flambda2/simplify/flow/flow_analysis.ml at
-   commit ecc5c0d968c892b4312065caef0f19ffffa042a9, function by function
+(* This file follows middle_end/flambda2/simplify/flow/flow_analysis.ml
+   (Git blob c0209e87a81f61892162cbf8f69de554b229cc0d), function by function
    under the compiler's names; the numbers in the comments are the lines of
    that file. What is not from that file: the form (the monad, the
    temporaries [tmpN] and their order) is that of GUIDE.md. No proof. *)

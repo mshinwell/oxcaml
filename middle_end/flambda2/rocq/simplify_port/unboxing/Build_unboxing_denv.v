@@ -15,10 +15,10 @@
 (**************************************************************************)
 
 (* This file follows
-   middle_end/flambda2/simplify/unboxing/build_unboxing_denv.ml at commit
-   ecc5c0d968c892b4312065caef0f19ffffa042a9, function by function under the
-   compiler's names; the numbers in the comments are the lines of that file.
-   What is not from that file: the form (the monad, the temporaries [tmpN]
+   middle_end/flambda2/simplify/unboxing/build_unboxing_denv.ml
+   (Git blob dadd8c183fc46486a88ad95d3e5a404a5a010b19), function by function
+   under the compiler's names; the numbers in the comments are the lines of that
+   file. What is not from that file: the form (the monad, the temporaries [tmpN]
    and their order, the fuel of the recursive function) is that of GUIDE.md.
    No proof. *)
 

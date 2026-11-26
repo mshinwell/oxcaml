@@ -14,11 +14,11 @@
 (*                                                                        *)
 (**************************************************************************)
 
-(* This file follows middle_end/flambda2/simplify/number_adjuncts.ml at commit
-   ecc5c0d968c892b4312065caef0f19ffffa042a9: the abbreviations of modules that
-   that file makes itself (lines 18-25), as Rocq's [Module A := P.], for
-   Number_adjuncts.v (GUIDE.md, section 7, ABBREVIATIONS OF MODULES). The
-   OCaml text at the head of Number_adjuncts.v has the compiler's own lines,
+(* This file follows middle_end/flambda2/simplify/number_adjuncts.ml
+   (Git blob 52f4c782af5d40a6c8cfc343a7fa9c1881d76106): the abbreviations of
+   modules that that file makes itself (lines 18-25), as Rocq's [Module A :=
+   P.], for Number_adjuncts.v (GUIDE.md, section 7, ABBREVIATIONS OF MODULES).
+   The OCaml text at the head of Number_adjuncts.v has the compiler's own lines,
    [module A = P]. What is not from that file: the [Require] lines; and the
    name of the library: every such library is named Port_abbreviations,
    because Rocq writes [open Port_abbreviations] in an extracted file that

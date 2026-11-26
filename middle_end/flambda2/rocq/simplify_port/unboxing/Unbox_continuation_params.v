@@ -15,8 +15,8 @@
 (**************************************************************************)
 
 (* This file follows
-   middle_end/flambda2/simplify/unboxing/unbox_continuation_params.ml at
-   commit ecc5c0d968c892b4312065caef0f19ffffa042a9, definition by definition
+   middle_end/flambda2/simplify/unboxing/unbox_continuation_params.ml
+   (Git blob 3a158ef13f5df79066eb2f94390338b52172d82f), definition by definition
    under the compiler's names; the numbers in the comments are the lines of
    that file. What is not from that file: the form (the monad, the
    temporaries [tmpN] and their order) is that of GUIDE.md. No proof. *)

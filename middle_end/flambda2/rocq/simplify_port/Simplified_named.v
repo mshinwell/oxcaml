@@ -14,8 +14,8 @@
 (*                                                                        *)
 (**************************************************************************)
 
-(* This file follows middle_end/flambda2/simplify/simplified_named.ml at
-   commit ecc5c0d968c892b4312065caef0f19ffffa042a9, function by function
+(* This file follows middle_end/flambda2/simplify/simplified_named.ml
+   (Git blob 35c35953867f5ac724665432d041e65d863df8fb), function by function
    under the compiler's names; the numbers in the comments are the lines of
    that file. What is not from that file: the form (the monad, the
    temporaries [tmpN] and their order, the arguments by place) is that of

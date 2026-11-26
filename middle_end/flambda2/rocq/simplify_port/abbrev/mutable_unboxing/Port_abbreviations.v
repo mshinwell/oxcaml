@@ -12,8 +12,8 @@
 (*                                                                        *)
 (**************************************************************************)
 
-(* This file follows middle_end/flambda2/simplify/flow/mutable_unboxing.ml at
-   commit ecc5c0d968c892b4312065caef0f19ffffa042a9: the abbreviations of
+(* This file follows middle_end/flambda2/simplify/flow/mutable_unboxing.ml
+   (Git blob 6a88fab56bf683d8e1675ab03c8f371d15d31f1e): the abbreviations of
    modules that that file makes itself (lines 15-16), as Rocq's [Module A :=
    P.], for flow/Mutable_unboxing.v (GUIDE.md, section 7, ABBREVIATIONS OF
    MODULES). The OCaml text at the head of flow/Mutable_unboxing.v has the

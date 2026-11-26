@@ -15,15 +15,16 @@
 (**************************************************************************)
 
 (* This file follows
-   middle_end/flambda2/simplify/common_subexpression_elimination.ml at commit
-   ecc5c0d968c892b4312065caef0f19ffffa042a9: the abbreviations of modules that
-   that file makes itself (lines 18-29), as Rocq's [Module A := P.], for
-   Common_subexpression_elimination.v (GUIDE.md, section 7, ABBREVIATIONS OF
-   MODULES). The OCaml text at the head of Common_subexpression_elimination.v
-   has the compiler's own lines, [module A = P]. What is not from that file:
-   the [Require] lines; and the name of the library: every such library is
-   named Port_abbreviations, because Rocq writes [open Port_abbreviations] in
-   an extracted file that needs it, and runtime/port_abbreviations.ml is that
+   middle_end/flambda2/simplify/common_subexpression_elimination.ml
+   (Git blob 2d097a00e62af6c65f516baa0932149da53d2d65): the abbreviations of
+   modules that that file makes itself (lines 18-29), as Rocq's [Module A :=
+   P.], for Common_subexpression_elimination.v (GUIDE.md, section 7,
+   ABBREVIATIONS OF MODULES). The OCaml text at the head of
+   Common_subexpression_elimination.v has the compiler's own lines, [module A =
+   P]. What is not from that file: the [Require] lines; and the name of the
+   library: every such library is named Port_abbreviations, because Rocq writes
+   [open Port_abbreviations] in an extracted file that needs it, and
+   runtime/port_abbreviations.ml is that
    (empty) module. *)
 
 From SimplifyPort.decl Require Continuation_extra_params_and_args

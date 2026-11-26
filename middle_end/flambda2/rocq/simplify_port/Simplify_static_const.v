@@ -15,7 +15,7 @@
 (**************************************************************************)
 
 (* This file follows middle_end/flambda2/simplify/simplify_static_const.ml
-   at commit ecc5c0d968c892b4312065caef0f19ffffa042a9, function by function
+   (Git blob 94082f486f633f75f2b58ce7078f07aa08ab4f91), function by function
    under the compiler's names; the numbers in the comments are the lines of
    that file. What is not from that file: the form (the monad, the
    temporaries [tmpN] and their order) is that of GUIDE.md. No proof. *)

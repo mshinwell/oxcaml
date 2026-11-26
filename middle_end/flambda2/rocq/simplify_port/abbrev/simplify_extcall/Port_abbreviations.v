@@ -13,8 +13,8 @@
 (*                                                                        *)
 (**************************************************************************)
 
-(* This file follows middle_end/flambda2/simplify/simplify_extcall.ml at
-   commit ecc5c0d968c892b4312065caef0f19ffffa042a9: the abbreviations of
+(* This file follows middle_end/flambda2/simplify/simplify_extcall.ml
+   (Git blob cc4b56a087fe83a288ae896bc8a0eeb3a1526436): the abbreviations of
    modules that that file makes itself (line 17), as Rocq's [Module A := P.],
    for Simplify_extcall.v (GUIDE.md, section 7, ABBREVIATIONS OF MODULES). The
    OCaml text at the head of Simplify_extcall.v has the compiler's own lines,

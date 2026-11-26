@@ -14,9 +14,9 @@
 (*                                                                        *)
 (**************************************************************************)
 
-(* This file follows middle_end/flambda2/simplify/join_points.ml at commit
-   ecc5c0d968c892b4312065caef0f19ffffa042a9, function by function under the
-   compiler's names; the numbers in the comments are the lines of that
+(* This file follows middle_end/flambda2/simplify/join_points.ml
+   (Git blob dc788b485510b01a33423d68b383ec7f2e63c6f4), function by function
+   under the compiler's names; the numbers in the comments are the lines of that
    file. What is not from that file: the form (the monad, the temporaries
    [tmpN] and their order) is that of GUIDE.md; the local function
    [general_case] of [compute_handler_env]. No proof. *)

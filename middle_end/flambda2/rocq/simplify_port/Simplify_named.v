@@ -14,10 +14,10 @@
 (*                                                                        *)
 (**************************************************************************)
 
-(* This file follows middle_end/flambda2/simplify/simplify_named.ml at commit
-   ecc5c0d968c892b4312065caef0f19ffffa042a9, function by function under the
-   compiler's names; the numbers in the comments are the lines of that file.
-   What is not from that file: the form (the monad, the temporaries [tmpN]
+(* This file follows middle_end/flambda2/simplify/simplify_named.ml
+   (Git blob 902e781a00cac51d3c1d46ab9519b62fceb11afd), function by function
+   under the compiler's names; the numbers in the comments are the lines of that
+   file. What is not from that file: the form (the monad, the temporaries [tmpN]
    and their order) is that of GUIDE.md. No proof. *)
 
 From SimplifyPort Require Import Port_monad.

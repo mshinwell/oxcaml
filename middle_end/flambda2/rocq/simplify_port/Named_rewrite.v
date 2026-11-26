@@ -13,12 +13,12 @@
 (*                                                                        *)
 (**************************************************************************)
 
-(* This file follows middle_end/flambda2/simplify/named_rewrite.ml at commit
-   ecc5c0d968c892b4312065caef0f19ffffa042a9, function by function under the
-   compiler's names; the numbers in the comments are the lines of that file.
-   What is not from that file: the form (the monad, the arguments by place)
-   is that of GUIDE.md; the Rocq form of the type [Prim_rewrite.t] is that of
-   decl/Named_rewrite.v. No proof. *)
+(* This file follows middle_end/flambda2/simplify/named_rewrite.ml
+   (Git blob 5dac36893ac6986009d7dbc1e2c0d331a5b46850), function by function
+   under the compiler's names; the numbers in the comments are the lines of that
+   file. What is not from that file: the form (the monad, the arguments by
+   place) is that of GUIDE.md; the Rocq form of the type [Prim_rewrite.t] is
+   that of decl/Named_rewrite.v. No proof. *)
 
 From SimplifyPort Require Import Port_monad.
 From SimplifyPort.decl Require Flambda_kind Format Simple Variable_.

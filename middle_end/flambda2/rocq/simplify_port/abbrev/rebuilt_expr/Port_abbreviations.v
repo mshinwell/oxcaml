@@ -12,10 +12,10 @@
 (*                                                                        *)
 (**************************************************************************)
 
-(* This file follows middle_end/flambda2/simplify/rebuilt_expr.ml at commit
-   ecc5c0d968c892b4312065caef0f19ffffa042a9: the abbreviations of modules that
-   that file makes itself (line 16), as Rocq's [Module A := P.], for
-   Rebuilt_expr.v (GUIDE.md, section 7, ABBREVIATIONS OF MODULES). The OCaml
+(* This file follows middle_end/flambda2/simplify/rebuilt_expr.ml
+   (Git blob d4549799a5871e659aab0a2992fcaea921fadc5c): the abbreviations of
+   modules that that file makes itself (line 16), as Rocq's [Module A := P.],
+   for Rebuilt_expr.v (GUIDE.md, section 7, ABBREVIATIONS OF MODULES). The OCaml
    text at the head of Rebuilt_expr.v has the compiler's own lines, [module A
    = P]. What is not from that file: the [Require] lines; and the name of the
    library: every such library is named Port_abbreviations, because Rocq

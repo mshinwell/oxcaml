@@ -12,13 +12,13 @@
 (*                                                                        *)
 (**************************************************************************)
 
-(* This file follows middle_end/flambda2/simplify/flow/flow_acc.ml at commit
-   ecc5c0d968c892b4312065caef0f19ffffa042a9: the abbreviations of modules that
-   that file makes itself (lines 15-16), as Rocq's [Module A := P.], for
-   flow/Flow_acc.v (GUIDE.md, section 7, ABBREVIATIONS OF MODULES). The OCaml
-   text at the head of flow/Flow_acc.v has the compiler's own lines, [module A
-   = P]. What is not from that file: the [Require] lines; and the name of the
-   library: every such library is named Port_abbreviations, because Rocq
+(* This file follows middle_end/flambda2/simplify/flow/flow_acc.ml
+   (Git blob 03509120f0fcc215afe1b6763c9eb4fff68dcfb0): the abbreviations of
+   modules that that file makes itself (lines 15-16), as Rocq's [Module A :=
+   P.], for flow/Flow_acc.v (GUIDE.md, section 7, ABBREVIATIONS OF MODULES). The
+   OCaml text at the head of flow/Flow_acc.v has the compiler's own lines,
+   [module A = P]. What is not from that file: the [Require] lines; and the name
+   of the library: every such library is named Port_abbreviations, because Rocq
    writes [open Port_abbreviations] in an extracted file that needs it, and
    runtime/port_abbreviations.ml is that (empty) module. *)
 

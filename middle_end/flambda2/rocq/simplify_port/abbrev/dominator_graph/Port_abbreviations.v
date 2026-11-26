@@ -12,8 +12,8 @@
 (*                                                                        *)
 (**************************************************************************)
 
-(* This file follows middle_end/flambda2/simplify/flow/dominator_graph.ml at
-   commit ecc5c0d968c892b4312065caef0f19ffffa042a9: the abbreviations of
+(* This file follows middle_end/flambda2/simplify/flow/dominator_graph.ml
+   (Git blob 9810c7672dc25dfe1990dcb343372acd71e63ff2): the abbreviations of
    modules that that file makes itself (line 15), as Rocq's [Module A := P.],
    for flow/Dominator_graph.v (GUIDE.md, section 7, ABBREVIATIONS OF MODULES).
    The OCaml text at the head of flow/Dominator_graph.v has the compiler's own

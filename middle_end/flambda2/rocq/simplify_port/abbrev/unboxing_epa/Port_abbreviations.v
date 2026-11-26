@@ -14,8 +14,8 @@
 (*                                                                        *)
 (**************************************************************************)
 
-(* This file follows middle_end/flambda2/simplify/unboxing/unboxing_epa.ml at
-   commit ecc5c0d968c892b4312065caef0f19ffffa042a9: the abbreviations of
+(* This file follows middle_end/flambda2/simplify/unboxing/unboxing_epa.ml
+   (Git blob 792ec77dbde724d5607fc29ad4e507bd3cb4ff22): the abbreviations of
    modules that that file makes itself (lines 18-19), as Rocq's [Module A :=
    P.], for unboxing/Unboxing_epa.v (GUIDE.md, section 7, ABBREVIATIONS OF
    MODULES). The OCaml text at the head of unboxing/Unboxing_epa.v has the

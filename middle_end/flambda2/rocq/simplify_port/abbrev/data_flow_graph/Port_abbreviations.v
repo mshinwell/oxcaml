@@ -12,8 +12,8 @@
 (*                                                                        *)
 (**************************************************************************)
 
-(* This file follows middle_end/flambda2/simplify/flow/data_flow_graph.ml at
-   commit ecc5c0d968c892b4312065caef0f19ffffa042a9: the abbreviations of
+(* This file follows middle_end/flambda2/simplify/flow/data_flow_graph.ml
+   (Git blob dd4828e4b044a7c284770696d603b9620190339c): the abbreviations of
    modules that that file makes itself (line 15), as Rocq's [Module A := P.],
    for flow/Data_flow_graph.v (GUIDE.md, section 7, ABBREVIATIONS OF MODULES).
    The OCaml text at the head of flow/Data_flow_graph.v has the compiler's own

@@ -49,7 +49,8 @@ OCaml from the identity-monad build. The build against the real monad also
 compiles the laws, the contracts and the first lemmas. OCaml checks each
 extracted file against the compiler's interfaces. The default target also
 runs the text checks (`make shells`, `make given`, `make lines`, `make
-exceptions` and `make papp`), regenerates `PROGRESS.md` and checks the
+follows`, `make exceptions` and `make papp`), regenerates `PROGRESS.md` and
+checks the
 comments. Build copies, compiled Rocq files
 and type-checking outputs are under `_build/` here, and `make` leaves
 nothing else in the folder. The head of the

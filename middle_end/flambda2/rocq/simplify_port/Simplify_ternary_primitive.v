@@ -15,7 +15,7 @@
 (**************************************************************************)
 
 (* This file follows middle_end/flambda2/simplify/simplify_ternary_primitive.ml
-   at commit ecc5c0d968c892b4312065caef0f19ffffa042a9, function by function
+   (Git blob 397a8bc3878483f88ea4b894842d2f6ce4556d86), function by function
    under the compiler's names; the numbers in the comments are the lines of
    that file. What is not from that file: the form (the monad, the
    temporaries [tmpN] and their order) is that of GUIDE.md. The functions

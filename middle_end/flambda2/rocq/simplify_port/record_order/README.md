@@ -96,13 +96,12 @@ WHAT IS ASSUMED, AND WHAT NOT.
 
 ## 3. What was read
 
-The compiler's files as they are at commit
-ecc5c0d968c892b4312065caef0f19ffffa042a9, the donor commit of the port
-(`PROVENANCE.md` names it). They were read in a tree of commit
-4fe46bb689903ead25d346ac9efd3c883821f171. Between those two commits `git diff
---name-only` names `.gitignore` and files under `rocq/`,
-`middle_end/flambda2/rocq/` and `middle_end/flambda2/tests/`, and nothing else:
-every file of the compiler that this folder cites has the same bytes at both.
+The compiler's files as they are in the tree of commit
+4fe46bb689903ead25d346ac9efd3c883821f171, where they were read. For the 78
+files that the port transcribes, that is the text that the port follows: in
+that tree each of them has the Git blob that the first comment of its ported
+file names (`PROVENANCE.md`; `make follows` asks the same of the tree as it
+is).
 
 By reading only. Nothing was built and nothing was run. All numbers of lines are
 of those files. Part 2 says of itself that the files of the port were not read:

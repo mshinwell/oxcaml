@@ -15,7 +15,7 @@
 (**************************************************************************)
 
 (* This file follows middle_end/flambda2/simplify/env/one_continuation_use.ml
-   at commit ecc5c0d968c892b4312065caef0f19ffffa042a9: the abbreviations of
+   (Git blob da27034fd6c2cbacaf505fa5d9d33521a86fecaa): the abbreviations of
    modules that that file makes itself (lines 17-18), as Rocq's [Module A :=
    P.], for env/One_continuation_use.v (GUIDE.md, section 7, ABBREVIATIONS OF
    MODULES). The OCaml text at the head of env/One_continuation_use.v has the

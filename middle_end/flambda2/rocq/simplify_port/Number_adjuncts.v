@@ -14,9 +14,9 @@
 (*                                                                        *)
 (**************************************************************************)
 
-(* This file follows middle_end/flambda2/simplify/number_adjuncts.ml at commit
-   ecc5c0d968c892b4312065caef0f19ffffa042a9, definition by definition under
-   the compiler's names; the numbers in the comments are the lines of that
+(* This file follows middle_end/flambda2/simplify/number_adjuncts.ml
+   (Git blob 52f4c782af5d40a6c8cfc343a7fa9c1881d76106), definition by definition
+   under the compiler's names; the numbers in the comments are the lines of that
    file. What is not from that file: the form (the monad, the temporaries
    [tmpN] and their order) is that of GUIDE.md; and the form of the modules,
    which is this:

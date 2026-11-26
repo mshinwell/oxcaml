@@ -12,9 +12,9 @@
 (*                                                                        *)
 (**************************************************************************)
 
-(* This file follows middle_end/flambda2/simplify/loopify_state.ml at commit
-   ecc5c0d968c892b4312065caef0f19ffffa042a9, definition by definition under
-   the compiler's names; the numbers in the comments are the lines of that
+(* This file follows middle_end/flambda2/simplify/loopify_state.ml
+   (Git blob c19ce8a8016f83b3dfb01420d22b08be6101227f), definition by definition
+   under the compiler's names; the numbers in the comments are the lines of that
    file. What is not from that file: the form (the monad) is that of
    GUIDE.md. No proof. *)
 

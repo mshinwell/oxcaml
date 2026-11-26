@@ -13,8 +13,8 @@
 (*                                                                        *)
 (**************************************************************************)
 
-(* This file follows middle_end/flambda2/simplify/specialization_cost.ml at
-   commit ecc5c0d968c892b4312065caef0f19ffffa042a9, definition by definition
+(* This file follows middle_end/flambda2/simplify/specialization_cost.ml
+   (Git blob e25f48a02fbeaa1a8e0f7551fc5bfdc3585ec6d6), definition by definition
    under the compiler's names; the numbers in the comments are the lines of
    that file. What is not from that file: the form (the monad, the
    temporaries [tmpN] and their order, the fuel of the recursive function)

@@ -15,8 +15,13 @@ files beside the donors first. Points marked HUMAN are the human's to judge.
 ## 1. The file
 
 - First the donor's header, copied whole (by a copy, not typed), then one
-  comment: the donor's path, the commit that it follows, what the file does
-  not follow. Then
+  comment that begins `(* This file follows PATH (Git blob ID)`: the
+  donor's path from the root of the repository, and the name that Git
+  gives the donor's text (`git hash-object` prints it); then what the file
+  does not follow. `make follows` compares the name with the donor of the
+  tree: WHEN A DONOR CHANGES, `make` stops until the change is carried
+  over to the file and the new name is written, in the file and in the
+  file of its abbreviations. Then
   `From SimplifyPort Require Import Port_monad.` (the kit),
   `From SimplifyPort.decl Require Import Simplify_import.` (the compiler's
   short module names: `DA`, `UA`, `T`, ...) and `From SimplifyPort.decl

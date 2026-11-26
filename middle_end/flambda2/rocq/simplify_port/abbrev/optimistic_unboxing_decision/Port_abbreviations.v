@@ -15,8 +15,8 @@
 (**************************************************************************)
 
 (* This file follows
-   middle_end/flambda2/simplify/unboxing/optimistic_unboxing_decision.ml at
-   commit ecc5c0d968c892b4312065caef0f19ffffa042a9: the abbreviations of
+   middle_end/flambda2/simplify/unboxing/optimistic_unboxing_decision.ml
+   (Git blob 5c05cec25bd2bf99e2251f97bb8c270a31387b74): the abbreviations of
    modules that that file makes itself (lines 18-19), as Rocq's [Module A :=
    P.], for unboxing/Optimistic_unboxing_decision.v (GUIDE.md, section 7,
    ABBREVIATIONS OF MODULES). The OCaml text at the head of

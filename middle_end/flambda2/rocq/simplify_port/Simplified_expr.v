@@ -26,8 +26,8 @@
  * DEALINGS IN THE SOFTWARE.                                                  *
  ******************************************************************************)
 
-(* This file follows middle_end/flambda2/simplify/simplified_expr.ml at
-   commit ecc5c0d968c892b4312065caef0f19ffffa042a9, function by function
+(* This file follows middle_end/flambda2/simplify/simplified_expr.ml
+   (Git blob a5940b9805c3198ce95701601fa8fc7773f17284), function by function
    under the compiler's names; the numbers in the comments are the lines of
    that file. What is not from that file: the form (the monad, the
    temporaries [tmpN], the arguments by place) is that of GUIDE.md; the Rocq

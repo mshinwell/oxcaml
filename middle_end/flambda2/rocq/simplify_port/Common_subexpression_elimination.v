@@ -15,10 +15,10 @@
 (**************************************************************************)
 
 (* This file follows
-   middle_end/flambda2/simplify/common_subexpression_elimination.ml at commit
-   ecc5c0d968c892b4312065caef0f19ffffa042a9, function by function under the
-   compiler's names; the numbers in the comments are the lines of that file.
-   What is not from that file: the form (the monad, the temporaries [tmpN]
+   middle_end/flambda2/simplify/common_subexpression_elimination.ml
+   (Git blob 2d097a00e62af6c65f516baa0932149da53d2d65), function by function
+   under the compiler's names; the numbers in the comments are the lines of that
+   file. What is not from that file: the form (the monad, the temporaries [tmpN]
    and their order, the fuel of the local recursive function [do_rounds]) is
    that of GUIDE.md. The file does not import Simplify_import, which the
    compiler's file cannot open: its twelve abbreviations of modules are its

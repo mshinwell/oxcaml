@@ -26,11 +26,11 @@
  * DEALINGS IN THE SOFTWARE.                                                  *
  ******************************************************************************)
 
-(* This file follows middle_end/flambda2/simplify/simplified_expr.ml at commit
-   ecc5c0d968c892b4312065caef0f19ffffa042a9: the abbreviations of modules that
-   that file makes itself (lines 30-34), as Rocq's [Module A := P.], for
-   Simplified_expr.v (GUIDE.md, section 7, ABBREVIATIONS OF MODULES). The
-   OCaml text at the head of Simplified_expr.v has the compiler's own lines,
+(* This file follows middle_end/flambda2/simplify/simplified_expr.ml
+   (Git blob a5940b9805c3198ce95701601fa8fc7773f17284): the abbreviations of
+   modules that that file makes itself (lines 30-34), as Rocq's [Module A :=
+   P.], for Simplified_expr.v (GUIDE.md, section 7, ABBREVIATIONS OF MODULES).
+   The OCaml text at the head of Simplified_expr.v has the compiler's own lines,
    [module A = P]. What is not from that file: the [Require] lines; and the
    name of the library: every such library is named Port_abbreviations,
    because Rocq writes [open Port_abbreviations] in an extracted file that

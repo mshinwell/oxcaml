@@ -15,11 +15,11 @@
 (**************************************************************************)
 
 (* This file follows
-   middle_end/flambda2/simplify/inlining/inlining_transforms.ml at commit
-   ecc5c0d968c892b4312065caef0f19ffffa042a9: the abbreviations of modules that
-   that file makes itself (lines 18-21), as Rocq's [Module A := P.], for
-   inlining/Inlining_transforms.v (GUIDE.md, section 7, ABBREVIATIONS OF
-   MODULES). The OCaml text at the head of inlining/Inlining_transforms.v has
+   middle_end/flambda2/simplify/inlining/inlining_transforms.ml
+   (Git blob e5caa4eaf80f6a0159795c782a62befdab67400c): the abbreviations of
+   modules that that file makes itself (lines 18-21), as Rocq's [Module A :=
+   P.], for inlining/Inlining_transforms.v (GUIDE.md, section 7, ABBREVIATIONS
+   OF MODULES). The OCaml text at the head of inlining/Inlining_transforms.v has
    the compiler's own lines, [module A = P]. What is not from that file: the
    [Require] lines; and the name of the library: every such library is named
    Port_abbreviations, because Rocq writes [open Port_abbreviations] in an

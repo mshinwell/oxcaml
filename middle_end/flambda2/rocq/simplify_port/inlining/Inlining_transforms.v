@@ -15,10 +15,10 @@
 (**************************************************************************)
 
 (* This file follows
-   middle_end/flambda2/simplify/inlining/inlining_transforms.ml at commit
-   ecc5c0d968c892b4312065caef0f19ffffa042a9, function by function under the
-   compiler's names; the numbers in the comments are the lines of that file.
-   What is not from that file: the form (the monad, the temporaries [tmpN]
+   middle_end/flambda2/simplify/inlining/inlining_transforms.ml
+   (Git blob e5caa4eaf80f6a0159795c782a62befdab67400c), function by function
+   under the compiler's names; the numbers in the comments are the lines of that
+   file. What is not from that file: the form (the monad, the temporaries [tmpN]
    and their order) is that of GUIDE.md. The labels [~l:] at the calls are
    the compiler's, written for the reader only: Rocq throws them away and
    nothing checks them (GUIDE.md, section 1). No proof. *)

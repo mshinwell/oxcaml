@@ -15,10 +15,10 @@
 (**************************************************************************)
 
 (* This file follows
-   middle_end/flambda2/simplify/lifting/lifted_constant_state.ml at commit
-   ecc5c0d968c892b4312065caef0f19ffffa042a9, function by function under the
-   compiler's names; the numbers in the comments are the lines of that file.
-   What is not from that file: the form (the monad, the temporaries [tmpN]
+   middle_end/flambda2/simplify/lifting/lifted_constant_state.ml
+   (Git blob 1ad8d0fcb1f011a3668fb9aaee542637baabc863), function by function
+   under the compiler's names; the numbers in the comments are the lines of that
+   file. What is not from that file: the form (the monad, the temporaries [tmpN]
    and their order) is that of GUIDE.md; the Rocq form of the type [t] and
    its extraction directives; the two declarations of OCaml's array
    literals. No proof. *)

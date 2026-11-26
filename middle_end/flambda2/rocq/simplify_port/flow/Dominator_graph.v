@@ -12,8 +12,8 @@
 (*                                                                        *)
 (**************************************************************************)
 
-(* This file follows middle_end/flambda2/simplify/flow/dominator_graph.ml at
-   commit ecc5c0d968c892b4312065caef0f19ffffa042a9, function by function
+(* This file follows middle_end/flambda2/simplify/flow/dominator_graph.ml
+   (Git blob 9810c7672dc25dfe1990dcb343372acd71e63ff2), function by function
    under the compiler's names; the numbers in the comments are the lines of
    that file. What is not from that file: the form (the monad, the
    temporaries [tmpN] and their order, the fuel of the recursive function)

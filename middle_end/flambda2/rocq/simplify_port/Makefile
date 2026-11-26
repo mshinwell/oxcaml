@@ -41,7 +41,7 @@
 #   make id         Rocq compiles everything against monad/id
 #   make extract    extracted/DIR/foo.ml for every ported file
 #   make check      the types of every extracted file, make given, make
-#                   lines, make exceptions and make papp
+#                   lines, make follows, make exceptions and make papp
 #   make given      the OCaml text that the ported files give, against the
 #                   compiler's files
 #   make lines      the notes of lines of the ported files, against the
@@ -51,6 +51,8 @@
 #                   files, against the definitions in extracted/
 #   make shells     every shell script of the folder has `set -eu` before
 #                   its first command
+#   make follows    the first comment of each ported file names its donor
+#                   and the text of the donor that the tree has
 #   make table      PROGRESS.md
 #   make list       the ported files and their donors
 #   make clean
@@ -114,13 +116,13 @@ ID_V := $(B)/id/Port_monad.v $(addprefix $(B)/id/,$(SRC))
 EXTRACTED := $(foreach p,$(PORTED),$(call extracted,$(p)))
 CHECKED := $(foreach p,$(PORTED),$(call checked,$(p)))
 
-.PHONY: all real id extract check given lines shells exceptions papp table comments list clean
+.PHONY: all real id extract check given lines follows shells exceptions papp table comments list clean
 all: shells real id extract check table comments
 
 real: $(REAL_V:.v=.vo)
 id: $(ID_V:.v=.vo)
 extract: $(EXTRACTED)
-check: shells given lines exceptions $(CHECKED) papp
+check: shells given lines follows exceptions $(CHECKED) papp
 
 list:
 	@$(foreach p,$(PORTED),echo '$(p).v	$(call donor,$(p))	$(call extracted,$(p))';)
@@ -152,9 +154,9 @@ $(B)/id/%.v: %.v
 # not); the list has the name depend only when it is whole (until then it
 # is depend.rocq and depend.tmp); and the lists are taken by [include],
 # not [-include] (with [-include] make goes on without a list that could
-# not be made, and says nothing). The six targets that need no list
-# (clean, list, given, lines, shells, exceptions), each asked alone, do
-# not ask for one.
+# not be made, and says nothing). The seven targets that need no list
+# (clean, list, given, lines, shells, exceptions, follows), each asked
+# alone, do not ask for one.
 $(B)/real/depend: $(REAL_V)
 	@cd $(B)/real && $(ROCQ) dep -Q . SimplifyPort $(patsubst $(B)/real/%,%,$(REAL_V)) > depend.rocq \
 	  && sed -E 's#(^| )([^ /][^ ]*)#\1$(B)/real/\2#g' depend.rocq > depend.tmp \
@@ -170,8 +172,10 @@ ifneq ($(MAKECMDGOALS),given)
 ifneq ($(MAKECMDGOALS),lines)
 ifneq ($(MAKECMDGOALS),shells)
 ifneq ($(MAKECMDGOALS),exceptions)
+ifneq ($(MAKECMDGOALS),follows)
 include $(B)/real/depend
 include $(B)/id/depend
+endif
 endif
 endif
 endif
@@ -262,6 +266,16 @@ given:
 # of the files.
 lines:
 	$(PYTHON) tools/lines.py $(addsuffix .v,$(PORTED))
+
+# The first comment of a ported file, and of the file of its abbreviations
+# of modules, names the donor and the text of the donor that the file
+# follows, by the name that Git gives that text. tools/follows.py compares
+# both with the tree: a donor that has changed in any byte stops [make]
+# until the change is carried over and the new name written. It reads
+# nothing that Rocq or OCaml makes: [make follows] alone does not ask Rocq
+# for the dependencies of the files.
+follows:
+	$(PYTHON) tools/follows.py $(addsuffix .v,$(PORTED))
 
 # Every shell script of the folder begins with `set -eu`: the shell then
 # stops it at a variable that is not set, and at a command that fails

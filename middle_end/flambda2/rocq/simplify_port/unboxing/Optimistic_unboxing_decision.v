@@ -15,8 +15,8 @@
 (**************************************************************************)
 
 (* This file follows
-   middle_end/flambda2/simplify/unboxing/optimistic_unboxing_decision.ml at
-   commit ecc5c0d968c892b4312065caef0f19ffffa042a9, definition by definition
+   middle_end/flambda2/simplify/unboxing/optimistic_unboxing_decision.ml
+   (Git blob 5c05cec25bd2bf99e2251f97bb8c270a31387b74), definition by definition
    under the compiler's names; the numbers in the comments are the lines of
    that file. What is not from that file: the form (the monad, the
    temporaries [tmpN] and their order, the fuel of the recursive functions)

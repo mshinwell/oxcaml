@@ -12,8 +12,8 @@
 (*                                                                        *)
 (**************************************************************************)
 
-(* This file follows middle_end/flambda2/simplify/flow/data_flow_graph.ml at
-   commit ecc5c0d968c892b4312065caef0f19ffffa042a9, function by function
+(* This file follows middle_end/flambda2/simplify/flow/data_flow_graph.ml
+   (Git blob dd4828e4b044a7c284770696d603b9620190339c), function by function
    under the compiler's names; the numbers in the comments are the lines of
    that file. What is not from that file: the form (the monad, the
    temporaries [tmpN] and their order, the fuel of the recursive functions)

@@ -14,10 +14,10 @@
 (*                                                                        *)
 (**************************************************************************)
 
-(* This file follows middle_end/flambda2/simplify/simplify_expr.ml at commit
-   ecc5c0d968c892b4312065caef0f19ffffa042a9, function by function under the
-   compiler's names; the numbers in the comments are the lines of that file.
-   What is not from that file: the form (the monad, the temporaries [tmpN]
+(* This file follows middle_end/flambda2/simplify/simplify_expr.ml
+   (Git blob fd2b14227bacd94a2b91d43ddef92e93f68c7b3a), function by function
+   under the compiler's names; the numbers in the comments are the lines of that
+   file. What is not from that file: the form (the monad, the temporaries [tmpN]
    and their order, the fuel of the recursive functions) is that of
    GUIDE.md. No proof. *)
 

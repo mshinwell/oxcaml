@@ -12,8 +12,8 @@
 (*                                                                        *)
 (**************************************************************************)
 
-(* This file follows middle_end/flambda2/simplify/flow/flow_analysis.ml at
-   commit ecc5c0d968c892b4312065caef0f19ffffa042a9: the abbreviations of
+(* This file follows middle_end/flambda2/simplify/flow/flow_analysis.ml
+   (Git blob c0209e87a81f61892162cbf8f69de554b229cc0d): the abbreviations of
    modules that that file makes itself (line 15), as Rocq's [Module A := P.],
    for flow/Flow_analysis.v (GUIDE.md, section 7, ABBREVIATIONS OF MODULES).
    The OCaml text at the head of flow/Flow_analysis.v has the compiler's own

@@ -14,8 +14,8 @@
 (*                                                                        *)
 (**************************************************************************)
 
-(* This file follows middle_end/flambda2/simplify/apply_cont_rewrite.ml at
-   commit ecc5c0d968c892b4312065caef0f19ffffa042a9: the abbreviations of
+(* This file follows middle_end/flambda2/simplify/apply_cont_rewrite.ml
+   (Git blob 4c8cae93858064fb677a2e1aa0d4adeaace66b84): the abbreviations of
    modules that that file makes itself (lines 17-19), as Rocq's [Module A :=
    P.], for Apply_cont_rewrite.v (GUIDE.md, section 7, ABBREVIATIONS OF
    MODULES). The OCaml text at the head of Apply_cont_rewrite.v has the

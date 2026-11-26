@@ -14,8 +14,8 @@
 (*                                                                        *)
 (**************************************************************************)
 
-(* This file follows middle_end/flambda2/simplify/simplify_import.ml at
-   commit ecc5c0d968c892b4312065caef0f19ffffa042a9, line by line: the short
+(* This file follows middle_end/flambda2/simplify/simplify_import.ml
+   (Git blob d521d4294f3c059a862aab45133b1c300c170002), line by line: the short
    names that the files of Simplify give to the compiler's modules. The
    numbers in the comments are the lines of that file. Every ported file
    imports it, as every file of Simplify opens the compiler's. No proof. *)

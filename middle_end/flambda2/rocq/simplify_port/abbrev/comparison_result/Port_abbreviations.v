@@ -12,8 +12,8 @@
 (*                                                                        *)
 (**************************************************************************)
 
-(* This file follows middle_end/flambda2/simplify/comparison_result.ml at
-   commit ecc5c0d968c892b4312065caef0f19ffffa042a9: the abbreviations of
+(* This file follows middle_end/flambda2/simplify/comparison_result.ml
+   (Git blob f430725de413111dad62d5b58d981510619181b7): the abbreviations of
    modules that that file makes itself (line 15), as Rocq's [Module A := P.],
    for Comparison_result.v (GUIDE.md, section 7, ABBREVIATIONS OF MODULES).
    The OCaml text at the head of Comparison_result.v has the compiler's own

@@ -15,8 +15,8 @@
 (**************************************************************************)
 
 (* This file follows
-   middle_end/flambda2/simplify/unboxing/unbox_continuation_params.ml at
-   commit ecc5c0d968c892b4312065caef0f19ffffa042a9: the abbreviations of
+   middle_end/flambda2/simplify/unboxing/unbox_continuation_params.ml
+   (Git blob 3a158ef13f5df79066eb2f94390338b52172d82f): the abbreviations of
    modules that that file makes itself (lines 18-19), as Rocq's [Module A :=
    P.], for unboxing/Unbox_continuation_params.v (GUIDE.md, section 7,
    ABBREVIATIONS OF MODULES). The OCaml text at the head of

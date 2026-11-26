@@ -15,8 +15,8 @@
 (**************************************************************************)
 
 (* This file follows
-   middle_end/flambda2/simplify/inlining/call_site_inlining_decision.ml at
-   commit ecc5c0d968c892b4312065caef0f19ffffa042a9, definition by definition
+   middle_end/flambda2/simplify/inlining/call_site_inlining_decision.ml
+   (Git blob 3035e3840781d8b06f8c64bcec35c09f897bc3e1), definition by definition
    under the compiler's names; the numbers in the comments are the lines of
    that file. What is not from that file: the form (the monad, the
    temporaries [tmpN] and their order) is that of GUIDE.md. The compiler's

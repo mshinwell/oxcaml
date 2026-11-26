@@ -14,13 +14,13 @@
 (*                                                                        *)
 (**************************************************************************)
 
-(* This file follows middle_end/flambda2/simplify/expr_builder.ml at commit
-   ecc5c0d968c892b4312065caef0f19ffffa042a9: the abbreviations of modules that
-   that file makes itself (lines 18-26), as Rocq's [Module A := P.], for
-   Expr_builder.v (GUIDE.md, section 7, ABBREVIATIONS OF MODULES). The OCaml
-   text at the head of Expr_builder.v has the compiler's own lines, [module A
-   = P]. What is not from that file: the [Require] lines; and the name of the
-   library: every such library is named Port_abbreviations, because Rocq
+(* This file follows middle_end/flambda2/simplify/expr_builder.ml
+   (Git blob a3609b8b785da3faf9aa88fdb5f28d697ec5f50a): the abbreviations of
+   modules that that file makes itself (lines 18-26), as Rocq's [Module A :=
+   P.], for Expr_builder.v (GUIDE.md, section 7, ABBREVIATIONS OF MODULES). The
+   OCaml text at the head of Expr_builder.v has the compiler's own lines,
+   [module A = P]. What is not from that file: the [Require] lines; and the name
+   of the library: every such library is named Port_abbreviations, because Rocq
    writes [open Port_abbreviations] in an extracted file that needs it, and
    runtime/port_abbreviations.ml is that (empty) module. *)
 

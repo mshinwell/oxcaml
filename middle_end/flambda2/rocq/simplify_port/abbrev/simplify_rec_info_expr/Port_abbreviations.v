@@ -14,8 +14,8 @@
 (*                                                                        *)
 (**************************************************************************)
 
-(* This file follows middle_end/flambda2/simplify/simplify_rec_info_expr.ml at
-   commit ecc5c0d968c892b4312065caef0f19ffffa042a9: the abbreviations of
+(* This file follows middle_end/flambda2/simplify/simplify_rec_info_expr.ml
+   (Git blob 2875bdce63c818614e6b31b179915f058ad8734f): the abbreviations of
    modules that that file makes itself (lines 17-21), as Rocq's [Module A :=
    P.], for Simplify_rec_info_expr.v (GUIDE.md, section 7, ABBREVIATIONS OF
    MODULES). The OCaml text at the head of Simplify_rec_info_expr.v has the

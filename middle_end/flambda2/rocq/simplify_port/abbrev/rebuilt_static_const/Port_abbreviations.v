@@ -14,8 +14,8 @@
 (*                                                                        *)
 (**************************************************************************)
 
-(* This file follows middle_end/flambda2/simplify/rebuilt_static_const.ml at
-   commit ecc5c0d968c892b4312065caef0f19ffffa042a9: the abbreviations of
+(* This file follows middle_end/flambda2/simplify/rebuilt_static_const.ml
+   (Git blob 28f873b238a2e3c156b7bebf6261468000cbb2f7): the abbreviations of
    modules that that file makes itself (lines 18-19), as Rocq's [Module A :=
    P.], for Rebuilt_static_const.v (GUIDE.md, section 7, ABBREVIATIONS OF
    MODULES). The OCaml text at the head of Rebuilt_static_const.v has the

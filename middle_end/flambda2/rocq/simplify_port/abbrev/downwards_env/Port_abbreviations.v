@@ -14,8 +14,8 @@
 (*                                                                        *)
 (**************************************************************************)
 
-(* This file follows middle_end/flambda2/simplify/env/downwards_env.ml at
-   commit ecc5c0d968c892b4312065caef0f19ffffa042a9: the abbreviations of
+(* This file follows middle_end/flambda2/simplify/env/downwards_env.ml
+   (Git blob fe73117d4c5332850e055ad644d58f98927424f7): the abbreviations of
    modules that that file makes itself (lines 18-24), as Rocq's [Module A :=
    P.], for env/Downwards_env.v (GUIDE.md, section 7, ABBREVIATIONS OF
    MODULES). The OCaml text at the head of env/Downwards_env.v has the

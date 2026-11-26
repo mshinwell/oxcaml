@@ -14,8 +14,8 @@
 (*                                                                        *)
 (**************************************************************************)
 
-(* This file follows middle_end/flambda2/simplify/env/downwards_env.ml at
-   commit ecc5c0d968c892b4312065caef0f19ffffa042a9, definition by definition
+(* This file follows middle_end/flambda2/simplify/env/downwards_env.ml
+   (Git blob fe73117d4c5332850e055ad644d58f98927424f7), definition by definition
    under the compiler's names; the numbers in the comments are the lines of
    that file. What is not from that file: the form (the monad, the
    temporaries [tmpN] and their order, the arguments by place, a setter
